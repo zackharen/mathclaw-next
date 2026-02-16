@@ -170,3 +170,19 @@ p {
     gap: 0.25rem;
   }
 }
+
+.formList label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  font-weight: 400;
+  background: #fff;
+}
