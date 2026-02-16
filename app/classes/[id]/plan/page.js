@@ -14,6 +14,22 @@ function prettyDate(value) {
   });
 }
 
+function formatLessonLabel(sourceLessonCode, title) {
+  const safeTitle = title || "Untitled Lesson";
+  if (!sourceLessonCode) return safeTitle;
+
+  const normalizedCode = String(sourceLessonCode).trim();
+  const normalizedTitle = String(safeTitle).trim();
+
+  if (
+    normalizedTitle.toLowerCase().startsWith(`${normalizedCode.toLowerCase()}:`)
+  ) {
+    return normalizedTitle;
+  }
+
+  return `${normalizedCode}: ${normalizedTitle}`;
+}
+
 export default async function ClassPlanPage({ params }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -99,10 +115,7 @@ export default async function ClassPlanPage({ params }) {
               return (
                 <article key={row.class_date} className="card" style={{ background: "#fff" }}>
                   <h3>{prettyDate(row.class_date)}</h3>
-                  <p>
-                    {lesson?.source_lesson_code ? `${lesson.source_lesson_code}: ` : ""}
-                    {lesson?.title || "Untitled Lesson"}
-                  </p>
+                  <p>{formatLessonLabel(lesson?.source_lesson_code, lesson?.title)}</p>
                   <p>{lesson?.objective || "No objective provided."}</p>
                   <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>Status: {row.status}</p>
                 </article>
