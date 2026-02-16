@@ -59,6 +59,11 @@ export default async function ClassesPage() {
                   {course.school_year_start} to {course.school_year_end}
                 </p>
                 <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>Course ID: {course.id}</p>
+                <div className="ctaRow">
+                  <Link className="btn" href={`/classes/${course.id}/calendar`}>
+                    Open Calendar
+                  </Link>
+                </div>
               </article>
             ))}
           </div>

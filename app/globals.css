@@ -186,3 +186,44 @@ p {
   font-weight: 400;
   background: #fff;
 }
+
+.calendarGridHeader,
+.calendarRow {
+  display: grid;
+  grid-template-columns: 1.6fr 0.5fr 1fr 1fr 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.calendarGridHeader {
+  margin-top: 0.9rem;
+  padding: 0.35rem 0.4rem;
+  border-bottom: 2px solid #7e958f;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.calendarGridBody {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.calendarRow {
+  padding: 0.45rem 0.4rem;
+  border: 1px dashed #8ba09a;
+  border-radius: 8px;
+  background: #fff;
+}
+
+@media (max-width: 980px) {
+  .calendarGridHeader {
+    display: none;
+  }
+
+  .calendarRow {
+    grid-template-columns: 1fr;
+  }
+}
