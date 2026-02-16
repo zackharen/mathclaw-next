@@ -28,6 +28,7 @@ export default function NewClassForm({
     libraryOptions[0]?.id || ""
   );
   const [scheduleModel, setScheduleModel] = useState("every_day");
+  const [abMeetingDay, setAbMeetingDay] = useState("A");
   const [abStartDate, setAbStartDate] = useState(defaultStart);
   const [schoolYearStart, setSchoolYearStart] = useState(defaultStart);
   const [schoolYearEnd, setSchoolYearEnd] = useState(defaultEnd);
@@ -54,6 +55,7 @@ export default function NewClassForm({
       title: title.trim() || selectedLibrary.className,
       class_name: selectedLibrary.className,
       schedule_model: scheduleModel,
+      ab_meeting_day: scheduleModel === "ab" ? abMeetingDay : null,
       ab_pattern_start_date: scheduleModel === "ab" ? abStartDate : null,
       school_year_start: schoolYearStart,
       school_year_end: schoolYearEnd,
@@ -62,11 +64,28 @@ export default function NewClassForm({
       pacing_mode: "one_lesson_per_day",
     };
 
-    const { data: newCourse, error: courseError } = await supabase
+    let { data: newCourse, error: courseError } = await supabase
       .from("courses")
       .insert(coursePayload)
       .select("id")
       .single();
+
+    // Backward compatibility: if DB migration wasn't applied yet, retry without ab_meeting_day.
+    if (
+      courseError &&
+      typeof courseError.message === "string" &&
+      courseError.message.includes("ab_meeting_day")
+    ) {
+      const fallbackPayload = { ...coursePayload };
+      delete fallbackPayload.ab_meeting_day;
+      const retry = await supabase
+        .from("courses")
+        .insert(fallbackPayload)
+        .select("id")
+        .single();
+      newCourse = retry.data;
+      courseError = retry.error;
+    }
 
     if (courseError) {
       setSaving(false);
@@ -131,16 +150,29 @@ export default function NewClassForm({
       </label>
 
       {scheduleModel === "ab" ? (
-        <label>
-          AB Pattern Start Date
-          <input
-            className="input"
-            type="date"
-            required
-            value={abStartDate}
-            onChange={(e) => setAbStartDate(e.target.value)}
-          />
-        </label>
+        <>
+          <label>
+            Meets On
+            <select
+              className="input"
+              value={abMeetingDay}
+              onChange={(e) => setAbMeetingDay(e.target.value)}
+            >
+              <option value="A">A Days</option>
+              <option value="B">B Days</option>
+            </select>
+          </label>
+          <label>
+            AB Pattern Start Date
+            <input
+              className="input"
+              type="date"
+              required
+              value={abStartDate}
+              onChange={(e) => setAbStartDate(e.target.value)}
+            />
+          </label>
+        </>
       ) : null}
 
       <label>

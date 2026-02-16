@@ -22,11 +22,21 @@ export default async function ClassesPage() {
     redirect("/onboarding/profile");
   }
 
-  const { data: courses, error } = await supabase
+  let { data: courses, error } = await supabase
     .from("courses")
-    .select("id, title, class_name, schedule_model, school_year_start, school_year_end")
+    .select("id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end")
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false });
+
+  if (error && typeof error.message === "string" && error.message.includes("ab_meeting_day")) {
+    const retry = await supabase
+      .from("courses")
+      .select("id, title, class_name, schedule_model, school_year_start, school_year_end")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false });
+    courses = (retry.data || []).map((course) => ({ ...course, ab_meeting_day: null }));
+    error = retry.error;
+  }
 
   return (
     <div className="stack">
@@ -53,7 +63,7 @@ export default async function ClassesPage() {
               <article key={course.id} className="card" style={{ background: "#fff" }}>
                 <h3>{course.title}</h3>
                 <p>
-                  {course.class_name} | {course.schedule_model === "ab" ? "AB" : "Every Day"}
+                  {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"}
                 </p>
                 <p>
                   {course.school_year_start} to {course.school_year_end}

@@ -26,6 +26,7 @@ function nextAB(current) {
 
 export async function generateCalendarAction(formData) {
   const courseId = formData.get("course_id");
+  const force = formData.get("force") === "1";
   if (!courseId || typeof courseId !== "string") return;
 
   const supabase = await createClient();
@@ -35,25 +36,51 @@ export async function generateCalendarAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
+  let { data: course, error: courseError } = await supabase
     .from("courses")
     .select(
-      "id, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+      "id, owner_id, schedule_model, ab_meeting_day, ab_pattern_start_date, school_year_start, school_year_end"
     )
     .eq("id", courseId)
     .eq("owner_id", user.id)
     .single();
 
-  if (!course) return;
+  if (
+    courseError &&
+    typeof courseError.message === "string" &&
+    courseError.message.includes("ab_meeting_day")
+  ) {
+    const retry = await supabase
+      .from("courses")
+      .select(
+        "id, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+      )
+      .eq("id", courseId)
+      .eq("owner_id", user.id)
+      .single();
+    course = retry.data ? { ...retry.data, ab_meeting_day: null } : null;
+    courseError = retry.error;
+  }
+
+  if (!course || courseError) return;
 
   const { count } = await supabase
     .from("course_calendar_days")
     .select("id", { count: "exact", head: true })
     .eq("course_id", course.id);
 
-  if (count && count > 0) {
+  if (count && count > 0 && !force) {
     revalidatePath(`/classes/${course.id}/calendar`);
     return;
+  }
+
+  if (count && count > 0 && force) {
+    const { error: clearError } = await supabase
+      .from("course_calendar_days")
+      .delete()
+      .eq("course_id", course.id);
+
+    if (clearError) throw new Error(clearError.message);
   }
 
   const start = parseDateAtUTC(course.school_year_start);
@@ -79,6 +106,9 @@ export async function generateCalendarAction(formData) {
     if (course.schedule_model === "ab") {
       if (!dayWeekend && (!abStart || cursor >= abStart)) {
         abDay = currentAB;
+        if (course.ab_meeting_day && abDay !== course.ab_meeting_day) {
+          dayType = "off";
+        }
         currentAB = nextAB(currentAB);
       }
     }

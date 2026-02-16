@@ -25,14 +25,29 @@ export default async function ClassCalendarPage({ params }) {
     redirect(`/auth/sign-in?redirect=/classes/${id}/calendar`);
   }
 
-  const { data: course } = await supabase
+  let { data: course, error: courseError } = await supabase
     .from("courses")
-    .select("id, title, class_name, schedule_model, school_year_start, school_year_end")
+    .select("id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end")
     .eq("id", id)
     .eq("owner_id", user.id)
     .single();
 
-  if (!course) {
+  if (
+    courseError &&
+    typeof courseError.message === "string" &&
+    courseError.message.includes("ab_meeting_day")
+  ) {
+    const retry = await supabase
+      .from("courses")
+      .select("id, title, class_name, schedule_model, school_year_start, school_year_end")
+      .eq("id", id)
+      .eq("owner_id", user.id)
+      .single();
+    course = retry.data ? { ...retry.data, ab_meeting_day: null } : null;
+    courseError = retry.error;
+  }
+
+  if (!course || courseError) {
     redirect("/classes");
   }
 
@@ -57,7 +72,7 @@ export default async function ClassCalendarPage({ params }) {
       <section className="card">
         <h1>{course.title}: Calendar</h1>
         <p>
-          {course.class_name} | {course.schedule_model === "ab" ? "AB" : "Every Day"} | {course.school_year_start} to {course.school_year_end}
+          {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"} | {course.school_year_start} to {course.school_year_end}
         </p>
         <div className="ctaRow">
           <Link className="btn" href="/classes">
@@ -71,6 +86,15 @@ export default async function ClassCalendarPage({ params }) {
               <input type="hidden" name="course_id" value={course.id} />
               <button className="btn primary" type="submit">
                 Generate Calendar
+              </button>
+            </form>
+          ) : null}
+          {totalDays > 0 ? (
+            <form action={generateCalendarAction}>
+              <input type="hidden" name="course_id" value={course.id} />
+              <input type="hidden" name="force" value="1" />
+              <button className="btn" type="submit">
+                Regenerate Calendar
               </button>
             </form>
           ) : null}

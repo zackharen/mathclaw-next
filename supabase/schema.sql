@@ -83,6 +83,7 @@ create table if not exists public.courses (
   class_name text not null,
   grade_band text,
   schedule_model text not null check (schedule_model in ('every_day', 'ab')),
+  ab_meeting_day text check (ab_meeting_day in ('A', 'B')),
   ab_pattern_start_date date,
   school_year_start date not null,
   school_year_end date not null,
