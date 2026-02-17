@@ -79,10 +79,7 @@ export default async function ClassCalendarPage({ params }) {
             Back to Classes
           </Link>
           <Link className="btn" href={`/classes/${course.id}/plan`}>
-            Open Pacing
-          </Link>
-          <Link className="btn" href={`/classes/${course.id}/announcements`}>
-            Open Announcements
+            Open Plan
           </Link>
           {totalDays === 0 ? (
             <form action={generateCalendarAction}>

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { generatePacingAction } from "./actions";
+import { generateAnnouncementsAction } from "../announcements/actions";
+import CopyButton from "../announcements/copy-button";
 
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -21,9 +23,7 @@ function formatLessonLabel(sourceLessonCode, title) {
   const normalizedCode = String(sourceLessonCode).trim();
   const normalizedTitle = String(safeTitle).trim();
 
-  if (
-    normalizedTitle.toLowerCase().startsWith(`${normalizedCode.toLowerCase()}:`)
-  ) {
+  if (normalizedTitle.toLowerCase().startsWith(`${normalizedCode.toLowerCase()}:`)) {
     return normalizedTitle;
   }
 
@@ -69,12 +69,20 @@ export default async function ClassPlanPage({ params }) {
     .eq("course_id", course.id)
     .order("class_date", { ascending: true });
 
+  const { data: announcements } = await supabase
+    .from("course_announcements")
+    .select("class_date, content")
+    .eq("course_id", course.id)
+    .order("class_date", { ascending: true });
+
+  const announcementByDate = new Map((announcements || []).map((a) => [a.class_date, a.content]));
   const plannedCount = planRows?.length || 0;
+  const announcementCount = announcements?.length || 0;
 
   return (
     <div className="stack">
       <section className="card">
-        <h1>{course.title}: Pacing Plan</h1>
+        <h1>{course.title}: Plan</h1>
         <p>{course.class_name}</p>
         <div className="ctaRow">
           <Link className="btn" href="/classes">
@@ -83,28 +91,32 @@ export default async function ClassPlanPage({ params }) {
           <Link className="btn" href={`/classes/${course.id}/calendar`}>
             Open Calendar
           </Link>
-          <Link className="btn" href={`/classes/${course.id}/announcements`}>
-            Open Announcements
-          </Link>
           <form action={generatePacingAction}>
             <input type="hidden" name="course_id" value={course.id} />
             <button className="btn primary" type="submit">
               Generate Pacing
             </button>
           </form>
+          <form action={generateAnnouncementsAction}>
+            <input type="hidden" name="course_id" value={course.id} />
+            <button className="btn" type="submit">
+              Generate Announcements
+            </button>
+          </form>
         </div>
       </section>
 
       <section className="card">
-          <div className="kv">
+        <div className="kv">
           <div><strong>Instructional Days</strong><span>{instructionalDaysCount || 0}</span></div>
           <div><strong>Library Lessons</strong><span>{totalLessonsCount || 0}</span></div>
           <div><strong>Planned Lessons</strong><span>{plannedCount}</span></div>
+          <div><strong>Generated Announcements</strong><span>{announcementCount}</span></div>
         </div>
       </section>
 
       <section className="card">
-        <h2>Lesson by Day</h2>
+        <h2>Pacing and Announcements</h2>
         {planError ? <p>Could not load pacing plan: {planError.message}</p> : null}
 
         {!planError && plannedCount === 0 ? (
@@ -115,12 +127,27 @@ export default async function ClassPlanPage({ params }) {
           <div className="list">
             {planRows.map((row) => {
               const lesson = row.curriculum_lessons;
+              const announcementText = announcementByDate.get(row.class_date) || "";
+
               return (
                 <article key={row.class_date} className="card" style={{ background: "#fff" }}>
                   <h3>{prettyDate(row.class_date)}</h3>
                   <p>{formatLessonLabel(lesson?.source_lesson_code, lesson?.title)}</p>
                   <p>{lesson?.objective || "No objective provided."}</p>
                   <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>Status: {row.status}</p>
+
+                  {announcementText ? (
+                    <>
+                      <pre className="announcementText">{announcementText}</pre>
+                      <div className="ctaRow">
+                        <CopyButton text={announcementText} />
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ marginTop: "0.6rem", opacity: 0.75 }}>
+                      No announcement generated for this day yet.
+                    </p>
+                  )}
                 </article>
               );
             })}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { deleteClassAction } from "./actions";
 
 export default async function ClassesPage() {
   const supabase = await createClient();
@@ -42,7 +43,7 @@ export default async function ClassesPage() {
     <div className="stack">
       <section className="card">
         <h1>Your Classes</h1>
-        <p>Manage class setup and open pacing/announcement workflows.</p>
+        <p>Manage class setup and open planning workflows.</p>
         <div className="ctaRow">
           <Link className="btn primary" href="/classes/new">
             Add Class
@@ -74,11 +75,14 @@ export default async function ClassesPage() {
                     Open Calendar
                   </Link>
                   <Link className="btn" href={`/classes/${course.id}/plan`}>
-                    Open Pacing
+                    Open Plan
                   </Link>
-                  <Link className="btn" href={`/classes/${course.id}/announcements`}>
-                    Open Announcements
-                  </Link>
+                  <form action={deleteClassAction}>
+                    <input type="hidden" name="course_id" value={course.id} />
+                    <button className="btn danger" type="submit">
+                      Delete Class
+                    </button>
+                  </form>
                 </div>
               </article>
             ))}

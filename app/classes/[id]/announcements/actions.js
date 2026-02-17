@@ -52,6 +52,7 @@ export async function generateAnnouncementsAction(formData) {
   if (planError) throw new Error(planError.message);
   if (!planRows || planRows.length === 0) {
     revalidatePath(`/classes/${course.id}/announcements`);
+    revalidatePath(`/classes/${course.id}/plan`);
     return;
   }
 
@@ -104,4 +105,5 @@ export async function generateAnnouncementsAction(formData) {
   if (upsertError) throw new Error(upsertError.message);
 
   revalidatePath(`/classes/${course.id}/announcements`);
+  revalidatePath(`/classes/${course.id}/plan`);
 }

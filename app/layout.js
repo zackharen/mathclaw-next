@@ -13,10 +13,12 @@ export default function RootLayout({ children }) {
         <main>
           <div className="shell">
             <header className="topbar">
-              <div className="brand">MathClaw</div>
+              {/* TODO: Replace text mark with a custom emblem. */}
+              <Link className="brand" href="/">
+                MathClaw
+              </Link>
               <nav className="nav">
-                <Link href="/">Home</Link>
-                <Link href="/onboarding/profile">Onboarding</Link>
+                <Link href="/onboarding/profile">Profile</Link>
                 <Link href="/classes">Classes</Link>
                 <Link href="/classes/new">New Class</Link>
                 <Link href="/dashboard">Dashboard</Link>
