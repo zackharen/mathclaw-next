@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 function toISODate(date) {
   const y = date.getUTCFullYear();
@@ -184,4 +185,5 @@ export async function updateCalendarDayAction(formData) {
   }
 
   revalidatePath(`/classes/${course.id}/calendar`);
+  redirect(`/classes/${course.id}/calendar`);
 }
