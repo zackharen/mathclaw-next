@@ -138,6 +138,7 @@ p {
   background: #fff;
   border-radius: 8px;
   padding: 0.5rem 0.85rem;
+  cursor: pointer;
 }
 
 .btn.primary {
@@ -216,6 +217,18 @@ p {
   border: 1px dashed #8ba09a;
   border-radius: 8px;
   background: #fff;
+}
+
+.announcementText {
+  margin-top: 0.75rem;
+  white-space: pre-wrap;
+  line-height: 1.45;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.93rem;
+  border: 1px dashed #8ba09a;
+  border-radius: 8px;
+  padding: 0.7rem;
+  background: #fdfcf8;
 }
 
 @media (max-width: 980px) {

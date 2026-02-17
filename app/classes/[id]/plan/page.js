@@ -83,6 +83,9 @@ export default async function ClassPlanPage({ params }) {
           <Link className="btn" href={`/classes/${course.id}/calendar`}>
             Open Calendar
           </Link>
+          <Link className="btn" href={`/classes/${course.id}/announcements`}>
+            Open Announcements
+          </Link>
           <form action={generatePacingAction}>
             <input type="hidden" name="course_id" value={course.id} />
             <button className="btn primary" type="submit">

@@ -76,6 +76,9 @@ export default async function ClassesPage() {
                   <Link className="btn" href={`/classes/${course.id}/plan`}>
                     Open Pacing
                   </Link>
+                  <Link className="btn" href={`/classes/${course.id}/announcements`}>
+                    Open Announcements
+                  </Link>
                 </div>
               </article>
             ))}
