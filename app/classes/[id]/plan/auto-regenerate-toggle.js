@@ -20,7 +20,7 @@ export default function AutoRegenerateToggle() {
     const handler = (event) => {
       const target = event.target;
       if (!(target instanceof HTMLFormElement)) return;
-      if (target.dataset.calendarUpdateForm !== "1") return;
+      if (target.dataset.autoRegenerateTarget !== "1") return;
 
       let hidden = target.querySelector('input[name="auto_regenerate"]');
       if (!hidden) {

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export async function generatePacingAction(formData) {
   const courseId = formData.get("course_id");
@@ -79,4 +80,5 @@ export async function generatePacingAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath("/classes");
+  redirect(`/classes/${course.id}/plan`);
 }

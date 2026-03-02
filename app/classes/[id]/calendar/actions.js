@@ -90,6 +90,37 @@ async function rebuildPlanFromCalendar({ supabase, courseId, userId }) {
   }
 }
 
+function parseBulkUpdates(formData) {
+  const updates = new Map();
+
+  for (const [key, value] of formData.entries()) {
+    if (typeof key !== "string") continue;
+
+    if (key.startsWith("day_type__")) {
+      const classDate = key.replace("day_type__", "");
+      const row = updates.get(classDate) || {};
+      row.day_type = String(value || "");
+      updates.set(classDate, row);
+    }
+
+    if (key.startsWith("reason_id__")) {
+      const classDate = key.replace("reason_id__", "");
+      const row = updates.get(classDate) || {};
+      row.reason_id = String(value || "");
+      updates.set(classDate, row);
+    }
+
+    if (key.startsWith("note__")) {
+      const classDate = key.replace("note__", "");
+      const row = updates.get(classDate) || {};
+      row.note = String(value || "");
+      updates.set(classDate, row);
+    }
+  }
+
+  return updates;
+}
+
 export async function generateCalendarAction(formData) {
   const courseId = formData.get("course_id");
   const force = formData.get("force") === "1";
@@ -137,7 +168,8 @@ export async function generateCalendarAction(formData) {
 
   if (count && count > 0 && !force) {
     revalidatePath(`/classes/${course.id}/calendar`);
-    return;
+    revalidatePath(`/classes/${course.id}/plan`);
+    redirect(`/classes/${course.id}/plan`);
   }
 
   if (count && count > 0 && force) {
@@ -199,6 +231,57 @@ export async function generateCalendarAction(formData) {
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
+  redirect(`/classes/${course.id}/plan`);
+}
+
+export async function applyCalendarBulkAction(formData) {
+  const courseId = formData.get("course_id");
+  if (!courseId || typeof courseId !== "string") return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("id", courseId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!course) return;
+
+  const updates = parseBulkUpdates(formData);
+  const allowed = new Set(["instructional", "off", "half", "modified"]);
+
+  for (const [classDate, row] of updates.entries()) {
+    if (!allowed.has(row.day_type)) continue;
+
+    const payload = {
+      day_type: row.day_type,
+      reason_id: row.reason_id ? row.reason_id : null,
+      note: row.note && row.note.trim() ? row.note.trim() : null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("course_calendar_days")
+      .update(payload)
+      .eq("course_id", course.id)
+      .eq("class_date", classDate);
+
+    if (error) throw new Error(error.message);
+  }
+
+  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath("/classes");
+  redirect(`/classes/${course.id}/plan#modify-calendar`);
 }
 
 export async function updateCalendarDayAction(formData) {
@@ -260,5 +343,5 @@ export async function updateCalendarDayAction(formData) {
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/calendar`);
+  redirect(`/classes/${course.id}/plan`);
 }

@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { generatePacingAction } from "./actions";
 import { generateAnnouncementsAction } from "../announcements/actions";
-import { generateCalendarAction, updateCalendarDayAction } from "../calendar/actions";
+import {
+  applyCalendarBulkAction,
+  generateCalendarAction,
+  updateCalendarDayAction,
+} from "../calendar/actions";
 import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
 
@@ -142,45 +146,39 @@ export default async function ClassPlanPage({ params }) {
             </form>
           </div>
         ) : (
-          <>
+          <form action={applyCalendarBulkAction}>
+            <input type="hidden" name="course_id" value={course.id} />
             <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-              <form action={generatePacingAction}>
-                <input type="hidden" name="course_id" value={course.id} />
-                <button className="btn" type="submit">
-                  Apply Calendar Changes
-                </button>
-              </form>
+              <button className="btn" type="submit">
+                Apply Calendar Changes
+              </button>
               <AutoRegenerateToggle />
             </div>
+
             <details style={{ marginTop: "0.75rem" }}>
-              <summary className="btn" style={{ display: "inline-block" }}>Show Full Calendar Editor</summary>
-              <div className="calendarGridHeader" style={{ marginTop: "0.75rem" }}>
+              <summary className="btn editorSummary" style={{ display: "inline-block" }}>
+                <span className="showLabel">Show Full Calendar Editor</span>
+                <span className="hideLabel">Hide Full Calendar Editor</span>
+              </summary>
+              <div className="calendarGridHeaderNoAction" style={{ marginTop: "0.75rem" }}>
                 <span>Date</span>
                 <span>AB</span>
                 <span>Day Type</span>
                 <span>Reason</span>
                 <span>Note</span>
-                <span>Action</span>
               </div>
               <div className="calendarGridBody">
                 {(calendarDays || []).map((day) => (
-                  <form
-                    className="calendarRow"
-                    key={day.class_date}
-                    action={updateCalendarDayAction}
-                    data-calendar-update-form="1"
-                  >
-                    <input type="hidden" name="course_id" value={course.id} />
-                    <input type="hidden" name="class_date" value={day.class_date} />
+                  <div className="calendarRowNoAction" key={day.class_date}>
                     <span>{prettyDate(day.class_date)}</span>
                     <span>{day.ab_day || "-"}</span>
-                    <select className="input" name="day_type" defaultValue={day.day_type}>
+                    <select className="input" name={`day_type__${day.class_date}`} defaultValue={day.day_type}>
                       <option value="instructional">Instructional</option>
                       <option value="off">Off</option>
                       <option value="half">Half Day</option>
                       <option value="modified">Modified</option>
                     </select>
-                    <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
+                    <select className="input" name={`reason_id__${day.class_date}`} defaultValue={day.reason_id || ""}>
                       <option value="">None</option>
                       {(reasons || []).map((reason) => (
                         <option key={reason.id} value={reason.id}>
@@ -188,13 +186,12 @@ export default async function ClassPlanPage({ params }) {
                         </option>
                       ))}
                     </select>
-                    <input className="input" name="note" defaultValue={day.note || ""} placeholder="Optional" />
-                    <button className="btn" type="submit">Save</button>
-                  </form>
+                    <input className="input" name={`note__${day.class_date}`} defaultValue={day.note || ""} placeholder="Optional" />
+                  </div>
                 ))}
               </div>
             </details>
-          </>
+          </form>
         )}
       </section>
 
@@ -240,7 +237,7 @@ export default async function ClassPlanPage({ params }) {
                         className="calendarRow"
                         action={updateCalendarDayAction}
                         style={{ marginTop: "0.6rem" }}
-                        data-calendar-update-form="1"
+                        data-auto-regenerate-target="1"
                       >
                         <input type="hidden" name="course_id" value={course.id} />
                         <input type="hidden" name="class_date" value={row.class_date} />

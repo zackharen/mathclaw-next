@@ -211,6 +211,44 @@ p {
   background: var(--white);
 }
 
+
+
+.calendarGridHeaderNoAction,
+.calendarRowNoAction {
+  display: grid;
+  grid-template-columns: 1.6fr 0.45fr 1fr 1fr 1fr;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.calendarGridHeaderNoAction {
+  padding: 0.35rem 0.4rem;
+  border-bottom: 2px solid #6b7c8a;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.calendarRowNoAction {
+  padding: 0.45rem 0.4rem;
+  border: 1px dashed #6b7c8a;
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.editorSummary .hideLabel {
+  display: none;
+}
+
+details[open] > summary.editorSummary .showLabel {
+  display: none;
+}
+
+details[open] > summary.editorSummary .hideLabel {
+  display: inline;
+}
+
 .announcementText {
   margin-top: 0.75rem;
   white-space: pre-wrap;
@@ -229,6 +267,14 @@ p {
   }
 
   .calendarRow {
+    grid-template-columns: 1fr;
+  }
+
+  .calendarGridHeaderNoAction {
+    display: none;
+  }
+
+  .calendarRowNoAction {
     grid-template-columns: 1fr;
   }
 }
