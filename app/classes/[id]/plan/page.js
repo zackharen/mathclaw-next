@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { generatePacingAction } from "./actions";
 import { generateAnnouncementsAction } from "../announcements/actions";
+import { generateCalendarAction, updateCalendarDayAction } from "../calendar/actions";
 import CopyButton from "../announcements/copy-button";
 
 function prettyDate(value) {
@@ -43,7 +44,9 @@ export default async function ClassPlanPage({ params }) {
 
   const { data: course } = await supabase
     .from("courses")
-    .select("id, title, class_name, selected_library_id")
+    .select(
+      "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end"
+    )
     .eq("id", id)
     .eq("owner_id", user.id)
     .single();
@@ -57,11 +60,17 @@ export default async function ClassPlanPage({ params }) {
     .select("id", { count: "exact", head: true })
     .eq("library_id", course.selected_library_id);
 
-  const { count: instructionalDaysCount } = await supabase
+  const { data: calendarDays } = await supabase
     .from("course_calendar_days")
-    .select("class_date", { count: "exact", head: true })
+    .select("class_date, day_type, ab_day, reason_id, note")
     .eq("course_id", course.id)
-    .eq("day_type", "instructional");
+    .order("class_date", { ascending: true });
+
+  const { data: reasons } = await supabase
+    .from("day_off_reasons")
+    .select("id, label")
+    .or(`owner_id.is.null,owner_id.eq.${user.id}`)
+    .order("label", { ascending: true });
 
   const { data: planRows, error: planError } = await supabase
     .from("course_lesson_plan")
@@ -76,6 +85,9 @@ export default async function ClassPlanPage({ params }) {
     .order("class_date", { ascending: true });
 
   const announcementByDate = new Map((announcements || []).map((a) => [a.class_date, a.content]));
+  const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
+
+  const instructionalDaysCount = (calendarDays || []).filter((d) => d.day_type === "instructional").length;
   const plannedCount = planRows?.length || 0;
   const announcementCount = announcements?.length || 0;
 
@@ -83,14 +95,16 @@ export default async function ClassPlanPage({ params }) {
     <div className="stack">
       <section className="card">
         <h1>{course.title}: Plan</h1>
-        <p>{course.class_name}</p>
+        <p>
+          {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"} | {course.school_year_start} to {course.school_year_end}
+        </p>
         <div className="ctaRow">
           <Link className="btn" href="/classes">
             Back to Classes
           </Link>
-          <Link className="btn" href={`/classes/${course.id}/calendar`}>
-            Open Calendar
-          </Link>
+          <a className="btn" href="#modify-calendar">
+            Modify Calendar
+          </a>
           <form action={generatePacingAction}>
             <input type="hidden" name="course_id" value={course.id} />
             <button className="btn primary" type="submit">
@@ -115,8 +129,71 @@ export default async function ClassPlanPage({ params }) {
         </div>
       </section>
 
+      <section className="card" id="modify-calendar">
+        <h2>Modify Calendar</h2>
+        {(calendarDays || []).length === 0 ? (
+          <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+            <form action={generateCalendarAction}>
+              <input type="hidden" name="course_id" value={course.id} />
+              <button className="btn primary" type="submit">
+                Generate Calendar
+              </button>
+            </form>
+          </div>
+        ) : (
+          <>
+            <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+              <form action={generateCalendarAction}>
+                <input type="hidden" name="course_id" value={course.id} />
+                <input type="hidden" name="force" value="1" />
+                <button className="btn" type="submit">
+                  Regenerate Calendar
+                </button>
+              </form>
+            </div>
+            <details style={{ marginTop: "0.75rem" }}>
+              <summary className="btn" style={{ display: "inline-block" }}>Show Full Calendar Editor</summary>
+              <div className="calendarGridHeader" style={{ marginTop: "0.75rem" }}>
+                <span>Date</span>
+                <span>AB</span>
+                <span>Day Type</span>
+                <span>Reason</span>
+                <span>Note</span>
+                <span>Action</span>
+              </div>
+              <div className="calendarGridBody">
+                {(calendarDays || []).map((day) => (
+                  <form className="calendarRow" key={day.class_date} action={updateCalendarDayAction}>
+                    <input type="hidden" name="course_id" value={course.id} />
+                    <input type="hidden" name="class_date" value={day.class_date} />
+                    <span>{prettyDate(day.class_date)}</span>
+                    <span>{day.ab_day || "-"}</span>
+                    <select className="input" name="day_type" defaultValue={day.day_type}>
+                      <option value="instructional">Instructional</option>
+                      <option value="off">Off</option>
+                      <option value="half">Half Day</option>
+                      <option value="modified">Modified</option>
+                    </select>
+                    <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
+                      <option value="">None</option>
+                      {(reasons || []).map((reason) => (
+                        <option key={reason.id} value={reason.id}>
+                          {reason.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input className="input" name="note" defaultValue={day.note || ""} placeholder="Optional" />
+                    <button className="btn" type="submit">Save</button>
+                  </form>
+                ))}
+              </div>
+            </details>
+          </>
+        )}
+      </section>
+
       <section className="card">
-        <h2>Pacing and Announcements</h2>
+        <h2>Lesson by Day</h2>
         {planError ? <p>Could not load pacing plan: {planError.message}</p> : null}
 
         {!planError && plannedCount === 0 ? (
@@ -128,6 +205,7 @@ export default async function ClassPlanPage({ params }) {
             {planRows.map((row) => {
               const lesson = row.curriculum_lessons;
               const announcementText = announcementByDate.get(row.class_date) || "";
+              const day = calendarByDate.get(row.class_date);
 
               return (
                 <article key={row.class_date} className="card" style={{ background: "#fff" }}>
@@ -148,6 +226,34 @@ export default async function ClassPlanPage({ params }) {
                       No announcement generated for this day yet.
                     </p>
                   )}
+
+                  {day ? (
+                    <details style={{ marginTop: "0.8rem" }}>
+                      <summary className="btn" style={{ display: "inline-block" }}>Modify This Day</summary>
+                      <form className="calendarRow" action={updateCalendarDayAction} style={{ marginTop: "0.6rem" }}>
+                        <input type="hidden" name="course_id" value={course.id} />
+                        <input type="hidden" name="class_date" value={row.class_date} />
+                        <span>{prettyDate(row.class_date)}</span>
+                        <span>{day.ab_day || "-"}</span>
+                        <select className="input" name="day_type" defaultValue={day.day_type}>
+                          <option value="instructional">Instructional</option>
+                          <option value="off">Off</option>
+                          <option value="half">Half Day</option>
+                          <option value="modified">Modified</option>
+                        </select>
+                        <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
+                          <option value="">None</option>
+                          {(reasons || []).map((reason) => (
+                            <option key={reason.id} value={reason.id}>
+                              {reason.label}
+                            </option>
+                          ))}
+                        </select>
+                        <input className="input" name="note" defaultValue={day.note || ""} placeholder="Optional" />
+                        <button className="btn" type="submit">Save</button>
+                      </form>
+                    </details>
+                  ) : null}
                 </article>
               );
             })}
