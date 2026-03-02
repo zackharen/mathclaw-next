@@ -5,6 +5,7 @@ import { generatePacingAction } from "./actions";
 import { generateAnnouncementsAction } from "../announcements/actions";
 import { generateCalendarAction, updateCalendarDayAction } from "../calendar/actions";
 import CopyButton from "../announcements/copy-button";
+import AutoRegenerateToggle from "./auto-regenerate-toggle";
 
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -143,13 +144,13 @@ export default async function ClassPlanPage({ params }) {
         ) : (
           <>
             <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-              <form action={generateCalendarAction}>
+              <form action={generatePacingAction}>
                 <input type="hidden" name="course_id" value={course.id} />
-                <input type="hidden" name="force" value="1" />
                 <button className="btn" type="submit">
-                  Regenerate Calendar
+                  Apply Calendar Changes
                 </button>
               </form>
+              <AutoRegenerateToggle />
             </div>
             <details style={{ marginTop: "0.75rem" }}>
               <summary className="btn" style={{ display: "inline-block" }}>Show Full Calendar Editor</summary>
@@ -163,7 +164,12 @@ export default async function ClassPlanPage({ params }) {
               </div>
               <div className="calendarGridBody">
                 {(calendarDays || []).map((day) => (
-                  <form className="calendarRow" key={day.class_date} action={updateCalendarDayAction}>
+                  <form
+                    className="calendarRow"
+                    key={day.class_date}
+                    action={updateCalendarDayAction}
+                    data-calendar-update-form="1"
+                  >
                     <input type="hidden" name="course_id" value={course.id} />
                     <input type="hidden" name="class_date" value={day.class_date} />
                     <span>{prettyDate(day.class_date)}</span>
@@ -197,7 +203,7 @@ export default async function ClassPlanPage({ params }) {
         {planError ? <p>Could not load pacing plan: {planError.message}</p> : null}
 
         {!planError && plannedCount === 0 ? (
-          <p>No pacing rows yet. Click Generate Pacing.</p>
+          <p>No pacing rows yet. Generate pacing after calendar setup.</p>
         ) : null}
 
         {!planError && plannedCount > 0 ? (
@@ -230,7 +236,12 @@ export default async function ClassPlanPage({ params }) {
                   {day ? (
                     <details style={{ marginTop: "0.8rem" }}>
                       <summary className="btn" style={{ display: "inline-block" }}>Modify This Day</summary>
-                      <form className="calendarRow" action={updateCalendarDayAction} style={{ marginTop: "0.6rem" }}>
+                      <form
+                        className="calendarRow"
+                        action={updateCalendarDayAction}
+                        style={{ marginTop: "0.6rem" }}
+                        data-calendar-update-form="1"
+                      >
                         <input type="hidden" name="course_id" value={course.id} />
                         <input type="hidden" name="class_date" value={row.class_date} />
                         <span>{prettyDate(row.class_date)}</span>
