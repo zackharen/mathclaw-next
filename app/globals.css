@@ -357,3 +357,11 @@ details[open] > summary.editorSummary .hideLabel {
   width: 1rem;
   height: 1rem;
 }
+
+
+.statusNote {
+  color: var(--navy);
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}

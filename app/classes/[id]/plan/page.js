@@ -37,8 +37,10 @@ function formatLessonLabel(sourceLessonCode, title) {
   return `${normalizedCode}: ${normalizedTitle}`;
 }
 
-export default async function ClassPlanPage({ params }) {
+export default async function ClassPlanPage({ params, searchParams }) {
   const { id } = await params;
+  const qs = (await searchParams) || {};
+  const calendarUpdated = qs.calendar_updated === "1";
   const supabase = await createClient();
   const {
     data: { user },
@@ -181,6 +183,7 @@ export default async function ClassPlanPage({ params }) {
                   Apply Calendar Changes
                 </button>
                 <AutoRegenerateToggle />
+                {calendarUpdated ? <span className="statusNote">Calendar Updated!</span> : null}
               </div>
 
               <details style={{ marginTop: "0.75rem" }}>

@@ -169,7 +169,7 @@ export async function generateCalendarAction(formData) {
   if (count && count > 0 && !force) {
     revalidatePath(`/classes/${course.id}/calendar`);
     revalidatePath(`/classes/${course.id}/plan`);
-    redirect(`/classes/${course.id}/plan`);
+    redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}#modify-calendar`);
   }
 
   if (count && count > 0 && force) {
@@ -231,7 +231,7 @@ export async function generateCalendarAction(formData) {
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan`);
+  redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}`);
 }
 
 export async function applyCalendarBulkAction(formData) {
@@ -281,7 +281,7 @@ export async function applyCalendarBulkAction(formData) {
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan#modify-calendar`);
+  redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}#modify-calendar`);
 }
 
 export async function updateCalendarDayAction(formData) {
@@ -343,5 +343,5 @@ export async function updateCalendarDayAction(formData) {
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan`);
+  redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}`);
 }

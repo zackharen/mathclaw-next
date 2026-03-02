@@ -84,7 +84,7 @@ export async function generatePacingAction(formData) {
   revalidatePath(`/classes/${courseId}/plan`);
   revalidatePath(`/classes/${courseId}/calendar`);
   revalidatePath("/classes");
-  redirect(`/classes/${courseId}/plan`);
+  redirect(`/classes/${courseId}/plan?calendar_updated=1&t=${Date.now()}`);
 }
 
 export async function updateABMeetingDaysAction(formData) {
@@ -127,5 +127,5 @@ export async function updateABMeetingDaysAction(formData) {
 
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan#modify-calendar`);
+  redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}#modify-calendar`);
 }
