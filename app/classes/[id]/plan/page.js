@@ -11,6 +11,7 @@ import {
 import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
+import ApplyCalendarSubmit from "./apply-calendar-submit";
 
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -179,11 +180,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
             <form action={applyCalendarBulkAction}>
               <input type="hidden" name="course_id" value={course.id} />
               <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-                <button className="btn" type="submit">
-                  Apply Calendar Changes
-                </button>
+                <ApplyCalendarSubmit calendarUpdated={calendarUpdated} />
                 <AutoRegenerateToggle />
-                {calendarUpdated ? <span className="statusNote">Calendar Updated!</span> : null}
               </div>
 
               <details style={{ marginTop: "0.75rem" }}>
