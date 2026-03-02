@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { generatePacingAction } from "./actions";
+import { generatePacingAction, updateABMeetingDaysAction } from "./actions";
 import { generateAnnouncementsAction } from "../announcements/actions";
 import {
   applyCalendarBulkAction,
@@ -10,6 +10,7 @@ import {
 } from "../calendar/actions";
 import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
+import ABScheduleForm from "./ab-schedule-form";
 
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -92,7 +93,18 @@ export default async function ClassPlanPage({ params }) {
   const announcementByDate = new Map((announcements || []).map((a) => [a.class_date, a.content]));
   const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
 
-  const instructionalDaysCount = (calendarDays || []).filter((d) => d.day_type === "instructional").length;
+  const meetsA = course.ab_meeting_day !== "B";
+  const meetsB = course.ab_meeting_day !== "A";
+
+  const visibleCalendarDays = (calendarDays || []).filter((day) => {
+    if (course.schedule_model !== "ab") return true;
+    if (day.ab_day !== "A" && day.ab_day !== "B") return false;
+    if (course.ab_meeting_day === "A") return day.ab_day === "A";
+    if (course.ab_meeting_day === "B") return day.ab_day === "B";
+    return true;
+  });
+
+  const instructionalDaysCount = visibleCalendarDays.filter((d) => d.day_type === "instructional").length;
   const plannedCount = planRows?.length || 0;
   const announcementCount = announcements?.length || 0;
 
@@ -101,7 +113,7 @@ export default async function ClassPlanPage({ params }) {
       <section className="card">
         <h1>{course.title}: Plan</h1>
         <p>
-          {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"} | {course.school_year_start} to {course.school_year_end}
+          {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "Both"})` : "Every Day"} | {course.school_year_start} to {course.school_year_end}
         </p>
         <div className="ctaRow">
           <Link className="btn" href="/classes">
@@ -127,7 +139,8 @@ export default async function ClassPlanPage({ params }) {
 
       <section className="card">
         <div className="kv">
-          <div><strong>Instructional Days</strong><span>{instructionalDaysCount || 0}</span></div>
+          <div><strong>Class Days</strong><span>{visibleCalendarDays.length || 0}</span></div>
+          <div><strong>Full Days</strong><span>{instructionalDaysCount || 0}</span></div>
           <div><strong>Library Lessons</strong><span>{totalLessonsCount || 0}</span></div>
           <div><strong>Planned Lessons</strong><span>{plannedCount}</span></div>
           <div><strong>Generated Announcements</strong><span>{announcementCount}</span></div>
@@ -146,52 +159,68 @@ export default async function ClassPlanPage({ params }) {
             </form>
           </div>
         ) : (
-          <form action={applyCalendarBulkAction}>
-            <input type="hidden" name="course_id" value={course.id} />
-            <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-              <button className="btn" type="submit">
-                Apply Calendar Changes
-              </button>
-              <AutoRegenerateToggle />
-            </div>
+          <>
+            {course.schedule_model === "ab" ? (
+              <details style={{ marginTop: "0.75rem" }}>
+                <summary className="btn" style={{ display: "inline-block" }}>AB Schedule?</summary>
+                <div style={{ marginTop: "0.75rem" }}>
+                  <ABScheduleForm
+                    courseId={course.id}
+                    initialA={meetsA}
+                    initialB={meetsB}
+                    action={updateABMeetingDaysAction}
+                  />
+                </div>
+              </details>
+            ) : null}
 
-            <details style={{ marginTop: "0.75rem" }}>
-              <summary className="btn editorSummary" style={{ display: "inline-block" }}>
-                <span className="showLabel">Show Full Calendar Editor</span>
-                <span className="hideLabel">Hide Full Calendar Editor</span>
-              </summary>
-              <div className="calendarGridHeaderNoAction" style={{ marginTop: "0.75rem" }}>
-                <span>Date</span>
-                <span>AB</span>
-                <span>Day Type</span>
-                <span>Reason</span>
-                <span>Note</span>
+            <form action={applyCalendarBulkAction}>
+              <input type="hidden" name="course_id" value={course.id} />
+              <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+                <button className="btn" type="submit">
+                  Apply Calendar Changes
+                </button>
+                <AutoRegenerateToggle />
               </div>
-              <div className="calendarGridBody">
-                {(calendarDays || []).map((day) => (
-                  <div className="calendarRowNoAction" key={day.class_date}>
-                    <span>{prettyDate(day.class_date)}</span>
-                    <span>{day.ab_day || "-"}</span>
-                    <select className="input" name={`day_type__${day.class_date}`} defaultValue={day.day_type}>
-                      <option value="instructional">Instructional</option>
-                      <option value="off">Off</option>
-                      <option value="half">Half Day</option>
-                      <option value="modified">Modified</option>
-                    </select>
-                    <select className="input" name={`reason_id__${day.class_date}`} defaultValue={day.reason_id || ""}>
-                      <option value="">None</option>
-                      {(reasons || []).map((reason) => (
-                        <option key={reason.id} value={reason.id}>
-                          {reason.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input className="input" name={`note__${day.class_date}`} defaultValue={day.note || ""} placeholder="Optional" />
-                  </div>
-                ))}
-              </div>
-            </details>
-          </form>
+
+              <details style={{ marginTop: "0.75rem" }}>
+                <summary className="btn editorSummary" style={{ display: "inline-block" }}>
+                  <span className="showLabel">Show Full Calendar Editor</span>
+                  <span className="hideLabel">Hide Full Calendar Editor</span>
+                </summary>
+                <div className="calendarGridHeaderNoAction" style={{ marginTop: "0.75rem" }}>
+                  <span>Date</span>
+                  <span>AB</span>
+                  <span>Day Type</span>
+                  <span>Reason</span>
+                  <span>Note</span>
+                </div>
+                <div className="calendarGridBody">
+                  {visibleCalendarDays.map((day) => (
+                    <div className="calendarRowNoAction" key={day.class_date}>
+                      <span>{prettyDate(day.class_date)}</span>
+                      <span>{day.ab_day || "-"}</span>
+                      <select className="input" name={`day_type__${day.class_date}`} defaultValue={day.day_type}>
+                        <option value="instructional">Full</option>
+                        <option value="off">Off</option>
+                        <option value="half">Half Day</option>
+                        <option value="modified">Modified</option>
+                      </select>
+                      <select className="input" name={`reason_id__${day.class_date}`} defaultValue={day.reason_id || ""}>
+                        <option value="">None</option>
+                        {(reasons || []).map((reason) => (
+                          <option key={reason.id} value={reason.id}>
+                            {reason.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input className="input" name={`note__${day.class_date}`} defaultValue={day.note || ""} placeholder="Optional" />
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </form>
+          </>
         )}
       </section>
 
@@ -244,7 +273,7 @@ export default async function ClassPlanPage({ params }) {
                         <span>{prettyDate(row.class_date)}</span>
                         <span>{day.ab_day || "-"}</span>
                         <select className="input" name="day_type" defaultValue={day.day_type}>
-                          <option value="instructional">Instructional</option>
+                          <option value="instructional">Full</option>
                           <option value="off">Off</option>
                           <option value="half">Half Day</option>
                           <option value="modified">Modified</option>
