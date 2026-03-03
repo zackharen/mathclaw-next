@@ -107,6 +107,7 @@ export default async function DashboardPage() {
   }
 
   const courseIds = courses.map((c) => c.id);
+  const classNames = [...new Set(courses.map((c) => c.class_name).filter(Boolean))];
   const { data: planRows } = await supabase
     .from("course_lesson_plan")
     .select(
@@ -141,6 +142,56 @@ export default async function DashboardPage() {
 
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  const { data: connectionRows } = await supabase
+    .from("teacher_connections")
+    .select("requester_id, addressee_id, status")
+    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+    .eq("status", "accepted");
+
+  const connectedUserIds = [
+    ...new Set(
+      (connectionRows || []).map((row) =>
+        row.requester_id === user.id ? row.addressee_id : row.requester_id
+      )
+    ),
+  ];
+
+  const { data: colleagueCourses } =
+    connectedUserIds.length && classNames.length
+      ? await supabase
+          .from("courses")
+          .select("id, owner_id, class_name")
+          .in("owner_id", connectedUserIds)
+          .in("class_name", classNames)
+      : { data: [] };
+
+  const colleagueCourseIds = (colleagueCourses || []).map((c) => c.id);
+  const { data: colleagueCompletedRows } = colleagueCourseIds.length
+    ? await supabase
+        .from("course_lesson_plan")
+        .select("course_id")
+        .in("course_id", colleagueCourseIds)
+        .eq("status", "completed")
+    : { data: [] };
+
+  const completedByColleagueCourse = new Map();
+  for (const row of colleagueCompletedRows || []) {
+    const next = (completedByColleagueCourse.get(row.course_id) || 0) + 1;
+    completedByColleagueCourse.set(row.course_id, next);
+  }
+
+  const colleagueStatsByClass = new Map();
+  for (const course of colleagueCourses || []) {
+    const completed = completedByColleagueCourse.get(course.id) || 0;
+    const stats = colleagueStatsByClass.get(course.class_name) || {
+      totalCompleted: 0,
+      samples: 0,
+    };
+    stats.totalCompleted += completed;
+    stats.samples += 1;
+    colleagueStatsByClass.set(course.class_name, stats);
+  }
+
   const cards = courses.map((course) => {
     const rows = rowsByCourse.get(course.id) || [];
     const totalLessons = lessonCountByCourse.get(course.id) || rows.length || 0;
@@ -153,6 +204,12 @@ export default async function DashboardPage() {
 
     const currentRow = completedRows[completedRows.length - 1] || null;
     const projectedRow = rows[rows.length - 1] || null;
+    const colleagueStats = colleagueStatsByClass.get(course.class_name) || null;
+    const colleagueAvg = colleagueStats
+      ? Math.round((colleagueStats.totalCompleted / colleagueStats.samples) * 10) / 10
+      : null;
+    const colleagueDelta =
+      colleagueAvg == null ? null : Math.round((completed - colleagueAvg) * 10) / 10;
 
     const progressPct = totalLessons > 0 ? Math.round((completed / totalLessons) * 100) : 0;
 
@@ -170,6 +227,9 @@ export default async function DashboardPage() {
           )
         : "Not started",
       projectedEnd: projectedRow?.class_date || course.school_year_end,
+      colleagueAvg,
+      colleagueCount: colleagueStats?.samples || 0,
+      colleagueDelta,
     };
   });
 
@@ -213,6 +273,22 @@ export default async function DashboardPage() {
                 <div>
                   <strong>Pacing Delta</strong>
                   <span>{paceDeltaLabel(card.delta)}</span>
+                </div>
+                <div>
+                  <strong>Colleague Comparison</strong>
+                  <span>
+                    {card.colleagueAvg == null
+                      ? "No connected colleague data"
+                      : `Avg completed: ${card.colleagueAvg} (${card.colleagueCount} class${
+                          card.colleagueCount === 1 ? "" : "es"
+                        }) | You ${
+                          card.colleagueDelta === 0
+                            ? "match"
+                            : card.colleagueDelta > 0
+                              ? `lead by ${card.colleagueDelta}`
+                              : `trail by ${Math.abs(card.colleagueDelta)}`
+                        }`}
+                  </span>
                 </div>
               </div>
               <div className="ctaRow">
