@@ -57,6 +57,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const progressUpdated = qs.progress_updated === "1";
   const announcementsUpdated = qs.announcements_updated === "1";
   const pacingUpdated = qs.pacing_updated === "1";
+  const imported = qs.imported === "1";
 
   const supabase = await createClient();
   const {
@@ -320,6 +321,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
               {abUpdated ? <span>AB Schedule Updated!</span> : null}
               {progressUpdated ? <span>Progress Updated!</span> : null}
               {announcementsUpdated ? <span>Announcements Updated!</span> : null}
+              {imported ? <span>Calendar Imported!</span> : null}
             </div>
           </>
         )}

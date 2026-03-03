@@ -1,18 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClassAction } from "./actions";
 
 export default function NewClassForm({
-  userId,
   timezone,
   libraries,
   defaultStart,
   defaultEnd,
+  existingCourses,
 }) {
-  const router = useRouter();
-
   const libraryOptions = useMemo(
     () =>
       libraries.map((item) => ({
@@ -31,91 +28,18 @@ export default function NewClassForm({
   const [abMeetingDay, setAbMeetingDay] = useState("A");
   const [abStartDate, setAbStartDate] = useState(defaultStart);
   const [pacingMode, setPacingMode] = useState("one_lesson_per_day");
+  const [importCourseId, setImportCourseId] = useState("");
   const [schoolYearStart, setSchoolYearStart] = useState(defaultStart);
   const [schoolYearEnd, setSchoolYearEnd] = useState(defaultEnd);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const selectedLibrary = libraryOptions.find((l) => l.id === selectedLibraryId);
-
-  async function onSubmit(event) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-
-    if (!selectedLibrary) {
-      setSaving(false);
-      setError("Select a curriculum track.");
-      return;
-    }
-
-    const supabase = createClient();
-
-    const coursePayload = {
-      owner_id: userId,
-      title: title.trim() || selectedLibrary.className,
-      class_name: selectedLibrary.className,
-      schedule_model: scheduleModel,
-      ab_meeting_day: scheduleModel === "ab" ? abMeetingDay : null,
-      ab_pattern_start_date: scheduleModel === "ab" ? abStartDate : null,
-      school_year_start: schoolYearStart,
-      school_year_end: schoolYearEnd,
-      timezone,
-      selected_library_id: selectedLibrary.id,
-      pacing_mode: pacingMode,
-    };
-
-    let { data: newCourse, error: courseError } = await supabase
-      .from("courses")
-      .insert(coursePayload)
-      .select("id")
-      .single();
-
-    // Backward compatibility: if DB migration wasn't applied yet, retry without ab_meeting_day.
-    if (
-      courseError &&
-      typeof courseError.message === "string" &&
-      courseError.message.includes("ab_meeting_day")
-    ) {
-      const fallbackPayload = { ...coursePayload };
-      delete fallbackPayload.ab_meeting_day;
-      const retry = await supabase
-        .from("courses")
-        .insert(fallbackPayload)
-        .select("id")
-        .single();
-      newCourse = retry.data;
-      courseError = retry.error;
-    }
-
-    if (courseError) {
-      setSaving(false);
-      setError(courseError.message);
-      return;
-    }
-
-    const { error: memberError } = await supabase
-      .from("course_members")
-      .insert({ course_id: newCourse.id, profile_id: userId, role: "owner" });
-
-    setSaving(false);
-
-    if (memberError) {
-      setError(memberError.message);
-      return;
-    }
-
-    router.push("/classes");
-    router.refresh();
-  }
 
   return (
-    <form onSubmit={onSubmit} className="list formList" style={{ marginTop: "1rem" }}>
+    <form action={createClassAction} className="list formList" style={{ marginTop: "1rem" }}>
       <label>
         Class Title
         <input
           className="input"
           type="text"
+          name="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g., Algebra I - Period 2"
@@ -126,6 +50,7 @@ export default function NewClassForm({
         Curriculum Track (Math Medic)
         <select
           className="input"
+          name="selected_library_id"
           required
           value={selectedLibraryId}
           onChange={(e) => setSelectedLibraryId(e.target.value)}
@@ -142,6 +67,7 @@ export default function NewClassForm({
         Schedule Model
         <select
           className="input"
+          name="schedule_model"
           value={scheduleModel}
           onChange={(e) => setScheduleModel(e.target.value)}
         >
@@ -156,6 +82,7 @@ export default function NewClassForm({
             Meets On
             <select
               className="input"
+              name="ab_meeting_day"
               value={abMeetingDay}
               onChange={(e) => setAbMeetingDay(e.target.value)}
             >
@@ -168,6 +95,7 @@ export default function NewClassForm({
             <input
               className="input"
               type="date"
+              name="ab_pattern_start_date"
               required
               value={abStartDate}
               onChange={(e) => setAbStartDate(e.target.value)}
@@ -180,6 +108,7 @@ export default function NewClassForm({
         Pacing Mode
         <select
           className="input"
+          name="pacing_mode"
           value={pacingMode}
           onChange={(e) => setPacingMode(e.target.value)}
         >
@@ -189,10 +118,28 @@ export default function NewClassForm({
       </label>
 
       <label>
+        Import Calendar From Existing Class (Optional)
+        <select
+          className="input"
+          name="import_course_id"
+          value={importCourseId}
+          onChange={(e) => setImportCourseId(e.target.value)}
+        >
+          <option value="">No import (use default calendar)</option>
+          {(existingCourses || []).map((course) => (
+            <option key={course.id} value={course.id}>
+              {course.title} | {course.class_name} | {course.school_year_start} to {course.school_year_end}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
         School Year Start
         <input
           className="input"
           type="date"
+          name="school_year_start"
           required
           value={schoolYearStart}
           onChange={(e) => setSchoolYearStart(e.target.value)}
@@ -204,6 +151,7 @@ export default function NewClassForm({
         <input
           className="input"
           type="date"
+          name="school_year_end"
           required
           value={schoolYearEnd}
           onChange={(e) => setSchoolYearEnd(e.target.value)}
@@ -214,12 +162,10 @@ export default function NewClassForm({
         You can change pacing mode later from the class Plan page.
       </p>
 
-      {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
+      <input type="hidden" name="timezone" value={timezone} />
 
       <div className="ctaRow">
-        <button className="btn primary" type="submit" disabled={saving}>
-          {saving ? "Creating..." : "Create Class"}
-        </button>
+        <button className="btn primary" type="submit">Create Class</button>
       </div>
     </form>
   );

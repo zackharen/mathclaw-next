@@ -69,15 +69,21 @@ export default async function NewClassPage() {
   const defaultStart = profile.school_year_start || defaults.start;
   const defaultEnd = profile.school_year_end || defaults.end;
 
+  const { data: existingCourses } = await supabase
+    .from("courses")
+    .select("id, title, class_name, school_year_start, school_year_end")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
+
   return (
     <div className="stack">
       <section className="card">
         <h1>Create Class</h1>
-        <p>Select curriculum, schedule model, and school year.</p>
+        <p>Select curriculum, schedule model, and school year. Optionally import another class calendar.</p>
         <NewClassForm
-          userId={user.id}
           timezone={profile.timezone || "America/New_York"}
           libraries={libraries || []}
+          existingCourses={existingCourses || []}
           defaultStart={defaultStart}
           defaultEnd={defaultEnd}
         />
