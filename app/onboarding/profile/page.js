@@ -100,14 +100,17 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   let { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("display_name, school_name, timezone, school_year_start, school_year_end")
+    .select(
+      "display_name, school_name, timezone, discoverable, school_year_start, school_year_end"
+    )
     .eq("id", user.id)
     .maybeSingle();
 
   if (
     profileError &&
     typeof profileError.message === "string" &&
-    profileError.message.includes("school_year_start")
+    (profileError.message.includes("school_year_start") ||
+      profileError.message.includes("discoverable"))
   ) {
     const retry = await supabase
       .from("profiles")
@@ -116,11 +119,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
       .maybeSingle();
 
     profile = retry.data
-      ? {
-          ...retry.data,
-          school_year_start: defaults.start,
-          school_year_end: defaults.end,
-        }
+        ? {
+            ...retry.data,
+            discoverable: true,
+            school_year_start: defaults.start,
+            school_year_end: defaults.end,
+          }
       : null;
 
     profileError = retry.error;
@@ -202,6 +206,7 @@ Standards: {standards}`;
           initialDisplayName={profile?.display_name || ""}
           initialSchoolName={profile?.school_name || ""}
           initialTimezone={profile?.timezone || "America/New_York"}
+          initialDiscoverable={profile?.discoverable ?? true}
         />
       </section>
 

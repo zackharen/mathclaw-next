@@ -19,6 +19,7 @@ export default function RootLayout({ children }) {
               </Link>
               <nav className="nav">
                 <Link href="/onboarding/profile">Profile</Link>
+                <Link href="/teachers">Teachers</Link>
                 <Link href="/classes">Classes</Link>
                 <Link href="/classes/new">New Class</Link>
                 <Link href="/dashboard">Dashboard</Link>

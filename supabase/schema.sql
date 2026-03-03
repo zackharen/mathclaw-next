@@ -11,11 +11,15 @@ create table if not exists public.profiles (
   display_name text not null,
   school_name text,
   timezone text not null default 'America/New_York',
+  discoverable boolean not null default true,
   school_year_start date,
   school_year_end date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists profiles_discoverable_idx
+on public.profiles (discoverable);
 
 create table if not exists public.teacher_connections (
   id uuid primary key default gen_random_uuid(),

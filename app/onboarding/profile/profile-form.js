@@ -9,10 +9,12 @@ export default function ProfileForm({
   initialDisplayName,
   initialSchoolName,
   initialTimezone,
+  initialDiscoverable = true,
 }) {
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [schoolName, setSchoolName] = useState(initialSchoolName);
   const [timezone, setTimezone] = useState(initialTimezone);
+  const [discoverable, setDiscoverable] = useState(Boolean(initialDiscoverable));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -31,12 +33,32 @@ export default function ProfileForm({
       display_name: displayName.trim(),
       school_name: schoolName.trim() || null,
       timezone,
+      discoverable,
       updated_at: new Date().toISOString(),
     };
 
-    const { error: upsertError } = await supabase
+    let { error: upsertError } = await supabase
       .from("profiles")
       .upsert(payload, { onConflict: "id" });
+
+    // Backward compatibility if DB migration for discoverable has not been run yet.
+    if (
+      upsertError &&
+      typeof upsertError.message === "string" &&
+      upsertError.message.includes("discoverable")
+    ) {
+      const legacyPayload = {
+        id: userId,
+        display_name: displayName.trim(),
+        school_name: schoolName.trim() || null,
+        timezone,
+        updated_at: new Date().toISOString(),
+      };
+      const retry = await supabase
+        .from("profiles")
+        .upsert(legacyPayload, { onConflict: "id" });
+      upsertError = retry.error;
+    }
 
     setSaving(false);
 
@@ -88,10 +110,14 @@ export default function ProfileForm({
         </select>
       </label>
 
-      <p>
-        Search visibility is not yet enabled in this form. It will be added in
-        the collaboration pass.
-      </p>
+      <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+        <input
+          type="checkbox"
+          checked={discoverable}
+          onChange={(e) => setDiscoverable(e.target.checked)}
+        />
+        Allow other teachers to find me in search
+      </label>
 
       {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
       {!error && saved ? <p className="statusNote">Profile Updated!</p> : null}
