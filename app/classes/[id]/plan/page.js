@@ -201,8 +201,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
             <form action={applyCalendarBulkAction}>
               <input type="hidden" name="course_id" value={course.id} />
               <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-                <ApplyCalendarSubmit calendarUpdated={calendarUpdated} />
                 <AutoRegenerateToggle />
+                <ApplyCalendarSubmit calendarUpdated={calendarUpdated} />
               </div>
 
               <details style={{ marginTop: "0.75rem" }}>

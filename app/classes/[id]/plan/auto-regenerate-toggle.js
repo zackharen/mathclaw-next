@@ -43,7 +43,7 @@ export default function AutoRegenerateToggle() {
         checked={enabled}
         onChange={(e) => setEnabled(e.target.checked)}
       />
-      <span>Auto-regenerate</span>
+      <span>Auto-Regenerate</span>
     </label>
   );
 }
