@@ -30,6 +30,7 @@ export default function NewClassForm({
   const [scheduleModel, setScheduleModel] = useState("every_day");
   const [abMeetingDay, setAbMeetingDay] = useState("A");
   const [abStartDate, setAbStartDate] = useState(defaultStart);
+  const [pacingMode, setPacingMode] = useState("one_lesson_per_day");
   const [schoolYearStart, setSchoolYearStart] = useState(defaultStart);
   const [schoolYearEnd, setSchoolYearEnd] = useState(defaultEnd);
   const [saving, setSaving] = useState(false);
@@ -61,7 +62,7 @@ export default function NewClassForm({
       school_year_end: schoolYearEnd,
       timezone,
       selected_library_id: selectedLibrary.id,
-      pacing_mode: "one_lesson_per_day",
+      pacing_mode: pacingMode,
     };
 
     let { data: newCourse, error: courseError } = await supabase
@@ -176,6 +177,18 @@ export default function NewClassForm({
       ) : null}
 
       <label>
+        Pacing Mode
+        <select
+          className="input"
+          value={pacingMode}
+          onChange={(e) => setPacingMode(e.target.value)}
+        >
+          <option value="one_lesson_per_day">One Lesson Per Full Day</option>
+          <option value="manual_complete">Manual (Move On When Marked Complete)</option>
+        </select>
+      </label>
+
+      <label>
         School Year Start
         <input
           className="input"
@@ -198,7 +211,7 @@ export default function NewClassForm({
       </label>
 
       <p>
-        Pacing mode is set to one lesson per instructional day for v1.
+        You can change pacing mode later from the class Plan page.
       </p>
 
       {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}

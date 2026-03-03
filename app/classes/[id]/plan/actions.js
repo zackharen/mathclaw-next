@@ -92,6 +92,57 @@ export async function updateABMeetingDaysAction(formData) {
   redirect(`/classes/${course.id}/plan?calendar_updated=1&ab_updated=1&t=${Date.now()}#modify-calendar`);
 }
 
+export async function updatePacingModeAction(formData) {
+  const actionStart = Date.now();
+  const courseId = formData.get("course_id");
+  const pacingMode = formData.get("pacing_mode");
+
+  if (
+    typeof courseId !== "string" ||
+    !courseId ||
+    (pacingMode !== "one_lesson_per_day" && pacingMode !== "manual_complete")
+  ) {
+    return;
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("id", courseId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!course) return;
+
+  const { error } = await supabase
+    .from("courses")
+    .update({ pacing_mode: pacingMode, updated_at: new Date().toISOString() })
+    .eq("id", course.id)
+    .eq("owner_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+
+  perfLog("updatePacingModeAction", {
+    course: course.id,
+    pacingMode,
+    ms: Date.now() - actionStart,
+  });
+
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  redirect(`/classes/${course.id}/plan?pacing_updated=1&t=${Date.now()}`);
+}
+
 
 export async function markLessonCompleteAction(formData) {
   const actionStart = Date.now();

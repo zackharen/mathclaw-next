@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { markLessonCompleteAction, updateABMeetingDaysAction } from "./actions";
+import {
+  markLessonCompleteAction,
+  updateABMeetingDaysAction,
+  updatePacingModeAction,
+} from "./actions";
 import {
   applyCalendarBulkAction,
   generateCalendarAction,
@@ -52,6 +56,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const abUpdated = qs.ab_updated === "1";
   const progressUpdated = qs.progress_updated === "1";
   const announcementsUpdated = qs.announcements_updated === "1";
+  const pacingUpdated = qs.pacing_updated === "1";
 
   const supabase = await createClient();
   const {
@@ -65,7 +70,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const { data: course } = await supabase
     .from("courses")
     .select(
-      "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end"
+      "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode"
     )
     .eq("id", id)
     .eq("owner_id", user.id)
@@ -163,7 +168,25 @@ export default async function ClassPlanPage({ params, searchParams }) {
           <Link className="btn" href="/classes">
             Back to Classes
           </Link>
+          <form action={updatePacingModeAction} className="inlineControlForm">
+            <input type="hidden" name="course_id" value={course.id} />
+            <select
+              className="input"
+              name="pacing_mode"
+              defaultValue={course.pacing_mode || "one_lesson_per_day"}
+              style={{ minWidth: 240 }}
+            >
+              <option value="one_lesson_per_day">Pacing: One Lesson Per Day</option>
+              <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
+            </select>
+            <button className="btn" type="submit">Apply Pacing Mode</button>
+          </form>
         </div>
+        {pacingUpdated ? (
+          <div className="controlStatusLineStatic">
+            <span>Pacing Mode Updated!</span>
+          </div>
+        ) : null}
       </section>
 
       <section className="card">
@@ -382,6 +405,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
                     Status: {row?.status || "planned"}
                   </p>
+                  {course.pacing_mode === "manual_complete" ? (
+                    <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
+                      Manual pacing mode: this lesson repeats until you click Mark Complete.
+                    </p>
+                  ) : null}
 
                   {announcementText ? (
                     <pre className="announcementText">{announcementText}</pre>
