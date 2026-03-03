@@ -64,42 +64,53 @@ export default async function ClassPlanPage({ params, searchParams }) {
     redirect("/classes");
   }
 
-  const { count: totalLessonsCount } = await supabase
-    .from("curriculum_lessons")
-    .select("id", { count: "exact", head: true })
-    .eq("library_id", course.selected_library_id);
+  const [
+    lessonsCountRes,
+    calendarDaysRes,
+    reasonsRes,
+    planRes,
+    announcementsRes,
+  ] = await Promise.all([
+    supabase
+      .from("curriculum_lessons")
+      .select("id", { count: "exact", head: true })
+      .eq("library_id", course.selected_library_id),
+    supabase
+      .from("course_calendar_days")
+      .select("class_date, day_type, ab_day, reason_id, note")
+      .eq("course_id", course.id)
+      .order("class_date", { ascending: true }),
+    supabase
+      .from("day_off_reasons")
+      .select("id, label")
+      .or(`owner_id.is.null,owner_id.eq.${user.id}`)
+      .order("label", { ascending: true }),
+    supabase
+      .from("course_lesson_plan")
+      .select("class_date, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)")
+      .eq("course_id", course.id)
+      .order("class_date", { ascending: true }),
+    supabase
+      .from("course_announcements")
+      .select("class_date, content")
+      .eq("course_id", course.id)
+      .order("class_date", { ascending: true }),
+  ]);
 
-  const { data: calendarDays } = await supabase
-    .from("course_calendar_days")
-    .select("class_date, day_type, ab_day, reason_id, note")
-    .eq("course_id", course.id)
-    .order("class_date", { ascending: true });
+  const totalLessonsCount = lessonsCountRes.count || 0;
+  const calendarDays = calendarDaysRes.data || [];
+  const reasons = reasonsRes.data || [];
+  const planRows = planRes.data || [];
+  const planError = planRes.error;
+  const announcements = announcementsRes.data || [];
 
-  const { data: reasons } = await supabase
-    .from("day_off_reasons")
-    .select("id, label")
-    .or(`owner_id.is.null,owner_id.eq.${user.id}`)
-    .order("label", { ascending: true });
-
-  const { data: planRows, error: planError } = await supabase
-    .from("course_lesson_plan")
-    .select("class_date, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)")
-    .eq("course_id", course.id)
-    .order("class_date", { ascending: true });
-
-  const { data: announcements } = await supabase
-    .from("course_announcements")
-    .select("class_date, content")
-    .eq("course_id", course.id)
-    .order("class_date", { ascending: true });
-
-  const announcementByDate = new Map((announcements || []).map((a) => [a.class_date, a.content]));
-  const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
+  const announcementByDate = new Map(announcements.map((a) => [a.class_date, a.content]));
+  const calendarByDate = new Map(calendarDays.map((d) => [d.class_date, d]));
 
   const meetsA = course.ab_meeting_day !== "B";
   const meetsB = course.ab_meeting_day !== "A";
 
-  const visibleCalendarDays = (calendarDays || []).filter((day) => {
+  const visibleCalendarDays = calendarDays.filter((day) => {
     if (course.schedule_model !== "ab") return true;
     if (day.ab_day !== "A" && day.ab_day !== "B") return false;
     if (course.ab_meeting_day === "A") return day.ab_day === "A";
@@ -152,7 +163,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
       <section className="card" id="modify-calendar">
         <h2>Modify Calendar</h2>
-        {(calendarDays || []).length === 0 ? (
+        {calendarDays.length === 0 ? (
           <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
             <form action={generateCalendarAction}>
               <input type="hidden" name="course_id" value={course.id} />
@@ -209,7 +220,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       </select>
                       <select className="input" name={`reason_id__${day.class_date}`} defaultValue={day.reason_id || ""}>
                         <option value="">None</option>
-                        {(reasons || []).map((reason) => (
+                        {reasons.map((reason) => (
                           <option key={reason.id} value={reason.id}>
                             {reason.label}
                           </option>
@@ -281,7 +292,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         </select>
                         <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
                           <option value="">None</option>
-                          {(reasons || []).map((reason) => (
+                          {reasons.map((reason) => (
                             <option key={reason.id} value={reason.id}>
                               {reason.label}
                             </option>
