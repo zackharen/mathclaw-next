@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 function formatDate(isoDate) {
@@ -14,13 +15,19 @@ function formatDate(isoDate) {
   });
 }
 
-function buildAnnouncementContent({ classDate, lessonTitle, objective, standards }) {
-  const lines = [];
-  lines.push(`Date: ${formatDate(classDate)}`);
-  lines.push(`Lesson: ${lessonTitle || "TBD"}`);
-  lines.push(`Objective: ${objective || "No objective provided."}`);
-  lines.push(`Standards: ${standards.length ? standards.join(", ") : "None listed"}`);
-  return lines.join("\n");
+const DEFAULT_TEMPLATE = `Date: {date}
+Class: {class_name}
+Day Type: {day_type}
+Lesson: {lesson_title}
+Objective: {objective}
+Standards: {standards}`;
+
+function applyTemplate(template, values) {
+  let output = template;
+  for (const [key, value] of Object.entries(values)) {
+    output = output.replaceAll(`{${key}}`, value ?? "");
+  }
+  return output.trim();
 }
 
 export async function generateAnnouncementsAction(formData) {
@@ -36,7 +43,7 @@ export async function generateAnnouncementsAction(formData) {
 
   const { data: course } = await supabase
     .from("courses")
-    .select("id")
+    .select("id, title")
     .eq("id", courseId)
     .eq("owner_id", user.id)
     .single();
@@ -53,7 +60,7 @@ export async function generateAnnouncementsAction(formData) {
   if (!planRows || planRows.length === 0) {
     revalidatePath(`/classes/${course.id}/announcements`);
     revalidatePath(`/classes/${course.id}/plan`);
-    return;
+    redirect(`/classes/${course.id}/plan?announcements_updated=1&t=${Date.now()}`);
   }
 
   const lessonIds = [...new Set(planRows.map((row) => row.lesson_id).filter(Boolean))];
@@ -65,6 +72,30 @@ export async function generateAnnouncementsAction(formData) {
 
   if (lessonsError) throw new Error(lessonsError.message);
 
+  const { data: calendarDays, error: calendarError } = await supabase
+    .from("course_calendar_days")
+    .select("class_date, day_type, reason_id")
+    .eq("course_id", course.id);
+
+  if (calendarError) throw new Error(calendarError.message);
+
+  const reasonIds = [...new Set((calendarDays || []).map((d) => d.reason_id).filter(Boolean))];
+  const { data: reasons, error: reasonsError } = reasonIds.length
+    ? await supabase.from("day_off_reasons").select("id, label").in("id", reasonIds)
+    : { data: [], error: null };
+
+  if (reasonsError) throw new Error(reasonsError.message);
+
+  const { data: templateRow } = await supabase
+    .from("announcement_templates")
+    .select("body_template")
+    .eq("owner_id", user.id)
+    .eq("is_default", true)
+    .limit(1)
+    .maybeSingle();
+
+  const template = templateRow?.body_template?.trim() || DEFAULT_TEMPLATE;
+
   const { data: links, error: linksError } = await supabase
     .from("curriculum_lesson_standards")
     .select("lesson_id, standards(code)")
@@ -74,6 +105,8 @@ export async function generateAnnouncementsAction(formData) {
 
   const lessonById = new Map((lessons || []).map((lesson) => [lesson.id, lesson]));
   const standardsByLesson = new Map();
+  const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
+  const reasonById = new Map((reasons || []).map((r) => [r.id, r.label]));
 
   for (const link of links || []) {
     const arr = standardsByLesson.get(link.lesson_id) || [];
@@ -85,15 +118,24 @@ export async function generateAnnouncementsAction(formData) {
   const rows = planRows.map((row) => {
     const lesson = lessonById.get(row.lesson_id);
     const standards = standardsByLesson.get(row.lesson_id) || [];
+    const day = calendarByDate.get(row.class_date);
+    const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
+    const dayType = day?.day_type || "instructional";
+
+    const content = applyTemplate(template, {
+      date: formatDate(row.class_date),
+      class_name: course.title || "Class",
+      day_type: dayType,
+      reason: reasonLabel || "",
+      lesson_title: lesson?.title || "TBD",
+      objective: lesson?.objective || "No objective provided.",
+      standards: standards.length ? standards.join(", ") : "None listed",
+    });
+
     return {
       course_id: course.id,
       class_date: row.class_date,
-      content: buildAnnouncementContent({
-        classDate: row.class_date,
-        lessonTitle: lesson?.title,
-        objective: lesson?.objective,
-        standards,
-      }),
+      content,
       updated_at: new Date().toISOString(),
     };
   });
@@ -106,4 +148,5 @@ export async function generateAnnouncementsAction(formData) {
 
   revalidatePath(`/classes/${course.id}/announcements`);
   revalidatePath(`/classes/${course.id}/plan`);
+  redirect(`/classes/${course.id}/plan?announcements_updated=1&t=${Date.now()}`);
 }

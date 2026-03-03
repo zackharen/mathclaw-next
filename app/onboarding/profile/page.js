@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "./profile-form";
-import { saveSchoolCalendarAction } from "./actions";
+import {
+  saveAnnouncementTemplateAction,
+  saveSchoolCalendarAction,
+} from "./actions";
 
 function defaultSchoolYearDates() {
   const now = new Date();
@@ -80,6 +83,7 @@ function buildABMap(dates, abPatternStartIso) {
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
+  const templateUpdated = qs.template_updated === "1";
 
   const supabase = await createClient();
   const {
@@ -170,6 +174,23 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const schoolDayByDate = new Map(
     (schoolDays || []).map((row) => [row.class_date, row])
   );
+
+  const { data: templateRow } = await supabase
+    .from("announcement_templates")
+    .select("body_template")
+    .eq("owner_id", user.id)
+    .eq("is_default", true)
+    .limit(1)
+    .maybeSingle();
+
+  const defaultTemplate =
+    templateRow?.body_template ||
+    `Date: {date}
+Class: {class_name}
+Day Type: {day_type}
+Lesson: {lesson_title}
+Objective: {objective}
+Standards: {standards}`;
 
   return (
     <div className="stack">
@@ -285,6 +306,39 @@ export default async function OnboardingProfilePage({ searchParams }) {
             </form>
           )}
         </details>
+      </section>
+
+      <section className="card">
+        <h2>Announcement Template</h2>
+        <p>
+          Control how daily announcements are generated. Supported placeholders:
+          {" "}
+          <code>{"{date}"}</code>, <code>{"{class_name}"}</code>,{" "}
+          <code>{"{day_type}"}</code>, <code>{"{reason}"}</code>,{" "}
+          <code>{"{lesson_title}"}</code>, <code>{"{objective}"}</code>,{" "}
+          <code>{"{standards}"}</code>.
+        </p>
+
+        <form
+          action={saveAnnouncementTemplateAction}
+          className="list"
+          style={{ marginTop: "0.75rem" }}
+        >
+          <textarea
+            className="input"
+            name="body_template"
+            rows={8}
+            defaultValue={defaultTemplate}
+          />
+          <div className="ctaRow">
+            <button className="btn primary" type="submit">
+              Save Template
+            </button>
+            {templateUpdated ? (
+              <span className="statusNote">Template Updated!</span>
+            ) : null}
+          </div>
+        </form>
       </section>
     </div>
   );

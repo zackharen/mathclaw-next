@@ -7,6 +7,7 @@ import {
   generateCalendarAction,
   updateCalendarDayAction,
 } from "../calendar/actions";
+import { generateAnnouncementsAction } from "../announcements/actions";
 import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
@@ -50,6 +51,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const calendarUpdated = qs.calendar_updated === "1";
   const abUpdated = qs.ab_updated === "1";
   const progressUpdated = qs.progress_updated === "1";
+  const announcementsUpdated = qs.announcements_updated === "1";
 
   const supabase = await createClient();
   const {
@@ -279,6 +281,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   </div>
                 </details>
               </form>
+
+              <form action={generateAnnouncementsAction} className="inlineControlForm">
+                <input type="hidden" name="course_id" value={course.id} />
+                <button className="btn" type="submit">Generate Announcements</button>
+              </form>
             </div>
 
             <div className="controlStatusLineStatic">
@@ -289,6 +296,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
               </span>
               {abUpdated ? <span>AB Schedule Updated!</span> : null}
               {progressUpdated ? <span>Progress Updated!</span> : null}
+              {announcementsUpdated ? <span>Announcements Updated!</span> : null}
             </div>
           </>
         )}

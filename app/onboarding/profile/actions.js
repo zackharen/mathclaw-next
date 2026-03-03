@@ -107,6 +107,52 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
   return rows;
 }
 
+export async function saveAnnouncementTemplateAction(formData) {
+  const bodyTemplate = formData.get("body_template");
+  if (typeof bodyTemplate !== "string") {
+    redirect("/onboarding/profile?template_error=1");
+  }
+
+  const normalized = bodyTemplate.trim();
+  if (!normalized) {
+    redirect("/onboarding/profile?template_error=1");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const { error: clearError } = await supabase
+    .from("announcement_templates")
+    .update({ is_default: false, updated_at: new Date().toISOString() })
+    .eq("owner_id", user.id);
+
+  if (clearError) throw new Error(clearError.message);
+
+  const { error: upsertError } = await supabase.from("announcement_templates").upsert(
+    {
+      owner_id: user.id,
+      name: "Default",
+      body_template: normalized,
+      is_default: true,
+      is_shared: false,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "owner_id,name" }
+  );
+
+  if (upsertError) throw new Error(upsertError.message);
+
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/classes");
+  redirect(`/onboarding/profile?template_updated=1&t=${Date.now()}`);
+}
+
 export async function saveSchoolCalendarAction(formData) {
   const schoolYearStart = formData.get("school_year_start");
   const schoolYearEnd = formData.get("school_year_end");
