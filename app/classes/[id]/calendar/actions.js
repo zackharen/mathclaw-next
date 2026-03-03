@@ -5,6 +5,16 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 
+const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
+
+function perfLog(action, details) {
+  if (!PERF_ENABLED) return;
+  const detailText = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  console.info(`[perf] ${action} ${detailText}`);
+}
+
 function toISODate(date) {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -58,6 +68,7 @@ function parseBulkUpdates(formData) {
 }
 
 export async function generateCalendarAction(formData) {
+  const actionStart = Date.now();
   const courseId = formData.get("course_id");
   const force = formData.get("force") === "1";
   if (!courseId || typeof courseId !== "string") return;
@@ -103,6 +114,12 @@ export async function generateCalendarAction(formData) {
     .eq("course_id", course.id);
 
   if (count && count > 0 && !force) {
+    perfLog("generateCalendarAction", {
+      course: course.id,
+      reused: true,
+      force,
+      ms: Date.now() - actionStart,
+    });
     revalidatePath(`/classes/${course.id}/calendar`);
     revalidatePath(`/classes/${course.id}/plan`);
     redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}#modify-calendar`);
@@ -157,6 +174,13 @@ export async function generateCalendarAction(formData) {
 
   await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
 
+  perfLog("generateCalendarAction", {
+    course: course.id,
+    insertedDays: rows.length,
+    force,
+    ms: Date.now() - actionStart,
+  });
+
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
@@ -164,6 +188,7 @@ export async function generateCalendarAction(formData) {
 }
 
 export async function applyCalendarBulkAction(formData) {
+  const actionStart = Date.now();
   const courseId = formData.get("course_id");
   if (!courseId || typeof courseId !== "string") return;
 
@@ -185,6 +210,7 @@ export async function applyCalendarBulkAction(formData) {
 
   const updates = parseBulkUpdates(formData);
   const allowed = new Set(["instructional", "off", "half", "modified"]);
+  let updatedCount = 0;
 
   // Bulk editor currently posts all visible rows; use full rebuild for deterministic mapping.
   for (const [classDate, row] of updates.entries()) {
@@ -204,9 +230,16 @@ export async function applyCalendarBulkAction(formData) {
       .eq("class_date", classDate);
 
     if (error) throw new Error(error.message);
+    updatedCount += 1;
   }
 
   await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+
+  perfLog("applyCalendarBulkAction", {
+    course: course.id,
+    updates: updatedCount,
+    ms: Date.now() - actionStart,
+  });
 
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
@@ -215,6 +248,7 @@ export async function applyCalendarBulkAction(formData) {
 }
 
 export async function updateCalendarDayAction(formData) {
+  const actionStart = Date.now();
   const courseId = formData.get("course_id");
   const classDate = formData.get("class_date");
   const dayType = formData.get("day_type");
@@ -272,6 +306,14 @@ export async function updateCalendarDayAction(formData) {
       startDate: classDate,
     });
   }
+
+  perfLog("updateCalendarDayAction", {
+    course: course.id,
+    classDate,
+    dayType,
+    autoRegenerate,
+    ms: Date.now() - actionStart,
+  });
 
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);

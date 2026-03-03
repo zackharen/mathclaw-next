@@ -13,6 +13,8 @@ import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 
+const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
+
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(year, month - 1, day);
@@ -39,6 +41,7 @@ function formatLessonLabel(sourceLessonCode, title) {
 }
 
 export default async function ClassPlanPage({ params, searchParams }) {
+  const pageStart = process.hrtime.bigint();
   const { id } = await params;
   const qs = (await searchParams) || {};
   const calendarUpdated = qs.calendar_updated === "1";
@@ -64,6 +67,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     redirect("/classes");
   }
 
+  const dataFetchStart = process.hrtime.bigint();
   const [
     lessonsCountRes,
     calendarDaysRes,
@@ -103,6 +107,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const planRows = planRes.data || [];
   const planError = planRes.error;
   const announcements = announcementsRes.data || [];
+
+  if (PERF_ENABLED) {
+    console.info(
+      `[perf] ClassPlanPage course=${course.id} fetchMs=${Number((process.hrtime.bigint() - dataFetchStart) / 1000000n)} totalMs=${Number((process.hrtime.bigint() - pageStart) / 1000000n)} calendarDays=${calendarDays.length} planRows=${planRows.length} announcements=${announcements.length}`
+    );
+  }
 
   const announcementByDate = new Map(announcements.map((a) => [a.class_date, a.content]));
   const calendarByDate = new Map(calendarDays.map((d) => [d.class_date, d]));

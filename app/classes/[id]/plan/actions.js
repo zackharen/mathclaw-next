@@ -5,7 +5,18 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 
+const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
+
+function perfLog(action, details) {
+  if (!PERF_ENABLED) return;
+  const detailText = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  console.info(`[perf] ${action} ${detailText}`);
+}
+
 export async function generatePacingAction(formData) {
+  const actionStart = Date.now();
   const courseId = formData.get("course_id");
   if (!courseId || typeof courseId !== "string") return;
 
@@ -18,6 +29,11 @@ export async function generatePacingAction(formData) {
 
   await rebuildPlanFromCalendar({ supabase, courseId, userId: user.id });
 
+  perfLog("generatePacingAction", {
+    course: courseId,
+    ms: Date.now() - actionStart,
+  });
+
   revalidatePath(`/classes/${courseId}/plan`);
   revalidatePath(`/classes/${courseId}/calendar`);
   revalidatePath("/classes");
@@ -25,6 +41,7 @@ export async function generatePacingAction(formData) {
 }
 
 export async function updateABMeetingDaysAction(formData) {
+  const actionStart = Date.now();
   const courseId = formData.get("course_id");
   const meetsA = formData.get("meet_a") === "on";
   const meetsB = formData.get("meet_b") === "on";
@@ -61,6 +78,12 @@ export async function updateABMeetingDaysAction(formData) {
   if (error) throw new Error(error.message);
 
   await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+
+  perfLog("updateABMeetingDaysAction", {
+    course: course.id,
+    abMeetingDay: abMeetingDay || "both",
+    ms: Date.now() - actionStart,
+  });
 
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
