@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { updateABMeetingDaysAction } from "./actions";
+import { markLessonCompleteAction, updateABMeetingDaysAction } from "./actions";
 import {
   applyCalendarBulkAction,
   generateCalendarAction,
@@ -49,6 +49,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const qs = (await searchParams) || {};
   const calendarUpdated = qs.calendar_updated === "1";
   const abUpdated = qs.ab_updated === "1";
+  const progressUpdated = qs.progress_updated === "1";
 
   const supabase = await createClient();
   const {
@@ -287,6 +288,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 {meetsB ? "B" : ""}
               </span>
               {abUpdated ? <span>AB Schedule Updated!</span> : null}
+              {progressUpdated ? <span>Progress Updated!</span> : null}
             </div>
           </>
         )}
@@ -383,6 +385,20 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
                   <div className="ctaRow compactDayActions">
                     {announcementText ? <CopyButton text={announcementText} /> : null}
+
+                    {row ? (
+                      row.status === "completed" ? (
+                        <button className="btn primary" type="button" disabled>
+                          Completed
+                        </button>
+                      ) : (
+                        <form action={markLessonCompleteAction}>
+                          <input type="hidden" name="course_id" value={course.id} />
+                          <input type="hidden" name="class_date" value={day.class_date} />
+                          <button className="btn" type="submit">Mark Complete</button>
+                        </form>
+                      )
+                    ) : null}
 
                     <details className="dayModifyDetails">
                       <summary className="btn">Modify This Day</summary>

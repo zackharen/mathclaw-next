@@ -91,3 +91,49 @@ export async function updateABMeetingDaysAction(formData) {
   revalidatePath("/classes");
   redirect(`/classes/${course.id}/plan?calendar_updated=1&ab_updated=1&t=${Date.now()}#modify-calendar`);
 }
+
+
+export async function markLessonCompleteAction(formData) {
+  const actionStart = Date.now();
+  const courseId = formData.get("course_id");
+  const classDate = formData.get("class_date");
+
+  if (typeof courseId !== "string" || typeof classDate !== "string") return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("id", courseId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!course) return;
+
+  const { error: markError } = await supabase
+    .from("course_lesson_plan")
+    .update({ status: "completed", updated_at: new Date().toISOString() })
+    .eq("course_id", course.id)
+    .eq("class_date", classDate);
+
+  if (markError) throw new Error(markError.message);
+
+  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+
+  perfLog("markLessonCompleteAction", {
+    course: course.id,
+    classDate,
+    ms: Date.now() - actionStart,
+  });
+
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}`);
+}
