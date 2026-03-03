@@ -177,6 +177,8 @@ create table if not exists public.announcement_templates (
   owner_id uuid not null references public.profiles (id) on delete cascade,
   name text not null,
   body_template text not null,
+  include_do_now boolean not null default false,
+  include_quote boolean not null default false,
   is_default boolean not null default false,
   is_shared boolean not null default false,
   created_at timestamptz not null default now(),

@@ -109,6 +109,12 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
 
 export async function saveAnnouncementTemplateAction(formData) {
   const bodyTemplate = formData.get("body_template");
+  const includeDoNow =
+    formData.get("include_do_now") === "on" ||
+    formData.get("include_do_now") === "1";
+  const includeQuote =
+    formData.get("include_quote") === "on" ||
+    formData.get("include_quote") === "1";
   if (typeof bodyTemplate !== "string") {
     redirect("/onboarding/profile?template_error=1");
   }
@@ -134,17 +140,41 @@ export async function saveAnnouncementTemplateAction(formData) {
 
   if (clearError) throw new Error(clearError.message);
 
-  const { error: upsertError } = await supabase.from("announcement_templates").upsert(
-    {
+  const payload = {
+    owner_id: user.id,
+    name: "Default",
+    body_template: normalized,
+    include_do_now: includeDoNow,
+    include_quote: includeQuote,
+    is_default: true,
+    is_shared: false,
+    updated_at: new Date().toISOString(),
+  };
+
+  let { error: upsertError } = await supabase
+    .from("announcement_templates")
+    .upsert(payload, { onConflict: "owner_id,name" });
+
+  // Backward compatibility if AI block migration was not run.
+  if (
+    upsertError &&
+    typeof upsertError.message === "string" &&
+    (upsertError.message.includes("include_do_now") ||
+      upsertError.message.includes("include_quote"))
+  ) {
+    const fallbackPayload = {
       owner_id: user.id,
       name: "Default",
       body_template: normalized,
       is_default: true,
       is_shared: false,
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: "owner_id,name" }
-  );
+    };
+    const retry = await supabase
+      .from("announcement_templates")
+      .upsert(fallbackPayload, { onConflict: "owner_id,name" });
+    upsertError = retry.error;
+  }
 
   if (upsertError) throw new Error(upsertError.message);
 

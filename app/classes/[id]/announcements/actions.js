@@ -22,12 +22,44 @@ Lesson: {lesson_title}
 Objective: {objective}
 Standards: {standards}`;
 
+const QUOTES = [
+  "Success is the sum of small efforts, repeated daily.",
+  "It always seems impossible until it’s done.",
+  "The expert in anything was once a beginner.",
+  "Consistency compounds.",
+  "Don’t watch the clock; do what it does. Keep going.",
+  "Small progress is still progress.",
+];
+
 function applyTemplate(template, values) {
   let output = template;
   for (const [key, value] of Object.entries(values)) {
     output = output.replaceAll(`{${key}}`, value ?? "");
   }
   return output.trim();
+}
+
+function titleWithoutCode(lessonTitle) {
+  return String(lessonTitle || "")
+    .replace(/^\s*[\w.-]+\s*:\s*/u, "")
+    .trim();
+}
+
+function buildDoNow({ lessonTitle, objective, standards }) {
+  const title = titleWithoutCode(lessonTitle) || "today's topic";
+  const standard = standards[0] || "today’s standard";
+  const objectiveText = String(objective || "").trim();
+  if (objectiveText) {
+    return `Do Now: In 2-3 sentences, explain how "${title}" connects to this objective: ${objectiveText}`;
+  }
+  return `Do Now: Write one example and one non-example for "${title}" aligned to ${standard}.`;
+}
+
+function buildQuote({ classDate, className }) {
+  const seed = `${classDate}|${className || ""}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return QUOTES[hash % QUOTES.length];
 }
 
 export async function generateAnnouncementsAction(formData) {
@@ -86,15 +118,38 @@ export async function generateAnnouncementsAction(formData) {
 
   if (reasonsError) throw new Error(reasonsError.message);
 
-  const { data: templateRow } = await supabase
+  let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
-    .select("body_template")
+    .select("body_template, include_do_now, include_quote")
     .eq("owner_id", user.id)
     .eq("is_default", true)
     .limit(1)
     .maybeSingle();
 
+  if (
+    templateError &&
+    typeof templateError.message === "string" &&
+    (templateError.message.includes("include_do_now") ||
+      templateError.message.includes("include_quote"))
+  ) {
+    const retry = await supabase
+      .from("announcement_templates")
+      .select("body_template")
+      .eq("owner_id", user.id)
+      .eq("is_default", true)
+      .limit(1)
+      .maybeSingle();
+    templateRow = retry.data
+      ? { ...retry.data, include_do_now: false, include_quote: false }
+      : null;
+    templateError = retry.error;
+  }
+
+  if (templateError) throw new Error(templateError.message);
+
   const template = templateRow?.body_template?.trim() || DEFAULT_TEMPLATE;
+  const includeDoNow = templateRow?.include_do_now ?? false;
+  const includeQuote = templateRow?.include_quote ?? false;
 
   const { data: links, error: linksError } = await supabase
     .from("curriculum_lesson_standards")
@@ -121,8 +176,18 @@ export async function generateAnnouncementsAction(formData) {
     const day = calendarByDate.get(row.class_date);
     const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
     const dayType = day?.day_type || "instructional";
+    const doNow = includeDoNow
+      ? buildDoNow({
+          lessonTitle: lesson?.title,
+          objective: lesson?.objective,
+          standards,
+        })
+      : "";
+    const quote = includeQuote
+      ? `Quote: "${buildQuote({ classDate: row.class_date, className: course.title })}"`
+      : "";
 
-    const content = applyTemplate(template, {
+    let content = applyTemplate(template, {
       date: formatDate(row.class_date),
       class_name: course.title || "Class",
       day_type: dayType,
@@ -130,7 +195,16 @@ export async function generateAnnouncementsAction(formData) {
       lesson_title: lesson?.title || "TBD",
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
+      do_now: doNow,
+      quote,
     });
+
+    if (includeDoNow && !template.includes("{do_now}")) {
+      content = `${content}\n${doNow}`.trim();
+    }
+    if (includeQuote && !template.includes("{quote}")) {
+      content = `${content}\n${quote}`.trim();
+    }
 
     return {
       course_id: course.id,

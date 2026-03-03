@@ -179,13 +179,34 @@ export default async function OnboardingProfilePage({ searchParams }) {
     (schoolDays || []).map((row) => [row.class_date, row])
   );
 
-  const { data: templateRow } = await supabase
+  let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
-    .select("body_template")
+    .select("body_template, include_do_now, include_quote")
     .eq("owner_id", user.id)
     .eq("is_default", true)
     .limit(1)
     .maybeSingle();
+
+  if (
+    templateError &&
+    typeof templateError.message === "string" &&
+    (templateError.message.includes("include_do_now") ||
+      templateError.message.includes("include_quote"))
+  ) {
+    const retry = await supabase
+      .from("announcement_templates")
+      .select("body_template")
+      .eq("owner_id", user.id)
+      .eq("is_default", true)
+      .limit(1)
+      .maybeSingle();
+    templateRow = retry.data
+      ? { ...retry.data, include_do_now: false, include_quote: false }
+      : null;
+    templateError = retry.error;
+  }
+
+  if (templateError) throw new Error(templateError.message);
 
   const defaultTemplate =
     templateRow?.body_template ||
@@ -195,6 +216,8 @@ Day Type: {day_type}
 Lesson: {lesson_title}
 Objective: {objective}
 Standards: {standards}`;
+  const includeDoNow = templateRow?.include_do_now ?? false;
+  const includeQuote = templateRow?.include_quote ?? false;
 
   return (
     <div className="stack">
@@ -321,7 +344,8 @@ Standards: {standards}`;
           <code>{"{date}"}</code>, <code>{"{class_name}"}</code>,{" "}
           <code>{"{day_type}"}</code>, <code>{"{reason}"}</code>,{" "}
           <code>{"{lesson_title}"}</code>, <code>{"{objective}"}</code>,{" "}
-          <code>{"{standards}"}</code>.
+          <code>{"{standards}"}</code>, <code>{"{do_now}"}</code>,{" "}
+          <code>{"{quote}"}</code>.
         </p>
 
         <form
@@ -335,6 +359,22 @@ Standards: {standards}`;
             rows={8}
             defaultValue={defaultTemplate}
           />
+          <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <input
+              type="checkbox"
+              name="include_do_now"
+              defaultChecked={includeDoNow}
+            />
+            Include AI-style Do Now line
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <input
+              type="checkbox"
+              name="include_quote"
+              defaultChecked={includeQuote}
+            />
+            Include quote of the day line
+          </label>
           <div className="ctaRow">
             <button className="btn primary" type="submit">
               Save Template
