@@ -43,8 +43,10 @@ export async function generatePacingAction(formData) {
 export async function updateABMeetingDaysAction(formData) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
-  const meetsA = formData.get("meet_a") === "on";
-  const meetsB = formData.get("meet_b") === "on";
+  const meetAValue = formData.get("meet_a");
+  const meetBValue = formData.get("meet_b");
+  const meetsA = meetAValue === "on" || meetAValue === "1" || meetAValue === "true";
+  const meetsB = meetBValue === "on" || meetBValue === "1" || meetBValue === "true";
 
   if (!courseId || typeof courseId !== "string") return;
   if (!meetsA && !meetsB) return;
@@ -87,5 +89,5 @@ export async function updateABMeetingDaysAction(formData) {
 
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}#modify-calendar`);
+  redirect(`/classes/${course.id}/plan?calendar_updated=1&ab_updated=1&t=${Date.now()}#modify-calendar`);
 }

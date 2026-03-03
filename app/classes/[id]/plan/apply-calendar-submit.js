@@ -7,16 +7,16 @@ export default function ApplyCalendarSubmit({ calendarUpdated }) {
 
   return (
     <>
-      <button className="btn" type="submit" disabled={pending}>
+      <button className={`btn ${pending ? "primary" : ""}`} type="submit" disabled={pending}>
         {pending ? "Applying..." : "Apply Calendar Changes"}
       </button>
       {pending ? (
-        <span className="statusNote">
+        <span className="controlStatusLine">
           Updating<span className="updatingDots">...</span>
         </span>
       ) : null}
       {!pending && calendarUpdated ? (
-        <span className="statusNote">Calendar Updated!</span>
+        <span className="controlStatusLine">Calendar Updated!</span>
       ) : null}
     </>
   );

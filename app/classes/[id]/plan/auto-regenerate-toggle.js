@@ -37,13 +37,13 @@ export default function AutoRegenerateToggle() {
   }, []);
 
   return (
-    <label className="autoToggle" title="If on, saving a day will automatically rebuild the plan.">
-      <input
-        type="checkbox"
-        checked={enabled}
-        onChange={(e) => setEnabled(e.target.checked)}
-      />
-      <span>Auto-Regenerate</span>
-    </label>
+    <button
+      type="button"
+      className={`btn toggleBtn ${enabled ? "active" : ""}`}
+      title="If on, saving a day will automatically rebuild the plan."
+      onClick={() => setEnabled((v) => !v)}
+    >
+      Auto-Regenerate
+    </button>
   );
 }

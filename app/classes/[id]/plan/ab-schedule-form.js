@@ -1,6 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
+
+function ABSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button className={`btn ${pending ? "primary" : ""}`} type="submit" disabled={pending}>
+      {pending ? "Applying..." : "Apply AB Schedule"}
+    </button>
+  );
+}
 
 export default function ABScheduleForm({
   courseId,
@@ -21,25 +31,26 @@ export default function ABScheduleForm({
   return (
     <form action={action} onSubmit={onSubmit} className="abScheduleForm">
       <input type="hidden" name="course_id" value={courseId} />
-      <label className="abCheck">
-        <input
-          type="checkbox"
-          name="meet_a"
-          checked={meetsA}
-          onChange={(e) => setMeetsA(e.target.checked)}
-        />
-        <span>A Day</span>
-      </label>
-      <label className="abCheck">
-        <input
-          type="checkbox"
-          name="meet_b"
-          checked={meetsB}
-          onChange={(e) => setMeetsB(e.target.checked)}
-        />
-        <span>B Day</span>
-      </label>
-      <button className="btn" type="submit">Apply AB Days</button>
+      <input type="hidden" name="meet_a" value={meetsA ? "1" : "0"} />
+      <input type="hidden" name="meet_b" value={meetsB ? "1" : "0"} />
+
+      <button
+        type="button"
+        className={`btn toggleBtn ${meetsA ? "active" : ""}`}
+        onClick={() => setMeetsA((v) => !v)}
+      >
+        A Day
+      </button>
+
+      <button
+        type="button"
+        className={`btn toggleBtn ${meetsB ? "active" : ""}`}
+        onClick={() => setMeetsB((v) => !v)}
+      >
+        B Day
+      </button>
+
+      <ABSubmitButton />
     </form>
   );
 }
