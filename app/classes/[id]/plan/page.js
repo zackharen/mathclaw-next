@@ -206,7 +206,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
               {course.schedule_model === "ab" ? (
                 <details className="inlineDetails">
                   <summary className="btn">AB Schedule?</summary>
-                  <div className="controlPopover">
+                  <div className="controlExpandedPanel">
                     <ABScheduleForm
                       courseId={course.id}
                       initialA={meetsA}
@@ -231,7 +231,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     <span className="showLabel">Show Full Calendar Editor</span>
                     <span className="hideLabel">Hide Full Calendar Editor</span>
                   </summary>
-                  <div className="controlPopover controlPopoverWide">
+                  <div className="controlExpandedPanel controlExpandedPanelWide">
                     <div className="calendarGridHeaderNoAction">
                       <span>Date</span>
                       <span>AB</span>
@@ -329,7 +329,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     </p>
 
                     <div className="ctaRow compactDayActions">
-                      <details className="inlineDetails">
+                      <details className="dayModifyDetails">
                         <summary className="btn">Modify This Day</summary>
                         <form
                           className="calendarRow"
@@ -384,7 +384,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   <div className="ctaRow compactDayActions">
                     {announcementText ? <CopyButton text={announcementText} /> : null}
 
-                    <details className="inlineDetails">
+                    <details className="dayModifyDetails">
                       <summary className="btn">Modify This Day</summary>
                       <form
                         className="calendarRow"

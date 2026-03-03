@@ -54,6 +54,29 @@ function buildWeekdays(startIso, endIso) {
   return dates;
 }
 
+
+function buildABMap(dates, abPatternStartIso) {
+  const map = new Map();
+  if (!abPatternStartIso) {
+    dates.forEach((d) => map.set(d, "-"));
+    return map;
+  }
+
+  const start = parseDateAtUTC(abPatternStartIso);
+  let current = "A";
+
+  for (const date of dates) {
+    const dateObj = parseDateAtUTC(date);
+    if (dateObj < start) {
+      map.set(date, "-");
+      continue;
+    }
+    map.set(date, current);
+    current = current === "A" ? "B" : "A";
+  }
+
+  return map;
+}
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
@@ -103,7 +126,19 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const schoolYearStart = profile?.school_year_start || defaults.start;
   const schoolYearEnd = profile?.school_year_end || defaults.end;
 
+  const { data: abSeedCourse } = await supabase
+    .from("courses")
+    .select("ab_pattern_start_date")
+    .eq("owner_id", user.id)
+    .eq("schedule_model", "ab")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+
   const weekdays = buildWeekdays(schoolYearStart, schoolYearEnd);
+  const abPatternStartIso = abSeedCourse?.ab_pattern_start_date || schoolYearStart;
+  const abByDate = buildABMap(weekdays, abPatternStartIso);
 
   const { data: reasons } = await supabase
     .from("day_off_reasons")
@@ -193,6 +228,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
               <div className="schoolCalendarHeader">
                 <span>Date</span>
+                <span>AB</span>
                 <span>Day Type</span>
                 <span>Reason</span>
                 <span>Note</span>
@@ -204,6 +240,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                   return (
                     <div className="schoolCalendarRow" key={date}>
                       <span>{prettyDate(date)}</span>
+                      <span>{abByDate.get(date) || "-"}</span>
                       <select
                         className="input"
                         name={`day_type__${date}`}
@@ -239,7 +276,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
               <div className="ctaRow">
                 <button className="btn primary" type="submit">
-                  Apply School Calendar to All Classes
+                  Apply Calendar Changes
                 </button>
                 {schoolCalendarUpdated ? (
                   <span className="statusNote">School Calendar Updated!</span>

@@ -353,7 +353,7 @@ details[open] > summary.editorSummary .hideLabel {
 .schoolCalendarHeader,
 .schoolCalendarRow {
   display: grid;
-  grid-template-columns: 1.5fr 0.9fr 1fr 1fr;
+  grid-template-columns: 1.45fr 0.45fr 0.9fr 1fr 1fr;
   gap: 0.6rem;
   align-items: center;
 }
@@ -401,41 +401,39 @@ details[open] > summary.editorSummary .hideLabel {
 
 .controlBar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.65rem;
   align-items: flex-start;
-  overflow-x: auto;
   padding-bottom: 0.2rem;
 }
 
 .inlineControlForm {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.65rem;
   align-items: flex-start;
   min-width: max-content;
 }
 
 .inlineDetails {
-  position: relative;
+  display: inline-block;
 }
 
-.controlPopover {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 0.45rem);
-  z-index: 20;
+.inlineDetails[open] {
+  flex-basis: 100%;
+}
+
+.controlExpandedPanel {
+  margin-top: 0.55rem;
   border: 2px solid var(--line);
   border-radius: 10px;
   background: #f9fbfc;
   padding: 0.75rem;
-  min-width: 460px;
-  max-width: min(1100px, 92vw);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  width: min(1100px, 100%);
 }
 
-.controlPopoverWide {
-  min-width: 760px;
+.controlExpandedPanelWide {
+  width: 100%;
 }
 
 details[open] > summary.btn,
@@ -483,13 +481,9 @@ details[open] > summary.btn,
 }
 
 @media (max-width: 980px) {
-  .controlPopover,
-  .controlPopoverWide {
-    position: static;
-    margin-top: 0.55rem;
-    min-width: 0;
+  .controlExpandedPanel,
+  .controlExpandedPanelWide {
     width: 100%;
-    box-shadow: none;
   }
 
   .controlBar,
@@ -507,4 +501,16 @@ details[open] > summary.btn,
   font-family: "Gill Sans", "Segoe UI", sans-serif;
   font-size: 0.95rem;
   font-weight: 700;
+}
+
+.dayModifyDetails {
+  display: inline-block;
+}
+
+.dayModifyDetails[open] {
+  display: block;
+}
+
+.dayModifyDetails[open] > summary.btn {
+  margin-bottom: 0.6rem;
 }
