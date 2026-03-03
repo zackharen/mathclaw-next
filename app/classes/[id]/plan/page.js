@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { generatePacingAction, updateABMeetingDaysAction } from "./actions";
-import { generateAnnouncementsAction } from "../announcements/actions";
+import { updateABMeetingDaysAction } from "./actions";
 import {
   applyCalendarBulkAction,
   generateCalendarAction,
@@ -143,21 +142,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
           <Link className="btn" href="/classes">
             Back to Classes
           </Link>
-          <a className="btn" href="#modify-calendar">
-            Modify Calendar
-          </a>
-          <form action={generatePacingAction}>
-            <input type="hidden" name="course_id" value={course.id} />
-            <button className="btn primary" type="submit">
-              Generate Pacing
-            </button>
-          </form>
-          <form action={generateAnnouncementsAction}>
-            <input type="hidden" name="course_id" value={course.id} />
-            <button className="btn" type="submit">
-              Generate Announcements
-            </button>
-          </form>
         </div>
       </section>
 

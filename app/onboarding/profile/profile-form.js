@@ -14,6 +14,7 @@ export default function ProfileForm({
   const [schoolName, setSchoolName] = useState(initialSchoolName);
   const [timezone, setTimezone] = useState(initialTimezone);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function ProfileForm({
   async function onSubmit(event) {
     event.preventDefault();
     setSaving(true);
+    setSaved(false);
     setError("");
 
     const supabase = createClient();
@@ -43,7 +45,7 @@ export default function ProfileForm({
       return;
     }
 
-    router.push("/classes/new");
+    setSaved(true);
     router.refresh();
   }
 
@@ -92,6 +94,7 @@ export default function ProfileForm({
       </p>
 
       {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
+      {!error && saved ? <p className="statusNote">Profile Updated!</p> : null}
 
       <div className="ctaRow">
         <button className="btn primary" type="submit" disabled={saving}>

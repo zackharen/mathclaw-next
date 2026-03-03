@@ -393,3 +393,65 @@ details[open] > summary.editorSummary .hideLabel {
     width: 1ch;
   }
 }
+
+
+.schoolYearRangeRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 320px));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.schoolYearRangeRow label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.schoolCalendarHeader,
+.schoolCalendarRow {
+  display: grid;
+  grid-template-columns: 1.5fr 0.9fr 1fr 1fr;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.schoolCalendarHeader {
+  padding: 0.35rem 0.4rem;
+  border-bottom: 2px solid #6b7c8a;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.schoolCalendarBody {
+  max-height: 420px;
+  overflow: auto;
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.schoolCalendarRow {
+  padding: 0.45rem 0.4rem;
+  border: 1px dashed #6b7c8a;
+  border-radius: 8px;
+  background: var(--white);
+}
+
+@media (max-width: 980px) {
+  .schoolCalendarHeader {
+    display: none;
+  }
+
+  .schoolCalendarRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .schoolYearRangeRow {
+    grid-template-columns: 1fr;
+  }
+}

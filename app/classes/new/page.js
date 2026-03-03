@@ -22,13 +22,29 @@ export default async function NewClassPage() {
     redirect("/auth/sign-in?redirect=/classes/new");
   }
 
-  const { data: profile } = await supabase
+  let { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, timezone")
+    .select("id, timezone, school_year_start, school_year_end")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile) {
+  if (
+    profileError &&
+    typeof profileError.message === "string" &&
+    profileError.message.includes("school_year_start")
+  ) {
+    const retry = await supabase
+      .from("profiles")
+      .select("id, timezone")
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = retry.data
+      ? { ...retry.data, school_year_start: null, school_year_end: null }
+      : null;
+    profileError = retry.error;
+  }
+
+  if (!profile || profileError) {
     redirect("/onboarding/profile");
   }
 
@@ -50,6 +66,8 @@ export default async function NewClassPage() {
   }
 
   const defaults = defaultSchoolYearDates();
+  const defaultStart = profile.school_year_start || defaults.start;
+  const defaultEnd = profile.school_year_end || defaults.end;
 
   return (
     <div className="stack">
@@ -60,8 +78,8 @@ export default async function NewClassPage() {
           userId={user.id}
           timezone={profile.timezone || "America/New_York"}
           libraries={libraries || []}
-          defaultStart={defaults.start}
-          defaultEnd={defaults.end}
+          defaultStart={defaultStart}
+          defaultEnd={defaultEnd}
         />
       </section>
     </div>
