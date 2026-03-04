@@ -15,6 +15,47 @@ function formatDate(isoDate) {
   });
 }
 
+function getDayOfWeek(isoDate) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString("en-US", { weekday: "long" });
+}
+
+function getDayNumber(isoDate, schoolYearStart) {
+  const start = new Date(`${schoolYearStart}T00:00:00`);
+  const date = new Date(`${isoDate}T00:00:00`);
+  const diff = Math.floor((date - start) / (1000 * 60 * 60 * 24));
+  return Number.isFinite(diff) && diff >= 0 ? String(diff + 1) : "";
+}
+
+function parseRecurringAssignments(rawText) {
+  const map = new Map();
+  const lines = String(rawText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const [left, ...rest] = line.split(":");
+    if (!left || rest.length === 0) continue;
+    const key = left.trim().toLowerCase();
+    const value = rest.join(":").trim();
+    if (!value) continue;
+    map.set(key, value);
+  }
+  return map;
+}
+
+function recurringAssignmentForDate(isoDate, assignmentsMap) {
+  const weekday = getDayOfWeek(isoDate).toLowerCase();
+  const short = weekday.slice(0, 3);
+  return (
+    assignmentsMap.get(weekday) ||
+    assignmentsMap.get(short) ||
+    ""
+  );
+}
+
 const DEFAULT_TEMPLATE = `Date: {date}
 Class: {class_name}
 Day Type: {day_type}
@@ -75,7 +116,7 @@ export async function generateAnnouncementsAction(formData) {
 
   const { data: course } = await supabase
     .from("courses")
-    .select("id, title")
+    .select("id, title, school_year_start")
     .eq("id", courseId)
     .eq("owner_id", user.id)
     .single();
@@ -120,7 +161,9 @@ export async function generateAnnouncementsAction(formData) {
 
   let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
-    .select("body_template, include_do_now, include_quote")
+    .select(
+      "body_template, include_do_now, include_quote, include_day_number, include_day_of_week, include_regular_assignments, regular_assignments"
+    )
     .eq("owner_id", user.id)
     .eq("is_default", true)
     .limit(1)
@@ -130,7 +173,11 @@ export async function generateAnnouncementsAction(formData) {
     templateError &&
     typeof templateError.message === "string" &&
     (templateError.message.includes("include_do_now") ||
-      templateError.message.includes("include_quote"))
+      templateError.message.includes("include_quote") ||
+      templateError.message.includes("include_day_number") ||
+      templateError.message.includes("include_day_of_week") ||
+      templateError.message.includes("include_regular_assignments") ||
+      templateError.message.includes("regular_assignments"))
   ) {
     const retry = await supabase
       .from("announcement_templates")
@@ -140,7 +187,15 @@ export async function generateAnnouncementsAction(formData) {
       .limit(1)
       .maybeSingle();
     templateRow = retry.data
-      ? { ...retry.data, include_do_now: false, include_quote: false }
+      ? {
+          ...retry.data,
+          include_do_now: false,
+          include_quote: false,
+          include_day_number: false,
+          include_day_of_week: false,
+          include_regular_assignments: false,
+          regular_assignments: "",
+        }
       : null;
     templateError = retry.error;
   }
@@ -150,6 +205,12 @@ export async function generateAnnouncementsAction(formData) {
   const template = templateRow?.body_template?.trim() || DEFAULT_TEMPLATE;
   const includeDoNow = templateRow?.include_do_now ?? false;
   const includeQuote = templateRow?.include_quote ?? false;
+  const includeDayNumber = templateRow?.include_day_number ?? false;
+  const includeDayOfWeek = templateRow?.include_day_of_week ?? false;
+  const includeRegularAssignments = templateRow?.include_regular_assignments ?? false;
+  const recurringAssignments = parseRecurringAssignments(
+    templateRow?.regular_assignments || ""
+  );
 
   const { data: links, error: linksError } = await supabase
     .from("curriculum_lesson_standards")
@@ -186,6 +247,13 @@ export async function generateAnnouncementsAction(formData) {
     const quote = includeQuote
       ? `Quote: "${buildQuote({ classDate: row.class_date, className: course.title })}"`
       : "";
+    const dayOfWeek = includeDayOfWeek ? getDayOfWeek(row.class_date) : "";
+    const dayNumber = includeDayNumber
+      ? getDayNumber(row.class_date, course.school_year_start || row.class_date)
+      : "";
+    const regularAssignment = includeRegularAssignments
+      ? recurringAssignmentForDate(row.class_date, recurringAssignments)
+      : "";
 
     let content = applyTemplate(template, {
       date: formatDate(row.class_date),
@@ -195,6 +263,9 @@ export async function generateAnnouncementsAction(formData) {
       lesson_title: lesson?.title || "TBD",
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
+      day_number: dayNumber,
+      day_of_week: dayOfWeek,
+      regular_assignment: regularAssignment,
       do_now: doNow,
       quote,
     });
@@ -204,6 +275,19 @@ export async function generateAnnouncementsAction(formData) {
     }
     if (includeQuote && !template.includes("{quote}")) {
       content = `${content}\n${quote}`.trim();
+    }
+    if (includeDayNumber && dayNumber && !template.includes("{day_number}")) {
+      content = `${content}\nDay Number: ${dayNumber}`.trim();
+    }
+    if (includeDayOfWeek && dayOfWeek && !template.includes("{day_of_week}")) {
+      content = `${content}\nDay of Week: ${dayOfWeek}`.trim();
+    }
+    if (
+      includeRegularAssignments &&
+      regularAssignment &&
+      !template.includes("{regular_assignment}")
+    ) {
+      content = `${content}\nRegular Assignment: ${regularAssignment}`.trim();
     }
 
     return {

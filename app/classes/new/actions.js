@@ -10,7 +10,10 @@ function normalizeScheduleModel(value) {
 }
 
 function normalizePacingMode(value) {
-  return value === "manual_complete" ? "manual_complete" : "one_lesson_per_day";
+  if (value === "manual_complete") return "manual_complete";
+  if (value === "two_lessons_per_day") return "two_lessons_per_day";
+  if (value === "two_lessons_unless_modified") return "two_lessons_unless_modified";
+  return "one_lesson_per_day";
 }
 
 export async function createClassAction(formData) {

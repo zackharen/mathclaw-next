@@ -113,6 +113,10 @@ export default function NewClassForm({
           onChange={(e) => setPacingMode(e.target.value)}
         >
           <option value="one_lesson_per_day">One Lesson Per Full Day</option>
+          <option value="two_lessons_per_day">2 Lessons Per Day</option>
+          <option value="two_lessons_unless_modified">
+            2 Lessons Per Day Unless There Is a Modified Schedule
+          </option>
           <option value="manual_complete">Manual (Move On When Marked Complete)</option>
         </select>
       </label>

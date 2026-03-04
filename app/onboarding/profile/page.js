@@ -155,24 +155,22 @@ export default async function OnboardingProfilePage({ searchParams }) {
     .order("label", { ascending: true });
 
   let schoolDays = [];
-  if (!migrationNeeded) {
-    const { data: schoolDaysData, error: schoolDaysError } = await supabase
-      .from("school_calendar_days")
-      .select("class_date, day_type, reason_id, note")
-      .eq("owner_id", user.id)
-      .gte("class_date", schoolYearStart)
-      .lte("class_date", schoolYearEnd)
-      .order("class_date", { ascending: true });
+  const { data: schoolDaysData, error: schoolDaysError } = await supabase
+    .from("school_calendar_days")
+    .select("class_date, day_type, reason_id, note")
+    .eq("owner_id", user.id)
+    .gte("class_date", schoolYearStart)
+    .lte("class_date", schoolYearEnd)
+    .order("class_date", { ascending: true });
 
-    if (
-      schoolDaysError &&
-      typeof schoolDaysError.message === "string" &&
-      schoolDaysError.message.includes("school_calendar_days")
-    ) {
-      migrationNeeded = true;
-    } else {
-      schoolDays = schoolDaysData || [];
-    }
+  if (
+    schoolDaysError &&
+    typeof schoolDaysError.message === "string" &&
+    schoolDaysError.message.includes("school_calendar_days")
+  ) {
+    migrationNeeded = true;
+  } else {
+    schoolDays = schoolDaysData || [];
   }
 
   const schoolDayByDate = new Map(
@@ -181,7 +179,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
-    .select("body_template, include_do_now, include_quote")
+    .select(
+      "body_template, include_do_now, include_quote, include_day_number, include_day_of_week, include_regular_assignments, regular_assignments"
+    )
     .eq("owner_id", user.id)
     .eq("is_default", true)
     .limit(1)
@@ -191,7 +191,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
     templateError &&
     typeof templateError.message === "string" &&
     (templateError.message.includes("include_do_now") ||
-      templateError.message.includes("include_quote"))
+      templateError.message.includes("include_quote") ||
+      templateError.message.includes("include_day_number") ||
+      templateError.message.includes("include_day_of_week") ||
+      templateError.message.includes("include_regular_assignments") ||
+      templateError.message.includes("regular_assignments"))
   ) {
     const retry = await supabase
       .from("announcement_templates")
@@ -200,9 +204,17 @@ export default async function OnboardingProfilePage({ searchParams }) {
       .eq("is_default", true)
       .limit(1)
       .maybeSingle();
-    templateRow = retry.data
-      ? { ...retry.data, include_do_now: false, include_quote: false }
-      : null;
+      templateRow = retry.data
+        ? {
+            ...retry.data,
+            include_do_now: false,
+            include_quote: false,
+            include_day_number: false,
+            include_day_of_week: false,
+            include_regular_assignments: false,
+            regular_assignments: "",
+          }
+        : null;
     templateError = retry.error;
   }
 
@@ -218,6 +230,10 @@ Objective: {objective}
 Standards: {standards}`;
   const includeDoNow = templateRow?.include_do_now ?? false;
   const includeQuote = templateRow?.include_quote ?? false;
+  const includeDayNumber = templateRow?.include_day_number ?? false;
+  const includeDayOfWeek = templateRow?.include_day_of_week ?? false;
+  const includeRegularAssignments = templateRow?.include_regular_assignments ?? false;
+  const regularAssignments = templateRow?.regular_assignments || "";
 
   return (
     <div className="stack">
@@ -247,11 +263,12 @@ Standards: {standards}`;
 
           {migrationNeeded ? (
             <p style={{ marginTop: "0.75rem" }}>
-              School Calendar needs the latest SQL migration before it can be
-              edited.
+              Note: global calendar overrides are unavailable until the school
+              calendar table migration is applied. You can still set school-year
+              dates and apply changes to class calendars.
             </p>
-          ) : (
-            <form action={saveSchoolCalendarAction} className="list" style={{ marginTop: "0.75rem" }}>
+          ) : null}
+          <form action={saveSchoolCalendarAction} className="list" style={{ marginTop: "0.75rem" }}>
               <div className="schoolYearRangeRow">
                 <label>
                   School Year Start
@@ -331,8 +348,7 @@ Standards: {standards}`;
                   <span className="statusNote">School Calendar Updated!</span>
                 ) : null}
               </div>
-            </form>
-          )}
+          </form>
         </details>
       </section>
 
@@ -344,8 +360,9 @@ Standards: {standards}`;
           <code>{"{date}"}</code>, <code>{"{class_name}"}</code>,{" "}
           <code>{"{day_type}"}</code>, <code>{"{reason}"}</code>,{" "}
           <code>{"{lesson_title}"}</code>, <code>{"{objective}"}</code>,{" "}
-          <code>{"{standards}"}</code>, <code>{"{do_now}"}</code>,{" "}
-          <code>{"{quote}"}</code>.
+          <code>{"{standards}"}</code>, <code>{"{day_number}"}</code>,{" "}
+          <code>{"{day_of_week}"}</code>, <code>{"{regular_assignment}"}</code>,{" "}
+          <code>{"{do_now}"}</code>, <code>{"{quote}"}</code>.
         </p>
 
         <form
@@ -374,6 +391,39 @@ Standards: {standards}`;
               defaultChecked={includeQuote}
             />
             Include quote of the day line
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <input
+              type="checkbox"
+              name="include_day_number"
+              defaultChecked={includeDayNumber}
+            />
+            Include school day number line
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <input
+              type="checkbox"
+              name="include_day_of_week"
+              defaultChecked={includeDayOfWeek}
+            />
+            Include day of week line
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <input
+              type="checkbox"
+              name="include_regular_assignments"
+              defaultChecked={includeRegularAssignments}
+            />
+            Include recurring assignment line
+          </label>
+          <label>
+            Recurring Assignments (one per line, e.g. <code>Fri: Assessment</code>)
+            <textarea
+              className="input"
+              name="regular_assignments"
+              rows={4}
+              defaultValue={regularAssignments}
+            />
           </label>
           <div className="ctaRow">
             <button className="btn primary" type="submit">

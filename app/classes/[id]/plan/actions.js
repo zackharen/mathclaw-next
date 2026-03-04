@@ -100,7 +100,12 @@ export async function updatePacingModeAction(formData) {
   if (
     typeof courseId !== "string" ||
     !courseId ||
-    (pacingMode !== "one_lesson_per_day" && pacingMode !== "manual_complete")
+    ![
+      "one_lesson_per_day",
+      "two_lessons_per_day",
+      "two_lessons_unless_modified",
+      "manual_complete",
+    ].includes(String(pacingMode || ""))
   ) {
     return;
   }
@@ -178,6 +183,51 @@ export async function markLessonCompleteAction(formData) {
   await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
 
   perfLog("markLessonCompleteAction", {
+    course: course.id,
+    classDate,
+    ms: Date.now() - actionStart,
+  });
+
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}`);
+}
+
+export async function markLessonPlannedAction(formData) {
+  const actionStart = Date.now();
+  const courseId = formData.get("course_id");
+  const classDate = formData.get("class_date");
+
+  if (typeof courseId !== "string" || typeof classDate !== "string") return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("id", courseId)
+    .eq("owner_id", user.id)
+    .single();
+
+  if (!course) return;
+
+  const { error: markError } = await supabase
+    .from("course_lesson_plan")
+    .update({ status: "planned", updated_at: new Date().toISOString() })
+    .eq("course_id", course.id)
+    .eq("class_date", classDate);
+
+  if (markError) throw new Error(markError.message);
+
+  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+
+  perfLog("markLessonPlannedAction", {
     course: course.id,
     classDate,
     ms: Date.now() - actionStart,

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   markLessonCompleteAction,
+  markLessonPlannedAction,
   updateABMeetingDaysAction,
   updatePacingModeAction,
 } from "./actions";
@@ -11,7 +12,6 @@ import {
   generateCalendarAction,
   updateCalendarDayAction,
 } from "../calendar/actions";
-import { generateAnnouncementsAction } from "../announcements/actions";
 import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
@@ -177,7 +177,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
               defaultValue={course.pacing_mode || "one_lesson_per_day"}
               style={{ minWidth: 240 }}
             >
-              <option value="one_lesson_per_day">Pacing: One Lesson Per Day</option>
+              <option value="one_lesson_per_day">Pacing: One Lesson Per Full Day</option>
+              <option value="two_lessons_per_day">Pacing: 2 Lessons Per Day</option>
+              <option value="two_lessons_unless_modified">
+                Pacing: 2 Lessons Per Day Unless There Is a Modified Schedule
+              </option>
               <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
             </select>
             <button className="btn" type="submit">Apply Pacing Mode</button>
@@ -244,11 +248,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 </details>
               ) : null}
 
-              <form
-                action={applyCalendarBulkAction}
-                className="inlineControlForm"
-                data-auto-regenerate-target="1"
-              >
+              <form action={applyCalendarBulkAction} className="inlineControlForm" data-auto-regenerate-target="1">
                 <input type="hidden" name="course_id" value={course.id} />
                 <AutoRegenerateToggle />
                 <ApplyCalendarSubmit calendarUpdated={calendarUpdated} />
@@ -304,11 +304,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     </div>
                   </div>
                 </details>
-              </form>
-
-              <form action={generateAnnouncementsAction} className="inlineControlForm">
-                <input type="hidden" name="course_id" value={course.id} />
-                <button className="btn" type="submit">Generate Announcements</button>
               </form>
             </div>
 
@@ -426,9 +421,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
                     {row ? (
                       row.status === "completed" ? (
-                        <button className="btn primary" type="button" disabled>
-                          Completed
-                        </button>
+                        <form action={markLessonPlannedAction}>
+                          <input type="hidden" name="course_id" value={course.id} />
+                          <input type="hidden" name="class_date" value={day.class_date} />
+                          <button className="btn primary" type="submit">Completed</button>
+                        </form>
                       ) : (
                         <form action={markLessonCompleteAction}>
                           <input type="hidden" name="course_id" value={course.id} />

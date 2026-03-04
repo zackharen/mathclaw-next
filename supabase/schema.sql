@@ -95,7 +95,14 @@ create table if not exists public.courses (
   school_year_end date not null,
   timezone text not null default 'America/New_York',
   selected_library_id uuid references public.curriculum_libraries (id),
-  pacing_mode text not null default 'one_lesson_per_day' check (pacing_mode in ('one_lesson_per_day', 'manual_complete')),
+  pacing_mode text not null default 'one_lesson_per_day' check (
+    pacing_mode in (
+      'one_lesson_per_day',
+      'two_lessons_per_day',
+      'two_lessons_unless_modified',
+      'manual_complete'
+    )
+  ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (school_year_start < school_year_end)
@@ -179,6 +186,10 @@ create table if not exists public.announcement_templates (
   body_template text not null,
   include_do_now boolean not null default false,
   include_quote boolean not null default false,
+  include_day_number boolean not null default false,
+  include_day_of_week boolean not null default false,
+  include_regular_assignments boolean not null default false,
+  regular_assignments text,
   is_default boolean not null default false,
   is_shared boolean not null default false,
   created_at timestamptz not null default now(),

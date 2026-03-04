@@ -26,6 +26,11 @@ function nextAB(current) {
   return current === "A" ? "B" : "A";
 }
 
+function isMissingSchoolCalendarTableError(error) {
+  const message = String(error?.message || "");
+  return message.includes("school_calendar_days");
+}
+
 function parseSchoolCalendarRows(formData) {
   const updates = new Map();
 
@@ -115,6 +120,16 @@ export async function saveAnnouncementTemplateAction(formData) {
   const includeQuote =
     formData.get("include_quote") === "on" ||
     formData.get("include_quote") === "1";
+  const includeDayNumber =
+    formData.get("include_day_number") === "on" ||
+    formData.get("include_day_number") === "1";
+  const includeDayOfWeek =
+    formData.get("include_day_of_week") === "on" ||
+    formData.get("include_day_of_week") === "1";
+  const includeRegularAssignments =
+    formData.get("include_regular_assignments") === "on" ||
+    formData.get("include_regular_assignments") === "1";
+  const regularAssignments = String(formData.get("regular_assignments") || "").trim();
   if (typeof bodyTemplate !== "string") {
     redirect("/onboarding/profile?template_error=1");
   }
@@ -146,6 +161,10 @@ export async function saveAnnouncementTemplateAction(formData) {
     body_template: normalized,
     include_do_now: includeDoNow,
     include_quote: includeQuote,
+    include_day_number: includeDayNumber,
+    include_day_of_week: includeDayOfWeek,
+    include_regular_assignments: includeRegularAssignments,
+    regular_assignments: regularAssignments || null,
     is_default: true,
     is_shared: false,
     updated_at: new Date().toISOString(),
@@ -160,7 +179,11 @@ export async function saveAnnouncementTemplateAction(formData) {
     upsertError &&
     typeof upsertError.message === "string" &&
     (upsertError.message.includes("include_do_now") ||
-      upsertError.message.includes("include_quote"))
+      upsertError.message.includes("include_quote") ||
+      upsertError.message.includes("include_day_number") ||
+      upsertError.message.includes("include_day_of_week") ||
+      upsertError.message.includes("include_regular_assignments") ||
+      upsertError.message.includes("regular_assignments"))
   ) {
     const fallbackPayload = {
       owner_id: user.id,
@@ -241,11 +264,13 @@ export async function saveSchoolCalendarAction(formData) {
     .delete()
     .eq("owner_id", user.id);
 
-  if (clearOverridesError) {
+  const hasSchoolCalendarTable = !isMissingSchoolCalendarTableError(clearOverridesError);
+
+  if (clearOverridesError && hasSchoolCalendarTable) {
     throw new Error(clearOverridesError.message);
   }
 
-  if (overrides.length > 0) {
+  if (hasSchoolCalendarTable && overrides.length > 0) {
     const { error: insertOverridesError } = await supabase
       .from("school_calendar_days")
       .insert(overrides);

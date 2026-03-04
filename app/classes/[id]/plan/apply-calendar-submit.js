@@ -4,20 +4,25 @@ import { useFormStatus } from "react-dom";
 
 export default function ApplyCalendarSubmit({ calendarUpdated }) {
   const { pending } = useFormStatus();
+  const statusText = pending
+    ? "Updating"
+    : calendarUpdated
+      ? "Calendar Updated!"
+      : "\u00a0";
 
   return (
-    <>
-      <button className={`btn ${pending ? "primary" : ""}`} type="submit" disabled={pending}>
-        {pending ? "Applying..." : "Apply Calendar Changes"}
+    <div className="applyCalendarControl">
+      <button
+        className={`btn ${pending ? "primary" : ""}`}
+        type="submit"
+        disabled={pending}
+      >
+        Apply Calendar Changes
       </button>
-      {pending ? (
-        <span className="controlStatusLine">
-          Updating<span className="updatingDots">...</span>
-        </span>
-      ) : null}
-      {!pending && calendarUpdated ? (
-        <span className="controlStatusLine">Calendar Updated!</span>
-      ) : null}
-    </>
+      <span className="controlStatusLine" aria-live="polite">
+        {statusText}
+        {pending ? <span className="updatingDots">...</span> : null}
+      </span>
+    </div>
   );
 }
