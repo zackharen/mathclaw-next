@@ -409,6 +409,27 @@ details[open] > summary.editorSummary .hideLabel {
   background: var(--navy);
 }
 
+.connect4DropRow {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(7, 56px);
+  gap: 0.4rem;
+  justify-content: start;
+}
+
+.connect4DropBtn {
+  min-height: 2.75rem;
+  padding: 0.35rem 0.2rem;
+}
+
+.connect4InfoCard {
+  margin-top: 0.75rem;
+  border: 1px dashed #6b7c8a;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #f7fafc;
+}
+
 .connect4Cell {
   width: 56px;
   height: 56px;
@@ -438,9 +459,18 @@ details[open] > summary.editorSummary .hideLabel {
     grid-template-columns: repeat(7, 42px);
   }
 
+  .connect4DropRow {
+    grid-template-columns: repeat(7, 42px);
+  }
+
   .connect4Cell {
     width: 42px;
     height: 42px;
+  }
+
+  .connect4DropBtn {
+    min-height: 2.25rem;
+    font-size: 0.8rem;
   }
 }
 

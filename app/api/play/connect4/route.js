@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { boardFull, dropToken, emptyBoard, hasWinner, nextToken, normalizeBoard } from "@/lib/student-games/connect4";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
+import { upsertGameStats } from "@/lib/student-games/stats";
 
 function normalizeCourseId(value) {
   return typeof value === "string" && value ? value : null;
@@ -30,6 +31,45 @@ export async function GET(request) {
   if (!data) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
   return NextResponse.json({ match: { ...data, board: normalizeBoard(data.board) } });
+}
+
+async function saveFinishedMatchStats({ supabase, match, winnerId, isDraw }) {
+  const participants = [match.player_one_id, match.player_two_id].filter(Boolean);
+
+  for (const playerId of participants) {
+    const score =
+      isDraw ? 0.5 : playerId === winnerId ? 1 : 0;
+    const result =
+      isDraw ? "draw" : playerId === winnerId ? "win" : "loss";
+
+    const { error: insertError } = await supabase.from("game_sessions").insert({
+      game_slug: "connect4",
+      player_id: playerId,
+      course_id: match.course_id,
+      score,
+      result,
+      metadata: {
+        skillRating: score,
+        moveCount: Number(match.move_count || 0) + 1,
+      },
+    });
+
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    await upsertGameStats({
+      supabase,
+      userId: playerId,
+      gameSlug: "connect4",
+      courseId: match.course_id,
+      latestStats: {
+        skillRating: score,
+        moveCount: Number(match.move_count || 0) + 1,
+        result,
+      },
+    });
+  }
 }
 
 export async function POST(request) {
@@ -146,6 +186,20 @@ export async function POST(request) {
       .single();
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
+
+    if (winner || draw) {
+      try {
+        await saveFinishedMatchStats({
+          supabase,
+          match,
+          winnerId: winner,
+          isDraw: draw,
+        });
+      } catch (statsError) {
+        return NextResponse.json({ error: statsError.message }, { status: 400 });
+      }
+    }
+
     return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
   }
 

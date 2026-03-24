@@ -18,7 +18,7 @@ export default async function Connect4Page() {
         <h1>Connect4</h1>
         <p>Create a code, share it, and play another MathClaw user live on the site.</p>
       </section>
-      <Connect4Client courses={courses} />
+      <Connect4Client courses={courses} userId={user.id} />
     </div>
   );
 }
