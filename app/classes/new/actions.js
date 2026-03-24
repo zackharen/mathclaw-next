@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
+import { generateJoinCode } from "@/lib/student-games/join-code";
 
 function normalizeScheduleModel(value) {
   return value === "ab" ? "ab" : "every_day";
@@ -68,6 +69,7 @@ export async function createClassAction(formData) {
     timezone,
     selected_library_id: library.id,
     pacing_mode: pacingMode,
+    student_join_code: generateJoinCode(),
   };
 
   let { data: newCourse, error: courseError } = await supabase
@@ -80,10 +82,12 @@ export async function createClassAction(formData) {
   if (
     courseError &&
     typeof courseError.message === "string" &&
-    courseError.message.includes("ab_meeting_day")
+    (courseError.message.includes("ab_meeting_day") ||
+      courseError.message.includes("student_join_code"))
   ) {
     const fallbackPayload = { ...coursePayload };
     delete fallbackPayload.ab_meeting_day;
+    delete fallbackPayload.student_join_code;
     const retry = await supabase
       .from("courses")
       .insert(fallbackPayload)

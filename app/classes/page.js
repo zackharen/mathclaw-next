@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { deleteClassAction } from "./actions";
+import { deleteClassAction, regenerateStudentJoinCodeAction } from "./actions";
 
 export default async function ClassesPage() {
   const supabase = await createClient();
@@ -25,17 +25,25 @@ export default async function ClassesPage() {
 
   let { data: courses, error } = await supabase
     .from("courses")
-    .select("id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end")
+    .select("id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code")
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error && typeof error.message === "string" && error.message.includes("ab_meeting_day")) {
+  if (
+    error &&
+    typeof error.message === "string" &&
+    (error.message.includes("ab_meeting_day") || error.message.includes("student_join_code"))
+  ) {
     const retry = await supabase
       .from("courses")
       .select("id, title, class_name, schedule_model, school_year_start, school_year_end")
       .eq("owner_id", user.id)
       .order("created_at", { ascending: false });
-    courses = (retry.data || []).map((course) => ({ ...course, ab_meeting_day: null }));
+    courses = (retry.data || []).map((course) => ({
+      ...course,
+      ab_meeting_day: null,
+      student_join_code: null,
+    }));
     error = retry.error;
   }
 
@@ -69,11 +77,27 @@ export default async function ClassesPage() {
                 <p>
                   {course.school_year_start} to {course.school_year_end}
                 </p>
+                {course.student_join_code ? (
+                  <p style={{ fontSize: "0.95rem" }}>
+                    Student Join Code: <strong>{course.student_join_code}</strong>
+                  </p>
+                ) : null}
                 <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>Course ID: {course.id}</p>
                 <div className="ctaRow">
                   <Link className="btn" href={`/classes/${course.id}/plan`}>
                     Open Plan
                   </Link>
+                  <Link className="btn" href={`/classes/${course.id}/students`}>
+                    Student Progress
+                  </Link>
+                  {course.student_join_code ? (
+                    <form action={regenerateStudentJoinCodeAction}>
+                      <input type="hidden" name="course_id" value={course.id} />
+                      <button className="btn" type="submit">
+                        New Join Code
+                      </button>
+                    </form>
+                  ) : null}
                   <form action={deleteClassAction}>
                     <input type="hidden" name="course_id" value={course.id} />
                     <button className="btn danger" type="submit">

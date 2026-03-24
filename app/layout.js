@@ -18,6 +18,7 @@ export default function RootLayout({ children }) {
                 MathClaw
               </Link>
               <nav className="nav">
+                <Link href="/play">Play</Link>
                 <Link href="/onboarding/profile">Profile</Link>
                 <Link href="/teachers">Teachers</Link>
                 <Link href="/classes">Classes</Link>
