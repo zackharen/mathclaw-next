@@ -31,7 +31,10 @@ export default async function Game2048Page() {
     <div className="stack">
       <section className="card">
         <h1>2048</h1>
-        <p>Merge tiles, chase bigger powers of two, and save every run to your MathClaw profile.</p>
+        <p>
+          Merge tiles, chase bigger powers of two, and save every run to your MathClaw
+          profile. Pick a class if you want that score tied back to a teacher’s view.
+        </p>
       </section>
       <Game2048Client courses={courses} personalStats={personalResult.data} leaderboard={leaderboardResult.data || []} />
     </div>

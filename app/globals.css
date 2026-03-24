@@ -339,6 +339,27 @@ details[open] > summary.editorSummary .hideLabel {
   justify-content: start;
 }
 
+.game2048Wrap {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.game2048Overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: rgba(0, 50, 90, 0.9);
+  color: var(--white);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+  padding: 1rem;
+}
+
 .game2048Tile {
   display: flex;
   align-items: center;
@@ -363,6 +384,18 @@ details[open] > summary.editorSummary .hideLabel {
 .game2048Tile.value512,
 .game2048Tile.value1024,
 .game2048Tile.value2048 { background: #00325a; color: #fff; }
+
+.game2048Controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 96px));
+  gap: 0.5rem;
+  justify-content: start;
+  margin-top: 1rem;
+}
+
+.gameMoveBtn {
+  min-height: 3rem;
+}
 
 .connect4Board {
   margin-top: 1rem;
