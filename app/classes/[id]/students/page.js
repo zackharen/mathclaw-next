@@ -3,6 +3,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 
+function formatGameLabel(slug) {
+  return {
+    "2048": "2048",
+    connect4: "Connect4",
+    integer_practice: "Adding & Subtracting Integers",
+    number_compare: "Which Number Is Bigger?",
+  }[slug] || slug;
+}
+
 export default async function StudentsPage({ params }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -14,18 +23,36 @@ export default async function StudentsPage({ params }) {
     redirect(`/auth/sign-in?redirect=/classes/${id}/students`);
   }
 
-  const { data: course } = await supabase
+  let {
+    data: course,
+    error: courseError,
+  } = await supabase
     .from("courses")
     .select("id, title, class_name, student_join_code")
     .eq("id", id)
     .eq("owner_id", user.id)
     .maybeSingle();
 
-  if (!course) {
+  if (
+    courseError &&
+    typeof courseError.message === "string" &&
+    courseError.message.includes("student_join_code")
+  ) {
+    const retry = await supabase
+      .from("courses")
+      .select("id, title, class_name")
+      .eq("id", id)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    course = retry.data ? { ...retry.data, student_join_code: null } : null;
+    courseError = retry.error;
+  }
+
+  if (courseError || !course) {
     redirect("/classes");
   }
 
-  const [{ data: memberships }, { data: stats }] = await Promise.all([
+  const [{ data: memberships, error: membershipsError }, { data: stats, error: statsError }] = await Promise.all([
     supabase
       .from("student_course_memberships")
       .select("profile_id, joined_at, profiles!inner(display_name, school_name)")
@@ -37,8 +64,11 @@ export default async function StudentsPage({ params }) {
       .eq("course_id", course.id),
   ]);
 
+  const safeMemberships = membershipsError ? [] : memberships || [];
+  const safeStats = statsError ? [] : stats || [];
+
   const statsByPlayer = new Map();
-  for (const row of stats || []) {
+  for (const row of safeStats) {
     const arr = statsByPlayer.get(row.player_id) || [];
     arr.push(row);
     statsByPlayer.set(row.player_id, arr);
@@ -48,32 +78,56 @@ export default async function StudentsPage({ params }) {
     <div className="stack">
       <section className="card">
         <h1>{course.title}: Student Progress</h1>
-        <p>Give students this code so they can join your class from the arcade.</p>
-        <div className="ctaRow">
-          <span className="pill">Join Code: {course.student_join_code || "Not set yet"}</span>
-          <form action={regenerateStudentJoinCodeAction}>
-            <input type="hidden" name="course_id" value={course.id} />
-            <button className="btn" type="submit">
-              Generate New Code
-            </button>
-          </form>
-          <Link className="btn" href={`/classes/${course.id}/plan`}>
-            Back To Plan
-          </Link>
+        <p>
+          Students join this class from the Student Arcade using your class code. Once they join and play,
+          their progress will show up here.
+        </p>
+        <div className="list">
+          <div className="card" style={{ background: "#fff" }}>
+            <h2>How Students Join</h2>
+            <p>1. Open the Student Arcade.</p>
+            <p>2. Sign in or create a student account.</p>
+            <p>3. Enter your class join code.</p>
+            <p>4. Start playing games. Their progress will automatically attach to this class.</p>
+          </div>
+          <div className="card" style={{ background: "#fff" }}>
+            <h2>Class Join Code</h2>
+            <p style={{ marginBottom: "0.75rem" }}>
+              {course.student_join_code
+                ? "Share this code with students so they can add themselves to your class."
+                : "Generate a join code to let students add themselves to this class."}
+            </p>
+            <div className="ctaRow">
+              <span className="pill">Join Code: {course.student_join_code || "Not set yet"}</span>
+              <form action={regenerateStudentJoinCodeAction}>
+                <input type="hidden" name="course_id" value={course.id} />
+                <button className="btn" type="submit">
+                  {course.student_join_code ? "Generate New Code" : "Generate Join Code"}
+                </button>
+              </form>
+              <Link className="btn" href="/play">
+                Open Student Arcade
+              </Link>
+              <Link className="btn" href={`/classes/${course.id}/plan`}>
+                Back To Plan
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
       <section className="card">
         <h2>Joined Students</h2>
-        {!memberships || memberships.length === 0 ? (
+        {membershipsError ? <p>Student list could not load yet. Try refreshing in a moment.</p> : null}
+        {!membershipsError && safeMemberships.length === 0 ? (
           <p>No students have joined yet.</p>
-        ) : (
+        ) : null}
+
+        {!membershipsError && safeMemberships.length > 0 ? (
           <div className="list">
-            {memberships.map((membership) => {
+            {safeMemberships.map((membership) => {
               const playerStats = statsByPlayer.get(membership.profile_id) || [];
-              const profile = Array.isArray(membership.profiles)
-                ? membership.profiles[0]
-                : membership.profiles;
+              const profile = Array.isArray(membership.profiles) ? membership.profiles[0] : membership.profiles;
               return (
                 <article key={membership.profile_id} className="card" style={{ background: "#fff" }}>
                   <h3>{profile?.display_name || "Student"}</h3>
@@ -81,13 +135,15 @@ export default async function StudentsPage({ params }) {
                     Joined {new Date(membership.joined_at).toLocaleDateString()}
                     {profile?.school_name ? ` · ${profile.school_name}` : ""}
                   </p>
-                  {playerStats.length === 0 ? (
+                  {statsError ? <p style={{ marginTop: "0.75rem" }}>Game stats are not available yet.</p> : null}
+                  {!statsError && playerStats.length === 0 ? (
                     <p style={{ marginTop: "0.75rem" }}>No game data yet.</p>
-                  ) : (
+                  ) : null}
+                  {!statsError && playerStats.length > 0 ? (
                     <div className="list" style={{ marginTop: "0.75rem" }}>
                       {playerStats.map((row) => (
                         <div key={`${row.player_id}-${row.game_slug}`} className="card" style={{ background: "#f9fbfc" }}>
-                          <strong>{row.game_slug}</strong>
+                          <strong>{formatGameLabel(row.game_slug)}</strong>
                           <p>
                             Sessions: {row.sessions_played} · Avg: {Math.round(Number(row.average_score || 0) * 10) / 10}
                             {" · "}Last 10: {Math.round(Number(row.last_10_average || 0) * 10) / 10}
@@ -96,12 +152,12 @@ export default async function StudentsPage({ params }) {
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
                 </article>
               );
             })}
           </div>
-        )}
+        ) : null}
       </section>
     </div>
   );
