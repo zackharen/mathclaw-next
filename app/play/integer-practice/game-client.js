@@ -7,7 +7,7 @@ function randomInt(max) {
 }
 
 function makeProblem(level, twoDigit) {
-  const limit = twoDigit ? 99 : Math.max(9, 9 + level * 3);
+  const limit = twoDigit ? Math.min(99, Math.max(10, 9 + level * 6)) : 9;
   const a = randomInt(limit * 2 + 1) - limit;
   const b = randomInt(limit * 2 + 1) - limit;
   const op = Math.random() > 0.5 ? "+" : "-";
@@ -69,12 +69,18 @@ export default function IntegerPracticeClient({ courses }) {
     await saveAttempt(correct);
   }
 
+  function handleTwoDigitChange(checked) {
+    setTwoDigit(checked);
+    setFeedback("");
+    setProblem(makeProblem(level, checked));
+  }
+
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
         <h2>Settings</h2>
         <div className="list">
-          <label className="toggleRow"><input type="checkbox" checked={twoDigit} onChange={(e) => setTwoDigit(e.target.checked)} /> Two-digit numbers</label>
+          <label className="toggleRow"><input type="checkbox" checked={twoDigit} onChange={(e) => handleTwoDigitChange(e.target.checked)} /> Two-digit numbers</label>
           <label className="toggleRow"><input type="checkbox" checked={multipleChoice} onChange={(e) => setMultipleChoice(e.target.checked)} /> Multiple choice</label>
           {multipleChoice ? (
             <label>
