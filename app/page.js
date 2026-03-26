@@ -22,6 +22,10 @@ export default async function HomePage() {
 
   return (
     <div className="stack">
+      <section className="card" style={{ background: "#fff4d6", borderColor: "#cd3b3b" }}>
+        <p style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Ahily won Wingstop!</p>
+      </section>
+
       <section className="card">
         <h1>MathClaw</h1>
         <p>
