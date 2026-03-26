@@ -81,6 +81,32 @@ main {
   font-weight: 700;
 }
 
+.navForm {
+  display: contents;
+}
+
+.navButton {
+  padding: 0.5rem 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--navy);
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 90ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.navButton:hover {
+  box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+}
+
+.navButton:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
 .content {
   padding: 1rem;
 }

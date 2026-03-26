@@ -1,12 +1,19 @@
 import "./globals.css";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { signOutAction } from "@/app/auth/actions";
 
 export const metadata = {
   title: "MathClaw",
   description: "Curriculum pacing and announcements for math teachers.",
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="en">
       <body>
@@ -24,6 +31,15 @@ export default function RootLayout({ children }) {
                 <Link href="/classes">Classes</Link>
                 <Link href="/classes/new">New Class</Link>
                 <Link href="/dashboard">Dashboard</Link>
+                {user ? (
+                  <form action={signOutAction} className="navForm">
+                    <button className="navButton" type="submit">
+                      Log Out
+                    </button>
+                  </form>
+                ) : (
+                  <Link href="/auth/sign-in">Log In</Link>
+                )}
               </nav>
             </header>
             <section className="content">{children}</section>
