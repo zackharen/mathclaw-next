@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 
@@ -39,7 +40,9 @@ export async function regenerateStudentJoinCodeAction(formData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return;
+  if (!user) {
+    redirect(`/auth/sign-in?redirect=/classes/${courseId}/students`);
+  }
 
   const { data: course } = await supabase
     .from("courses")
@@ -48,7 +51,9 @@ export async function regenerateStudentJoinCodeAction(formData) {
     .eq("owner_id", user.id)
     .single();
 
-  if (!course) return;
+  if (!course) {
+    redirect("/classes?join_code_error=course_not_found");
+  }
 
   let joinCode = generateJoinCode();
   let attempts = 0;
@@ -63,16 +68,21 @@ export async function regenerateStudentJoinCodeAction(formData) {
     if (!error) {
       revalidatePath("/classes");
       revalidatePath(`/classes/${course.id}/students`);
-      return;
+      redirect(`/classes/${course.id}/students?join_code_updated=1`);
     }
 
-    if (!String(error.message || "").includes("duplicate")) {
-      throw new Error(error.message);
+    const message = String(error.message || "");
+    if (message.includes("student_join_code")) {
+      redirect(`/classes/${course.id}/students?join_code_error=missing_column`);
+    }
+
+    if (!message.includes("duplicate")) {
+      redirect(`/classes/${course.id}/students?join_code_error=save_failed`);
     }
 
     attempts += 1;
     joinCode = generateJoinCode();
   }
 
-  throw new Error("Could not generate a unique join code.");
+  redirect(`/classes/${course.id}/students?join_code_error=duplicate_retry_failed`);
 }

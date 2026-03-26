@@ -12,7 +12,7 @@ function formatGameLabel(slug) {
   }[slug] || slug;
 }
 
-export default async function StudentsPage({ params }) {
+export default async function StudentsPage({ params, searchParams }) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -52,6 +52,10 @@ export default async function StudentsPage({ params }) {
     redirect("/classes");
   }
 
+  const resolvedSearchParams = await searchParams;
+  const joinCodeUpdated = resolvedSearchParams?.join_code_updated === "1";
+  const joinCodeError = resolvedSearchParams?.join_code_error || "";
+
   const [{ data: memberships, error: membershipsError }, { data: stats, error: statsError }] = await Promise.all([
     supabase
       .from("student_course_memberships")
@@ -78,6 +82,15 @@ export default async function StudentsPage({ params }) {
     <div className="stack">
       <section className="card">
         <h1>{course.title}: Student Progress</h1>
+        {joinCodeUpdated ? <p style={{ color: "#0a7a32", fontWeight: 700 }}>Join code updated.</p> : null}
+        {joinCodeError === "missing_column" ? (
+          <p style={{ color: "#cd3b3b", fontWeight: 700 }}>
+            Join codes are not enabled in Supabase yet. Run the student-games SQL migration, then try again.
+          </p>
+        ) : null}
+        {joinCodeError && joinCodeError !== "missing_column" ? (
+          <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Could not generate a join code yet. Please try again.</p>
+        ) : null}
         <p>
           Students join this class from the Student Arcade using your class code. Once they join and play,
           their progress will show up here.
