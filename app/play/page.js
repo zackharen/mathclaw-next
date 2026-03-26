@@ -41,6 +41,8 @@ export default async function PlayPage({ searchParams }) {
 
   const statsByGame = new Map((statsResult.data || []).map((row) => [row.game_slug, row]));
   const params = await searchParams;
+  const joinedCourseId = typeof params?.course === "string" ? params.course : "";
+  const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
 
   return (
     <div className="stack">
@@ -53,31 +55,47 @@ export default async function PlayPage({ searchParams }) {
         <div className="featureGrid" style={{ marginTop: "1rem" }}>
           <form action={joinClassByCodeAction} className="card" style={{ background: "#fff" }}>
             <h2>Join A Math Class</h2>
-            <p>Paste the code your teacher gives you and we’ll connect your account.</p>
+            <p>Paste the code your teacher gives you and we’ll connect your account right away.</p>
             <div className="ctaRow">
               <input
                 className="input"
-                style={{ maxWidth: "16rem", textTransform: "uppercase" }}
+                style={{ maxWidth: "16rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
                 name="join_code"
-                placeholder="e.g. 7F4KQ2"
+                placeholder="e.g. 04084F46F9"
+                autoComplete="off"
+                spellCheck="false"
               />
               <button className="btn primary" type="submit">
                 Join Class
               </button>
             </div>
+            <p style={{ marginTop: "0.75rem", opacity: 0.8 }}>Codes are not case-sensitive. You can paste them in exactly as your teacher shares them.</p>
             {params?.join_error === "missing" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>Please enter a class code.</p> : null}
-            {params?.join_error === "not_found" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>That class code was not found.</p> : null}
-            {params?.join_success === "1" ? <p style={{ color: "var(--navy)", marginTop: "0.75rem" }}>Class joined successfully.</p> : null}
+            {params?.join_error === "not_found" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>That class code was not found. Double-check the letters and numbers with your teacher.</p> : null}
+            {params?.join_success === "1" && joinedCourse ? (
+              <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
+                <h3 style={{ marginBottom: "0.4rem" }}>You’re in.</h3>
+                <p>
+                  <strong>{joinedCourse.title}</strong>
+                  <br />
+                  {joinedCourse.class_name} · {joinedCourse.relationship === "owner" ? "Teacher account" : "Joined as student"}
+                </p>
+                <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+                  <Link className="btn" href="/play/2048">Play 2048</Link>
+                  <Link className="btn" href="/play/integer-practice">Practice Integers</Link>
+                </div>
+              </div>
+            ) : null}
           </form>
 
           <article className="card" style={{ background: "#fff" }}>
-            <h2>Your Class Access</h2>
+            <h2>Your Math Classes</h2>
             {courses.length === 0 ? (
-              <p>No joined classes yet. That’s okay — you can still play as soon as you join one.</p>
+              <p>No joined classes yet. Once you add a class code, your teacher’s class will show up here.</p>
             ) : (
               <div className="list">
                 {courses.map((course) => (
-                  <div key={course.id} className="card" style={{ background: "#f9fbfc" }}>
+                  <div key={course.id} className="card" style={{ background: joinedCourseId === course.id ? "#e8f1f8" : "#f9fbfc" }}>
                     <strong>{course.title}</strong>
                     <p>
                       {course.class_name} · {course.relationship === "owner" ? "Teacher account" : "Joined as student"}
