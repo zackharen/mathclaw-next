@@ -11,6 +11,7 @@ export default function SignUpPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+
   async function onSignUp(event) {
     event.preventDefault();
     setLoading(true);
@@ -38,13 +39,48 @@ export default function SignUpPage() {
     setMessage("Check your email to confirm your account, then continue.");
   }
 
+  async function onGoogleSignUp() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    const origin = window.location.origin;
+    const supabase = createClient();
+    const { error: googleError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${origin}/auth/callback?next=/onboarding/profile`,
+      },
+    });
+
+    if (googleError) {
+      setLoading(false);
+      setError(googleError.message);
+    }
+  }
+
   return (
     <div className="stack">
-      <section className="card">
+      <section className="card authCardShell">
         <h1>Create Account</h1>
-        <p>Start with email/password. Google sign-in is available on sign-in page.</p>
+        <p>Students should use Google first. Email/password stays available as a backup option.</p>
 
-        <form onSubmit={onSignUp} className="list" style={{ marginTop: "1rem" }}>
+        <section className="authPriorityCard" style={{ marginTop: "1rem" }}>
+          <p className="authEyebrow">Recommended</p>
+          <h2>Continue with Google</h2>
+          <p>Use your school Google account to skip confirmation emails and get into MathClaw faster.</p>
+          <div className="ctaRow authPrimaryRow">
+            <button className="btn primary googleBtn" disabled={loading} onClick={onGoogleSignUp} type="button">
+              {loading ? "Opening Google..." : "Continue with Google"}
+            </button>
+          </div>
+        </section>
+
+        <div className="authDivider">
+          <span>or create an account with email</span>
+        </div>
+
+        <form onSubmit={onSignUp} className="list authForm" style={{ marginTop: "1rem" }}>
           <label>
             Email
             <input
@@ -74,8 +110,8 @@ export default function SignUpPage() {
           {message ? <p style={{ color: "#14532d" }}>{message}</p> : null}
 
           <div className="ctaRow">
-            <button className="btn primary" disabled={loading} type="submit">
-              {loading ? "Creating..." : "Create Account"}
+            <button className="btn" disabled={loading} type="submit">
+              {loading ? "Creating..." : "Create Account with Email"}
             </button>
           </div>
         </form>

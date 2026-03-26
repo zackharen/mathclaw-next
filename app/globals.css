@@ -146,6 +146,69 @@ p {
   gap: 0.6rem;
 }
 
+
+.authCardShell {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.authPriorityCard {
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f7fbff 0%, #e8f0f7 100%);
+  padding: 1rem;
+}
+
+.authEyebrow {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #49657c;
+  margin-bottom: 0.35rem;
+}
+
+.authPriorityCard h2 {
+  margin-bottom: 0.35rem;
+}
+
+.authPrimaryRow {
+  margin-top: 0.85rem;
+}
+
+.googleBtn {
+  min-width: 240px;
+}
+
+.authDivider {
+  position: relative;
+  text-align: center;
+  margin: 1rem 0 0.25rem;
+}
+
+.authDivider::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid #93a5b4;
+}
+
+.authDivider span {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.8rem;
+  background: #f9fbfc;
+  color: #49657c;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.authForm {
+  padding-top: 0.25rem;
+}
+
 .featureGrid {
   display: grid;
   gap: 1rem;

@@ -10,9 +10,9 @@ export default async function SignInPage({ searchParams }) {
 
   return (
     <div className="stack">
-      <section className="card">
+      <section className="card authCardShell">
         <h1>Sign In</h1>
-        <p>Use email/password or Google.</p>
+        <p>Students should use Google first. Email/password is still available as a backup.</p>
         <SignInForm redirectTo={redirectTo} />
       </section>
     </div>

@@ -56,7 +56,25 @@ export default function SignInForm({ redirectTo }) {
 
   return (
     <>
-      <form onSubmit={onEmailSignIn} className="list" style={{ marginTop: "1rem" }}>
+      <section className="authPriorityCard">
+        <p className="authEyebrow">Best for students</p>
+        <h2>Continue with Google</h2>
+        <p>
+          Use your school Google account first. It skips the confirmation-email step and is the
+          fastest way into MathClaw.
+        </p>
+        <div className="ctaRow authPrimaryRow">
+          <button className="btn primary googleBtn" disabled={loading} onClick={onGoogleSignIn} type="button">
+            {loading ? "Opening Google..." : "Continue with Google"}
+          </button>
+        </div>
+      </section>
+
+      <div className="authDivider">
+        <span>or use email/password</span>
+      </div>
+
+      <form onSubmit={onEmailSignIn} className="list authForm" style={{ marginTop: "1rem" }}>
         <label>
           Email
           <input
@@ -84,11 +102,8 @@ export default function SignInForm({ redirectTo }) {
         {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
 
         <div className="ctaRow">
-          <button className="btn primary" disabled={loading} type="submit">
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-          <button className="btn" disabled={loading} onClick={onGoogleSignIn} type="button">
-            Continue with Google
+          <button className="btn" disabled={loading} type="submit">
+            {loading ? "Signing in..." : "Sign In with Email"}
           </button>
         </div>
       </form>
