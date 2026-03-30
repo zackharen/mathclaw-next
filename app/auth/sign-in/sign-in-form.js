@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getAccountTypeForUser, sanitizeNextForAccountType } from "@/lib/auth/account-type";
 
 export default function SignInForm({ redirectTo }) {
   const [email, setEmail] = useState("");
@@ -24,14 +25,19 @@ export default function SignInForm({ redirectTo }) {
       password,
     });
 
-    setLoading(false);
-
     if (signInError) {
+      setLoading(false);
       setError(signInError.message);
       return;
     }
 
-    router.push(redirectTo);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const accountType = await getAccountTypeForUser(supabase, user, "teacher");
+
+    setLoading(false);
+    router.push(sanitizeNextForAccountType(redirectTo, accountType));
     router.refresh();
   }
 

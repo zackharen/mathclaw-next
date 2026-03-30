@@ -6,7 +6,7 @@ export default async function SignInPage({ searchParams }) {
   const redirectTo =
     typeof redirectRaw === "string" && redirectRaw.startsWith("/")
       ? redirectRaw
-      : "/classes";
+      : "/";
 
   return (
     <div className="stack">
