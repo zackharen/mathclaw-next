@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/app/auth/actions";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { isOwnerUser } from "@/lib/auth/owner";
 
 export const metadata = {
   title: "MathClaw",
@@ -17,6 +18,7 @@ export default async function RootLayout({ children }) {
 
   const accountType = user ? await getAccountTypeForUser(supabase, user) : null;
   const isTeacher = Boolean(user && accountType !== "student");
+  const isOwner = Boolean(user && isOwnerUser(user));
 
   return (
     <html lang="en">
@@ -35,6 +37,7 @@ export default async function RootLayout({ children }) {
                 {isTeacher ? <Link href="/classes">Classes</Link> : null}
                 {isTeacher ? <Link href="/classes/new">New Class</Link> : null}
                 {isTeacher ? <Link href="/dashboard">Dashboard</Link> : null}
+                {isOwner ? <Link href="/admin">Admin</Link> : null}
                 {user ? (
                   <form action={signOutAction} className="navForm">
                     <button className="navButton" type="submit">
