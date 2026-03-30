@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 
 function prettyDate(value) {
   const [year, month, day] = String(value).split("-").map(Number);
@@ -42,6 +43,12 @@ export default async function DashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const accountType = await getAccountTypeForUser(supabase, user);
+
+  if (accountType === "student") {
+    redirect("/play");
+  }
 
   if (!user) {
     redirect("/auth/sign-in?redirect=/dashboard");

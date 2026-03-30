@@ -10,7 +10,9 @@ export default function ProfileForm({
   initialSchoolName,
   initialTimezone,
   initialDiscoverable = true,
+  accountType = "teacher",
 }) {
+  const isTeacher = accountType !== "student";
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [schoolName, setSchoolName] = useState(initialSchoolName);
   const [timezone, setTimezone] = useState(initialTimezone);
@@ -33,13 +35,33 @@ export default function ProfileForm({
       display_name: displayName.trim(),
       school_name: schoolName.trim() || null,
       timezone,
-      discoverable,
+      discoverable: isTeacher ? discoverable : false,
+      account_type: accountType,
       updated_at: new Date().toISOString(),
     };
 
     let { error: upsertError } = await supabase
       .from("profiles")
       .upsert(payload, { onConflict: "id" });
+
+    if (
+      upsertError &&
+      typeof upsertError.message === "string" &&
+      upsertError.message.includes("account_type")
+    ) {
+      const retry = await supabase.from("profiles").upsert(
+        {
+          id: userId,
+          display_name: displayName.trim(),
+          school_name: schoolName.trim() || null,
+          timezone,
+          discoverable: isTeacher ? discoverable : false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+      upsertError = retry.error;
+    }
 
     // Backward compatibility if DB migration for discoverable has not been run yet.
     if (
@@ -81,7 +103,7 @@ export default function ProfileForm({
           required
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Zack Arenstein"
+          placeholder={isTeacher ? "Zack Arenstein" : "Student name"}
         />
       </label>
 
@@ -110,14 +132,16 @@ export default function ProfileForm({
         </select>
       </label>
 
-      <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
-        <input
-          type="checkbox"
-          checked={discoverable}
-          onChange={(e) => setDiscoverable(e.target.checked)}
-        />
-        Allow other teachers to find me in search
-      </label>
+      {isTeacher ? (
+        <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+          <input
+            type="checkbox"
+            checked={discoverable}
+            onChange={(e) => setDiscoverable(e.target.checked)}
+          />
+          Allow other teachers to find me in search
+        </label>
+      ) : null}
 
       {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
       {!error && saved ? <p className="statusNote">Profile Updated!</p> : null}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -10,15 +11,22 @@ export default async function HomePage() {
 
   let courses = [];
   let playCourses = [];
+  let accountType = null;
+
   if (user) {
-    const { data } = await supabase
-      .from("courses")
-      .select("id, title, class_name, schedule_model, ab_meeting_day")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
-    courses = data || [];
+    accountType = await getAccountTypeForUser(supabase, user);
+    if (accountType !== "student") {
+      const { data } = await supabase
+        .from("courses")
+        .select("id, title, class_name, schedule_model, ab_meeting_day")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false });
+      courses = data || [];
+    }
     playCourses = await listAccessibleCourses(supabase, user.id);
   }
+
+  const isStudent = accountType === "student";
 
   return (
     <div className="stack">
@@ -29,23 +37,24 @@ export default async function HomePage() {
       <section className="card">
         <h1>MathClaw</h1>
         <p>
-          MathClaw helps math teachers plan with less friction: align curriculum,
-          maintain pacing, produce clear daily communication, and build playful
-          math habits for students from one shared platform.
+          MathClaw helps teachers plan with less friction and gives students a clean,
+          trackable arcade for math practice and challenge games.
         </p>
         <div className="featureGrid" style={{ marginTop: "1rem" }}>
-          <article className="card" style={{ background: "#fff" }}>
-            <h2>Teacher Site</h2>
-            <p>
-              Build classes, control pacing, edit calendars, and generate what your
-              class needs each day.
-            </p>
-            <div className="ctaRow">
-              <Link className="btn primary" href={user ? "/classes" : "/auth/sign-in?redirect=/classes"}>
-                Open Teacher Workspace
-              </Link>
-            </div>
-          </article>
+          {!isStudent ? (
+            <article className="card" style={{ background: "#fff" }}>
+              <h2>Teacher Site</h2>
+              <p>
+                Build classes, control pacing, edit calendars, and generate what your
+                class needs each day.
+              </p>
+              <div className="ctaRow">
+                <Link className="btn primary" href={user ? "/classes" : "/auth/sign-in?redirect=/classes"}>
+                  Open Teacher Workspace
+                </Link>
+              </div>
+            </article>
+          ) : null}
           <article className="card" style={{ background: "#fff" }}>
             <h2>Student Games</h2>
             <p>
@@ -61,7 +70,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {user ? (
+      {user && !isStudent ? (
         <>
           <section className="card">
             <h2>Your Teaching Classes</h2>
@@ -106,6 +115,26 @@ export default async function HomePage() {
             ) : null}
           </section>
         </>
+      ) : null}
+
+      {user && isStudent ? (
+        <section className="card">
+          <h2>Your Student Arcade</h2>
+          <p>
+            Student accounts focus on games, class join codes, and progress tracking. Use the arcade to join a class and start playing.
+          </p>
+          {playCourses.length > 0 ? (
+            <ul className="list" style={{ marginTop: "0.75rem" }}>
+              {playCourses.map((course) => (
+                <li key={course.id} className="card" style={{ background: "#fff", listStyle: "none" }}>
+                  <strong>{course.title}</strong> — {course.class_name} ({course.relationship})
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ marginTop: "0.75rem" }}>You have not joined a class yet. Use a teacher join code in the Student Arcade.</p>
+          )}
+        </section>
       ) : null}
     </div>
   );

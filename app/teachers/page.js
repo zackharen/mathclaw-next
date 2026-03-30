@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import {
   acceptTeacherRequestAction,
   declineTeacherRequestAction,
@@ -19,6 +20,12 @@ export default async function TeachersPage({ searchParams }) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const accountType = await getAccountTypeForUser(supabase, user);
+
+  if (accountType === "student") {
+    redirect("/play");
+  }
 
   if (!user) {
     redirect("/auth/sign-in?redirect=/teachers");

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import ProfileForm from "./profile-form";
 import {
   saveAnnouncementTemplateAction,
@@ -95,6 +96,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   }
 
   const defaults = defaultSchoolYearDates();
+  const accountType = await getAccountTypeForUser(supabase, user);
+  const isTeacher = accountType !== "student";
 
   let migrationNeeded = false;
 
@@ -239,16 +242,18 @@ Standards: {standards}`;
     <div className="stack">
       <section className="card">
         <h1>Profile</h1>
-        <p>Update your teacher profile details.</p>
+        <p>{isTeacher ? "Update your teacher profile details." : "Update your student profile details."}</p>
         <ProfileForm
           userId={user.id}
           initialDisplayName={profile?.display_name || ""}
           initialSchoolName={profile?.school_name || ""}
           initialTimezone={profile?.timezone || "America/New_York"}
-          initialDiscoverable={profile?.discoverable ?? true}
+          initialDiscoverable={profile?.discoverable ?? isTeacher}
+          accountType={accountType}
         />
       </section>
 
+      {isTeacher ? (
       <section className="card">
         <h2>School Calendar</h2>
         <p>
@@ -351,7 +356,9 @@ Standards: {standards}`;
           </form>
         </details>
       </section>
+      ) : null}
 
+      {isTeacher ? (
       <section className="card">
         <h2>Announcement Template</h2>
         <p>
@@ -435,6 +442,7 @@ Standards: {standards}`;
           </div>
         </form>
       </section>
+      ) : null}
     </div>
   );
 }

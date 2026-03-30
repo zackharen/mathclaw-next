@@ -12,6 +12,7 @@ create table if not exists public.profiles (
   school_name text,
   timezone text not null default 'America/New_York',
   discoverable boolean not null default true,
+  account_type text not null default 'teacher' check (account_type in ('teacher', 'student')),
   school_year_start date,
   school_year_end date,
   created_at timestamptz not null default now(),

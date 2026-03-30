@@ -2,10 +2,11 @@ import "./globals.css";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/app/auth/actions";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 
 export const metadata = {
   title: "MathClaw",
-  description: "Curriculum pacing and announcements for math teachers.",
+  description: "Curriculum pacing, student games, and classroom tools.",
 };
 
 export default async function RootLayout({ children }) {
@@ -14,6 +15,9 @@ export default async function RootLayout({ children }) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const accountType = user ? await getAccountTypeForUser(supabase, user) : null;
+  const isTeacher = Boolean(user && accountType !== "student");
+
   return (
     <html lang="en">
       <body>
@@ -21,16 +25,16 @@ export default async function RootLayout({ children }) {
           <div className="shell">
             <header className="topbar">
               {/* TODO: Replace text mark with a custom emblem. */}
-              <Link className="brand" href="/">
+              <Link className="brand" href={user && accountType === "student" ? "/play" : "/"}>
                 MathClaw
               </Link>
               <nav className="nav">
                 <Link href="/play">Play</Link>
-                <Link href="/onboarding/profile">Profile</Link>
-                <Link href="/teachers">Teachers</Link>
-                <Link href="/classes">Classes</Link>
-                <Link href="/classes/new">New Class</Link>
-                <Link href="/dashboard">Dashboard</Link>
+                {user ? <Link href="/onboarding/profile">Profile</Link> : null}
+                {isTeacher ? <Link href="/teachers">Teachers</Link> : null}
+                {isTeacher ? <Link href="/classes">Classes</Link> : null}
+                {isTeacher ? <Link href="/classes/new">New Class</Link> : null}
+                {isTeacher ? <Link href="/dashboard">Dashboard</Link> : null}
                 {user ? (
                   <form action={signOutAction} className="navForm">
                     <button className="navButton" type="submit">
@@ -38,7 +42,10 @@ export default async function RootLayout({ children }) {
                     </button>
                   </form>
                 ) : (
-                  <Link href="/auth/sign-in">Log In</Link>
+                  <>
+                    <Link href="/auth/sign-in">Log In</Link>
+                    <Link href="/auth/sign-up">Create Account</Link>
+                  </>
                 )}
               </nav>
             </header>
