@@ -487,27 +487,38 @@ details[open] > summary.editorSummary .hideLabel {
 }
 
 .connect4Board {
+  --connect4-slot-size: 56px;
+  --connect4-slot-gap: 0.4rem;
+  --connect4-board-pad: 0.75rem;
   margin-top: 1rem;
   display: grid;
-  grid-template-columns: repeat(7, 56px);
-  gap: 0.4rem;
+  grid-template-columns: repeat(7, var(--connect4-slot-size));
+  gap: var(--connect4-slot-gap);
   justify-content: start;
-  padding: 0.75rem;
+  width: max-content;
+  padding: var(--connect4-board-pad);
   border: 2px solid var(--line);
   border-radius: 12px;
   background: var(--navy);
 }
 
 .connect4DropRow {
+  --connect4-slot-size: 56px;
+  --connect4-slot-gap: 0.4rem;
+  --connect4-board-pad: 0.75rem;
   margin-top: 1rem;
   display: grid;
-  grid-template-columns: repeat(7, 56px);
-  gap: 0.4rem;
+  grid-template-columns: repeat(7, var(--connect4-slot-size));
+  gap: var(--connect4-slot-gap);
   justify-content: start;
+  width: max-content;
+  padding-inline: var(--connect4-board-pad);
+  box-sizing: border-box;
 }
 
 .connect4DropBtn {
   min-height: 2.75rem;
+  width: var(--connect4-slot-size);
   padding: 0.35rem 0.2rem;
 }
 
@@ -545,11 +556,11 @@ details[open] > summary.editorSummary .hideLabel {
   }
 
   .connect4Board {
-    grid-template-columns: repeat(7, 42px);
+    --connect4-slot-size: 42px;
   }
 
   .connect4DropRow {
-    grid-template-columns: repeat(7, 42px);
+    --connect4-slot-size: 42px;
   }
 
   .connect4Cell {
