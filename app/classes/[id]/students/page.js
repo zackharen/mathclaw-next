@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 
 function formatGameLabel(slug) {
@@ -75,10 +76,22 @@ export default async function StudentsPage({ params, searchParams }) {
   let profileById = new Map();
 
   if (profileIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, school_name")
-      .in("id", profileIds);
+    let profiles = null;
+
+    try {
+      const admin = createAdminClient();
+      const result = await admin
+        .from("profiles")
+        .select("id, display_name, school_name")
+        .in("id", profileIds);
+      profiles = result.data || null;
+    } catch {
+      const result = await supabase
+        .from("profiles")
+        .select("id, display_name, school_name")
+        .in("id", profileIds);
+      profiles = result.data || null;
+    }
 
     profileById = new Map((profiles || []).map((profile) => [profile.id, profile]));
   }
