@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 
 function formatGameLabel(slug) {
@@ -57,44 +56,16 @@ export default async function StudentsPage({ params, searchParams }) {
   const joinCodeUpdated = resolvedSearchParams?.join_code_updated === "1";
   const joinCodeError = resolvedSearchParams?.join_code_error || "";
 
-  const [{ data: memberships, error: membershipsError }, { data: stats, error: statsError }] = await Promise.all([
-    supabase
-      .from("student_course_memberships")
-      .select("profile_id, joined_at")
-      .eq("course_id", course.id)
-      .order("joined_at", { ascending: false }),
+  const [{ data: membershipRows, error: membershipsError }, { data: stats, error: statsError }] = await Promise.all([
+    supabase.rpc("list_course_students", { p_course_id: course.id }),
     supabase
       .from("course_game_player_stats")
       .select("player_id, game_slug, average_score, last_10_average, best_score, sessions_played")
       .eq("course_id", course.id),
   ]);
 
-  const safeMemberships = membershipsError ? [] : memberships || [];
+  const safeMemberships = membershipsError ? [] : membershipRows || [];
   const safeStats = statsError ? [] : stats || [];
-  const profileIds = [...new Set(safeMemberships.map((membership) => membership.profile_id).filter(Boolean))];
-
-  let profileById = new Map();
-
-  if (profileIds.length > 0) {
-    let profiles = null;
-
-    try {
-      const admin = createAdminClient();
-      const result = await admin
-        .from("profiles")
-        .select("id, display_name, school_name")
-        .in("id", profileIds);
-      profiles = result.data || null;
-    } catch {
-      const result = await supabase
-        .from("profiles")
-        .select("id, display_name, school_name")
-        .in("id", profileIds);
-      profiles = result.data || null;
-    }
-
-    profileById = new Map((profiles || []).map((profile) => [profile.id, profile]));
-  }
 
   const statsByPlayer = new Map();
   for (const row of safeStats) {
@@ -165,13 +136,12 @@ export default async function StudentsPage({ params, searchParams }) {
           <div className="list">
             {safeMemberships.map((membership) => {
               const playerStats = statsByPlayer.get(membership.profile_id) || [];
-              const profile = profileById.get(membership.profile_id) || null;
               return (
                 <article key={membership.profile_id} className="card" style={{ background: "#fff" }}>
-                  <h3>{profile?.display_name || `Student ${membership.profile_id.slice(0, 8)}`}</h3>
+                  <h3>{membership.display_name || `Student ${membership.profile_id.slice(0, 8)}`}</h3>
                   <p>
                     Joined {new Date(membership.joined_at).toLocaleDateString()}
-                    {profile?.school_name ? ` · ${profile.school_name}` : ""}
+                    {membership.school_name ? ` · ${membership.school_name}` : ""}
                   </p>
                   {statsError ? <p style={{ marginTop: "0.75rem" }}>Game stats are not available yet.</p> : null}
                   {!statsError && playerStats.length === 0 ? (
