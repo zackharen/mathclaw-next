@@ -1032,6 +1032,11 @@ details[open] > summary.btn,
   min-height: 0;
 }
 
+.adminRenameForm,
+.adminEnrollmentForm {
+  margin-bottom: 1rem;
+}
+
 .adminFilterBar {
   display: grid;
   gap: 1rem;
@@ -1042,6 +1047,15 @@ details[open] > summary.btn,
 
 .adminFilterActions {
   flex-wrap: wrap;
+}
+
+.adminInlineEditorRow {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.adminInlineEditorRow .input {
+  flex: 1 1 280px;
 }
 
 .adminUserHeader {

@@ -31,6 +31,14 @@ function isMissingColumnError(error, columnName) {
   );
 }
 
+async function getManagedAuthUser(admin, userId) {
+  const { data: authUserData, error: getUserError } = await admin.auth.admin.getUserById(userId);
+  if (getUserError) {
+    redirect(`/admin?error=${encodeURIComponent(getUserError.message)}`);
+  }
+  return authUserData?.user || null;
+}
+
 export async function updateAccountTypeAction(formData) {
   await requireOwner();
 
@@ -43,13 +51,8 @@ export async function updateAccountTypeAction(formData) {
   }
 
   const admin = createAdminClient();
-
-  const { data: authUserData, error: getUserError } = await admin.auth.admin.getUserById(userId);
-  if (getUserError) {
-    redirect(`/admin?error=${encodeURIComponent(getUserError.message)}`);
-  }
-
-  const currentMetadata = authUserData?.user?.user_metadata || {};
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentMetadata = authUser?.user_metadata || {};
   const baseProfileUpdate = {
     account_type: nextType,
     discoverable: nextType === "student" ? false : currentMetadata?.discoverable,
@@ -94,6 +97,60 @@ export async function updateAccountTypeAction(formData) {
   redirect("/admin?updated=1");
 }
 
+export async function renameAccountAction(formData) {
+  await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const displayName = String(formData.get("display_name") || "").trim();
+
+  if (!userId || !displayName) {
+    redirect("/admin?error=missing-user");
+  }
+
+  const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentMetadata = authUser?.user_metadata || {};
+
+  let { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      display_name: displayName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (profileError && isMissingColumnError(profileError, "updated_at")) {
+    const retry = await admin
+      .from("profiles")
+      .update({
+        display_name: displayName,
+      })
+      .eq("id", userId);
+    profileError = retry.error;
+  }
+
+  if (profileError) {
+    redirect(`/admin?error=${encodeURIComponent(profileError.message)}`);
+  }
+
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      ...currentMetadata,
+      display_name: displayName,
+      full_name: displayName,
+      name: displayName,
+    },
+  });
+
+  if (authError) {
+    redirect(`/admin?error=${encodeURIComponent(authError.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  redirect("/admin?renamed=1");
+}
+
 export async function deleteAccountAction(formData) {
   const { user: owner } = await requireOwner();
 
@@ -115,6 +172,39 @@ export async function deleteAccountAction(formData) {
 
   revalidatePath("/admin");
   redirect("/admin?deleted=1");
+}
+
+export async function toggleAdminAccessAction(formData) {
+  const { user: actingUser } = await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const nextValue = String(formData.get("site_admin") || "").trim() === "true";
+
+  if (!userId) {
+    redirect("/admin?error=missing-user");
+  }
+
+  if (userId === actingUser.id && !nextValue) {
+    redirect("/admin?error=cannot-remove-your-own-admin-access");
+  }
+
+  const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentAppMetadata = authUser?.app_metadata || {};
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    app_metadata: {
+      ...currentAppMetadata,
+      site_admin: nextValue,
+    },
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  redirect(`/admin?adminAccess=${nextValue ? "granted" : "revoked"}`);
 }
 
 export async function toggleDiscoverableAction(formData) {
@@ -144,4 +234,34 @@ export async function toggleDiscoverableAction(formData) {
   revalidatePath("/admin");
   revalidatePath("/teachers");
   redirect(`/admin?discoverability=${nextValue ? "shown" : "hidden"}`);
+}
+
+export async function addUserToClassAction(formData) {
+  await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const courseId = String(formData.get("course_id") || "").trim();
+
+  if (!userId || !courseId) {
+    redirect("/admin?error=missing-user");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("student_course_memberships")
+    .upsert(
+      {
+        course_id: courseId,
+        profile_id: userId,
+      },
+      { onConflict: "course_id,profile_id" }
+    );
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  redirect("/admin?membership=added");
 }

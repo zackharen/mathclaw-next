@@ -1,8 +1,15 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isOwnerUser } from "@/lib/auth/owner";
-import { updateAccountTypeAction, deleteAccountAction, toggleDiscoverableAction } from "./actions";
+import { isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
+import {
+  updateAccountTypeAction,
+  deleteAccountAction,
+  toggleDiscoverableAction,
+  renameAccountAction,
+  toggleAdminAccessAction,
+  addUserToClassAction,
+} from "./actions";
 
 function formatDate(value) {
   if (!value) return "-";
@@ -18,17 +25,24 @@ function formatDate(value) {
 function Notice({ searchParams }) {
   const updated = searchParams?.updated === "1";
   const deleted = searchParams?.deleted === "1";
+  const renamed = searchParams?.renamed === "1";
   const discoverability = searchParams?.discoverability;
+  const membership = searchParams?.membership;
+  const adminAccess = searchParams?.adminAccess;
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !discoverability && !error) return null;
+  if (!updated && !deleted && !renamed && !discoverability && !membership && !adminAccess && !error) return null;
 
   return (
     <div className={`card ${error ? "noticeError" : "noticeSuccess"}`}>
       {updated ? <p>Account type updated.</p> : null}
       {deleted ? <p>Account deleted.</p> : null}
+      {renamed ? <p>Display name updated.</p> : null}
       {discoverability === "shown" ? <p>Teacher is now discoverable.</p> : null}
       {discoverability === "hidden" ? <p>Teacher is now hidden from teacher search.</p> : null}
+      {membership === "added" ? <p>User added to class.</p> : null}
+      {adminAccess === "granted" ? <p>Admin access granted.</p> : null}
+      {adminAccess === "revoked" ? <p>Admin access revoked.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
   );
@@ -60,6 +74,7 @@ export default async function AdminPage({ searchParams }) {
 
   let users = [];
   let profilesById = new Map();
+  let courseOptions = [];
 
   if (!error) {
     const authUsers = data?.users || [];
@@ -75,8 +90,8 @@ export default async function AdminPage({ searchParams }) {
           .in("id", ids),
         admin
           .from("courses")
-          .select("id, owner_id")
-          .in("owner_id", ids),
+          .select("id, owner_id, title, class_name")
+          .order("title", { ascending: true }),
         admin
           .from("student_course_memberships")
           .select("profile_id")
@@ -86,6 +101,13 @@ export default async function AdminPage({ searchParams }) {
       profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
       ownedClassesById = new Map();
       joinedClassesById = new Map();
+      courseOptions = (courses || []).map((course) => {
+        const ownerProfile = profilesById.get(course.owner_id);
+        return {
+          id: course.id,
+          label: `${course.title} · ${course.class_name}${ownerProfile?.display_name ? ` · ${ownerProfile.display_name}` : ""}`,
+        };
+      });
 
       for (const course of courses || []) {
         ownedClassesById.set(course.owner_id, (ownedClassesById.get(course.owner_id) || 0) + 1);
@@ -104,6 +126,8 @@ export default async function AdminPage({ searchParams }) {
       const metadata = authUser.user_metadata || {};
       const accountType = profile.account_type || metadata.account_type || "teacher";
       const isOwner = isOwnerUser(authUser);
+      const isBootstrapOwner = isOwnerEmail(authUser.email || "");
+      const isAdmin = isOwner || isAdminUser(authUser);
       return {
         id: authUser.id,
         email: authUser.email || "-",
@@ -115,6 +139,8 @@ export default async function AdminPage({ searchParams }) {
         discoverable: profile.discoverable,
         accountType,
         isOwner,
+        isBootstrapOwner,
+        isAdmin,
         ownedClassCount: ownedClassesById.get(authUser.id) || 0,
         joinedClassCount: joinedClassesById.get(authUser.id) || 0,
       };
@@ -209,9 +235,26 @@ export default async function AdminPage({ searchParams }) {
                   </div>
                   <div className="adminBadgeRow">
                     <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
-                    {item.isOwner ? <span className="adminRoleBadge">Owner</span> : null}
+                    {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
+                    {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
                   </div>
                 </div>
+                <form action={renameAccountAction} className="adminRenameForm">
+                  <input type="hidden" name="user_id" value={item.id} />
+                  <label className="stack">
+                    <span>Display name</span>
+                    <div className="ctaRow adminInlineEditorRow">
+                      <input
+                        className="input"
+                        type="text"
+                        name="display_name"
+                        defaultValue={item.displayName === "-" ? "" : item.displayName}
+                        placeholder="Enter display name"
+                      />
+                      <button className="btn ghost" type="submit">Save Name</button>
+                    </div>
+                  </label>
+                </form>
                 <div className="adminMetaGrid">
                   <p><strong>School:</strong> {item.schoolName}</p>
                   <p><strong>Timezone:</strong> {item.timezone}</p>
@@ -222,6 +265,23 @@ export default async function AdminPage({ searchParams }) {
                   <p><strong>Teacher search:</strong> {item.accountType === "student" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
                 </div>
                 <p className="adminUserId"><strong>User ID:</strong> {item.id}</p>
+                <form action={addUserToClassAction} className="adminEnrollmentForm">
+                  <input type="hidden" name="user_id" value={item.id} />
+                  <label className="stack">
+                    <span>Add to class</span>
+                    <div className="ctaRow adminInlineEditorRow">
+                      <select className="input" name="course_id" defaultValue="">
+                        <option value="" disabled>Select a class</option>
+                        {courseOptions.map((course) => (
+                          <option key={course.id} value={course.id}>
+                            {course.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="btn ghost" type="submit">Add to Class</button>
+                    </div>
+                  </label>
+                </form>
                 <div className="ctaRow adminActionRow">
                   <form action={updateAccountTypeAction} className="adminInlineForm">
                     <input type="hidden" name="user_id" value={item.id} />
@@ -229,9 +289,20 @@ export default async function AdminPage({ searchParams }) {
                       type="hidden"
                       name="account_type"
                       value={item.accountType === "student" ? "teacher" : "student"}
-                    />
-                    <button className="btn" type="submit">
-                      Make {item.accountType === "student" ? "Teacher" : "Student"}
+                      />
+                      <button className="btn" type="submit">
+                        Make {item.accountType === "student" ? "Teacher" : "Student"}
+                      </button>
+                    </form>
+                  <form action={toggleAdminAccessAction} className="adminInlineForm">
+                    <input type="hidden" name="user_id" value={item.id} />
+                    <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
+                    <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
+                      {item.isBootstrapOwner
+                        ? "Owner Access"
+                        : item.isAdmin
+                          ? "Remove Admin"
+                          : "Make Admin"}
                     </button>
                   </form>
                   {item.accountType !== "student" ? (
