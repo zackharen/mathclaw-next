@@ -23,6 +23,14 @@ async function requireOwner() {
   return { user, supabase };
 }
 
+function isMissingColumnError(error, columnName) {
+  return (
+    error &&
+    typeof error.message === "string" &&
+    error.message.includes(`'${columnName}'`)
+  );
+}
+
 export async function updateAccountTypeAction(formData) {
   await requireOwner();
 
@@ -52,11 +60,7 @@ export async function updateAccountTypeAction(formData) {
     .update(baseProfileUpdate)
     .eq("id", userId);
 
-  if (
-    profileError &&
-    typeof profileError.message === "string" &&
-    profileError.message.includes("account_type")
-  ) {
+  if (isMissingColumnError(profileError, "account_type")) {
     const retry = await admin
       .from("profiles")
       .update({
@@ -64,6 +68,10 @@ export async function updateAccountTypeAction(formData) {
       })
       .eq("id", userId);
     profileError = retry.error;
+  }
+
+  if (isMissingColumnError(profileError, "discoverable")) {
+    profileError = null;
   }
 
   if (profileError) {
@@ -120,10 +128,14 @@ export async function toggleDiscoverableAction(formData) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+  let { error } = await admin
     .from("profiles")
     .update({ discoverable: nextValue })
     .eq("id", userId);
+
+  if (isMissingColumnError(error, "discoverable")) {
+    error = null;
+  }
 
   if (error) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
