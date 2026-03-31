@@ -12,6 +12,10 @@ function formatGameLabel(slug) {
   }[slug] || slug;
 }
 
+function formatStatScope(scope) {
+  return scope === "global_fallback" ? "Global stats until class-linked results are saved." : "";
+}
+
 export default async function StudentsPage({ params, searchParams }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -154,6 +158,11 @@ export default async function StudentsPage({ params, searchParams }) {
                             {" · "}Last 10: {Math.round(Number(row.last_10_average || 0) * 10) / 10}
                             {" · "}Best: {row.best_score}
                           </p>
+                          {row.stat_scope === "global_fallback" ? (
+                            <p style={{ marginTop: "0.35rem", opacity: 0.75 }}>
+                              {formatStatScope(row.stat_scope)}
+                            </p>
+                          ) : null}
                         </div>
                       ))}
                     </div>
