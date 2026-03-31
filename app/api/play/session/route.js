@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { findDefaultCourseForUser, userCanAccessCourse } from "@/lib/student-games/courses";
-import { upsertGameStats } from "@/lib/student-games/stats";
+import { userCanAccessCourse } from "@/lib/student-games/courses";
 
 const ALLOWED_GAMES = new Set(["2048", "integer_practice", "number_compare"]);
 
@@ -21,7 +20,7 @@ export async function POST(request) {
   const result = body.result ? String(body.result) : null;
   const metadata =
     body.metadata && typeof body.metadata === "object" ? body.metadata : {};
-  let courseId =
+  const courseId =
     body.courseId && typeof body.courseId === "string" ? body.courseId : null;
 
   if (!ALLOWED_GAMES.has(gameSlug)) {
@@ -33,30 +32,21 @@ export async function POST(request) {
     if (!canAccess) {
       return NextResponse.json({ error: "Invalid class context" }, { status: 403 });
     }
-  } else {
-    courseId = await findDefaultCourseForUser(supabase, user.id);
   }
 
-  const { error: insertError } = await supabase.from("game_sessions").insert({
-    game_slug: gameSlug,
-    player_id: user.id,
-    course_id: courseId,
-    score: Number.isFinite(score) ? score : 0,
-    result,
-    metadata,
+  const { data: saveRows, error: saveError } = await supabase.rpc("record_game_session", {
+    p_game_slug: gameSlug,
+    p_score: Number.isFinite(score) ? score : 0,
+    p_result: result,
+    p_metadata: metadata,
+    p_requested_course_id: courseId,
   });
 
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 400 });
+  if (saveError) {
+    return NextResponse.json({ error: saveError.message }, { status: 400 });
   }
 
-  const stats = await upsertGameStats({
-    supabase,
-    userId: user.id,
-    gameSlug,
-    courseId,
-    latestStats: metadata,
-  });
+  const stats = Array.isArray(saveRows) ? saveRows[0] || null : null;
 
   return NextResponse.json({ ok: true, stats });
 }
