@@ -42,14 +42,29 @@ export async function updateAccountTypeAction(formData) {
   }
 
   const currentMetadata = authUserData?.user?.user_metadata || {};
+  const baseProfileUpdate = {
+    account_type: nextType,
+    discoverable: nextType === "student" ? false : currentMetadata?.discoverable,
+  };
 
-  const { error: profileError } = await admin
+  let { error: profileError } = await admin
     .from("profiles")
-    .update({
-      account_type: nextType,
-      discoverable: nextType === "student" ? false : currentMetadata?.discoverable,
-    })
+    .update(baseProfileUpdate)
     .eq("id", userId);
+
+  if (
+    profileError &&
+    typeof profileError.message === "string" &&
+    profileError.message.includes("account_type")
+  ) {
+    const retry = await admin
+      .from("profiles")
+      .update({
+        discoverable: nextType === "student" ? false : currentMetadata?.discoverable,
+      })
+      .eq("id", userId);
+    profileError = retry.error;
+  }
 
   if (profileError) {
     redirect(`/admin?error=${encodeURIComponent(profileError.message)}`);
