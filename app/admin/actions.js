@@ -90,6 +90,7 @@ export async function updateAccountTypeAction(formData) {
     user_metadata: {
       ...currentMetadata,
       account_type: nextType,
+      discoverable: nextType === "student" ? false : currentMetadata?.discoverable ?? false,
     },
   });
 
@@ -271,6 +272,8 @@ export async function toggleDiscoverableAction(formData) {
   }
 
   const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentMetadata = authUser?.user_metadata || {};
   let { error } = await admin
     .from("profiles")
     .update({ discoverable: nextValue })
@@ -282,6 +285,17 @@ export async function toggleDiscoverableAction(formData) {
 
   if (error) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      ...currentMetadata,
+      discoverable: nextValue,
+    },
+  });
+
+  if (authError) {
+    redirect(`/admin?error=${encodeURIComponent(authError.message)}`);
   }
 
   revalidatePath("/admin");

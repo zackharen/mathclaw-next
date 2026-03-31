@@ -5,6 +5,7 @@ import { isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
 import { splitDisplayName } from "@/lib/auth/account-type";
 import DeleteAccountButton from "./delete-account-button";
 import AdminToast from "./admin-toast";
+import AccountActionsToggle from "./account-actions-toggle";
 import {
   updateAccountTypeAction,
   deleteAccountAction,
@@ -62,6 +63,17 @@ function normalizeRoleFilter(value) {
 
 function normalizeSort(value) {
   return ["email", "first_name", "last_name", "recent"].includes(value) ? value : "email";
+}
+
+function getBestDisplayName(profile, metadata, email, fallback = "-") {
+  return (
+    profile?.display_name ||
+    metadata?.display_name ||
+    metadata?.full_name ||
+    metadata?.name ||
+    (email ? String(email).split("@")[0] : "") ||
+    fallback
+  );
 }
 
 export default async function AdminPage({ searchParams }) {
@@ -133,17 +145,23 @@ export default async function AdminPage({ searchParams }) {
 
       courseOptions = (courses || []).map((course) => {
         const ownerProfile = profilesById.get(course.owner_id);
+        const ownerAuthUser = authUsers.find((authUser) => authUser.id === course.owner_id);
+        const ownerDisplayName = getBestDisplayName(
+          ownerProfile,
+          ownerAuthUser?.user_metadata,
+          ownerAuthUser?.email,
+          ""
+        );
         return {
           id: course.id,
-          label: `${course.title} · ${course.class_name}${ownerProfile?.display_name ? ` · ${ownerProfile.display_name}` : ""}`,
+          label: `${course.title} · ${course.class_name}${ownerDisplayName ? ` · ${ownerDisplayName}` : ""}`,
         };
       });
 
       users = authUsers.map((authUser) => {
         const profile = profilesById.get(authUser.id) || {};
         const metadata = authUser.user_metadata || {};
-        const displayName =
-          profile.display_name || metadata.display_name || metadata.full_name || metadata.name || "-";
+        const displayName = getBestDisplayName(profile, metadata, authUser.email, "-");
         const { firstName, lastName } = splitDisplayName(displayName === "-" ? "" : displayName);
         const accountType = profile.account_type || metadata.account_type || "teacher";
         const isOwner = isOwnerUser(authUser);
@@ -152,12 +170,18 @@ export default async function AdminPage({ searchParams }) {
         const assignedClasses = (membershipsByProfileId.get(authUser.id) || []).map((membership) => {
           const course = coursesById.get(membership.course_id);
           const ownerProfile = course ? profilesById.get(course.owner_id) : null;
+          const ownerAuthUser = course ? authUsers.find((entry) => entry.id === course.owner_id) : null;
 
           return {
             id: membership.course_id,
             title: course?.title || "Untitled class",
             className: course?.class_name || "",
-            teacherName: ownerProfile?.display_name || "Unknown teacher",
+            teacherName: getBestDisplayName(
+              ownerProfile,
+              ownerAuthUser?.user_metadata,
+              ownerAuthUser?.email,
+              "Unknown teacher"
+            ),
           };
         });
 
@@ -171,7 +195,7 @@ export default async function AdminPage({ searchParams }) {
           lastName,
           schoolName: profile.school_name || "-",
           timezone: profile.timezone || "-",
-          discoverable: profile.discoverable,
+          discoverable: profile.discoverable ?? metadata.discoverable ?? false,
           accountType,
           isOwner,
           isBootstrapOwner,
@@ -347,8 +371,7 @@ export default async function AdminPage({ searchParams }) {
                 )}
                 <form action={addUserToClassAction} className="adminEnrollmentForm">
                   <input type="hidden" name="user_id" value={item.id} />
-                  <label className="stack">
-                    <span>Add to class</span>
+                  <label>
                     <div className="ctaRow adminInlineEditorRow">
                       <select className="input" name="course_id" defaultValue="">
                         <option value="" disabled>Select a class</option>
@@ -362,7 +385,7 @@ export default async function AdminPage({ searchParams }) {
                     </div>
                   </label>
                 </form>
-                <div className="ctaRow adminActionRow">
+                <AccountActionsToggle>
                   <form action={updateAccountTypeAction} className="adminInlineForm">
                     <input type="hidden" name="user_id" value={item.id} />
                     <input type="hidden" name="account_type" value={item.accountType === "student" ? "teacher" : "student"} />
@@ -393,7 +416,7 @@ export default async function AdminPage({ searchParams }) {
                       label={item.id === user.id ? "Owner Account" : "Delete Account"}
                     />
                   </form>
-                </div>
+                </AccountActionsToggle>
               </article>
             ))}
           </div>

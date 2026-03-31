@@ -1152,8 +1152,14 @@ details[open] > summary.btn,
 }
 
 .adminActionRow {
+  margin-top: 0.85rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.adminActionsToggle {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .adminInlineForm {

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import {
   acceptTeacherRequestAction,
@@ -54,12 +55,35 @@ export default async function TeachersPage({ searchParams }) {
     typeof profilesRes.error.message === "string" &&
     profilesRes.error.message.includes("discoverable")
   ) {
-    profilesRes = await supabase
+    const legacyProfilesRes = await supabase
       .from("profiles")
       .select("id, display_name, school_name")
       .neq("id", user.id)
       .order("display_name", { ascending: true })
       .limit(30);
+
+    if (!legacyProfilesRes.error) {
+      const admin = createAdminClient();
+      const { data: authUsersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
+      const authUsersById = new Map(
+        (authUsersData?.users || [])
+          .filter((entry) => entry?.app_metadata?.account_deleted !== true)
+          .map((entry) => [entry.id, entry])
+      );
+
+      profilesRes = {
+        ...legacyProfilesRes,
+        data: (legacyProfilesRes.data || []).filter((profile) => {
+          const authUser = authUsersById.get(profile.id);
+          const metadata = authUser?.user_metadata || {};
+          const accountType = metadata.account_type || "teacher";
+          const discoverable = metadata.discoverable === true;
+          return accountType !== "student" && discoverable;
+        }),
+      };
+    } else {
+      profilesRes = legacyProfilesRes;
+    }
   }
 
   let searchableProfiles = profilesRes.data || [];
