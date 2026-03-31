@@ -25,20 +25,30 @@ export async function joinClassByCodeAction(formData) {
 
   let course = null;
 
+  const { data: rpcResult, error: rpcError } = await supabase.rpc("join_course_by_code", {
+    p_join_code: joinCode,
+  });
+
+  if (!rpcError && Array.isArray(rpcResult) && rpcResult[0]) {
+    course = rpcResult[0];
+  }
+
   try {
-    const admin = createAdminClient();
-    const { data: adminCourses, error: adminError } = await admin
-      .from("courses")
-      .select("id, owner_id, title")
-      .ilike("student_join_code", joinCode)
-      .order("updated_at", { ascending: false })
-      .limit(1);
+    if (!course) {
+      const admin = createAdminClient();
+      const { data: adminCourses, error: adminError } = await admin
+        .from("courses")
+        .select("id, owner_id, title")
+        .ilike("student_join_code", joinCode)
+        .order("updated_at", { ascending: false })
+        .limit(1);
 
-    if (adminError) {
-      throw adminError;
+      if (adminError) {
+        throw adminError;
+      }
+
+      course = adminCourses?.[0] ?? null;
     }
-
-    course = adminCourses?.[0] ?? null;
   } catch (error) {
     console.error("Failed admin join code lookup", error);
   }
@@ -59,37 +69,39 @@ export async function joinClassByCodeAction(formData) {
   }
 
   if (course.owner_id !== user.id) {
+    if (!rpcResult || !Array.isArray(rpcResult) || !rpcResult[0]) {
     let membershipError = null;
 
-    try {
-      const admin = createAdminClient();
-      const { error } = await admin.from("student_course_memberships").upsert(
-        {
-          course_id: course.id,
-          profile_id: user.id,
-        },
-        { onConflict: "course_id,profile_id" }
-      );
+      try {
+        const admin = createAdminClient();
+        const { error } = await admin.from("student_course_memberships").upsert(
+          {
+            course_id: course.id,
+            profile_id: user.id,
+          },
+          { onConflict: "course_id,profile_id" }
+        );
 
-      membershipError = error;
-    } catch (error) {
-      membershipError = error;
-    }
+        membershipError = error;
+      } catch (error) {
+        membershipError = error;
+      }
 
-    if (membershipError) {
-      const { error } = await supabase.from("student_course_memberships").upsert(
-        {
-          course_id: course.id,
-          profile_id: user.id,
-        },
-        { onConflict: "course_id,profile_id" }
-      );
+      if (membershipError) {
+        const { error } = await supabase.from("student_course_memberships").upsert(
+          {
+            course_id: course.id,
+            profile_id: user.id,
+          },
+          { onConflict: "course_id,profile_id" }
+        );
 
-      membershipError = error;
-    }
+        membershipError = error;
+      }
 
-    if (membershipError) {
-      throw new Error(membershipError.message);
+      if (membershipError) {
+        throw new Error(membershipError.message);
+      }
     }
   }
 
