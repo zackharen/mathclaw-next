@@ -14,6 +14,7 @@ import {
   toggleAdminAccessAction,
   addUserToClassAction,
   restoreDeletedAccountAction,
+  resetPasswordAction,
 } from "./actions";
 
 function formatDate(value) {
@@ -35,9 +36,10 @@ function Notice({ searchParams }) {
   const discoverability = searchParams?.discoverability;
   const membership = searchParams?.membership;
   const adminAccess = searchParams?.adminAccess;
+  const passwordReset = searchParams?.passwordReset === "1";
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !error) {
     return null;
   }
 
@@ -52,6 +54,7 @@ function Notice({ searchParams }) {
       {membership === "added" ? <p>User added to class.</p> : null}
       {adminAccess === "granted" ? <p>Admin access granted.</p> : null}
       {adminAccess === "revoked" ? <p>Admin access revoked.</p> : null}
+      {passwordReset ? <p>Password updated.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
   );
@@ -167,6 +170,19 @@ export default async function AdminPage({ searchParams }) {
         const isOwner = isOwnerUser(authUser);
         const isBootstrapOwner = isOwnerEmail(authUser.email || "");
         const isAdmin = isOwner || isAdminUser(authUser);
+        const providers = Array.from(
+          new Set(
+            (authUser.identities || [])
+              .map((identity) => identity?.provider)
+              .filter(Boolean)
+          )
+        );
+        const providerLabel = providers.length > 0 ? providers.join(", ") : authUser.app_metadata?.provider || "email";
+        const isGoogleOnly =
+          providers.length > 0
+            ? providers.every((provider) => provider === "google")
+            : authUser.app_metadata?.provider === "google";
+        const canResetPassword = !isGoogleOnly;
         const assignedClasses = (membershipsByProfileId.get(authUser.id) || []).map((membership) => {
           const course = coursesById.get(membership.course_id);
           const ownerProfile = course ? profilesById.get(course.owner_id) : null;
@@ -200,6 +216,8 @@ export default async function AdminPage({ searchParams }) {
           isOwner,
           isBootstrapOwner,
           isAdmin,
+          providerLabel,
+          canResetPassword,
           ownedClassCount: ownedClassesById.get(authUser.id) || 0,
           joinedClassCount: joinedClassesById.get(authUser.id) || 0,
           assignedClasses,
@@ -346,6 +364,7 @@ export default async function AdminPage({ searchParams }) {
                   <p><strong>Timezone:</strong> {item.timezone}</p>
                   <p><strong>Created:</strong> {formatDate(item.createdAt)}</p>
                   <p><strong>Last sign-in:</strong> {formatDate(item.lastSignInAt)}</p>
+                  <p><strong>Sign-in:</strong> {item.providerLabel}</p>
                   <p><strong>Owned classes:</strong> {item.ownedClassCount}</p>
                   <p><strong>Joined classes:</strong> {item.joinedClassCount}</p>
                   <p><strong>Teacher search:</strong> {item.accountType === "student" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
@@ -385,6 +404,28 @@ export default async function AdminPage({ searchParams }) {
                     </div>
                   </label>
                 </form>
+                {item.canResetPassword ? (
+                  <form action={resetPasswordAction} className="adminRenameForm">
+                    <input type="hidden" name="user_id" value={item.id} />
+                    <div className="adminNameGrid">
+                      <label className="stack">
+                        <span>Set temporary password</span>
+                        <input
+                          className="input"
+                          type="text"
+                          name="password"
+                          minLength={8}
+                          placeholder="Minimum 8 characters"
+                        />
+                      </label>
+                      <div className="ctaRow adminInlineEditorRow adminSingleAction">
+                        <button className="btn ghost" type="submit">Set Password</button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <p className="adminEmptyAssignments"><strong>Password:</strong> Managed by Google sign-in.</p>
+                )}
                 <AccountActionsToggle>
                   <form action={updateAccountTypeAction} className="adminInlineForm">
                     <input type="hidden" name="user_id" value={item.id} />

@@ -261,6 +261,43 @@ export async function toggleAdminAccessAction(formData) {
   redirect(`/admin?adminAccess=${nextValue ? "granted" : "revoked"}`);
 }
 
+export async function resetPasswordAction(formData) {
+  await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const nextPassword = String(formData.get("password") || "").trim();
+
+  if (!userId || !nextPassword) {
+    redirect("/admin?error=missing-user");
+  }
+
+  if (nextPassword.length < 8) {
+    redirect("/admin?error=password_must_be_at_least_8_characters");
+  }
+
+  const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const provider =
+    authUser?.app_metadata?.provider ||
+    authUser?.identities?.[0]?.provider ||
+    "";
+
+  if (provider === "google") {
+    redirect("/admin?error=google_accounts_do_not_use_admin_password_resets");
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    password: nextPassword,
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  redirect("/admin?passwordReset=1");
+}
+
 export async function toggleDiscoverableAction(formData) {
   await requireOwner();
 

@@ -1076,6 +1076,10 @@ details[open] > summary.btn,
   flex: 1 1 280px;
 }
 
+.adminSingleAction {
+  justify-content: flex-start;
+}
+
 .adminAssignmentBlock {
   margin-bottom: 1rem;
 }
