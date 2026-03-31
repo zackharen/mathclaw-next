@@ -72,7 +72,7 @@ create function public.record_game_session(
   p_requested_course_id uuid default null
 )
 returns table (
-  course_id uuid,
+  saved_course_id uuid,
   sessions_played integer,
   average_score numeric,
   last_10_average numeric,
@@ -240,7 +240,7 @@ begin
 
   return query
   select
-    resolved_course_id,
+    resolved_course_id as saved_course_id,
     gps.sessions_played,
     gps.average_score,
     gps.last_10_average,

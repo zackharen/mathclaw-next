@@ -46,7 +46,16 @@ export async function POST(request) {
     return NextResponse.json({ error: saveError.message }, { status: 400 });
   }
 
-  const stats = Array.isArray(saveRows) ? saveRows[0] || null : null;
+  const rawStats = Array.isArray(saveRows) ? saveRows[0] || null : null;
+  const stats = rawStats
+    ? {
+        course_id: rawStats.saved_course_id ?? null,
+        sessions_played: rawStats.sessions_played,
+        average_score: rawStats.average_score,
+        last_10_average: rawStats.last_10_average,
+        best_score: rawStats.best_score,
+      }
+    : null;
 
   return NextResponse.json({ ok: true, stats });
 }
