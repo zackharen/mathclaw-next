@@ -56,16 +56,13 @@ export default async function StudentsPage({ params, searchParams }) {
   const joinCodeUpdated = resolvedSearchParams?.join_code_updated === "1";
   const joinCodeError = resolvedSearchParams?.join_code_error || "";
 
-  const [{ data: membershipRows, error: membershipsError }, { data: stats, error: statsError }] = await Promise.all([
+  const [{ data: membershipRows, error: membershipsError }, { data: statsRows, error: statsError }] = await Promise.all([
     supabase.rpc("list_course_students", { p_course_id: course.id }),
-    supabase
-      .from("course_game_player_stats")
-      .select("player_id, game_slug, average_score, last_10_average, best_score, sessions_played")
-      .eq("course_id", course.id),
+    supabase.rpc("list_course_student_stats", { p_course_id: course.id }),
   ]);
 
   const safeMemberships = membershipsError ? [] : membershipRows || [];
-  const safeStats = statsError ? [] : stats || [];
+  const safeStats = statsError ? [] : statsRows || [];
 
   const statsByPlayer = new Map();
   for (const row of safeStats) {
