@@ -93,3 +93,28 @@ export async function deleteAccountAction(formData) {
   revalidatePath("/admin");
   redirect("/admin?deleted=1");
 }
+
+export async function toggleDiscoverableAction(formData) {
+  await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const nextValue = String(formData.get("discoverable") || "").trim() === "true";
+
+  if (!userId) {
+    redirect("/admin?error=missing-user");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("profiles")
+    .update({ discoverable: nextValue })
+    .eq("id", userId);
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/teachers");
+  redirect(`/admin?discoverability=${nextValue ? "shown" : "hidden"}`);
+}

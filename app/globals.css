@@ -1028,6 +1028,18 @@ details[open] > summary.btn,
   min-height: 0;
 }
 
+.adminFilterBar {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 280px) auto;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.adminFilterActions {
+  flex-wrap: wrap;
+}
+
 .adminUserHeader {
   display: flex;
   justify-content: space-between;
@@ -1064,6 +1076,12 @@ details[open] > summary.btn,
   font-weight: 700;
 }
 
+.adminBadgeRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .adminUserId {
   font-size: 0.95rem;
   word-break: break-word;
@@ -1090,6 +1108,10 @@ details[open] > summary.btn,
 }
 
 @media (max-width: 720px) {
+  .adminFilterBar {
+    grid-template-columns: 1fr;
+  }
+
   .adminUserHeader {
     flex-direction: column;
   }
