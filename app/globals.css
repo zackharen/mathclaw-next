@@ -1045,8 +1045,26 @@ details[open] > summary.btn,
   margin-bottom: 1rem;
 }
 
+.adminFilterBarWide {
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 240px) minmax(220px, 240px) auto;
+}
+
 .adminFilterActions {
   flex-wrap: wrap;
+}
+
+.adminSubnav {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.adminNameGrid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
 }
 
 .adminInlineEditorRow {
@@ -1056,6 +1074,33 @@ details[open] > summary.btn,
 
 .adminInlineEditorRow .input {
   flex: 1 1 280px;
+}
+
+.adminAssignmentBlock {
+  margin-bottom: 1rem;
+}
+
+.adminAssignmentBlock > p,
+.adminEmptyAssignments {
+  margin: 0 0 0.5rem;
+}
+
+.adminAssignmentList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.adminAssignmentItem {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px dashed #8ea3b3;
+  border-radius: 10px;
+  background: #fdfefe;
+}
+
+.adminAssignmentItem span {
+  font-size: 0.95rem;
 }
 
 .adminUserHeader {
@@ -1125,8 +1170,32 @@ details[open] > summary.btn,
   background: color-mix(in srgb, var(--red) 10%, white);
 }
 
+.adminToast {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: grid;
+  gap: 0.75rem;
+  min-width: min(360px, calc(100vw - 2rem));
+  max-width: 420px;
+  padding: 1rem;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #f9fbfc;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+}
+
+.adminToast p {
+  margin: 0;
+}
+
 @media (max-width: 720px) {
   .adminFilterBar {
+    grid-template-columns: 1fr;
+  }
+
+  .adminNameGrid {
     grid-template-columns: 1fr;
   }
 

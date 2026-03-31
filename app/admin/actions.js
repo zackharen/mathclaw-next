@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isOwnerUser } from "@/lib/auth/owner";
-import { ensureProfileForUser, normalizeAccountType } from "@/lib/auth/account-type";
+import {
+  ensureProfileForUser,
+  normalizeAccountType,
+  splitDisplayName,
+} from "@/lib/auth/account-type";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -102,7 +106,9 @@ export async function renameAccountAction(formData) {
   await requireOwner();
 
   const userId = String(formData.get("user_id") || "").trim();
-  const displayName = String(formData.get("display_name") || "").trim();
+  const firstName = String(formData.get("first_name") || "").trim();
+  const lastName = String(formData.get("last_name") || "").trim();
+  const displayName = [firstName, lastName].filter(Boolean).join(" ").trim();
 
   if (!userId || !displayName) {
     redirect("/admin?error=missing-user");
@@ -140,6 +146,8 @@ export async function renameAccountAction(formData) {
       display_name: displayName,
       full_name: displayName,
       name: displayName,
+      first_name: firstName || splitDisplayName(displayName).firstName,
+      last_name: lastName || splitDisplayName(displayName).lastName,
     },
   });
 
@@ -165,14 +173,56 @@ export async function deleteAccountAction(formData) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.auth.admin.deleteUser(userId);
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentAppMetadata = authUser?.app_metadata || {};
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: "876000h",
+    app_metadata: {
+      ...currentAppMetadata,
+      account_deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: owner.id,
+    },
+  });
 
   if (error) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/admin");
-  redirect("/admin?deleted=1");
+  revalidatePath("/admin/deleted");
+  redirect(`/admin?deleted=1&undo=${encodeURIComponent(userId)}`);
+}
+
+export async function restoreDeletedAccountAction(formData) {
+  await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  if (!userId) {
+    redirect("/admin/deleted?error=missing-user");
+  }
+
+  const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentAppMetadata = authUser?.app_metadata || {};
+  const nextAppMetadata = { ...currentAppMetadata };
+  delete nextAppMetadata.account_deleted;
+  delete nextAppMetadata.deleted_at;
+  delete nextAppMetadata.deleted_by;
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: "none",
+    app_metadata: nextAppMetadata,
+  });
+
+  if (error) {
+    redirect(`/admin/deleted?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/deleted");
+  redirect("/admin/deleted?restored=1");
 }
 
 export async function toggleAdminAccessAction(formData) {
