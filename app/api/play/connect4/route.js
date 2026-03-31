@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { boardFull, dropToken, emptyBoard, hasWinner, nextToken, normalizeBoard } from "@/lib/student-games/connect4";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
@@ -171,8 +172,9 @@ export async function POST(request) {
 
     if (winner || draw) {
       try {
+        const adminSupabase = createAdminClient();
         await saveFinishedMatchStats({
-          supabase,
+          supabase: adminSupabase,
           match,
           winnerId: winner,
           isDraw: draw,
