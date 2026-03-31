@@ -27,29 +27,31 @@ export async function joinClassByCodeAction(formData) {
 
   try {
     const admin = createAdminClient();
-    const { data: adminCourse, error: adminError } = await admin
+    const { data: adminCourses, error: adminError } = await admin
       .from("courses")
       .select("id, owner_id, title")
       .ilike("student_join_code", joinCode)
-      .maybeSingle();
+      .order("updated_at", { ascending: false })
+      .limit(1);
 
     if (adminError) {
       throw adminError;
     }
 
-    course = adminCourse ?? null;
+    course = adminCourses?.[0] ?? null;
   } catch (error) {
     console.error("Failed admin join code lookup", error);
   }
 
   if (!course) {
-    const { data: directCourse } = await supabase
+    const { data: directCourses } = await supabase
       .from("courses")
       .select("id, owner_id, title")
       .ilike("student_join_code", joinCode)
-      .maybeSingle();
+      .order("updated_at", { ascending: false })
+      .limit(1);
 
-    course = directCourse ?? null;
+    course = directCourses?.[0] ?? null;
   }
 
   if (!course) {
