@@ -51,6 +51,7 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: nowrap;
   padding: 0.8rem 1rem;
   border-bottom: 2px solid var(--line);
   background: var(--white);
@@ -90,13 +91,15 @@ main {
   justify-content: flex-end;
   gap: 0.55rem;
   flex: 1 1 auto;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .nav a {
@@ -116,7 +119,8 @@ main {
 }
 
 .navForm {
-  display: contents;
+  display: flex;
+  flex: 0 0 auto;
 }
 
 .navButton {
