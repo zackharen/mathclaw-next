@@ -117,31 +117,13 @@ export async function POST(request) {
 
   if (action === "join") {
     const inviteCode = String(body.inviteCode || "").trim().toUpperCase();
-    const { data: match, error } = await supabase
-      .from("connect4_matches")
-      .select("*")
-      .eq("invite_code", inviteCode)
-      .maybeSingle();
+    const { data: joinedRows, error } = await supabase.rpc("join_connect4_match_by_code", {
+      p_invite_code: inviteCode,
+    });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
-
-    if (match.player_two_id && match.player_two_id !== user.id) {
-      return NextResponse.json({ error: "This match already has two players" }, { status: 400 });
-    }
-
-    const { data: updated, error: updateError } = await supabase
-      .from("connect4_matches")
-      .update({
-        player_two_id: match.player_two_id || user.id,
-        status: match.player_one_id === user.id ? match.status : "active",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", match.id)
-      .select("*")
-      .single();
-
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
+    const updated = Array.isArray(joinedRows) ? joinedRows[0] : null;
+    if (!updated) return NextResponse.json({ error: "Match not found" }, { status: 404 });
     return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
   }
 
