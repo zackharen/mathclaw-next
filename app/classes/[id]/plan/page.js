@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCourseAccessForUser } from "@/lib/courses/access";
 import {
   markLessonCompleteAction,
   markLessonPlannedAction,
@@ -68,14 +69,13 @@ export default async function ClassPlanPage({ params, searchParams }) {
     redirect(`/auth/sign-in?redirect=/classes/${id}/plan`);
   }
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select(
-      "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode"
-    )
-    .eq("id", id)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    id,
+    "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode, owner_id"
+  );
+  const course = access?.course;
 
   if (!course) {
     redirect("/classes");

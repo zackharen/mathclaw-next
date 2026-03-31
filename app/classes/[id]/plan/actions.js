@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
+import { getCourseAccessForUser } from "@/lib/courses/access";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 
@@ -27,6 +28,8 @@ export async function generatePacingAction(formData) {
 
   if (!user) return;
 
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  if (!access?.course) return;
   await rebuildPlanFromCalendar({ supabase, courseId, userId: user.id });
 
   perfLog("generatePacingAction", {
@@ -62,20 +65,15 @@ export async function updateABMeetingDaysAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 
   const { error } = await supabase
     .from("courses")
     .update({ ab_meeting_day: abMeetingDay, updated_at: new Date().toISOString() })
-    .eq("id", course.id)
-    .eq("owner_id", user.id);
+    .eq("id", course.id);
 
   if (error) throw new Error(error.message);
 
@@ -117,20 +115,15 @@ export async function updatePacingModeAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 
   const { error } = await supabase
     .from("courses")
     .update({ pacing_mode: pacingMode, updated_at: new Date().toISOString() })
-    .eq("id", course.id)
-    .eq("owner_id", user.id);
+    .eq("id", course.id);
 
   if (error) throw new Error(error.message);
 
@@ -163,12 +156,8 @@ export async function markLessonCompleteAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 
@@ -208,12 +197,8 @@ export async function markLessonPlannedAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 

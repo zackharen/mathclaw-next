@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCourseAccessForUser } from "@/lib/courses/access";
 import { regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 
 function formatGameLabel(slug) {
@@ -27,29 +28,18 @@ export default async function StudentsPage({ params, searchParams }) {
     redirect(`/auth/sign-in?redirect=/classes/${id}/students`);
   }
 
-  let {
-    data: course,
-    error: courseError,
-  } = await supabase
-    .from("courses")
-    .select("id, title, class_name, student_join_code")
-    .eq("id", id)
-    .eq("owner_id", user.id)
-    .maybeSingle();
-
-  if (
-    courseError &&
-    typeof courseError.message === "string" &&
-    courseError.message.includes("student_join_code")
-  ) {
-    const retry = await supabase
-      .from("courses")
-      .select("id, title, class_name")
-      .eq("id", id)
-      .eq("owner_id", user.id)
-      .maybeSingle();
-    course = retry.data ? { ...retry.data, student_join_code: null } : null;
-    courseError = retry.error;
+  let courseError = null;
+  let course = null;
+  try {
+    const access = await getCourseAccessForUser(
+      supabase,
+      user.id,
+      id,
+      "id, title, class_name, student_join_code, owner_id"
+    );
+    course = access?.course || null;
+  } catch (error) {
+    courseError = error;
   }
 
   if (courseError || !course) {

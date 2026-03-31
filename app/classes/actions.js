@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCourseAccessForUser } from "@/lib/courses/access";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 
 export async function deleteClassAction(formData) {
@@ -44,12 +45,8 @@ export async function regenerateStudentJoinCodeAction(formData) {
     redirect(`/auth/sign-in?redirect=/classes/${courseId}/students`);
   }
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) {
     redirect("/classes?join_code_error=course_not_found");
@@ -62,8 +59,7 @@ export async function regenerateStudentJoinCodeAction(formData) {
     const { error } = await supabase
       .from("courses")
       .update({ student_join_code: joinCode, updated_at: new Date().toISOString() })
-      .eq("id", course.id)
-      .eq("owner_id", user.id);
+      .eq("id", course.id);
 
     if (!error) {
       revalidatePath("/classes");

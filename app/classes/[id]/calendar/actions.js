@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
+import { getCourseAccessForUser } from "@/lib/courses/access";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 
@@ -80,30 +81,18 @@ export async function generateCalendarAction(formData) {
 
   if (!user) return;
 
-  let { data: course, error: courseError } = await supabase
-    .from("courses")
-    .select(
+  let courseError = null;
+  let course = null;
+  try {
+    const access = await getCourseAccessForUser(
+      supabase,
+      user.id,
+      courseId,
       "id, owner_id, schedule_model, ab_meeting_day, ab_pattern_start_date, school_year_start, school_year_end"
-    )
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
-
-  if (
-    courseError &&
-    typeof courseError.message === "string" &&
-    courseError.message.includes("ab_meeting_day")
-  ) {
-    const retry = await supabase
-      .from("courses")
-      .select(
-        "id, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
-      )
-      .eq("id", courseId)
-      .eq("owner_id", user.id)
-      .single();
-    course = retry.data ? { ...retry.data, ab_meeting_day: null } : null;
-    courseError = retry.error;
+    );
+    course = access?.course || null;
+  } catch (error) {
+    courseError = error;
   }
 
   if (!course || courseError) return;
@@ -199,12 +188,8 @@ export async function applyCalendarBulkAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 
@@ -274,12 +259,8 @@ export async function updateCalendarDayAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 

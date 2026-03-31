@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCourseAccessForUser } from "@/lib/courses/access";
 
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -114,12 +115,13 @@ export async function generateAnnouncementsAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id, title, school_year_start")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, title, school_year_start, owner_id"
+  );
+  const course = access?.course;
 
   if (!course) return;
 

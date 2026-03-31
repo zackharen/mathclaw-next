@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { listEditableCoursesForUser } from "@/lib/courses/access";
 import { deleteClassAction, regenerateStudentJoinCodeAction } from "./actions";
 
 export default async function ClassesPage() {
@@ -30,28 +31,16 @@ export default async function ClassesPage() {
     redirect("/onboarding/profile");
   }
 
-  let { data: courses, error } = await supabase
-    .from("courses")
-    .select("id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
-
-  if (
-    error &&
-    typeof error.message === "string" &&
-    (error.message.includes("ab_meeting_day") || error.message.includes("student_join_code"))
-  ) {
-    const retry = await supabase
-      .from("courses")
-      .select("id, title, class_name, schedule_model, school_year_start, school_year_end")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
-    courses = (retry.data || []).map((course) => ({
-      ...course,
-      ab_meeting_day: null,
-      student_join_code: null,
-    }));
-    error = retry.error;
+  let error = null;
+  let courses = [];
+  try {
+    courses = await listEditableCoursesForUser(
+      supabase,
+      user.id,
+      "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at"
+    );
+  } catch (loadError) {
+    error = loadError;
   }
 
   return (
@@ -81,6 +70,9 @@ export default async function ClassesPage() {
                 <p>
                   {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"}
                 </p>
+                <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
+                  {course.membership_role === "owner" ? "Role: Owner" : "Role: Co-Teacher"}
+                </p>
                 <p>
                   {course.school_year_start} to {course.school_year_end}
                 </p>
@@ -105,12 +97,14 @@ export default async function ClassesPage() {
                       </button>
                     </form>
                   ) : null}
-                  <form action={deleteClassAction}>
-                    <input type="hidden" name="course_id" value={course.id} />
-                    <button className="btn danger" type="submit">
-                      Delete Class
-                    </button>
-                  </form>
+                  {course.membership_role === "owner" ? (
+                    <form action={deleteClassAction}>
+                      <input type="hidden" name="course_id" value={course.id} />
+                      <button className="btn danger" type="submit">
+                        Delete Class
+                      </button>
+                    </form>
+                  ) : null}
                 </div>
               </article>
             ))}
