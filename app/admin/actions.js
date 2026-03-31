@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isOwnerUser } from "@/lib/auth/owner";
+import { ensureProfileForUser, normalizeAccountType } from "@/lib/auth/account-type";
 
 async function requireOwner() {
   const supabase = await createClient();
@@ -247,6 +248,11 @@ export async function addUserToClassAction(formData) {
   }
 
   const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const inferredAccountType = normalizeAccountType(authUser?.user_metadata?.account_type);
+
+  await ensureProfileForUser(admin, authUser, inferredAccountType);
+
   const { error } = await admin
     .from("student_course_memberships")
     .upsert(
