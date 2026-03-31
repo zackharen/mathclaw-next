@@ -206,10 +206,12 @@ export async function restoreDeletedAccountAction(formData) {
   const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
   const currentAppMetadata = authUser?.app_metadata || {};
-  const nextAppMetadata = { ...currentAppMetadata };
-  delete nextAppMetadata.account_deleted;
-  delete nextAppMetadata.deleted_at;
-  delete nextAppMetadata.deleted_by;
+  const nextAppMetadata = {
+    ...currentAppMetadata,
+    account_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+  };
 
   const { error } = await admin.auth.admin.updateUserById(userId, {
     ban_duration: "none",

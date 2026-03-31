@@ -33,7 +33,9 @@ export default async function DeletedAccountsPage({ searchParams }) {
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
-  const deletedUsers = (data?.users || []).filter((authUser) => authUser?.app_metadata?.account_deleted);
+  const deletedUsers = (data?.users || []).filter(
+    (authUser) => authUser?.app_metadata?.account_deleted === true
+  );
 
   return (
     <div className="stack adminStack">

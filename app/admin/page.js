@@ -89,7 +89,9 @@ export default async function AdminPage({ searchParams }) {
   let courseOptions = [];
 
   if (!error) {
-    const authUsers = (data?.users || []).filter((authUser) => !authUser?.app_metadata?.account_deleted);
+    const authUsers = (data?.users || []).filter(
+      (authUser) => authUser?.app_metadata?.account_deleted !== true
+    );
     const ids = authUsers.map((item) => item.id);
 
     if (ids.length) {
