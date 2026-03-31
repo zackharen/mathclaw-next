@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeJoinCode } from "@/lib/student-games/join-code";
 
 export async function joinClassByCodeAction(formData) {
@@ -22,27 +23,71 @@ export async function joinClassByCodeAction(formData) {
     redirect(`/auth/sign-in?redirect=/play`);
   }
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id, owner_id, title")
-    .eq("student_join_code", joinCode)
-    .maybeSingle();
+  let course = null;
+
+  try {
+    const admin = createAdminClient();
+    const { data: adminCourse, error: adminError } = await admin
+      .from("courses")
+      .select("id, owner_id, title")
+      .ilike("student_join_code", joinCode)
+      .maybeSingle();
+
+    if (adminError) {
+      throw adminError;
+    }
+
+    course = adminCourse ?? null;
+  } catch (error) {
+    console.error("Failed admin join code lookup", error);
+  }
+
+  if (!course) {
+    const { data: directCourse } = await supabase
+      .from("courses")
+      .select("id, owner_id, title")
+      .ilike("student_join_code", joinCode)
+      .maybeSingle();
+
+    course = directCourse ?? null;
+  }
 
   if (!course) {
     redirect("/play?join_error=not_found");
   }
 
   if (course.owner_id !== user.id) {
-    const { error } = await supabase.from("student_course_memberships").upsert(
-      {
-        course_id: course.id,
-        profile_id: user.id,
-      },
-      { onConflict: "course_id,profile_id" }
-    );
+    let membershipError = null;
 
-    if (error) {
-      throw new Error(error.message);
+    try {
+      const admin = createAdminClient();
+      const { error } = await admin.from("student_course_memberships").upsert(
+        {
+          course_id: course.id,
+          profile_id: user.id,
+        },
+        { onConflict: "course_id,profile_id" }
+      );
+
+      membershipError = error;
+    } catch (error) {
+      membershipError = error;
+    }
+
+    if (membershipError) {
+      const { error } = await supabase.from("student_course_memberships").upsert(
+        {
+          course_id: course.id,
+          profile_id: user.id,
+        },
+        { onConflict: "course_id,profile_id" }
+      );
+
+      membershipError = error;
+    }
+
+    if (membershipError) {
+      throw new Error(membershipError.message);
     }
   }
 
