@@ -127,11 +127,52 @@ function formatInternalEventLevel(level) {
   return level || "Notice";
 }
 
+function normalizeAdminView(value) {
+  return ["accounts", "diagnostics"].includes(value) ? value : "accounts";
+}
+
+function summarizeAccountClasses(item) {
+  const primaryOwnedClass = item.ownedClasses[0];
+  const primaryAssignedClass = item.assignedClasses[0];
+  const totalClasses = item.ownedClassCount + item.joinedClassCount;
+
+  if (primaryOwnedClass) {
+    const extraCount = item.ownedClassCount - 1;
+    return {
+      title: primaryOwnedClass.title,
+      detail:
+        extraCount > 0
+          ? `Owns ${item.ownedClassCount} classes total`
+          : "Owns this class",
+    };
+  }
+
+  if (primaryAssignedClass) {
+    const extraCount = item.joinedClassCount - 1;
+    return {
+      title: primaryAssignedClass.title,
+      detail:
+        extraCount > 0
+          ? `In ${item.joinedClassCount} classes total`
+          : `Joined with ${primaryAssignedClass.teacherName}`,
+    };
+  }
+
+  return {
+    title: "No classes yet",
+    detail:
+      totalClasses > 0
+        ? `${totalClasses} class relationships found`
+        : "No class ownership or enrollment",
+  };
+}
+
 export default async function AdminPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const searchQuery = String(qs.q || "").trim().toLowerCase();
   const roleFilter = normalizeRoleFilter(String(qs.role || "all"));
   const sortBy = normalizeSort(String(qs.sort || "email"));
+  const adminView = normalizeAdminView(String(qs.view || "accounts"));
   const supabase = await createClient();
   const {
     data: { user },
@@ -372,86 +413,111 @@ export default async function AdminPage({ searchParams }) {
         </div>
       </section>
 
-      <section className="card">
-        <h2>Internal Error Log</h2>
-        <p>These are silent failures captured automatically from important flows like class joins, score saves, and Connect4.</p>
-        {internalEventError ? <p>Could not load internal event logs: {internalEventError.message}</p> : null}
-        {!internalEventError && internalEvents.length === 0 ? <p>No internal errors logged yet.</p> : null}
-        {!internalEventError && internalEvents.length > 0 ? (
-          <div className="adminBugList">
-            {internalEvents.map((event) => (
-              <article key={event.id} className="card adminBugCard">
-                <div className="adminUserHeader">
-                  <div>
-                    <h3>{formatInternalEventTitle(event.event_key)}</h3>
-                    <p>{event.user_email || "Unknown user"}{event.account_type ? ` · ${event.account_type}` : ""}</p>
-                  </div>
-                  <div className="adminBadgeRow">
-                    <span className="adminRoleBadge">{formatInternalEventLevel(event.level)}</span>
-                    <span className="adminRoleBadge">{formatInternalEventSource(event.source)}</span>
-                  </div>
-                </div>
-                <div className="adminMetaGrid">
-                  <p><strong>Logged:</strong> {formatDate(event.created_at)}</p>
-                  <p><strong>Course:</strong> {event.course_id || "-"}</p>
-                </div>
-                <p><strong>Message:</strong> {event.message}</p>
-              </article>
-            ))}
-          </div>
-        ) : null}
+      <section className="card adminSectionSwitcher">
+        <h2>Admin Sections</h2>
+        <p>Choose whether you want to work with people and classes, or review bugs and silent system issues.</p>
+        <div className="adminViewSwitch">
+          <a
+            className={`btn ${adminView === "accounts" ? "primary" : "ghost"}`}
+            href="/admin?view=accounts"
+          >
+            User Information
+          </a>
+          <a
+            className={`btn ${adminView === "diagnostics" ? "primary" : "ghost"}`}
+            href="/admin?view=diagnostics"
+          >
+            Bugs and Internal Errors
+          </a>
+        </div>
       </section>
 
-      <section className="card">
-        <h2>Bug Inbox</h2>
-        <p>Reports submitted from inside MathClaw land here so you can spot repeat issues quickly.</p>
-        {bugReportError ? <p>Could not load bug reports: {bugReportError.message}</p> : null}
-        {!bugReportError && bugReports.length === 0 ? <p>No bug reports yet.</p> : null}
-        {!bugReportError && bugReports.length > 0 ? (
-          <div className="adminBugList">
-            {bugReports.map((report) => (
-              <article key={report.id} className="card adminBugCard">
-                <div className="adminUserHeader">
-                  <div>
-                    <h3>{report.summary}</h3>
-                    <p>
-                      {report.reporter_name || report.reporter_email} · {report.reporter_email}
-                    </p>
-                  </div>
-                  <div className="adminBadgeRow">
-                    <span className="adminRoleBadge">{report.severity}</span>
-                    <span className="adminRoleBadge">{report.status}</span>
-                  </div>
-                </div>
-                <div className="adminMetaGrid">
-                  <p><strong>Reported:</strong> {formatDate(report.created_at)}</p>
-                  <p><strong>Account type:</strong> {report.account_type || "-"}</p>
-                  <p><strong>Page:</strong> {report.page_path || "-"}</p>
-                </div>
-                <p><strong>What happened:</strong> {report.details}</p>
-                {report.expected_behavior ? (
-                  <p style={{ marginTop: "0.5rem" }}>
-                    <strong>Expected:</strong> {report.expected_behavior}
-                  </p>
-                ) : null}
-                <div className="ctaRow" style={{ marginTop: "0.85rem" }}>
-                  <form action={updateBugReportStatusAction} className="adminInlineForm">
-                    <input type="hidden" name="report_id" value={report.id} />
-                    <input type="hidden" name="status" value={report.status === "resolved" ? "open" : "resolved"} />
-                    <button className="btn ghost" type="submit">
-                      {report.status === "resolved" ? "Reopen" : "Mark Resolved"}
-                    </button>
-                  </form>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : null}
-      </section>
+      {adminView === "diagnostics" ? (
+        <>
+          <section className="card">
+            <h2>Internal Error Log</h2>
+            <p>These are silent failures captured automatically from important flows like class joins, score saves, and Connect4.</p>
+            {internalEventError ? <p>Could not load internal event logs: {internalEventError.message}</p> : null}
+            {!internalEventError && internalEvents.length === 0 ? <p>No internal errors logged yet.</p> : null}
+            {!internalEventError && internalEvents.length > 0 ? (
+              <div className="adminBugList">
+                {internalEvents.map((event) => (
+                  <article key={event.id} className="card adminBugCard">
+                    <div className="adminUserHeader">
+                      <div>
+                        <h3>{formatInternalEventTitle(event.event_key)}</h3>
+                        <p>{event.user_email || "Unknown user"}{event.account_type ? ` · ${event.account_type}` : ""}</p>
+                      </div>
+                      <div className="adminBadgeRow">
+                        <span className="adminRoleBadge">{formatInternalEventLevel(event.level)}</span>
+                        <span className="adminRoleBadge">{formatInternalEventSource(event.source)}</span>
+                      </div>
+                    </div>
+                    <div className="adminMetaGrid">
+                      <p><strong>Logged:</strong> {formatDate(event.created_at)}</p>
+                      <p><strong>Course:</strong> {event.course_id || "-"}</p>
+                    </div>
+                    <p><strong>Message:</strong> {event.message}</p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
 
-      <section className="card">
-        <h2>Accounts</h2>
+          <section className="card">
+            <h2>Bug Inbox</h2>
+            <p>Reports submitted from inside MathClaw land here so you can spot repeat issues quickly.</p>
+            {bugReportError ? <p>Could not load bug reports: {bugReportError.message}</p> : null}
+            {!bugReportError && bugReports.length === 0 ? <p>No bug reports yet.</p> : null}
+            {!bugReportError && bugReports.length > 0 ? (
+              <div className="adminBugList">
+                {bugReports.map((report) => (
+                  <article key={report.id} className="card adminBugCard">
+                    <div className="adminUserHeader">
+                      <div>
+                        <h3>{report.summary}</h3>
+                        <p>
+                          {report.reporter_name || report.reporter_email} · {report.reporter_email}
+                        </p>
+                      </div>
+                      <div className="adminBadgeRow">
+                        <span className="adminRoleBadge">{report.severity}</span>
+                        <span className="adminRoleBadge">{report.status}</span>
+                      </div>
+                    </div>
+                    <div className="adminMetaGrid">
+                      <p><strong>Reported:</strong> {formatDate(report.created_at)}</p>
+                      <p><strong>Account type:</strong> {report.account_type || "-"}</p>
+                      <p><strong>Page:</strong> {report.page_path || "-"}</p>
+                    </div>
+                    <p><strong>What happened:</strong> {report.details}</p>
+                    {report.expected_behavior ? (
+                      <p style={{ marginTop: "0.5rem" }}>
+                        <strong>Expected:</strong> {report.expected_behavior}
+                      </p>
+                    ) : null}
+                    <div className="ctaRow" style={{ marginTop: "0.85rem" }}>
+                      <form action={updateBugReportStatusAction} className="adminInlineForm">
+                        <input type="hidden" name="report_id" value={report.id} />
+                        <input type="hidden" name="status" value={report.status === "resolved" ? "open" : "resolved"} />
+                        <button className="btn ghost" type="submit">
+                          {report.status === "resolved" ? "Reopen" : "Mark Resolved"}
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        </>
+      ) : null}
+
+      {adminView === "accounts" ? (
+        <section className="card">
+          <h2>User Information</h2>
         <form className="adminFilterBar adminFilterBarWide" method="get">
+          <input type="hidden" name="view" value="accounts" />
           <label className="stack">
             <span>Search</span>
             <input
@@ -492,158 +558,183 @@ export default async function AdminPage({ searchParams }) {
         {!error && users.length === 0 ? <p>No accounts yet.</p> : null}
         {!error && users.length > 0 ? (
           <div className="adminUserList">
-            {users.map((item) => (
-              <article key={item.id} className="card adminUserCard">
-                <div className="adminUserHeader">
-                  <div>
-                    <h3>{item.displayName}</h3>
-                    <p>{item.email}</p>
-                  </div>
-                  <div className="adminBadgeRow">
-                    <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
-                    {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
-                    {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
-                  </div>
-                </div>
-                <form action={renameAccountAction} className="adminRenameForm">
-                  <input type="hidden" name="user_id" value={item.id} />
-                  <div className="adminNameGrid">
-                    <label className="stack">
-                      <span>First name</span>
-                      <input className="input" type="text" name="first_name" defaultValue={item.firstName} placeholder="First name" />
-                    </label>
-                    <label className="stack">
-                      <span>Last name</span>
-                      <input className="input" type="text" name="last_name" defaultValue={item.lastName} placeholder="Last name" />
-                    </label>
-                    <div className="ctaRow adminInlineEditorRow">
-                      <button className="btn ghost" type="submit">Save Name</button>
-                    </div>
-                  </div>
-                </form>
-                <div className="adminMetaGrid">
-                  <p><strong>First:</strong> {item.firstName || "-"}</p>
-                  <p><strong>Last:</strong> {item.lastName || "-"}</p>
-                  <p><strong>School:</strong> {item.schoolName}</p>
-                  <p><strong>Timezone:</strong> {item.timezone}</p>
-                  <p><strong>Created:</strong> {formatDate(item.createdAt)}</p>
-                  <p><strong>Last sign-in:</strong> {formatDate(item.lastSignInAt)}</p>
-                  <p><strong>Sign-in:</strong> {item.providerLabel}</p>
-                  <p><strong>Owned classes:</strong> {item.ownedClassCount}</p>
-                  <p><strong>Joined classes:</strong> {item.joinedClassCount}</p>
-                  <p><strong>Teacher search:</strong> {item.accountType === "student" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
-                </div>
-                <p className="adminUserId"><strong>User ID:</strong> {item.id}</p>
-                {item.ownedClasses.length > 0 ? (
-                  <div className="adminAssignmentBlock">
-                    <p><strong>Owned classes</strong></p>
-                    <div className="adminAssignmentList">
-                      {item.ownedClasses.map((ownedClass) => (
-                        <div key={ownedClass.id} className="adminAssignmentItem">
-                          <strong>{ownedClass.title}</strong>
-                          <span>{ownedClass.className || "Class name not set"}</span>
-                          <form action={deleteOwnedClassAction} className="adminInlineForm">
-                            <input type="hidden" name="course_id" value={ownedClass.id} />
-                            <DeleteClassButton label="Delete Class" />
-                          </form>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {item.assignedClasses.length > 0 ? (
-                  <div className="adminAssignmentBlock">
-                    <p><strong>Assigned classes</strong></p>
-                    <div className="adminAssignmentList">
-                      {item.assignedClasses.map((assignedClass) => (
-                        <div key={assignedClass.id} className="adminAssignmentItem">
-                          <strong>{assignedClass.title}</strong>
-                          <span>
-                            {assignedClass.className ? `${assignedClass.className} · ` : ""}
-                            Teacher: {assignedClass.teacherName}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="adminEmptyAssignments"><strong>Assigned classes:</strong> None yet.</p>
-                )}
-                <form action={addUserToClassAction} className="adminEnrollmentForm">
-                  <input type="hidden" name="user_id" value={item.id} />
-                  <label>
-                    <div className="ctaRow adminInlineEditorRow">
-                      <select className="input" name="course_id" defaultValue="">
-                        <option value="" disabled>Select a class</option>
-                        {courseOptions.map((course) => (
-                          <option key={course.id} value={course.id}>
-                            {course.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button className="btn ghost" type="submit">Add to Class</button>
-                    </div>
-                  </label>
-                </form>
-                {item.canResetPassword ? (
-                  <form action={resetPasswordAction} className="adminRenameForm">
-                    <input type="hidden" name="user_id" value={item.id} />
-                    <div className="adminNameGrid">
-                      <label className="stack">
-                        <span>Set temporary password</span>
-                        <input
-                          className="input"
-                          type="text"
-                          name="password"
-                          minLength={8}
-                          placeholder="Minimum 8 characters"
-                        />
-                      </label>
-                      <div className="ctaRow adminInlineEditorRow adminSingleAction">
-                        <button className="btn ghost" type="submit">Set Password</button>
+            {users.map((item) => {
+              const classSummary = summarizeAccountClasses(item);
+
+              return (
+                <details key={item.id} className="card adminUserCard adminUserDetails">
+                  <summary className="adminUserSummary">
+                    <div className="adminUserSummaryMain">
+                      <div>
+                        <h3>{item.displayName}</h3>
+                        <p className="adminUserSummaryClass">{classSummary.title}</p>
+                        <p className="adminUserSummaryMeta">{classSummary.detail}</p>
+                      </div>
+                      <div className="adminBadgeRow">
+                        <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
+                        {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
+                        {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
+                        <span className="adminSummaryToggleText">
+                          <span className="showLabel">Show Details</span>
+                          <span className="hideLabel">Hide Details</span>
+                        </span>
                       </div>
                     </div>
-                  </form>
-                ) : (
-                  <p className="adminEmptyAssignments"><strong>Password:</strong> Managed by Google sign-in.</p>
-                )}
-                <AccountActionsToggle>
-                  <form action={updateAccountTypeAction} className="adminInlineForm">
-                    <input type="hidden" name="user_id" value={item.id} />
-                    <input type="hidden" name="account_type" value={item.accountType === "student" ? "teacher" : "student"} />
-                    <button className="btn" type="submit">
-                      Make {item.accountType === "student" ? "Teacher" : "Student"}
-                    </button>
-                  </form>
-                  <form action={toggleAdminAccessAction} className="adminInlineForm">
-                    <input type="hidden" name="user_id" value={item.id} />
-                    <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
-                    <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
-                      {item.isBootstrapOwner ? "Owner Access" : item.isAdmin ? "Remove Admin" : "Make Admin"}
-                    </button>
-                  </form>
-                  {item.accountType !== "student" ? (
-                    <form action={toggleDiscoverableAction} className="adminInlineForm">
+                  </summary>
+                  <div className="adminUserDetailsBody">
+                    <div className="adminUserHeader">
+                      <div>
+                        <h3>{item.displayName}</h3>
+                        <p>{item.email}</p>
+                      </div>
+                      <div className="adminBadgeRow">
+                        <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
+                        {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
+                        {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
+                      </div>
+                    </div>
+                    <form action={renameAccountAction} className="adminRenameForm">
                       <input type="hidden" name="user_id" value={item.id} />
-                      <input type="hidden" name="discoverable" value={item.discoverable ? "false" : "true"} />
-                      <button className="btn ghost" type="submit">
-                        {item.discoverable ? "Hide from Search" : "Make Discoverable"}
-                      </button>
+                      <div className="adminNameGrid">
+                        <label className="stack">
+                          <span>First name</span>
+                          <input className="input" type="text" name="first_name" defaultValue={item.firstName} placeholder="First name" />
+                        </label>
+                        <label className="stack">
+                          <span>Last name</span>
+                          <input className="input" type="text" name="last_name" defaultValue={item.lastName} placeholder="Last name" />
+                        </label>
+                        <div className="ctaRow adminInlineEditorRow">
+                          <button className="btn ghost" type="submit">Save Name</button>
+                        </div>
+                      </div>
                     </form>
-                  ) : null}
-                  <form action={deleteAccountAction} className="adminInlineForm">
-                    <input type="hidden" name="user_id" value={item.id} />
-                    <DeleteAccountButton
-                      disabled={item.id === user.id}
-                      label={item.id === user.id ? "Owner Account" : "Delete Account"}
-                    />
-                  </form>
-                </AccountActionsToggle>
-              </article>
-            ))}
+                    <div className="adminMetaGrid">
+                      <p><strong>First:</strong> {item.firstName || "-"}</p>
+                      <p><strong>Last:</strong> {item.lastName || "-"}</p>
+                      <p><strong>School:</strong> {item.schoolName}</p>
+                      <p><strong>Timezone:</strong> {item.timezone}</p>
+                      <p><strong>Created:</strong> {formatDate(item.createdAt)}</p>
+                      <p><strong>Last sign-in:</strong> {formatDate(item.lastSignInAt)}</p>
+                      <p><strong>Sign-in:</strong> {item.providerLabel}</p>
+                      <p><strong>Owned classes:</strong> {item.ownedClassCount}</p>
+                      <p><strong>Joined classes:</strong> {item.joinedClassCount}</p>
+                      <p><strong>Teacher search:</strong> {item.accountType === "student" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
+                    </div>
+                    <p className="adminUserId"><strong>User ID:</strong> {item.id}</p>
+                    {item.ownedClasses.length > 0 ? (
+                      <div className="adminAssignmentBlock">
+                        <p><strong>Owned classes</strong></p>
+                        <div className="adminAssignmentList">
+                          {item.ownedClasses.map((ownedClass) => (
+                            <div key={ownedClass.id} className="adminAssignmentItem">
+                              <strong>{ownedClass.title}</strong>
+                              <span>{ownedClass.className || "Class name not set"}</span>
+                              <form action={deleteOwnedClassAction} className="adminInlineForm">
+                                <input type="hidden" name="course_id" value={ownedClass.id} />
+                                <DeleteClassButton label="Delete Class" />
+                              </form>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {item.assignedClasses.length > 0 ? (
+                      <div className="adminAssignmentBlock">
+                        <p><strong>Assigned classes</strong></p>
+                        <div className="adminAssignmentList">
+                          {item.assignedClasses.map((assignedClass) => (
+                            <div key={assignedClass.id} className="adminAssignmentItem">
+                              <strong>{assignedClass.title}</strong>
+                              <span>
+                                {assignedClass.className ? `${assignedClass.className} · ` : ""}
+                                Teacher: {assignedClass.teacherName}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="adminEmptyAssignments"><strong>Assigned classes:</strong> None yet.</p>
+                    )}
+                    <form action={addUserToClassAction} className="adminEnrollmentForm">
+                      <input type="hidden" name="user_id" value={item.id} />
+                      <label>
+                        <div className="ctaRow adminInlineEditorRow">
+                          <select className="input" name="course_id" defaultValue="">
+                            <option value="" disabled>Select a class</option>
+                            {courseOptions.map((course) => (
+                              <option key={course.id} value={course.id}>
+                                {course.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button className="btn ghost" type="submit">Add to Class</button>
+                        </div>
+                      </label>
+                    </form>
+                    {item.canResetPassword ? (
+                      <form action={resetPasswordAction} className="adminRenameForm">
+                        <input type="hidden" name="user_id" value={item.id} />
+                        <div className="adminNameGrid">
+                          <label className="stack">
+                            <span>Set temporary password</span>
+                            <input
+                              className="input"
+                              type="text"
+                              name="password"
+                              minLength={8}
+                              placeholder="Minimum 8 characters"
+                            />
+                          </label>
+                          <div className="ctaRow adminInlineEditorRow adminSingleAction">
+                            <button className="btn ghost" type="submit">Set Password</button>
+                          </div>
+                        </div>
+                      </form>
+                    ) : (
+                      <p className="adminEmptyAssignments"><strong>Password:</strong> Managed by Google sign-in.</p>
+                    )}
+                    <AccountActionsToggle>
+                      <form action={updateAccountTypeAction} className="adminInlineForm">
+                        <input type="hidden" name="user_id" value={item.id} />
+                        <input type="hidden" name="account_type" value={item.accountType === "student" ? "teacher" : "student"} />
+                        <button className="btn" type="submit">
+                          Make {item.accountType === "student" ? "Teacher" : "Student"}
+                        </button>
+                      </form>
+                      <form action={toggleAdminAccessAction} className="adminInlineForm">
+                        <input type="hidden" name="user_id" value={item.id} />
+                        <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
+                        <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
+                          {item.isBootstrapOwner ? "Owner Access" : item.isAdmin ? "Remove Admin" : "Make Admin"}
+                        </button>
+                      </form>
+                      {item.accountType !== "student" ? (
+                        <form action={toggleDiscoverableAction} className="adminInlineForm">
+                          <input type="hidden" name="user_id" value={item.id} />
+                          <input type="hidden" name="discoverable" value={item.discoverable ? "false" : "true"} />
+                          <button className="btn ghost" type="submit">
+                            {item.discoverable ? "Hide from Search" : "Make Discoverable"}
+                          </button>
+                        </form>
+                      ) : null}
+                      <form action={deleteAccountAction} className="adminInlineForm">
+                        <input type="hidden" name="user_id" value={item.id} />
+                        <DeleteAccountButton
+                          disabled={item.id === user.id}
+                          label={item.id === user.id ? "Owner Account" : "Delete Account"}
+                        />
+                      </form>
+                    </AccountActionsToggle>
+                  </div>
+                </details>
+              );
+            })}
           </div>
         ) : null}
-      </section>
+        </section>
+      ) : null}
 
       <AdminToast
         message={qs.undo ? "Account moved to Deleted Accounts." : null}

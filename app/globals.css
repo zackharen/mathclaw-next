@@ -1110,6 +1110,17 @@ details[open] > summary.btn,
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.adminSectionSwitcher {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.adminViewSwitch {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .adminSummaryCard {
   min-height: 0;
 }
@@ -1132,6 +1143,74 @@ details[open] > summary.btn,
 
 .adminUserCard {
   min-height: 0;
+}
+
+.adminUserDetails {
+  padding: 0;
+  overflow: hidden;
+}
+
+.adminUserSummary {
+  list-style: none;
+  cursor: pointer;
+  padding: 1rem;
+}
+
+.adminUserSummary::-webkit-details-marker {
+  display: none;
+}
+
+.adminUserSummaryMain {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.adminUserSummary h3 {
+  margin: 0 0 0.3rem;
+}
+
+.adminUserSummaryClass,
+.adminUserSummaryMeta {
+  margin: 0;
+}
+
+.adminUserSummaryClass {
+  font-weight: 700;
+}
+
+.adminUserSummaryMeta {
+  opacity: 0.82;
+  font-size: 0.95rem;
+}
+
+.adminSummaryToggleText {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.8rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  font-weight: 700;
+}
+
+.adminSummaryToggleText .hideLabel {
+  display: none;
+}
+
+.adminUserDetails[open] .adminSummaryToggleText .showLabel {
+  display: none;
+}
+
+.adminUserDetails[open] .adminSummaryToggleText .hideLabel {
+  display: inline;
+}
+
+.adminUserDetailsBody {
+  padding: 0 1rem 1rem;
+  border-top: 1px dashed #8ea3b3;
 }
 
 .adminRenameForm,
@@ -1315,6 +1394,7 @@ details[open] > summary.btn,
     grid-template-columns: 1fr;
   }
 
+  .adminUserSummaryMain,
   .adminUserHeader {
     flex-direction: column;
   }
