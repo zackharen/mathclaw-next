@@ -38,12 +38,16 @@ begin
   return query
   select
     cgps.player_id,
-    coalesce(nullif(trim(p.display_name), ''), 'Student ' || left(cgps.player_id::text, 8)) as display_name,
+    (
+      coalesce(nullif(trim(p.display_name), ''), 'Student ' || left(cgps.player_id::text, 8))
+      || case when cgps.player_id = c.owner_id then ' - Teacher' else '' end
+    ) as display_name,
     cgps.average_score,
     cgps.last_10_average,
     cgps.best_score,
     cgps.sessions_played
   from public.course_game_player_stats cgps
+  join public.courses c on c.id = cgps.course_id
   left join public.profiles p on p.id = cgps.player_id
   where cgps.course_id = p_course_id
     and cgps.game_slug = p_game_slug
