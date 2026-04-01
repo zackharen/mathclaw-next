@@ -91,14 +91,25 @@ function statusTone(label) {
   return "var(--navy)";
 }
 
-export default function Game2048Client({ courses, personalStats, leaderboard }) {
+function formatScore(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+export default function Game2048Client({
+  courses,
+  initialCourseId,
+  initialLeaderboard,
+  personalStats,
+}) {
   const [board, setBoard] = useState(freshBoard);
   const [score, setScore] = useState(0);
-  const [courseId, setCourseId] = useState(courses[0]?.id || "");
+  const [courseId, setCourseId] = useState(initialCourseId || "");
   const [status, setStatus] = useState("");
   const [isWon, setIsWon] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
+  const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [localBest, setLocalBest] = useState(() =>
     Math.max(Number(personalStats?.best_score || 0), 0)
   );
@@ -118,29 +129,79 @@ export default function Game2048Client({ courses, personalStats, leaderboard }) 
 
   const bestTile = useMemo(() => bestTileValue(board), [board]);
 
+  const loadLeaderboard = useCallback(
+    async (nextCourseId) => {
+      if (!nextCourseId) {
+        setLeaderboardRows([]);
+        return;
+      }
+
+      setLeaderboardLoading(true);
+      try {
+        const response = await fetch(
+          `/api/play/leaderboard?gameSlug=2048&courseId=${encodeURIComponent(nextCourseId)}`
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not load class leaderboard.");
+        }
+        setLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []);
+      } catch (error) {
+        setStatus(error.message || "Could not load class leaderboard.");
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!courseId) {
+      setLeaderboardRows([]);
+      return;
+    }
+
+    if (courseId === initialCourseId && (initialLeaderboard || []).length > 0) {
+      return;
+    }
+
+    loadLeaderboard(courseId);
+  }, [courseId, initialCourseId, initialLeaderboard, loadLeaderboard]);
+
   const saveSession = useCallback(
     async (finalScore, finalBoard, result = "finished") => {
       const signature = `${result}:${finalScore}:${bestTileValue(finalBoard)}`;
       if (savedResultsRef.current.has(signature)) return;
       savedResultsRef.current.add(signature);
 
-      setStatus("Saving score...");
-      const response = await fetch("/api/play/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gameSlug: "2048",
-          score: finalScore,
-          result,
-          courseId: courseId || null,
-          metadata: {
-            bestTile: bestTileValue(finalBoard),
-          },
-        }),
-      });
-      setStatus(response.ok ? "Score saved." : "Could not save score.");
+      try {
+        setStatus("Saving score...");
+        const response = await fetch("/api/play/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gameSlug: "2048",
+            score: finalScore,
+            result,
+            courseId: courseId || null,
+            metadata: {
+              bestTile: bestTileValue(finalBoard),
+            },
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not save score.");
+        }
+
+        setStatus("Score saved.");
+        setLocalBest((current) => Math.max(current, Number(payload.stats?.best_score || 0)));
+        await loadLeaderboard(courseId);
+      } catch (error) {
+        setStatus(error.message || "Could not save score.");
+      }
     },
-    [courseId]
+    [courseId, loadLeaderboard]
   );
 
   const startNewGame = useCallback(
@@ -340,11 +401,11 @@ export default function Game2048Client({ courses, personalStats, leaderboard }) 
             </div>
             <div>
               <span>Average</span>
-              <strong>{Math.round(Number(personalStats.average_score || 0) * 10) / 10}</strong>
+              <strong>{formatScore(personalStats.average_score)}</strong>
             </div>
             <div>
               <span>Last 10</span>
-              <strong>{Math.round(Number(personalStats.last_10_average || 0) * 10) / 10}</strong>
+              <strong>{formatScore(personalStats.last_10_average)}</strong>
             </div>
             <div>
               <span>Best</span>
@@ -355,20 +416,23 @@ export default function Game2048Client({ courses, personalStats, leaderboard }) 
           <p>No saved games yet.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>Leaderboard</h3>
+        <h3 style={{ marginTop: "1rem" }}>
+          {courseId ? "Class Leaderboard" : "Leaderboard"}
+        </h3>
         <div className="list" style={{ marginTop: "0.75rem" }}>
-          {leaderboard.map((row, index) => (
+          {!courseId ? <p>Select a class to see your classmates here.</p> : null}
+          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+            <p>No class scores yet. Save a run to get the leaderboard started.</p>
+          ) : null}
+          {leaderboardRows.map((row, index) => (
             <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
               <strong>
-                #{index + 1}{" "}
-                {Array.isArray(row.profiles)
-                  ? row.profiles[0]?.display_name
-                  : row.profiles?.display_name}
+                #{index + 1} {row.display_name || `Student ${String(row.player_id).slice(0, 8)}`}
               </strong>
               <p>
-                Avg: {Math.round(Number(row.average_score || 0) * 10) / 10} · Last 10:{" "}
-                {Math.round(Number(row.last_10_average || 0) * 10) / 10} · Best:{" "}
-                {row.best_score}
+                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} ·
+                Best: {row.best_score}
               </p>
             </div>
           ))}

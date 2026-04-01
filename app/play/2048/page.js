@@ -11,14 +11,8 @@ export default async function Game2048Page() {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/2048");
 
-  const [courses, leaderboardResult, personalResult] = await Promise.all([
+  const [courses, personalResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
-    supabase
-      .from("game_player_global_stats")
-      .select("player_id, average_score, last_10_average, best_score, sessions_played, profiles!inner(display_name)")
-      .eq("game_slug", "2048")
-      .order("average_score", { ascending: false })
-      .limit(10),
     supabase
       .from("game_player_global_stats")
       .select("average_score, last_10_average, best_score, sessions_played")
@@ -26,6 +20,17 @@ export default async function Game2048Page() {
       .eq("game_slug", "2048")
       .maybeSingle(),
   ]);
+
+  const initialCourseId = courses[0]?.id || "";
+  let initialLeaderboard = [];
+
+  if (initialCourseId) {
+    const { data: leaderboardRows } = await supabase.rpc("list_course_game_leaderboard", {
+      p_course_id: initialCourseId,
+      p_game_slug: "2048",
+    });
+    initialLeaderboard = leaderboardRows || [];
+  }
 
   return (
     <div className="stack">
@@ -36,7 +41,12 @@ export default async function Game2048Page() {
           profile. Pick a class if you want that score tied back to a teacher’s view.
         </p>
       </section>
-      <Game2048Client courses={courses} personalStats={personalResult.data} leaderboard={leaderboardResult.data || []} />
+      <Game2048Client
+        courses={courses}
+        initialCourseId={initialCourseId}
+        initialLeaderboard={initialLeaderboard}
+        personalStats={personalResult.data}
+      />
     </div>
   );
 }
