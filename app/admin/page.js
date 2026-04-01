@@ -87,6 +87,46 @@ function getBestDisplayName(profile, metadata, email, fallback = "-") {
   );
 }
 
+function formatInternalEventTitle(eventKey) {
+  const labels = {
+    join_class_rpc_failed: "Class join RPC failed",
+    join_class_admin_lookup_failed: "Class join admin lookup failed",
+    join_class_admin_lookup_exception: "Class join admin lookup exception",
+    join_class_not_found: "Class join code not found",
+    join_class_membership_failed: "Class join membership failed",
+    game_session_unsupported_game: "Unsupported game save attempt",
+    game_session_forbidden_course: "Blocked score save for class",
+    game_session_rpc_failed: "Game session save failed",
+    connect4_create_forbidden_course: "Blocked Connect4 class access",
+    connect4_create_failed: "Connect4 match creation failed",
+    connect4_create_exhausted_codes: "Connect4 invite code generation failed",
+    connect4_join_failed: "Connect4 join failed",
+    connect4_join_not_found: "Connect4 code not found",
+    connect4_fetch_match_failed: "Connect4 match fetch failed",
+    connect4_move_match_not_found: "Connect4 move used missing match",
+    connect4_move_update_failed: "Connect4 move update failed",
+    connect4_finish_stats_failed: "Connect4 final stats save failed",
+  };
+
+  return labels[eventKey] || String(eventKey || "Unknown event").replaceAll("_", " ");
+}
+
+function formatInternalEventSource(source) {
+  const labels = {
+    "play.joinClassByCodeAction": "Student join flow",
+    "api.play.session": "Game score save API",
+    "api.play.connect4": "Connect4 API",
+  };
+
+  return labels[source] || source || "Unknown source";
+}
+
+function formatInternalEventLevel(level) {
+  if (level === "warning") return "Warning";
+  if (level === "error") return "Error";
+  return level || "Notice";
+}
+
 export default async function AdminPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const searchQuery = String(qs.q || "").trim().toLowerCase();
@@ -324,8 +364,10 @@ export default async function AdminPage({ searchParams }) {
             <p className="adminStat">{bugReports.filter((item) => item.status !== "resolved").length}</p>
           </div>
           <div className="card adminSummaryCard">
-            <h3>Recent Internal Errors</h3>
-            <p className="adminStat">{internalEvents.filter((item) => item.level === "error").length}</p>
+            <h3>Recent Internal Issues</h3>
+            <p className="adminStat">
+              {internalEvents.filter((item) => ["error", "warning"].includes(item.level)).length}
+            </p>
           </div>
         </div>
       </section>
@@ -341,12 +383,12 @@ export default async function AdminPage({ searchParams }) {
               <article key={event.id} className="card adminBugCard">
                 <div className="adminUserHeader">
                   <div>
-                    <h3>{event.event_key}</h3>
+                    <h3>{formatInternalEventTitle(event.event_key)}</h3>
                     <p>{event.user_email || "Unknown user"}{event.account_type ? ` · ${event.account_type}` : ""}</p>
                   </div>
                   <div className="adminBadgeRow">
-                    <span className="adminRoleBadge">{event.level}</span>
-                    <span className="adminRoleBadge">{event.source}</span>
+                    <span className="adminRoleBadge">{formatInternalEventLevel(event.level)}</span>
+                    <span className="adminRoleBadge">{formatInternalEventSource(event.source)}</span>
                   </div>
                 </div>
                 <div className="adminMetaGrid">
