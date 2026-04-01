@@ -96,6 +96,23 @@ export async function generateCalendarAction(formData) {
     courseError = error;
   }
 
+  if (
+    courseError &&
+    typeof courseError.message === "string" &&
+    courseError.message.includes("ab_pattern_start_date")
+  ) {
+    courseError = null;
+    access = await getCourseAccessForUser(
+      supabase,
+      user.id,
+      courseId,
+      "id, owner_id, schedule_model, ab_meeting_day, school_year_start, school_year_end"
+    );
+    course = access?.course
+      ? { ...access.course, ab_pattern_start_date: access.course.school_year_start }
+      : null;
+  }
+
   if (!course || courseError) return;
   const writeClient = getCourseWriteClient(access, supabase);
 
