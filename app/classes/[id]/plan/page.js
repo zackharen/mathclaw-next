@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import {
   markLessonCompleteAction,
   markLessonPlannedAction,
@@ -80,6 +80,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   if (!course) {
     redirect("/classes");
   }
+  const courseDataClient = getCourseWriteClient(access, supabase);
 
   const dataFetchStart = process.hrtime.bigint();
   const [
@@ -93,7 +94,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .from("curriculum_lessons")
       .select("id", { count: "exact", head: true })
       .eq("library_id", course.selected_library_id),
-    supabase
+    courseDataClient
       .from("course_calendar_days")
       .select("class_date, day_type, ab_day, reason_id, note")
       .eq("course_id", course.id)
@@ -103,14 +104,14 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .select("id, label")
       .or(`owner_id.is.null,owner_id.eq.${user.id}`)
       .order("label", { ascending: true }),
-    supabase
+    courseDataClient
       .from("course_lesson_plan")
       .select(
         "class_date, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)"
       )
       .eq("course_id", course.id)
       .order("class_date", { ascending: true }),
-    supabase
+    courseDataClient
       .from("course_announcements")
       .select("class_date, content")
       .eq("course_id", course.id)
