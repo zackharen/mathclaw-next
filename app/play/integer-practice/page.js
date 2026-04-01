@@ -10,7 +10,8 @@ export default async function IntegerPracticePage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/sign-in?redirect=/play/integer-practice");
-  const [courses, personalResult] = await Promise.all([
+  const [allCourses, courses, personalResult] = await Promise.all([
+    listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "integer_practice" }),
     supabase
       .from("game_player_global_stats")
@@ -19,6 +20,10 @@ export default async function IntegerPracticePage() {
       .eq("game_slug", "integer_practice")
       .maybeSingle(),
   ]);
+
+  if (allCourses.length > 0 && courses.length === 0) {
+    redirect("/play?game_disabled=integer_practice");
+  }
 
   const initialCourseId = courses[0]?.id || "";
   let initialLeaderboard = [];

@@ -11,7 +11,8 @@ export default async function Game2048Page() {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/2048");
 
-  const [courses, personalResult] = await Promise.all([
+  const [allCourses, courses, personalResult] = await Promise.all([
+    listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "2048" }),
     supabase
       .from("game_player_global_stats")
@@ -20,6 +21,10 @@ export default async function Game2048Page() {
       .eq("game_slug", "2048")
       .maybeSingle(),
   ]);
+
+  if (allCourses.length > 0 && courses.length === 0) {
+    redirect("/play?game_disabled=2048");
+  }
 
   const initialCourseId = courses[0]?.id || "";
   let initialLeaderboard = [];

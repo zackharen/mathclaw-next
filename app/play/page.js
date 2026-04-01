@@ -81,6 +81,11 @@ export default async function PlayPage({ searchParams }) {
             <p style={{ marginTop: "0.75rem", opacity: 0.8 }}>Codes are not case-sensitive. You can paste them in exactly as your teacher shares them.</p>
             {params?.join_error === "missing" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>Please enter a class code.</p> : null}
             {params?.join_error === "not_found" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>That class code was not found. Double-check the letters and numbers with your teacher.</p> : null}
+            {typeof params?.game_disabled === "string" ? (
+              <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                That game is not enabled for any of your current classes.
+              </p>
+            ) : null}
             {params?.join_success === "1" && joinedCourse ? (
               <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
                 <h3 style={{ marginBottom: "0.4rem" }}>You’re in.</h3>

@@ -10,7 +10,8 @@ export default async function NumberComparePage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/sign-in?redirect=/play/number-compare");
-  const [courses, personalResult] = await Promise.all([
+  const [allCourses, courses, personalResult] = await Promise.all([
+    listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "number_compare" }),
     supabase
       .from("game_player_global_stats")
@@ -19,6 +20,10 @@ export default async function NumberComparePage() {
       .eq("game_slug", "number_compare")
       .maybeSingle(),
   ]);
+
+  if (allCourses.length > 0 && courses.length === 0) {
+    redirect("/play?game_disabled=number_compare");
+  }
 
   const initialCourseId = courses[0]?.id || "";
   let initialLeaderboard = [];
