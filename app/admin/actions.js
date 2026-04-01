@@ -298,6 +298,28 @@ export async function resetPasswordAction(formData) {
   redirect("/admin?passwordReset=1");
 }
 
+export async function deleteOwnedClassAction(formData) {
+  await requireOwner();
+
+  const courseId = String(formData.get("course_id") || "").trim();
+
+  if (!courseId) {
+    redirect("/admin?error=missing-course");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("courses").delete().eq("id", courseId);
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/classes");
+  revalidatePath("/play");
+  redirect("/admin?classDeleted=1");
+}
+
 export async function toggleDiscoverableAction(formData) {
   await requireOwner();
 

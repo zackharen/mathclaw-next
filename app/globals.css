@@ -1107,6 +1107,10 @@ details[open] > summary.btn,
   font-size: 0.95rem;
 }
 
+.adminAssignmentItem form {
+  margin-top: 0.45rem;
+}
+
 .adminUserHeader {
   display: flex;
   justify-content: space-between;

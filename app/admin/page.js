@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
 import { splitDisplayName } from "@/lib/auth/account-type";
 import DeleteAccountButton from "./delete-account-button";
+import DeleteClassButton from "./delete-class-button";
 import AdminToast from "./admin-toast";
 import AccountActionsToggle from "./account-actions-toggle";
 import {
@@ -15,6 +16,7 @@ import {
   addUserToClassAction,
   restoreDeletedAccountAction,
   resetPasswordAction,
+  deleteOwnedClassAction,
 } from "./actions";
 
 function formatDate(value) {
@@ -37,9 +39,10 @@ function Notice({ searchParams }) {
   const membership = searchParams?.membership;
   const adminAccess = searchParams?.adminAccess;
   const passwordReset = searchParams?.passwordReset === "1";
+  const classDeleted = searchParams?.classDeleted === "1";
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !error) {
     return null;
   }
 
@@ -52,6 +55,7 @@ function Notice({ searchParams }) {
       {discoverability === "shown" ? <p>Teacher is now discoverable.</p> : null}
       {discoverability === "hidden" ? <p>Teacher is now hidden from teacher search.</p> : null}
       {membership === "added" ? <p>User added to class.</p> : null}
+      {classDeleted ? <p>Class deleted.</p> : null}
       {adminAccess === "granted" ? <p>Admin access granted.</p> : null}
       {adminAccess === "revoked" ? <p>Admin access revoked.</p> : null}
       {passwordReset ? <p>Password updated.</p> : null}
@@ -129,10 +133,14 @@ export default async function AdminPage({ searchParams }) {
       const coursesById = new Map((courses || []).map((course) => [course.id, course]));
       const membershipsByProfileId = new Map();
       const ownedClassesById = new Map();
+      const ownedCoursesByOwnerId = new Map();
       const joinedClassesById = new Map();
 
       for (const course of courses || []) {
         ownedClassesById.set(course.owner_id, (ownedClassesById.get(course.owner_id) || 0) + 1);
+        const current = ownedCoursesByOwnerId.get(course.owner_id) || [];
+        current.push(course);
+        ownedCoursesByOwnerId.set(course.owner_id, current);
       }
 
       for (const membership of memberships || []) {
@@ -183,6 +191,11 @@ export default async function AdminPage({ searchParams }) {
             ? providers.every((provider) => provider === "google")
             : authUser.app_metadata?.provider === "google";
         const canResetPassword = !isGoogleOnly;
+        const ownedClasses = (ownedCoursesByOwnerId.get(authUser.id) || []).map((course) => ({
+          id: course.id,
+          title: course.title || "Untitled class",
+          className: course.class_name || "",
+        }));
         const assignedClasses = (membershipsByProfileId.get(authUser.id) || []).map((membership) => {
           const course = coursesById.get(membership.course_id);
           const ownerProfile = course ? profilesById.get(course.owner_id) : null;
@@ -219,6 +232,7 @@ export default async function AdminPage({ searchParams }) {
           providerLabel,
           canResetPassword,
           ownedClassCount: ownedClassesById.get(authUser.id) || 0,
+          ownedClasses,
           joinedClassCount: joinedClassesById.get(authUser.id) || 0,
           assignedClasses,
         };
@@ -370,6 +384,23 @@ export default async function AdminPage({ searchParams }) {
                   <p><strong>Teacher search:</strong> {item.accountType === "student" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
                 </div>
                 <p className="adminUserId"><strong>User ID:</strong> {item.id}</p>
+                {item.ownedClasses.length > 0 ? (
+                  <div className="adminAssignmentBlock">
+                    <p><strong>Owned classes</strong></p>
+                    <div className="adminAssignmentList">
+                      {item.ownedClasses.map((ownedClass) => (
+                        <div key={ownedClass.id} className="adminAssignmentItem">
+                          <strong>{ownedClass.title}</strong>
+                          <span>{ownedClass.className || "Class name not set"}</span>
+                          <form action={deleteOwnedClassAction} className="adminInlineForm">
+                            <input type="hidden" name="course_id" value={ownedClass.id} />
+                            <DeleteClassButton label="Delete Class" />
+                          </form>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {item.assignedClasses.length > 0 ? (
                   <div className="adminAssignmentBlock">
                     <p><strong>Assigned classes</strong></p>
