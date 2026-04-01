@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { generateJoinCode } from "@/lib/student-games/join-code";
+import { ensureProfileForUser, normalizeAccountType } from "@/lib/auth/account-type";
 
 export async function deleteClassAction(formData) {
   const courseId = formData.get("course_id");
@@ -82,4 +84,124 @@ export async function regenerateStudentJoinCodeAction(formData) {
   }
 
   redirect(`/classes/${course.id}/students?join_code_error=duplicate_retry_failed`);
+}
+
+export async function addCoTeacherAction(formData) {
+  const courseId = String(formData.get("course_id") || "").trim();
+  const profileId = String(formData.get("profile_id") || "").trim();
+
+  if (!courseId || !profileId) {
+    redirect("/classes?coTeacherError=missing-data");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/classes");
+  }
+
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id, owner_id")
+    .eq("id", courseId)
+    .eq("owner_id", user.id)
+    .maybeSingle();
+
+  if (!course) {
+    redirect("/classes?coTeacherError=course-not-found");
+  }
+
+  if (profileId === user.id) {
+    redirect("/classes?coTeacherError=cannot-add-yourself");
+  }
+
+  const admin = createAdminClient();
+  const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(profileId);
+  if (authUserError) {
+    redirect(`/classes?coTeacherError=${encodeURIComponent(authUserError.message)}`);
+  }
+
+  const managedUser = authUserData?.user;
+  if (!managedUser) {
+    redirect("/classes?coTeacherError=user-not-found");
+  }
+
+  const accountType = normalizeAccountType(managedUser.user_metadata?.account_type);
+  if (accountType === "student") {
+    redirect("/classes?coTeacherError=students-cannot-be-co-teachers");
+  }
+
+  await ensureProfileForUser(admin, managedUser, "teacher");
+
+  const { error } = await admin
+    .from("course_members")
+    .upsert(
+      {
+        course_id: course.id,
+        profile_id: profileId,
+        role: "editor",
+      },
+      { onConflict: "course_id,profile_id" }
+    );
+
+  if (error) {
+    redirect(`/classes?coTeacherError=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/classes");
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/students`);
+  redirect("/classes?coTeacher=added");
+}
+
+export async function removeCoTeacherAction(formData) {
+  const courseId = String(formData.get("course_id") || "").trim();
+  const profileId = String(formData.get("profile_id") || "").trim();
+
+  if (!courseId || !profileId) {
+    redirect("/classes?coTeacherError=missing-data");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/classes");
+  }
+
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id, owner_id")
+    .eq("id", courseId)
+    .eq("owner_id", user.id)
+    .maybeSingle();
+
+  if (!course) {
+    redirect("/classes?coTeacherError=course-not-found");
+  }
+
+  if (profileId === user.id || profileId === course.owner_id) {
+    redirect("/classes?coTeacherError=cannot-remove-owner");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("course_members")
+    .delete()
+    .eq("course_id", course.id)
+    .eq("profile_id", profileId);
+
+  if (error) {
+    redirect(`/classes?coTeacherError=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/classes");
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/students`);
+  redirect("/classes?coTeacher=removed");
 }
