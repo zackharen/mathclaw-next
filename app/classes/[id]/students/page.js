@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser } from "@/lib/courses/access";
 import { regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 
@@ -15,6 +16,10 @@ function formatGameLabel(slug) {
 
 function formatStatScope(scope) {
   return scope === "global_fallback" ? "Global stats until class-linked results are saved." : "";
+}
+
+function formatScore(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
 }
 
 export default async function StudentsPage({ params, searchParams }) {
@@ -49,14 +54,26 @@ export default async function StudentsPage({ params, searchParams }) {
   const resolvedSearchParams = await searchParams;
   const joinCodeUpdated = resolvedSearchParams?.join_code_updated === "1";
   const joinCodeError = resolvedSearchParams?.join_code_error || "";
+  const admin = createAdminClient();
 
-  const [{ data: membershipRows, error: membershipsError }, { data: statsRows, error: statsError }] = await Promise.all([
+  const [
+    { data: membershipRows, error: membershipsError },
+    { data: statsRows, error: statsError },
+    { data: recentSessionRows, error: recentSessionsError },
+  ] = await Promise.all([
     supabase.rpc("list_course_students", { p_course_id: course.id }),
     supabase.rpc("list_course_student_stats", { p_course_id: course.id }),
+    admin
+      .from("game_sessions")
+      .select("player_id, game_slug, score, created_at")
+      .eq("course_id", course.id)
+      .order("created_at", { ascending: false })
+      .limit(40),
   ]);
 
   const safeMemberships = membershipsError ? [] : membershipRows || [];
   const safeStats = statsError ? [] : statsRows || [];
+  const safeRecentSessions = recentSessionsError ? [] : recentSessionRows || [];
 
   const statsByPlayer = new Map();
   for (const row of safeStats) {
@@ -64,6 +81,43 @@ export default async function StudentsPage({ params, searchParams }) {
     arr.push(row);
     statsByPlayer.set(row.player_id, arr);
   }
+
+  const membershipByPlayer = new Map(
+    safeMemberships.map((membership) => [membership.profile_id, membership])
+  );
+
+  const gameSummary = new Map();
+  for (const row of safeStats) {
+    const summary = gameSummary.get(row.game_slug) || {
+      gameSlug: row.game_slug,
+      players: 0,
+      sessions: 0,
+      totalAverage: 0,
+    };
+    summary.players += 1;
+    summary.sessions += Number(row.sessions_played || 0);
+    summary.totalAverage += Number(row.average_score || 0);
+    gameSummary.set(row.game_slug, summary);
+  }
+
+  const topGame = [...gameSummary.values()].sort((a, b) => b.sessions - a.sessions)[0] || null;
+  const mostRecentSession = safeRecentSessions[0] || null;
+  const activeStudents = safeMemberships.filter((membership) => {
+    const rows = statsByPlayer.get(membership.profile_id) || [];
+    return rows.length > 0;
+  }).length;
+  const totalTrackedSessions = safeStats.reduce(
+    (sum, row) => sum + Number(row.sessions_played || 0),
+    0
+  );
+
+  const recentActivity = safeRecentSessions.slice(0, 8).map((row) => {
+    const membership = membershipByPlayer.get(row.player_id);
+    return {
+      ...row,
+      displayName: membership?.display_name || `Student ${row.player_id.slice(0, 8)}`,
+    };
+  });
 
   return (
     <div className="stack">
@@ -117,6 +171,62 @@ export default async function StudentsPage({ params, searchParams }) {
       </section>
 
       <section className="card">
+        <h2>Class Snapshot</h2>
+        <div className="adminSummaryGrid">
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Joined Students</h3>
+            <p className="adminStat">{safeMemberships.length}</p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Active Players</h3>
+            <p className="adminStat">{activeStudents}</p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Total Sessions</h3>
+            <p className="adminStat">{totalTrackedSessions}</p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Most Played Game</h3>
+            <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
+              {topGame ? formatGameLabel(topGame.gameSlug) : "No data yet"}
+            </p>
+            <p style={{ marginTop: "0.35rem" }}>
+              {topGame ? `${topGame.sessions} tracked sessions` : "Students have not saved games yet."}
+            </p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Latest Activity</h3>
+            <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
+              {mostRecentSession ? membershipByPlayer.get(mostRecentSession.player_id)?.display_name || "Student" : "No activity yet"}
+            </p>
+            <p style={{ marginTop: "0.35rem" }}>
+              {mostRecentSession
+                ? `${formatGameLabel(mostRecentSession.game_slug)} · ${new Date(mostRecentSession.created_at).toLocaleString()}`
+                : "No saved sessions yet."}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Recent Activity</h2>
+        {recentSessionsError ? <p>Recent activity could not load yet.</p> : null}
+        {!recentSessionsError && recentActivity.length === 0 ? <p>No saved activity yet.</p> : null}
+        {!recentSessionsError && recentActivity.length > 0 ? (
+          <div className="list">
+            {recentActivity.map((row, index) => (
+              <div key={`${row.player_id}-${row.game_slug}-${row.created_at}-${index}`} className="card" style={{ background: "#fff" }}>
+                <strong>{row.displayName}</strong>
+                <p>
+                  {formatGameLabel(row.game_slug)} · Score {formatScore(row.score)} · {new Date(row.created_at).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="card">
         <h2>Joined Students</h2>
         {membershipsError ? <p>Student list could not load yet. Try refreshing in a moment.</p> : null}
         {!membershipsError && safeMemberships.length === 0 ? (
@@ -127,6 +237,16 @@ export default async function StudentsPage({ params, searchParams }) {
           <div className="list">
             {safeMemberships.map((membership) => {
               const playerStats = statsByPlayer.get(membership.profile_id) || [];
+              const totalSessions = playerStats.reduce(
+                (sum, row) => sum + Number(row.sessions_played || 0),
+                0
+              );
+              const strongestGame =
+                [...playerStats].sort((a, b) => Number(b.average_score || 0) - Number(a.average_score || 0))[0] ||
+                null;
+              const recentPlayerSession = safeRecentSessions.find(
+                (row) => row.player_id === membership.profile_id
+              );
               return (
                 <article key={membership.profile_id} className="card" style={{ background: "#fff" }}>
                   <h3>{membership.display_name || `Student ${membership.profile_id.slice(0, 8)}`}</h3>
@@ -134,6 +254,16 @@ export default async function StudentsPage({ params, searchParams }) {
                     Joined {new Date(membership.joined_at).toLocaleDateString()}
                     {membership.school_name ? ` · ${membership.school_name}` : ""}
                   </p>
+                  <div className="pillRow" style={{ marginTop: "0.75rem" }}>
+                    <span className="pill">Games Tracked: {playerStats.length}</span>
+                    <span className="pill">Sessions: {totalSessions}</span>
+                    <span className="pill">
+                      Latest Save: {recentPlayerSession ? new Date(recentPlayerSession.created_at).toLocaleDateString() : "None yet"}
+                    </span>
+                    <span className="pill">
+                      Strongest Game: {strongestGame ? formatGameLabel(strongestGame.game_slug) : "No data yet"}
+                    </span>
+                  </div>
                   {statsError ? <p style={{ marginTop: "0.75rem" }}>Game stats are not available yet.</p> : null}
                   {!statsError && playerStats.length === 0 ? (
                     <p style={{ marginTop: "0.75rem" }}>No game data yet.</p>
@@ -144,8 +274,8 @@ export default async function StudentsPage({ params, searchParams }) {
                         <div key={`${row.player_id}-${row.game_slug}`} className="card" style={{ background: "#f9fbfc" }}>
                           <strong>{formatGameLabel(row.game_slug)}</strong>
                           <p>
-                            Sessions: {row.sessions_played} · Avg: {Math.round(Number(row.average_score || 0) * 10) / 10}
-                            {" · "}Last 10: {Math.round(Number(row.last_10_average || 0) * 10) / 10}
+                            Sessions: {row.sessions_played} · Avg: {formatScore(row.average_score)}
+                            {" · "}Last 10: {formatScore(row.last_10_average)}
                             {" · "}Best: {row.best_score}
                           </p>
                           {row.stat_scope === "global_fallback" ? (
