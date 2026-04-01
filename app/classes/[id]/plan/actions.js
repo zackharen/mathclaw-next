@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 
@@ -30,7 +30,8 @@ export async function generatePacingAction(formData) {
 
   const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
   if (!access?.course) return;
-  await rebuildPlanFromCalendar({ supabase, courseId, userId: user.id });
+  const writeClient = getCourseWriteClient(access, supabase);
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId, userId: user.id });
 
   perfLog("generatePacingAction", {
     course: courseId,
@@ -69,15 +70,16 @@ export async function updateABMeetingDaysAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
-  const { error } = await supabase
+  const { error } = await writeClient
     .from("courses")
     .update({ ab_meeting_day: abMeetingDay, updated_at: new Date().toISOString() })
     .eq("id", course.id);
 
   if (error) throw new Error(error.message);
 
-  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("updateABMeetingDaysAction", {
     course: course.id,
@@ -119,15 +121,16 @@ export async function updatePacingModeAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
-  const { error } = await supabase
+  const { error } = await writeClient
     .from("courses")
     .update({ pacing_mode: pacingMode, updated_at: new Date().toISOString() })
     .eq("id", course.id);
 
   if (error) throw new Error(error.message);
 
-  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("updatePacingModeAction", {
     course: course.id,
@@ -160,8 +163,9 @@ export async function markLessonCompleteAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
-  const { error: markError } = await supabase
+  const { error: markError } = await writeClient
     .from("course_lesson_plan")
     .update({ status: "completed", updated_at: new Date().toISOString() })
     .eq("course_id", course.id)
@@ -169,7 +173,7 @@ export async function markLessonCompleteAction(formData) {
 
   if (markError) throw new Error(markError.message);
 
-  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("markLessonCompleteAction", {
     course: course.id,
@@ -201,8 +205,9 @@ export async function markLessonPlannedAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
-  const { error: markError } = await supabase
+  const { error: markError } = await writeClient
     .from("course_lesson_plan")
     .update({ status: "planned", updated_at: new Date().toISOString() })
     .eq("course_id", course.id)
@@ -210,7 +215,7 @@ export async function markLessonPlannedAction(formData) {
 
   if (markError) throw new Error(markError.message);
 
-  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("markLessonPlannedAction", {
     course: course.id,

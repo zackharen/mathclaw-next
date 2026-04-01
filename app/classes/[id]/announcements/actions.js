@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -124,6 +124,7 @@ export async function generateAnnouncementsAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
   const { data: planRows, error: planError } = await supabase
     .from("course_lesson_plan")
@@ -300,7 +301,7 @@ export async function generateAnnouncementsAction(formData) {
     };
   });
 
-  const { error: upsertError } = await supabase
+  const { error: upsertError } = await writeClient
     .from("course_announcements")
     .upsert(rows, { onConflict: "course_id,class_date" });
 

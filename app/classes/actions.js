@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 
 export async function deleteClassAction(formData) {
@@ -51,12 +51,13 @@ export async function regenerateStudentJoinCodeAction(formData) {
   if (!course) {
     redirect("/classes?join_code_error=course_not_found");
   }
+  const writeClient = getCourseWriteClient(access, supabase);
 
   let joinCode = generateJoinCode();
   let attempts = 0;
 
   while (attempts < 5) {
-    const { error } = await supabase
+    const { error } = await writeClient
       .from("courses")
       .update({ student_join_code: joinCode, updated_at: new Date().toISOString() })
       .eq("id", course.id);

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 
@@ -83,8 +83,9 @@ export async function generateCalendarAction(formData) {
 
   let courseError = null;
   let course = null;
+  let access = null;
   try {
-    const access = await getCourseAccessForUser(
+    access = await getCourseAccessForUser(
       supabase,
       user.id,
       courseId,
@@ -96,8 +97,9 @@ export async function generateCalendarAction(formData) {
   }
 
   if (!course || courseError) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
-  const { count } = await supabase
+  const { count } = await writeClient
     .from("course_calendar_days")
     .select("id", { count: "exact", head: true })
     .eq("course_id", course.id);
@@ -115,7 +117,7 @@ export async function generateCalendarAction(formData) {
   }
 
   if (count && count > 0 && force) {
-    const { error: clearError } = await supabase
+    const { error: clearError } = await writeClient
       .from("course_calendar_days")
       .delete()
       .eq("course_id", course.id);
@@ -158,10 +160,10 @@ export async function generateCalendarAction(formData) {
     });
   }
 
-  const { error } = await supabase.from("course_calendar_days").insert(rows);
+  const { error } = await writeClient.from("course_calendar_days").insert(rows);
   if (error) throw new Error(error.message);
 
-  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("generateCalendarAction", {
     course: course.id,
@@ -192,6 +194,7 @@ export async function applyCalendarBulkAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
   const updates = parseBulkUpdates(formData);
   const allowed = new Set(["instructional", "off", "half", "modified"]);
@@ -208,7 +211,7 @@ export async function applyCalendarBulkAction(formData) {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
+    const { error } = await writeClient
       .from("course_calendar_days")
       .update(payload)
       .eq("course_id", course.id)
@@ -218,7 +221,7 @@ export async function applyCalendarBulkAction(formData) {
     updatedCount += 1;
   }
 
-  await rebuildPlanFromCalendar({ supabase, courseId: course.id, userId: user.id });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("applyCalendarBulkAction", {
     course: course.id,
@@ -263,6 +266,7 @@ export async function updateCalendarDayAction(formData) {
   const course = access?.course;
 
   if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
 
   const payload = {
     day_type: dayType,
@@ -271,7 +275,7 @@ export async function updateCalendarDayAction(formData) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  const { error } = await writeClient
     .from("course_calendar_days")
     .update(payload)
     .eq("course_id", course.id)
@@ -281,7 +285,7 @@ export async function updateCalendarDayAction(formData) {
 
   if (autoRegenerate) {
     await rebuildPlanFromCalendar({
-      supabase,
+      supabase: writeClient,
       courseId: course.id,
       userId: user.id,
       startDate: classDate,
