@@ -4,11 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
+import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
   addCoTeacherAction,
   deleteClassAction,
   regenerateStudentJoinCodeAction,
   removeCoTeacherAction,
+  updateCourseGameSettingAction,
 } from "./actions";
 
 function getBestDisplayName(profile, metadata, email, fallback = "-") {
@@ -51,16 +53,22 @@ export default async function ClassesPage({ searchParams }) {
 
   let error = null;
   let courses = [];
+  let games = [];
   let coTeacherState = {
     byCourseId: new Map(),
     candidateOptionsByCourseId: new Map(),
   };
+  let gameSettingsByKey = new Map();
   try {
-    courses = await listEditableCoursesForUser(
-      supabase,
-      user.id,
-        "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at"
-    );
+    [courses, games] = await Promise.all([
+      listEditableCoursesForUser(
+        supabase,
+        user.id,
+          "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at"
+      ),
+      listGamesWithCourseSettings(supabase),
+    ]);
+    gameSettingsByKey = await listCourseGameSettingsMap(courses.map((course) => course.id));
 
     const ownerCourses = courses.filter((course) => course.membership_role === "owner");
     const ownerCourseIds = ownerCourses.map((course) => course.id);
@@ -160,6 +168,8 @@ export default async function ClassesPage({ searchParams }) {
         {qs.coTeacher === "added" ? <p>Co-teacher added.</p> : null}
         {qs.coTeacher === "removed" ? <p>Co-teacher removed.</p> : null}
         {qs.coTeacherError ? <p>Co-teacher tools hit a snag: {decodeURIComponent(qs.coTeacherError)}</p> : null}
+        {qs.gameControl === "updated" ? <p>Game controls updated.</p> : null}
+        {qs.gameControlError ? <p>Game controls hit a snag: {decodeURIComponent(qs.gameControlError)}</p> : null}
         {error ? <p>Could not load classes: {error.message}</p> : null}
 
         {!error && (!courses || courses.length === 0) ? (
@@ -172,6 +182,10 @@ export default async function ClassesPage({ searchParams }) {
               const currentCoTeachers = coTeacherState.byCourseId.get(course.id) || [];
               const availableCoTeachers =
                 coTeacherState.candidateOptionsByCourseId.get(course.id) || [];
+              const courseGames = games.map((game) => ({
+                ...game,
+                enabled: gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true,
+              }));
 
               return (
               <article key={course.id} className="card" style={{ background: "#fff" }}>
@@ -234,6 +248,29 @@ export default async function ClassesPage({ searchParams }) {
                     </form>
                   </div>
                 ) : null}
+                <div className="classGameControlsBlock">
+                  <p className="classCoTeacherHeading">Game Controls</p>
+                  <div className="classGameControlsList">
+                    {courseGames.map((game) => (
+                      <form
+                        key={`${course.id}:${game.slug}`}
+                        action={updateCourseGameSettingAction}
+                        className="classGameControlItem"
+                      >
+                        <input type="hidden" name="course_id" value={course.id} />
+                        <input type="hidden" name="game_slug" value={game.slug} />
+                        <input type="hidden" name="enabled" value={String(!game.enabled)} />
+                        <div>
+                          <strong>{game.name}</strong>
+                          <span>{game.enabled ? "Enabled for this class" : "Hidden from this class"}</span>
+                        </div>
+                        <button className={`btn ${game.enabled ? "ghost" : "primary"}`} type="submit">
+                          {game.enabled ? "Disable" : "Enable"}
+                        </button>
+                      </form>
+                    ))}
+                  </div>
+                </div>
                 <div className="ctaRow">
                   <Link className="btn" href={`/classes/${course.id}/plan`}>
                     Open Plan

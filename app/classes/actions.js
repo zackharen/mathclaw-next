@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { generateJoinCode } from "@/lib/student-games/join-code";
+import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { ensureProfileForUser, normalizeAccountType } from "@/lib/auth/account-type";
 
 export async function deleteClassAction(formData) {
@@ -204,4 +205,59 @@ export async function removeCoTeacherAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/students`);
   redirect("/classes?coTeacher=removed");
+}
+
+export async function updateCourseGameSettingAction(formData) {
+  const courseId = String(formData.get("course_id") || "").trim();
+  const gameSlug = String(formData.get("game_slug") || "").trim();
+  const enabled = String(formData.get("enabled") || "").trim() === "true";
+
+  if (!courseId || !gameSlug) {
+    redirect("/classes?gameControlError=missing-data");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/classes");
+  }
+
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  if (!access?.course) {
+    redirect("/classes?gameControlError=course-not-found");
+  }
+
+  const games = await listGamesWithCourseSettings(supabase);
+  if (!games.some((game) => game.slug === gameSlug)) {
+    redirect("/classes?gameControlError=unknown-game");
+  }
+
+  const writeClient = getCourseWriteClient(access, supabase);
+  const { error } = await writeClient
+    .from("course_game_settings")
+    .upsert(
+      {
+        course_id: courseId,
+        game_slug: gameSlug,
+        enabled,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      },
+      { onConflict: "course_id,game_slug" }
+    );
+
+  if (error) {
+    redirect(`/classes?gameControlError=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/classes");
+  revalidatePath("/play");
+  revalidatePath("/play/2048");
+  revalidatePath("/play/integer-practice");
+  revalidatePath("/play/number-compare");
+  revalidatePath("/play/connect4");
+  redirect("/classes?gameControl=updated");
 }

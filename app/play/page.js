@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { joinClassByCodeAction } from "./actions";
 
 function gameHref(slug) {
@@ -36,9 +37,8 @@ export default async function PlayPage({ searchParams }) {
     redirect("/onboarding/profile");
   }
 
-  const [courses, gamesResult, statsResult] = await Promise.all([
+  const [courses, statsResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
-    supabase.from("games").select("slug, name, category, description, is_multiplayer").order("name"),
     supabase
       .from("game_player_global_stats")
       .select("game_slug, average_score, last_10_average, best_score, sessions_played")
@@ -49,6 +49,9 @@ export default async function PlayPage({ searchParams }) {
   const params = await searchParams;
   const joinedCourseId = typeof params?.course === "string" ? params.course : "";
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
+  const activeCourse = joinedCourse || courses[0] || null;
+  const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null);
+  const visibleGames = games.filter((game) => game.enabled);
 
   return (
     <div className="stack">
@@ -101,12 +104,22 @@ export default async function PlayPage({ searchParams }) {
             ) : (
               <div className="list">
                 {courses.map((course) => (
-                  <div key={course.id} className="card" style={{ background: joinedCourseId === course.id ? "#e8f1f8" : "#f9fbfc" }}>
+                  <Link
+                    key={course.id}
+                    href={`/play?course=${course.id}`}
+                    className="card"
+                    style={{
+                      background: activeCourse?.id === course.id ? "#e8f1f8" : "#f9fbfc",
+                      display: "block",
+                      color: "inherit",
+                      textDecoration: "none",
+                    }}
+                  >
                     <strong>{course.title}</strong>
                     <p>
                       {course.class_name} · {describeCourseRelationship(course.relationship)}
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -115,9 +128,17 @@ export default async function PlayPage({ searchParams }) {
       </section>
 
       <section className="card">
-        <h2>Games</h2>
+        <h2>{activeCourse ? `Games For ${activeCourse.title}` : "Games"}</h2>
+        {activeCourse ? (
+          <p>
+            This arcade view is using <strong>{activeCourse.class_name}</strong> as the current class context.
+          </p>
+        ) : null}
+        {activeCourse && visibleGames.length === 0 ? (
+          <p style={{ marginTop: "0.75rem" }}>No games are enabled for this class yet.</p>
+        ) : null}
         <div className="featureGrid">
-          {(gamesResult.data || []).map((game) => {
+          {visibleGames.map((game) => {
             const stats = statsByGame.get(game.slug);
             return (
               <article key={game.slug} className="card" style={{ background: "#fff" }}>

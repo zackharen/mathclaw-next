@@ -12,7 +12,7 @@ export default async function Game2048Page() {
   if (!user) redirect("/auth/sign-in?redirect=/play/2048");
 
   const [courses, personalResult] = await Promise.all([
-    listAccessibleCourses(supabase, user.id),
+    listAccessibleCourses(supabase, user.id, { gameSlug: "2048" }),
     supabase
       .from("game_player_global_stats")
       .select("average_score, last_10_average, best_score, sessions_played")

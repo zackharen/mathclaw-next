@@ -10,7 +10,7 @@ export default async function Connect4Page() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/sign-in?redirect=/play/connect4");
-  const courses = await listAccessibleCourses(supabase, user.id);
+  const courses = await listAccessibleCourses(supabase, user.id, { gameSlug: "connect4" });
 
   return (
     <div className="stack">

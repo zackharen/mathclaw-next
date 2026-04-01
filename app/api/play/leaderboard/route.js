@@ -22,9 +22,14 @@ export async function GET(request) {
     return NextResponse.json({ error: "Invalid leaderboard request" }, { status: 400 });
   }
 
-  const canAccess = await userCanAccessCourse(supabase, user.id, courseId);
+  const canAccess = await userCanAccessCourse(supabase, user.id, courseId, {
+    gameSlug,
+  });
   if (!canAccess) {
-    return NextResponse.json({ error: "Invalid class context" }, { status: 403 });
+    return NextResponse.json(
+      { error: "This game is not enabled for that class." },
+      { status: 403 }
+    );
   }
 
   const { data, error } = await supabase.rpc("list_course_game_leaderboard", {

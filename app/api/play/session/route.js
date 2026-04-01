@@ -28,9 +28,14 @@ export async function POST(request) {
   }
 
   if (courseId) {
-    const canAccess = await userCanAccessCourse(supabase, user.id, courseId);
+    const canAccess = await userCanAccessCourse(supabase, user.id, courseId, {
+      gameSlug,
+    });
     if (!canAccess) {
-      return NextResponse.json({ error: "Invalid class context" }, { status: 403 });
+      return NextResponse.json(
+        { error: "This game is not enabled for that class." },
+        { status: 403 }
+      );
     }
   }
 

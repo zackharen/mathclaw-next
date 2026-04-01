@@ -11,7 +11,7 @@ export default async function NumberComparePage() {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/number-compare");
   const [courses, personalResult] = await Promise.all([
-    listAccessibleCourses(supabase, user.id),
+    listAccessibleCourses(supabase, user.id, { gameSlug: "number_compare" }),
     supabase
       .from("game_player_global_stats")
       .select("average_score, last_10_average, best_score, sessions_played")
