@@ -540,10 +540,10 @@ export default async function AdminPage({ searchParams }) {
           <label className="stack">
             <span>Sort</span>
             <select className="input" name="sort" defaultValue={sortBy}>
-              <option value="email">Email</option>
-              <option value="first_name">First name</option>
-              <option value="last_name">Last name</option>
-              <option value="recent">Recent sign-in</option>
+              <option value="email">Email (A-Z)</option>
+              <option value="first_name">First Name (A-Z)</option>
+              <option value="last_name">Last Name (A-Z)</option>
+              <option value="recent">Recent Sign-In</option>
             </select>
           </label>
           <div className="ctaRow adminFilterActions">
