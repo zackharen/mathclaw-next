@@ -97,6 +97,22 @@ export default async function StudentsPage({ params, searchParams }) {
   const safeMemberships = membershipsError ? [] : membershipRows || [];
   const safeStats = statsError ? [] : statsRows || [];
   const safeRecentSessions = recentSessionsError ? [] : recentSessionRows || [];
+  const recentPlayerIds = [
+    ...new Set(
+      safeRecentSessions
+        .map((row) => row.player_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  let recentPlayerProfiles = [];
+  if (recentPlayerIds.length > 0) {
+    const { data: recentProfiles } = await admin
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", recentPlayerIds);
+    recentPlayerProfiles = recentProfiles || [];
+  }
 
   const statsByPlayer = new Map();
   for (const row of safeStats) {
@@ -108,6 +124,24 @@ export default async function StudentsPage({ params, searchParams }) {
   const membershipByPlayer = new Map(
     safeMemberships.map((membership) => [membership.profile_id, membership])
   );
+  const recentProfileByPlayer = new Map(
+    recentPlayerProfiles.map((profile) => [profile.id, profile])
+  );
+
+  function resolveActivityDisplayName(playerId) {
+    const membership = membershipByPlayer.get(playerId);
+    const profile = recentProfileByPlayer.get(playerId);
+    const baseName =
+      membership?.display_name ||
+      profile?.display_name ||
+      `Student ${playerId.slice(0, 8)}`;
+
+    if (playerId === course.owner_id) {
+      return `${baseName} - Teacher`;
+    }
+
+    return baseName;
+  }
 
   const gameSummary = new Map();
   for (const row of safeStats) {
@@ -135,10 +169,9 @@ export default async function StudentsPage({ params, searchParams }) {
   );
 
   const recentActivity = safeRecentSessions.slice(0, 8).map((row) => {
-    const membership = membershipByPlayer.get(row.player_id);
     return {
       ...row,
-      displayName: membership?.display_name || `Student ${row.player_id.slice(0, 8)}`,
+      displayName: resolveActivityDisplayName(row.player_id),
     };
   });
 
@@ -220,7 +253,7 @@ export default async function StudentsPage({ params, searchParams }) {
           <div className="card adminSummaryCard" style={{ background: "#fff" }}>
             <h3>Latest Activity</h3>
             <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
-              {mostRecentSession ? membershipByPlayer.get(mostRecentSession.player_id)?.display_name || "Student" : "No activity yet"}
+              {mostRecentSession ? resolveActivityDisplayName(mostRecentSession.player_id) : "No activity yet"}
             </p>
             <p style={{ marginTop: "0.35rem" }}>
               {mostRecentSession
