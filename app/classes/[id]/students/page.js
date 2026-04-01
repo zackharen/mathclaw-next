@@ -22,6 +22,21 @@ function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
 
+function formatDateTime(value, timeZone) {
+  if (!value) return "Unknown time";
+  return new Date(value).toLocaleString("en-US", {
+    timeZone,
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  });
+}
+
 export default async function StudentsPage({ params, searchParams }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -50,6 +65,14 @@ export default async function StudentsPage({ params, searchParams }) {
   if (courseError || !course) {
     redirect("/classes");
   }
+
+  const { data: teacherProfile } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const displayTimeZone = teacherProfile?.timezone || "America/New_York";
 
   const resolvedSearchParams = await searchParams;
   const joinCodeUpdated = resolvedSearchParams?.join_code_updated === "1";
@@ -201,7 +224,7 @@ export default async function StudentsPage({ params, searchParams }) {
             </p>
             <p style={{ marginTop: "0.35rem" }}>
               {mostRecentSession
-                ? `${formatGameLabel(mostRecentSession.game_slug)} · ${new Date(mostRecentSession.created_at).toLocaleString()}`
+                ? `${formatGameLabel(mostRecentSession.game_slug)} · ${formatDateTime(mostRecentSession.created_at, displayTimeZone)}`
                 : "No saved sessions yet."}
             </p>
           </div>
@@ -218,7 +241,7 @@ export default async function StudentsPage({ params, searchParams }) {
               <div key={`${row.player_id}-${row.game_slug}-${row.created_at}-${index}`} className="card" style={{ background: "#fff" }}>
                 <strong>{row.displayName}</strong>
                 <p>
-                  {formatGameLabel(row.game_slug)} · Score {formatScore(row.score)} · {new Date(row.created_at).toLocaleString()}
+                  {formatGameLabel(row.game_slug)} · Score {formatScore(row.score)} · {formatDateTime(row.created_at, displayTimeZone)}
                 </p>
               </div>
             ))}
@@ -258,7 +281,7 @@ export default async function StudentsPage({ params, searchParams }) {
                     <span className="pill">Games Tracked: {playerStats.length}</span>
                     <span className="pill">Sessions: {totalSessions}</span>
                     <span className="pill">
-                      Latest Save: {recentPlayerSession ? new Date(recentPlayerSession.created_at).toLocaleDateString() : "None yet"}
+                      Latest Save: {recentPlayerSession ? formatDateTime(recentPlayerSession.created_at, displayTimeZone) : "None yet"}
                     </span>
                     <span className="pill">
                       Strongest Game: {strongestGame ? formatGameLabel(strongestGame.game_slug) : "No data yet"}
