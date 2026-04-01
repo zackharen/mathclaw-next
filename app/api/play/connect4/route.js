@@ -5,6 +5,8 @@ import { boardFull, dropToken, emptyBoard, hasWinner, nextToken, normalizeBoard 
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
 import { upsertGameStats } from "@/lib/student-games/stats";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { logInternalEvent } from "@/lib/observability/events";
 
 function normalizeCourseId(value) {
   return typeof value === "string" && value ? value : null;
@@ -17,6 +19,8 @@ export async function GET(request) {
   } = await supabase.auth.getUser();
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const accountType = await getAccountTypeForUser(supabase, user);
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
@@ -91,6 +95,15 @@ export async function POST(request) {
         gameSlug: "connect4",
       });
       if (!canAccess) {
+        await logInternalEvent({
+          eventKey: "connect4_create_forbidden_course",
+          source: "api.play.connect4",
+          level: "warning",
+          message: "Tried to create Connect4 match for disabled or inaccessible class",
+          user,
+          accountType,
+          courseId,
+        });
         return NextResponse.json(
           { error: "Connect4 is not enabled for that class." },
           { status: 403 }
@@ -116,10 +129,26 @@ export async function POST(request) {
 
       if (!error) return NextResponse.json({ match: data });
       if (!String(error.message || "").includes("duplicate")) {
+        await logInternalEvent({
+          eventKey: "connect4_create_failed",
+          source: "api.play.connect4",
+          message: error.message,
+          user,
+          accountType,
+          courseId,
+        });
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
       inviteCode = generateJoinCode(8);
     }
+    await logInternalEvent({
+      eventKey: "connect4_create_exhausted_codes",
+      source: "api.play.connect4",
+      message: "Could not create unique Connect4 invite code",
+      user,
+      accountType,
+      courseId,
+    });
     return NextResponse.json({ error: "Could not create match" }, { status: 500 });
   }
 
@@ -129,9 +158,30 @@ export async function POST(request) {
       p_invite_code: inviteCode,
     });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      await logInternalEvent({
+        eventKey: "connect4_join_failed",
+        source: "api.play.connect4",
+        message: error.message,
+        user,
+        accountType,
+        context: { inviteCode },
+      });
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     const updated = Array.isArray(joinedRows) ? joinedRows[0] : null;
-    if (!updated) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    if (!updated) {
+      await logInternalEvent({
+        eventKey: "connect4_join_not_found",
+        source: "api.play.connect4",
+        level: "warning",
+        message: "Connect4 invite code not found",
+        user,
+        accountType,
+        context: { inviteCode },
+      });
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
     return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
   }
 
@@ -144,8 +194,29 @@ export async function POST(request) {
       .eq("id", matchId)
       .maybeSingle();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    if (error) {
+      await logInternalEvent({
+        eventKey: "connect4_fetch_match_failed",
+        source: "api.play.connect4",
+        message: error.message,
+        user,
+        accountType,
+        context: { matchId, action: "move" },
+      });
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (!match) {
+      await logInternalEvent({
+        eventKey: "connect4_move_match_not_found",
+        source: "api.play.connect4",
+        level: "warning",
+        message: "Connect4 move attempted on missing match",
+        user,
+        accountType,
+        context: { matchId },
+      });
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
     if (match.status !== "active") return NextResponse.json({ error: "Match is not active" }, { status: 400 });
     if (match.current_turn_id !== user.id) return NextResponse.json({ error: "Not your turn" }, { status: 403 });
 
@@ -175,7 +246,18 @@ export async function POST(request) {
       .select("*")
       .single();
 
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
+    if (updateError) {
+      await logInternalEvent({
+        eventKey: "connect4_move_update_failed",
+        source: "api.play.connect4",
+        message: updateError.message,
+        user,
+        accountType,
+        courseId: match.course_id,
+        context: { matchId, column },
+      });
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
 
     if (winner || draw) {
       try {
@@ -187,6 +269,15 @@ export async function POST(request) {
           isDraw: draw,
         });
       } catch (statsError) {
+        await logInternalEvent({
+          eventKey: "connect4_finish_stats_failed",
+          source: "api.play.connect4",
+          message: statsError.message,
+          user,
+          accountType,
+          courseId: match.course_id,
+          context: { matchId, winnerId: winner, draw },
+        });
         return NextResponse.json({ error: statsError.message }, { status: 400 });
       }
     }

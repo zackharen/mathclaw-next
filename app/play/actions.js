@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { logInternalEvent } from "@/lib/observability/events";
 import { normalizeJoinCode } from "@/lib/student-games/join-code";
 
 export async function joinClassByCodeAction(formData) {
@@ -23,11 +25,24 @@ export async function joinClassByCodeAction(formData) {
     redirect(`/auth/sign-in?redirect=/play`);
   }
 
+  const accountType = await getAccountTypeForUser(supabase, user);
+
   let course = null;
 
   const { data: rpcResult, error: rpcError } = await supabase.rpc("join_course_by_code", {
     p_join_code: joinCode,
   });
+
+  if (rpcError) {
+    await logInternalEvent({
+      eventKey: "join_class_rpc_failed",
+      source: "play.joinClassByCodeAction",
+      message: rpcError.message,
+      user,
+      accountType,
+      context: { joinCode },
+    });
+  }
 
   if (!rpcError && Array.isArray(rpcResult) && rpcResult[0]) {
     course = rpcResult[0];
@@ -44,6 +59,14 @@ export async function joinClassByCodeAction(formData) {
         .limit(1);
 
       if (adminError) {
+        await logInternalEvent({
+          eventKey: "join_class_admin_lookup_failed",
+          source: "play.joinClassByCodeAction",
+          message: adminError.message,
+          user,
+          accountType,
+          context: { joinCode },
+        });
         throw adminError;
       }
 
@@ -51,6 +74,14 @@ export async function joinClassByCodeAction(formData) {
     }
   } catch (error) {
     console.error("Failed admin join code lookup", error);
+    await logInternalEvent({
+      eventKey: "join_class_admin_lookup_exception",
+      source: "play.joinClassByCodeAction",
+      message: error?.message || "Admin join lookup failed",
+      user,
+      accountType,
+      context: { joinCode },
+    });
   }
 
   if (!course) {
@@ -65,6 +96,15 @@ export async function joinClassByCodeAction(formData) {
   }
 
   if (!course) {
+    await logInternalEvent({
+      eventKey: "join_class_not_found",
+      source: "play.joinClassByCodeAction",
+      level: "warning",
+      message: "Class code not found during join flow",
+      user,
+      accountType,
+      context: { joinCode },
+    });
     redirect("/play?join_error=not_found");
   }
 
@@ -100,7 +140,16 @@ export async function joinClassByCodeAction(formData) {
       }
 
       if (membershipError) {
-        throw new Error(membershipError.message);
+        await logInternalEvent({
+          eventKey: "join_class_membership_failed",
+          source: "play.joinClassByCodeAction",
+          message: membershipError.message,
+          user,
+          accountType,
+          courseId: course.id,
+          context: { joinCode },
+        });
+        redirect("/play?join_error=server");
       }
     }
   }

@@ -112,6 +112,8 @@ export default async function AdminPage({ searchParams }) {
   let courseOptions = [];
   let bugReports = [];
   let bugReportError = null;
+  let internalEvents = [];
+  let internalEventError = null;
 
   if (!error) {
     const authUsers = (data?.users || []).filter(
@@ -120,7 +122,7 @@ export default async function AdminPage({ searchParams }) {
     const ids = authUsers.map((item) => item.id);
 
     if (ids.length) {
-      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult] = await Promise.all([
+      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult, eventResult] = await Promise.all([
         admin
           .from("profiles")
           .select("id, display_name, school_name, account_type, discoverable, timezone")
@@ -138,10 +140,17 @@ export default async function AdminPage({ searchParams }) {
           .select("id, reporter_email, reporter_name, account_type, page_path, severity, summary, details, expected_behavior, status, created_at")
           .order("created_at", { ascending: false })
           .limit(30),
+        admin
+          .from("internal_event_logs")
+          .select("id, event_key, source, level, message, user_email, account_type, course_id, context, created_at")
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
 
       bugReports = bugReportResult.data || [];
       bugReportError = bugReportResult.error || null;
+      internalEvents = eventResult.data || [];
+      internalEventError = eventResult.error || null;
 
       const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
       const coursesById = new Map((courses || []).map((course) => [course.id, course]));
@@ -314,7 +323,41 @@ export default async function AdminPage({ searchParams }) {
             <h3>Open Bug Reports</h3>
             <p className="adminStat">{bugReports.filter((item) => item.status !== "resolved").length}</p>
           </div>
+          <div className="card adminSummaryCard">
+            <h3>Recent Internal Errors</h3>
+            <p className="adminStat">{internalEvents.filter((item) => item.level === "error").length}</p>
+          </div>
         </div>
+      </section>
+
+      <section className="card">
+        <h2>Internal Error Log</h2>
+        <p>These are silent failures captured automatically from important flows like class joins, score saves, and Connect4.</p>
+        {internalEventError ? <p>Could not load internal event logs: {internalEventError.message}</p> : null}
+        {!internalEventError && internalEvents.length === 0 ? <p>No internal errors logged yet.</p> : null}
+        {!internalEventError && internalEvents.length > 0 ? (
+          <div className="adminBugList">
+            {internalEvents.map((event) => (
+              <article key={event.id} className="card adminBugCard">
+                <div className="adminUserHeader">
+                  <div>
+                    <h3>{event.event_key}</h3>
+                    <p>{event.user_email || "Unknown user"}{event.account_type ? ` · ${event.account_type}` : ""}</p>
+                  </div>
+                  <div className="adminBadgeRow">
+                    <span className="adminRoleBadge">{event.level}</span>
+                    <span className="adminRoleBadge">{event.source}</span>
+                  </div>
+                </div>
+                <div className="adminMetaGrid">
+                  <p><strong>Logged:</strong> {formatDate(event.created_at)}</p>
+                  <p><strong>Course:</strong> {event.course_id || "-"}</p>
+                </div>
+                <p><strong>Message:</strong> {event.message}</p>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="card">
