@@ -3,6 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 
+function describeCourseRelationship(relationship) {
+  if (relationship === "owner") return "teacher";
+  if (relationship === "co_teacher") return "co-teacher";
+  return "student";
+}
+
 export default async function HomePage() {
   const supabase = await createClient();
   const {
@@ -108,7 +114,7 @@ export default async function HomePage() {
               <ul className="list" style={{ marginTop: "0.75rem" }}>
                 {playCourses.map((course) => (
                   <li key={course.id} className="card" style={{ background: "#fff", listStyle: "none" }}>
-                    <strong>{course.title}</strong> — {course.class_name} ({course.relationship})
+                    <strong>{course.title}</strong> — {course.class_name} ({describeCourseRelationship(course.relationship)})
                   </li>
                 ))}
               </ul>
@@ -127,7 +133,7 @@ export default async function HomePage() {
             <ul className="list" style={{ marginTop: "0.75rem" }}>
               {playCourses.map((course) => (
                 <li key={course.id} className="card" style={{ background: "#fff", listStyle: "none" }}>
-                  <strong>{course.title}</strong> — {course.class_name} ({course.relationship})
+                  <strong>{course.title}</strong> — {course.class_name} ({describeCourseRelationship(course.relationship)})
                 </li>
               ))}
             </ul>

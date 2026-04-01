@@ -10,6 +10,12 @@ function gameHref(slug) {
   return `/play/${slug}`;
 }
 
+function describeCourseRelationship(relationship) {
+  if (relationship === "owner") return "Teacher account";
+  if (relationship === "co_teacher") return "Co-teacher access";
+  return "Joined as student";
+}
+
 export default async function PlayPage({ searchParams }) {
   const supabase = await createClient();
   const {
@@ -78,7 +84,7 @@ export default async function PlayPage({ searchParams }) {
                 <p>
                   <strong>{joinedCourse.title}</strong>
                   <br />
-                  {joinedCourse.class_name} · {joinedCourse.relationship === "owner" ? "Teacher account" : "Joined as student"}
+                  {joinedCourse.class_name} · {describeCourseRelationship(joinedCourse.relationship)}
                 </p>
                 <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
                   <Link className="btn" href="/play/2048">Play 2048</Link>
@@ -98,7 +104,7 @@ export default async function PlayPage({ searchParams }) {
                   <div key={course.id} className="card" style={{ background: joinedCourseId === course.id ? "#e8f1f8" : "#f9fbfc" }}>
                     <strong>{course.title}</strong>
                     <p>
-                      {course.class_name} · {course.relationship === "owner" ? "Teacher account" : "Joined as student"}
+                      {course.class_name} · {describeCourseRelationship(course.relationship)}
                     </p>
                   </div>
                 ))}
