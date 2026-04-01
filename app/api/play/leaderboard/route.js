@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
 
-const ALLOWED_GAMES = new Set(["2048"]);
+const ALLOWED_GAMES = new Set(["2048", "integer_practice", "number_compare"]);
 
 export async function GET(request) {
   const supabase = await createClient();

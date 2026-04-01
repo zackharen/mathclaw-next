@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 function roundTo(value, places) {
   const factor = 10 ** places;
@@ -61,18 +61,69 @@ function buildNumber(settings) {
   return integerValue(settings.positiveNegative);
 }
 
-export default function NumberCompareClient({ courses }) {
+function formatScore(value) {
+  return Math.round(Number(value || 0) * 10) / 10;
+}
+
+export default function NumberCompareClient({
+  courses,
+  initialCourseId,
+  initialLeaderboard,
+  personalStats,
+}) {
   const [settings, setSettings] = useState({
     decimals: [1, 2],
     positiveNegative: true,
     fractions: true,
     squareRoots: false,
   });
-  const [courseId, setCourseId] = useState(courses[0]?.id || "");
+  const [courseId, setCourseId] = useState(initialCourseId || "");
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
   const [feedback, setFeedback] = useState("");
   const [pair, setPair] = useState(() => [buildNumber(settings), buildNumber(settings)]);
+  const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [savedStats, setSavedStats] = useState(personalStats);
+
+  const loadLeaderboard = useCallback(
+    async (nextCourseId) => {
+      if (!nextCourseId) {
+        setLeaderboardRows([]);
+        return;
+      }
+
+      setLeaderboardLoading(true);
+      try {
+        const response = await fetch(
+          `/api/play/leaderboard?gameSlug=number_compare&courseId=${encodeURIComponent(nextCourseId)}`
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not load class leaderboard.");
+        }
+        setLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []);
+      } catch (error) {
+        setFeedback(error.message || "Could not load class leaderboard.");
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!courseId) {
+      setLeaderboardRows([]);
+      return;
+    }
+
+    if (courseId === initialCourseId && (initialLeaderboard || []).length > 0) {
+      return;
+    }
+
+    loadLeaderboard(courseId);
+  }, [courseId, initialCourseId, initialLeaderboard, loadLeaderboard]);
 
   function toggleDecimal(place) {
     setSettings((current) => {
@@ -91,18 +142,32 @@ export default function NumberCompareClient({ courses }) {
     if (correct) setScore((current) => current + 1);
     setLevel(nextLevel);
     setFeedback(correct ? "Nice!" : "Try the next one.");
-    await fetch("/api/play/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gameSlug: "number_compare",
-        score: correct ? 1 : 0,
-        result: correct ? "correct" : "incorrect",
-        courseId: courseId || null,
-        metadata: { skillRating: nextLevel, settings },
-      }),
-    });
-    setPair([buildNumber(settings), buildNumber(settings)]);
+
+    try {
+      const response = await fetch("/api/play/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameSlug: "number_compare",
+          score: correct ? 1 : 0,
+          result: correct ? "correct" : "incorrect",
+          courseId: courseId || null,
+          metadata: { skillRating: nextLevel, settings },
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not save score.");
+      }
+      setSavedStats((current) => ({
+        ...current,
+        ...payload.stats,
+      }));
+      await loadLeaderboard(courseId);
+      setPair([buildNumber(settings), buildNumber(settings)]);
+    } catch (error) {
+      setFeedback(error.message || "Could not save score.");
+    }
   }
 
   return (
@@ -148,6 +213,50 @@ export default function NumberCompareClient({ courses }) {
           ))}
         </div>
         {feedback ? <p style={{ marginTop: "0.75rem" }}>{feedback}</p> : null}
+      </section>
+      <section className="card" style={{ background: "#fff" }}>
+        <h2>Your Stats</h2>
+        {savedStats ? (
+          <div className="kv compactKv">
+            <div>
+              <span>Games</span>
+              <strong>{savedStats.sessions_played}</strong>
+            </div>
+            <div>
+              <span>Average</span>
+              <strong>{formatScore(savedStats.average_score)}</strong>
+            </div>
+            <div>
+              <span>Last 10</span>
+              <strong>{formatScore(savedStats.last_10_average)}</strong>
+            </div>
+            <div>
+              <span>Best</span>
+              <strong>{savedStats.best_score}</strong>
+            </div>
+          </div>
+        ) : (
+          <p>No saved rounds yet.</p>
+        )}
+
+        <h3 style={{ marginTop: "1rem" }}>
+          {courseId ? "Class Leaderboard" : "Leaderboard"}
+        </h3>
+        <div className="list" style={{ marginTop: "0.75rem" }}>
+          {!courseId ? <p>Select a class to see your classmates here.</p> : null}
+          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+            <p>No class scores yet. Play a few rounds to get the leaderboard started.</p>
+          ) : null}
+          {leaderboardRows.map((row, index) => (
+            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
+              <strong>#{index + 1} {row.display_name}</strong>
+              <p>
+                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
+              </p>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );

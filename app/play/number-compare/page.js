@@ -10,7 +10,26 @@ export default async function NumberComparePage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/sign-in?redirect=/play/number-compare");
-  const courses = await listAccessibleCourses(supabase, user.id);
+  const [courses, personalResult] = await Promise.all([
+    listAccessibleCourses(supabase, user.id),
+    supabase
+      .from("game_player_global_stats")
+      .select("average_score, last_10_average, best_score, sessions_played")
+      .eq("player_id", user.id)
+      .eq("game_slug", "number_compare")
+      .maybeSingle(),
+  ]);
+
+  const initialCourseId = courses[0]?.id || "";
+  let initialLeaderboard = [];
+
+  if (initialCourseId) {
+    const { data: leaderboardRows } = await supabase.rpc("list_course_game_leaderboard", {
+      p_course_id: initialCourseId,
+      p_game_slug: "number_compare",
+    });
+    initialLeaderboard = leaderboardRows || [];
+  }
 
   return (
     <div className="stack">
@@ -18,7 +37,12 @@ export default async function NumberComparePage() {
         <h1>Which Number Is Bigger?</h1>
         <p>Mix decimals, negatives, fractions, and radicals, then click the larger value.</p>
       </section>
-      <NumberCompareClient courses={courses} />
+      <NumberCompareClient
+        courses={courses}
+        initialCourseId={initialCourseId}
+        initialLeaderboard={initialLeaderboard}
+        personalStats={personalResult.data}
+      />
     </div>
   );
 }
