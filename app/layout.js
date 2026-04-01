@@ -34,6 +34,7 @@ export default async function RootLayout({ children }) {
     navItems = [
       { href: "/play", label: "Arcade" },
       { href: "/onboarding/profile", label: "Profile" },
+      { href: "/report-bug", label: "Report Bug" },
     ];
   } else {
     navItems = [
@@ -43,6 +44,7 @@ export default async function RootLayout({ children }) {
       { href: "/teachers", label: "Teachers" },
       { href: "/play", label: "Arcade" },
       { href: "/onboarding/profile", label: "Profile" },
+      { href: "/report-bug", label: "Report Bug" },
     ];
 
     if (isOwner) {

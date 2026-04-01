@@ -17,6 +17,7 @@ import {
   restoreDeletedAccountAction,
   resetPasswordAction,
   deleteOwnedClassAction,
+  updateBugReportStatusAction,
 } from "./actions";
 
 function formatDate(value) {
@@ -40,9 +41,10 @@ function Notice({ searchParams }) {
   const adminAccess = searchParams?.adminAccess;
   const passwordReset = searchParams?.passwordReset === "1";
   const classDeleted = searchParams?.classDeleted === "1";
+  const bugReport = searchParams?.bugReport;
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !error) {
     return null;
   }
 
@@ -59,6 +61,8 @@ function Notice({ searchParams }) {
       {adminAccess === "granted" ? <p>Admin access granted.</p> : null}
       {adminAccess === "revoked" ? <p>Admin access revoked.</p> : null}
       {passwordReset ? <p>Password updated.</p> : null}
+      {bugReport === "resolved" ? <p>Bug report marked resolved.</p> : null}
+      {bugReport === "open" ? <p>Bug report reopened.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
   );
@@ -106,6 +110,8 @@ export default async function AdminPage({ searchParams }) {
 
   let users = [];
   let courseOptions = [];
+  let bugReports = [];
+  let bugReportError = null;
 
   if (!error) {
     const authUsers = (data?.users || []).filter(
@@ -114,7 +120,7 @@ export default async function AdminPage({ searchParams }) {
     const ids = authUsers.map((item) => item.id);
 
     if (ids.length) {
-      const [{ data: profiles }, { data: courses }, { data: memberships }] = await Promise.all([
+      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult] = await Promise.all([
         admin
           .from("profiles")
           .select("id, display_name, school_name, account_type, discoverable, timezone")
@@ -127,7 +133,15 @@ export default async function AdminPage({ searchParams }) {
           .from("student_course_memberships")
           .select("profile_id, course_id")
           .in("profile_id", ids),
+        admin
+          .from("bug_reports")
+          .select("id, reporter_email, reporter_name, account_type, page_path, severity, summary, details, expected_behavior, status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
+
+      bugReports = bugReportResult.data || [];
+      bugReportError = bugReportResult.error || null;
 
       const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
       const coursesById = new Map((courses || []).map((course) => [course.id, course]));
@@ -296,7 +310,58 @@ export default async function AdminPage({ searchParams }) {
             <h3>Teachers</h3>
             <p className="adminStat">{users.filter((item) => item.accountType !== "student").length}</p>
           </div>
+          <div className="card adminSummaryCard">
+            <h3>Open Bug Reports</h3>
+            <p className="adminStat">{bugReports.filter((item) => item.status !== "resolved").length}</p>
+          </div>
         </div>
+      </section>
+
+      <section className="card">
+        <h2>Bug Inbox</h2>
+        <p>Reports submitted from inside MathClaw land here so you can spot repeat issues quickly.</p>
+        {bugReportError ? <p>Could not load bug reports: {bugReportError.message}</p> : null}
+        {!bugReportError && bugReports.length === 0 ? <p>No bug reports yet.</p> : null}
+        {!bugReportError && bugReports.length > 0 ? (
+          <div className="adminBugList">
+            {bugReports.map((report) => (
+              <article key={report.id} className="card adminBugCard">
+                <div className="adminUserHeader">
+                  <div>
+                    <h3>{report.summary}</h3>
+                    <p>
+                      {report.reporter_name || report.reporter_email} · {report.reporter_email}
+                    </p>
+                  </div>
+                  <div className="adminBadgeRow">
+                    <span className="adminRoleBadge">{report.severity}</span>
+                    <span className="adminRoleBadge">{report.status}</span>
+                  </div>
+                </div>
+                <div className="adminMetaGrid">
+                  <p><strong>Reported:</strong> {formatDate(report.created_at)}</p>
+                  <p><strong>Account type:</strong> {report.account_type || "-"}</p>
+                  <p><strong>Page:</strong> {report.page_path || "-"}</p>
+                </div>
+                <p><strong>What happened:</strong> {report.details}</p>
+                {report.expected_behavior ? (
+                  <p style={{ marginTop: "0.5rem" }}>
+                    <strong>Expected:</strong> {report.expected_behavior}
+                  </p>
+                ) : null}
+                <div className="ctaRow" style={{ marginTop: "0.85rem" }}>
+                  <form action={updateBugReportStatusAction} className="adminInlineForm">
+                    <input type="hidden" name="report_id" value={report.id} />
+                    <input type="hidden" name="status" value={report.status === "resolved" ? "open" : "resolved"} />
+                    <button className="btn ghost" type="submit">
+                      {report.status === "resolved" ? "Reopen" : "Mark Resolved"}
+                    </button>
+                  </form>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="card">

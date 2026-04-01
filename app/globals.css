@@ -259,6 +259,27 @@ p {
   gap: 0.7rem;
 }
 
+.bugReportForm {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.bugTextarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.adminBugList {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.adminBugCard {
+  background: #fff;
+}
+
 .classGameControlsList {
   display: grid;
   gap: 0.55rem;

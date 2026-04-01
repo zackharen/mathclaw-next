@@ -320,6 +320,34 @@ export async function deleteOwnedClassAction(formData) {
   redirect("/admin?classDeleted=1");
 }
 
+export async function updateBugReportStatusAction(formData) {
+  const { user } = await requireOwner();
+
+  const reportId = String(formData.get("report_id") || "").trim();
+  const nextStatus = String(formData.get("status") || "open").trim();
+
+  if (!reportId) {
+    redirect("/admin?error=missing-report");
+  }
+
+  const normalizedStatus = nextStatus === "resolved" ? "resolved" : "open";
+  const admin = createAdminClient();
+  const payload = {
+    status: normalizedStatus,
+    resolved_at: normalizedStatus === "resolved" ? new Date().toISOString() : null,
+    resolved_by: normalizedStatus === "resolved" ? user.id : null,
+  };
+
+  const { error } = await admin.from("bug_reports").update(payload).eq("id", reportId);
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  redirect(`/admin?bugReport=${normalizedStatus}`);
+}
+
 export async function toggleDiscoverableAction(formData) {
   await requireOwner();
 
