@@ -1,9 +1,19 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import Game2048Client from "./game-client";
 
-export default async function Game2048Page() {
+function sortLeaderboardRows(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const bestGap = Number(b.best_score || 0) - Number(a.best_score || 0);
+    if (bestGap !== 0) return bestGap;
+    const avgGap = Number(b.average_score || 0) - Number(a.average_score || 0);
+    if (avgGap !== 0) return avgGap;
+    return Number(b.last_10_average || 0) - Number(a.last_10_average || 0);
+  });
+}
+
+export default async function Game2048Page({ searchParams }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,7 +42,9 @@ export default async function Game2048Page() {
     redirect("/play?game_disabled=2048");
   }
 
-  const initialCourseId = courses[0]?.id || "";
+  const params = (await searchParams) || {};
+  const requestedCourseId = typeof params.course === "string" ? params.course : "";
+  const initialCourseId = resolvePreferredCourseId(courses, requestedCourseId);
   let initialLeaderboard = [];
 
   if (initialCourseId) {
@@ -40,7 +52,7 @@ export default async function Game2048Page() {
       p_course_id: initialCourseId,
       p_game_slug: "2048",
     });
-    initialLeaderboard = leaderboardRows || [];
+    initialLeaderboard = sortLeaderboardRows(leaderboardRows || []);
   }
 
   return (

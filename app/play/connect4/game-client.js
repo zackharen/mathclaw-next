@@ -35,8 +35,8 @@ function turnLabel(match, userId) {
   return "Opponent's turn.";
 }
 
-export default function Connect4Client({ courses, userId }) {
-  const [courseId, setCourseId] = useState(courses[0]?.id || "");
+export default function Connect4Client({ courses, userId, initialCourseId = "" }) {
+  const [courseId, setCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const [inviteCode, setInviteCode] = useState("");
   const [match, setMatch] = useState(null);
   const [status, setStatus] = useState("");

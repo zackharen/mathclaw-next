@@ -1,8 +1,22 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
+import { GAME_SLUGS } from "@/lib/student-games/catalog";
 
-const ALLOWED_GAMES = new Set(["2048", "integer_practice", "number_compare"]);
+const ALLOWED_GAMES = GAME_SLUGS;
+
+function sortLeaderboardRows(gameSlug, rows) {
+  if (gameSlug === "2048") {
+    return [...rows].sort((a, b) => {
+      const bestGap = Number(b.best_score || 0) - Number(a.best_score || 0);
+      if (bestGap !== 0) return bestGap;
+      const avgGap = Number(b.average_score || 0) - Number(a.average_score || 0);
+      if (avgGap !== 0) return avgGap;
+      return Number(b.last_10_average || 0) - Number(a.last_10_average || 0);
+    });
+  }
+  return rows;
+}
 
 export async function GET(request) {
   const supabase = await createClient();
@@ -41,5 +55,5 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ leaderboard: data || [] });
+  return NextResponse.json({ leaderboard: sortLeaderboardRows(gameSlug, data || []) });
 }

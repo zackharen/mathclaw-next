@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { listAccessibleCourses, sortCoursesAlphabetically } from "@/lib/student-games/courses";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 
 function describeCourseRelationship(relationship) {
@@ -26,8 +26,8 @@ export default async function HomePage() {
         .from("courses")
         .select("id, title, class_name, schedule_model, ab_meeting_day")
         .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
-      courses = data || [];
+        .order("title", { ascending: true });
+      courses = sortCoursesAlphabetically(data || []);
     }
     playCourses = await listAccessibleCourses(supabase, user.id);
   }

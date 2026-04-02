@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
 import {
   saveAnnouncementTemplateAction,
@@ -98,6 +99,13 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const defaults = defaultSchoolYearDates();
   const accountType = await getAccountTypeForUser(supabase, user);
   const isTeacher = accountType !== "student";
+  let schoolOptions = [];
+
+  try {
+    schoolOptions = await listSchoolOptions();
+  } catch {
+    schoolOptions = [];
+  }
 
   let migrationNeeded = false;
 
@@ -247,6 +255,7 @@ Standards: {standards}`;
           userId={user.id}
           initialDisplayName={profile?.display_name || ""}
           initialSchoolName={profile?.school_name || ""}
+          schoolOptions={schoolOptions}
           initialTimezone={profile?.timezone || "America/New_York"}
           initialDiscoverable={profile?.discoverable ?? isTeacher}
           accountType={accountType}

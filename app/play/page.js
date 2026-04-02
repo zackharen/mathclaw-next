@@ -5,12 +5,13 @@ import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { joinClassByCodeAction } from "./actions";
 
-function gameHref(slug) {
-  if (slug === "integer_practice") return "/play/integer-practice";
-  if (slug === "money_counting") return "/play/money-counting";
-  if (slug === "number_compare") return "/play/number-compare";
-  if (slug === "telling_time") return "/play/telling-time";
-  return `/play/${slug}`;
+function gameHref(slug, courseId) {
+  const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
+  if (slug === "integer_practice") return `/play/integer-practice${query}`;
+  if (slug === "money_counting") return `/play/money-counting${query}`;
+  if (slug === "number_compare") return `/play/number-compare${query}`;
+  if (slug === "telling_time") return `/play/telling-time${query}`;
+  return `/play/${slug}${query}`;
 }
 
 function describeCourseRelationship(relationship) {
@@ -35,6 +36,48 @@ function getGameTags(game) {
   }
 
   return tags;
+}
+
+function formatStatNumber(value) {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed)) return "0";
+  if (Math.abs(parsed - Math.round(parsed)) < 0.05) return String(Math.round(parsed));
+  return String(Math.round(parsed * 10) / 10);
+}
+
+function formatPercent(value) {
+  const parsed = Number(value || 0);
+  const normalized = parsed <= 1 ? parsed * 100 : parsed;
+  return `${Math.round(normalized)}%`;
+}
+
+function statRowsForGame(game, stats) {
+  if (!stats) return [];
+
+  if (game.slug === "2048") {
+    return [
+      ["Games Played", stats.sessions_played],
+      ["High Score", stats.best_score],
+      ["Average", formatStatNumber(stats.average_score)],
+      ["Last 10 Avg", formatStatNumber(stats.last_10_average)],
+    ];
+  }
+
+  if (game.slug === "connect4") {
+    return [
+      ["Games Played", stats.sessions_played],
+      ["Win %", formatPercent(stats.average_score)],
+      ["Last 10 Win %", formatPercent(stats.last_10_average)],
+      ["Streak", stats.best_score],
+    ];
+  }
+
+  return [
+    ["Games Played", stats.sessions_played],
+    ["Average", formatStatNumber(stats.average_score)],
+    ["Last 10 Avg", formatStatNumber(stats.last_10_average)],
+    ["Best", formatStatNumber(stats.best_score)],
+  ];
 }
 
 export default async function PlayPage({ searchParams }) {
@@ -126,8 +169,8 @@ export default async function PlayPage({ searchParams }) {
                   {joinedCourse.class_name} · {describeCourseRelationship(joinedCourse.relationship)}
                 </p>
                 <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-                  <Link className="btn" href="/play/2048">Play 2048</Link>
-                  <Link className="btn" href="/play/integer-practice">Practice Integers</Link>
+                      <Link className="btn" href={gameHref("2048", joinedCourse.id)}>Play 2048</Link>
+                      <Link className="btn" href={gameHref("integer_practice", joinedCourse.id)}>Practice Integers</Link>
                 </div>
               </div>
             ) : null}
@@ -189,26 +232,16 @@ export default async function PlayPage({ searchParams }) {
                     <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
                     {stats ? (
                       <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        <div>
-                          <span>Games Played</span>
-                          <strong>{stats.sessions_played}</strong>
-                        </div>
-                        <div>
-                          <span>Average</span>
-                          <strong>{Math.round(Number(stats.average_score || 0) * 10) / 10}</strong>
-                        </div>
-                        <div>
-                          <span>Last 10 Avg</span>
-                          <strong>{Math.round(Number(stats.last_10_average || 0) * 10) / 10}</strong>
-                        </div>
-                        <div>
-                          <span>Best</span>
-                          <strong>{stats.best_score}</strong>
-                        </div>
+                        {statRowsForGame(game, stats).map(([label, value]) => (
+                          <div key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </div>
+                        ))}
                       </div>
                     ) : null}
                     <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug)}>
+                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
                         Play {game.name}
                       </Link>
                     </div>
@@ -233,26 +266,16 @@ export default async function PlayPage({ searchParams }) {
                     <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
                     {stats ? (
                       <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        <div>
-                          <span>Games Played</span>
-                          <strong>{stats.sessions_played}</strong>
-                        </div>
-                        <div>
-                          <span>Average</span>
-                          <strong>{Math.round(Number(stats.average_score || 0) * 10) / 10}</strong>
-                        </div>
-                        <div>
-                          <span>Last 10 Avg</span>
-                          <strong>{Math.round(Number(stats.last_10_average || 0) * 10) / 10}</strong>
-                        </div>
-                        <div>
-                          <span>Best</span>
-                          <strong>{stats.best_score}</strong>
-                        </div>
+                        {statRowsForGame(game, stats).map(([label, value]) => (
+                          <div key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </div>
+                        ))}
                       </div>
                     ) : null}
                     <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug)}>
+                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
                         Play {game.name}
                       </Link>
                     </div>

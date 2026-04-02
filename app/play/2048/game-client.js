@@ -97,6 +97,16 @@ function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
 
+function sortLeaderboardRows(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const bestGap = Number(b.best_score || 0) - Number(a.best_score || 0);
+    if (bestGap !== 0) return bestGap;
+    const avgGap = Number(b.average_score || 0) - Number(a.average_score || 0);
+    if (avgGap !== 0) return avgGap;
+    return Number(b.last_10_average || 0) - Number(a.last_10_average || 0);
+  });
+}
+
 function isValidBoard(board) {
   return (
     Array.isArray(board) &&
@@ -243,7 +253,7 @@ export default function Game2048Client({
         if (!response.ok) {
           throw new Error(payload.error || "Could not load class leaderboard.");
         }
-        setLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []);
+        setLeaderboardRows(sortLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []));
       } catch (error) {
         setStatus(error.message || "Could not load class leaderboard.");
       } finally {
@@ -259,7 +269,7 @@ export default function Game2048Client({
       return;
     }
 
-    if (courseId === initialCourseId && (initialLeaderboard || []).length > 0) {
+            if (courseId === initialCourseId && (initialLeaderboard || []).length > 0) {
       return;
     }
 
@@ -577,16 +587,16 @@ export default function Game2048Client({
               <strong>{personalStats.sessions_played}</strong>
             </div>
             <div>
+              <span>High Score</span>
+              <strong>{personalStats.best_score}</strong>
+            </div>
+            <div>
               <span>Average</span>
               <strong>{formatScore(personalStats.average_score)}</strong>
             </div>
             <div>
               <span>Last 10</span>
               <strong>{formatScore(personalStats.last_10_average)}</strong>
-            </div>
-            <div>
-              <span>Best</span>
-              <strong>{personalStats.best_score}</strong>
             </div>
           </div>
         ) : (
@@ -608,8 +618,7 @@ export default function Game2048Client({
                 #{index + 1} {row.display_name || `Student ${String(row.player_id).slice(0, 8)}`}
               </strong>
               <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} ·
-                Best: {row.best_score}
+                High Score: {row.best_score} · Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)}
               </p>
             </div>
           ))}

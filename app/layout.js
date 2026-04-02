@@ -39,7 +39,6 @@ export default async function RootLayout({ children }) {
   } else {
     navItems = [
       { href: "/classes", label: "Classes" },
-      { href: "/classes/new", label: "New Class" },
       { href: "/dashboard", label: "Dashboard" },
       { href: "/teachers", label: "Teachers" },
       { href: "/play", label: "Arcade" },

@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import MinesweeperClient from "./game-client";
 
-export default async function MinesweeperPage() {
+export default async function MinesweeperPage({ searchParams }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -26,7 +26,9 @@ export default async function MinesweeperPage() {
     redirect("/play?game_disabled=minesweeper");
   }
 
-  const initialCourseId = courses[0]?.id || "";
+  const params = (await searchParams) || {};
+  const requestedCourseId = typeof params.course === "string" ? params.course : "";
+  const initialCourseId = resolvePreferredCourseId(courses, requestedCourseId);
   let initialLeaderboard = [];
 
   if (initialCourseId) {

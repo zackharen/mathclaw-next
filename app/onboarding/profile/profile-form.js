@@ -8,13 +8,18 @@ export default function ProfileForm({
   userId,
   initialDisplayName,
   initialSchoolName,
+  schoolOptions = [],
   initialTimezone,
   initialDiscoverable = true,
   accountType = "teacher",
 }) {
   const isTeacher = accountType !== "student";
   const [displayName, setDisplayName] = useState(initialDisplayName);
-  const [schoolName, setSchoolName] = useState(initialSchoolName);
+  const initialKnownSchool = schoolOptions.includes(initialSchoolName) ? initialSchoolName : "";
+  const [selectedSchoolName, setSelectedSchoolName] = useState(initialKnownSchool);
+  const [newSchoolName, setNewSchoolName] = useState(
+    initialSchoolName && !initialKnownSchool ? initialSchoolName : ""
+  );
   const [timezone, setTimezone] = useState(initialTimezone);
   const [discoverable, setDiscoverable] = useState(Boolean(initialDiscoverable));
   const [saving, setSaving] = useState(false);
@@ -30,10 +35,11 @@ export default function ProfileForm({
     setError("");
 
     const supabase = createClient();
+    const resolvedSchoolName = newSchoolName.trim() || selectedSchoolName || "";
     const payload = {
       id: userId,
       display_name: displayName.trim(),
-      school_name: schoolName.trim() || null,
+      school_name: resolvedSchoolName || null,
       timezone,
       discoverable: isTeacher ? discoverable : false,
       account_type: accountType,
@@ -53,7 +59,7 @@ export default function ProfileForm({
         {
           id: userId,
           display_name: displayName.trim(),
-          school_name: schoolName.trim() || null,
+          school_name: resolvedSchoolName || null,
           timezone,
           discoverable: isTeacher ? discoverable : false,
           updated_at: new Date().toISOString(),
@@ -72,7 +78,7 @@ export default function ProfileForm({
       const legacyPayload = {
         id: userId,
         display_name: displayName.trim(),
-        school_name: schoolName.trim() || null,
+        school_name: resolvedSchoolName || null,
         timezone,
         updated_at: new Date().toISOString(),
       };
@@ -108,12 +114,28 @@ export default function ProfileForm({
       </label>
 
       <label>
-        School Name
+        Existing School
+        <select
+          className="input"
+          value={selectedSchoolName}
+          onChange={(e) => setSelectedSchoolName(e.target.value)}
+        >
+          <option value="">Choose a school</option>
+          {schoolOptions.map((schoolName) => (
+            <option key={schoolName} value={schoolName}>
+              {schoolName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Or Add A New School
         <input
           className="input"
           type="text"
-          value={schoolName}
-          onChange={(e) => setSchoolName(e.target.value)}
+          value={newSchoolName}
+          onChange={(e) => setNewSchoolName(e.target.value)}
           placeholder="Optional"
         />
       </label>
