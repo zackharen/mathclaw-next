@@ -2,12 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const BOARD_SIZE = 9;
-const MINE_COUNT = 10;
+const MIN_BOARD_SIZE = 6;
+const MAX_BOARD_SIZE = 22;
+const DEFAULT_BOARD_SIZE = 9;
+const BOARD_SIZE_OPTIONS = Array.from(
+  { length: MAX_BOARD_SIZE - MIN_BOARD_SIZE + 1 },
+  (_, index) => MIN_BOARD_SIZE + index
+);
 
-function createEmptyBoard() {
-  return Array.from({ length: BOARD_SIZE }, () =>
-    Array.from({ length: BOARD_SIZE }, () => ({
+function mineCountForSize(boardSize) {
+  return Math.min(boardSize * boardSize - 1, Math.max(5, Math.round(boardSize * boardSize * 0.12)));
+}
+
+function createEmptyBoard(boardSize) {
+  return Array.from({ length: boardSize }, () =>
+    Array.from({ length: boardSize }, () => ({
       mine: false,
       revealed: false,
       flagged: false,
@@ -16,7 +25,7 @@ function createEmptyBoard() {
   );
 }
 
-function neighbors(row, col) {
+function neighbors(row, col, boardSize) {
   const cells = [];
   for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
     for (let colOffset = -1; colOffset <= 1; colOffset += 1) {
@@ -25,9 +34,9 @@ function neighbors(row, col) {
       const nextCol = col + colOffset;
       if (
         nextRow >= 0 &&
-        nextRow < BOARD_SIZE &&
+        nextRow < boardSize &&
         nextCol >= 0 &&
-        nextCol < BOARD_SIZE
+        nextCol < boardSize
       ) {
         cells.push([nextRow, nextCol]);
       }
@@ -36,12 +45,12 @@ function neighbors(row, col) {
   return cells;
 }
 
-function buildBoard() {
-  const board = createEmptyBoard();
+function buildBoard(boardSize, mineCount) {
+  const board = createEmptyBoard(boardSize);
   const mineSpots = new Set();
 
-  while (mineSpots.size < MINE_COUNT) {
-    mineSpots.add(`${Math.floor(Math.random() * BOARD_SIZE)}:${Math.floor(Math.random() * BOARD_SIZE)}`);
+  while (mineSpots.size < mineCount) {
+    mineSpots.add(`${Math.floor(Math.random() * boardSize)}:${Math.floor(Math.random() * boardSize)}`);
   }
 
   mineSpots.forEach((spot) => {
@@ -49,9 +58,9 @@ function buildBoard() {
     board[row][col].mine = true;
   });
 
-  for (let row = 0; row < BOARD_SIZE; row += 1) {
-    for (let col = 0; col < BOARD_SIZE; col += 1) {
-      board[row][col].adjacent = neighbors(row, col).filter(
+  for (let row = 0; row < boardSize; row += 1) {
+    for (let col = 0; col < boardSize; col += 1) {
+      board[row][col].adjacent = neighbors(row, col, boardSize).filter(
         ([neighborRow, neighborCol]) => board[neighborRow][neighborCol].mine
       ).length;
     }
@@ -66,6 +75,7 @@ function cloneBoard(board) {
 
 function revealCascade(board, startRow, startCol) {
   const nextBoard = cloneBoard(board);
+  const boardSize = nextBoard.length;
   const queue = [[startRow, startCol]];
   let revealedCount = 0;
 
@@ -78,7 +88,7 @@ function revealCascade(board, startRow, startCol) {
     revealedCount += 1;
 
     if (cell.adjacent === 0 && !cell.mine) {
-      neighbors(row, col).forEach(([neighborRow, neighborCol]) => {
+      neighbors(row, col, boardSize).forEach(([neighborRow, neighborCol]) => {
         const neighbor = nextBoard[neighborRow][neighborCol];
         if (!neighbor.revealed && !neighbor.mine) {
           queue.push([neighborRow, neighborCol]);
@@ -104,8 +114,8 @@ function countFlags(board) {
   return board.flat().filter((cell) => cell.flagged).length;
 }
 
-function isWin(board) {
-  return countRevealedSafeCells(board) === BOARD_SIZE * BOARD_SIZE - MINE_COUNT;
+function isWin(board, mineCount) {
+  return countRevealedSafeCells(board) === board.length * board.length - mineCount;
 }
 
 function formatScore(value) {
@@ -130,8 +140,9 @@ export default function MinesweeperClient({
   initialLeaderboard,
   personalStats,
 }) {
+  const [boardSize, setBoardSize] = useState(DEFAULT_BOARD_SIZE);
   const [courseId, setCourseId] = useState(initialCourseId || "");
-  const [board, setBoard] = useState(buildBoard);
+  const [board, setBoard] = useState(() => buildBoard(DEFAULT_BOARD_SIZE, mineCountForSize(DEFAULT_BOARD_SIZE)));
   const [status, setStatus] = useState("Reveal every safe square and flag the mines.");
   const [runState, setRunState] = useState("active");
   const [mode, setMode] = useState("reveal");
@@ -140,11 +151,13 @@ export default function MinesweeperClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const mineCount = useMemo(() => mineCountForSize(boardSize), [boardSize]);
 
   const timerRef = useRef(null);
   const boardRef = useRef(board);
   const sessionRef = useRef({
     courseId: initialCourseId || "",
+    boardSize: DEFAULT_BOARD_SIZE,
     moves: 0,
     revealedSafeCells: 0,
     elapsedSeconds: 0,
@@ -231,8 +244,8 @@ export default function MinesweeperClient({
             moves: snapshot.moves,
             revealedSafeCells: snapshot.revealedSafeCells,
             elapsedSeconds: snapshot.elapsedSeconds,
-            boardSize: BOARD_SIZE,
-            mineCount: MINE_COUNT,
+            boardSize: snapshot.boardSize,
+            mineCount: mineCountForSize(snapshot.boardSize),
           },
         }),
       });
@@ -318,7 +331,7 @@ export default function MinesweeperClient({
     }
 
     savedRunRef.current = false;
-    setBoard(buildBoard());
+    setBoard(buildBoard(boardSize, mineCountForSize(boardSize)));
     setRunState("active");
     setElapsedSeconds(0);
     setMoveCount(0);
@@ -326,6 +339,7 @@ export default function MinesweeperClient({
     setStatus("Fresh board ready. Reveal every safe square and flag the mines.");
     sessionRef.current = {
       courseId,
+      boardSize,
       moves: 0,
       revealedSafeCells: 0,
       elapsedSeconds: 0,
@@ -349,13 +363,46 @@ export default function MinesweeperClient({
 
     savedRunRef.current = false;
     setCourseId(nextCourseId);
-    setBoard(buildBoard());
+    setBoard(buildBoard(boardSize, mineCountForSize(boardSize)));
     setRunState("active");
     setElapsedSeconds(0);
     setMoveCount(0);
     setStatus("Class updated. Start a fresh board.");
     sessionRef.current = {
       courseId: nextCourseId,
+      boardSize,
+      moves: 0,
+      revealedSafeCells: 0,
+      elapsedSeconds: 0,
+      result: "active",
+    };
+  }
+
+  async function handleBoardSizeChange(nextBoardSize) {
+    const previousSnapshot = { ...sessionRef.current };
+    if (previousSnapshot.moves > 0 && !savedRunRef.current) {
+      try {
+        await saveSession({
+          ...previousSnapshot,
+          result: previousSnapshot.result === "active" ? "switched_size" : previousSnapshot.result,
+        });
+      } catch (error) {
+        setStatus(error.message || "Could not save that run.");
+        return;
+      }
+    }
+
+    savedRunRef.current = false;
+    setBoardSize(nextBoardSize);
+    setBoard(buildBoard(nextBoardSize, mineCountForSize(nextBoardSize)));
+    setRunState("active");
+    setElapsedSeconds(0);
+    setMoveCount(0);
+    setMode("reveal");
+    setStatus(`Board size updated to ${nextBoardSize}x${nextBoardSize}.`);
+    sessionRef.current = {
+      courseId,
+      boardSize: nextBoardSize,
       moves: 0,
       revealedSafeCells: 0,
       elapsedSeconds: 0,
@@ -401,6 +448,7 @@ export default function MinesweeperClient({
     sessionRef.current = {
       ...sessionRef.current,
       courseId,
+      boardSize,
       moves: sessionRef.current.moves + 1,
       revealedSafeCells: nextRevealedSafeCells,
       elapsedSeconds,
@@ -411,7 +459,7 @@ export default function MinesweeperClient({
     setBoard(nextBoard);
     setStatus(result.revealedCount > 1 ? "Nice clear." : "Safe move.");
 
-    if (isWin(nextBoard)) {
+    if (isWin(nextBoard, mineCount)) {
       await finishRun(nextBoard, "won", "Board cleared. You found every mine.");
     }
   }
@@ -427,6 +475,7 @@ export default function MinesweeperClient({
     sessionRef.current = {
       ...sessionRef.current,
       courseId,
+      boardSize,
       moves: sessionRef.current.moves + 1,
       revealedSafeCells: countRevealedSafeCells(nextBoard),
       elapsedSeconds,
@@ -475,11 +524,24 @@ export default function MinesweeperClient({
         </div>
         <div className="pillRow" style={{ marginTop: "0.75rem" }}>
           <span className="pill">Mode: {mode === "flag" ? "Flag" : "Reveal"}</span>
-          <span className="pill">Flags: {flagsUsed}/{MINE_COUNT}</span>
+          <span className="pill">Board: {boardSize}x{boardSize}</span>
+          <span className="pill">Flags: {flagsUsed}/{mineCount}</span>
           <span className="pill">Time: {elapsedSeconds}s</span>
           <span className="pill">Safe Squares: {sessionRef.current.revealedSafeCells}</span>
         </div>
         <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+          <select
+            className="input"
+            style={{ maxWidth: "12rem" }}
+            value={String(boardSize)}
+            onChange={(event) => handleBoardSizeChange(Number(event.target.value))}
+          >
+            {BOARD_SIZE_OPTIONS.map((sizeOption) => (
+              <option key={sizeOption} value={sizeOption}>
+                {sizeOption} x {sizeOption}
+              </option>
+            ))}
+          </select>
           <select
             className="input"
             style={{ maxWidth: "18rem" }}
@@ -494,7 +556,14 @@ export default function MinesweeperClient({
             ))}
           </select>
         </div>
-        <div className="minesweeperBoard" style={{ marginTop: "1rem" }}>
+        <div
+          className="minesweeperBoard"
+          style={{
+            marginTop: "1rem",
+            gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+            maxWidth: boardSize <= 10 ? "32rem" : boardSize <= 16 ? "40rem" : "44rem",
+          }}
+        >
           {board.map((row, rowIndex) =>
             row.map((cell, colIndex) => {
               let label = "";
