@@ -1742,6 +1742,10 @@ details[open] > summary.btn,
   box-shadow: inset 0 0 0 10px #dceaf4;
 }
 
+.timeClock.isInteractive {
+  cursor: crosshair;
+}
+
 .timeClockNumber {
   position: absolute;
   left: 50%;
@@ -1756,18 +1760,54 @@ details[open] > summary.btn,
   font-weight: 800;
 }
 
-.timeClockTick {
+.timeClockTickWrap {
   position: absolute;
   left: 50%;
   top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.timeClockTick {
   display: block;
   width: 0.2rem;
   height: 1rem;
   margin-left: -0.1rem;
-  margin-top: -0.5rem;
+  margin-top: -7.3rem;
   border-radius: 999px;
   background: #4c6f94;
-  transform-origin: center 5.2rem;
+}
+
+.timeClockHandTip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-left: -0.55rem;
+  margin-top: -0.55rem;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px var(--navy);
+  cursor: grab;
+  padding: 0;
+}
+
+.timeClockHandTip:active {
+  cursor: grabbing;
+}
+
+.timeClockHandTip.hourTip {
+  background: var(--navy);
+}
+
+.timeClockHandTip.minuteTip {
+  background: #45688a;
+}
+
+.timeClock.active-hour .timeClockHandTip.hourTip,
+.timeClock.active-minute .timeClockHandTip.minuteTip {
+  box-shadow: 0 0 0 4px rgba(69, 104, 138, 0.18);
 }
 
 .timeClockHand {
@@ -1777,6 +1817,7 @@ details[open] > summary.btn,
   transform-origin: bottom center;
   border-radius: 999px;
   background: var(--ink);
+  pointer-events: none;
 }
 
 .timeClockHand.hourHand {
@@ -1790,6 +1831,7 @@ details[open] > summary.btn,
   height: 38%;
   margin-left: -0.14rem;
   background: #45688a;
+  pointer-events: none;
 }
 
 .timeClockCenter {
@@ -1802,6 +1844,11 @@ details[open] > summary.btn,
   margin-top: -0.5rem;
   border-radius: 999px;
   background: var(--ink);
+  pointer-events: none;
+}
+
+.timeSetControls {
+  display: block;
 }
 
 .timeSetControls {

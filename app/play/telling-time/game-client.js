@@ -8,6 +8,8 @@ const READ_FILL_MINUTE_OPTIONS = Array.from({ length: 11 }, (_, index) => (index
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const CLOCK_FACE_NUMBERS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const CLOCK_FACE_ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
+const HOUR_TIP_OFFSET = -4.8;
+const MINUTE_TIP_OFFSET = -6.6;
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -68,30 +70,86 @@ function randomClockSetting(excludeLabel = "") {
   return { hour, minute };
 }
 
-function ClockFace({ hour, minute, label, faceStyle = "numbers" }) {
+function angleFromPointer(event, rect) {
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const dx = event.clientX - centerX;
+  const dy = event.clientY - centerY;
+  let degrees = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+  if (degrees < 0) degrees += 360;
+  return degrees;
+}
+
+function hourFromAngle(angle) {
+  const normalized = Math.round(angle / 30) % 12;
+  return normalized === 0 ? 12 : normalized;
+}
+
+function minuteFromAngle(angle) {
+  return (Math.round(angle / 30) % 12) * 5;
+}
+
+function ClockFace({
+  hour,
+  minute,
+  label,
+  faceStyle = "numbers",
+  interactive = false,
+  activeHand = "minute",
+  onClockPointerDown,
+  onHandPointerDown,
+}) {
   const minuteRotation = minute * 6;
   const hourRotation = ((hour % 12) + minute / 60) * 30;
   const markers = faceStyle === "roman" ? CLOCK_FACE_ROMAN : CLOCK_FACE_NUMBERS;
 
   return (
     <div className="timeClockWrap" aria-label={label}>
-      <div className="timeClock">
-        {Array.from({ length: 12 }, (_, index) => (
-          <span
-            key={index}
-            className={faceStyle === "ticks" ? "timeClockTick" : "timeClockNumber"}
-            style={{
-              transform:
-                faceStyle === "ticks"
-                  ? `rotate(${index * 30}deg) translateY(-5.2rem)`
-                  : `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
-            }}
-          >
-            {faceStyle === "ticks" ? "" : markers[index]}
-          </span>
-        ))}
+      <div
+        className={`timeClock ${interactive ? "isInteractive" : ""} ${interactive ? `active-${activeHand}` : ""}`}
+        onPointerDown={interactive ? onClockPointerDown : undefined}
+      >
+        {Array.from({ length: 12 }, (_, index) =>
+          faceStyle === "ticks" ? (
+            <span
+              key={index}
+              className="timeClockTickWrap"
+              style={{ transform: `rotate(${index * 30}deg)` }}
+            >
+              <span className="timeClockTick" />
+            </span>
+          ) : (
+            <span
+              key={index}
+              className="timeClockNumber"
+              style={{
+                transform: `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
+              }}
+            >
+              {markers[index]}
+            </span>
+          )
+        )}
         <div className="timeClockHand hourHand" style={{ transform: `rotate(${hourRotation}deg)` }} />
         <div className="timeClockHand minuteHand" style={{ transform: `rotate(${minuteRotation}deg)` }} />
+        {interactive ? (
+          <>
+            <button
+              type="button"
+              className="timeClockHandTip hourTip"
+              style={{ transform: `rotate(${hourRotation}deg) translateY(${HOUR_TIP_OFFSET}rem)` }}
+              onPointerDown={(event) => onHandPointerDown?.(event, "hour")}
+              aria-label="Move the hour hand"
+            />
+            <button
+              type="button"
+              className="timeClockHandTip minuteTip"
+              style={{ transform: `rotate(${minuteRotation}deg) translateY(${MINUTE_TIP_OFFSET}rem)` }}
+              onPointerDown={(event) => onHandPointerDown?.(event, "minute")}
+              aria-label="Move the minute hand"
+            />
+          </>
+        ) : null}
         <div className="timeClockCenter" />
       </div>
     </div>
@@ -109,6 +167,7 @@ export default function TellingTimeClient({
   const [faceStyle, setFaceStyle] = useState("numbers");
   const [readAnswerMode, setReadAnswerMode] = useState("multiple_choice");
   const [choiceCount, setChoiceCount] = useState(4);
+  const [activeSetHand, setActiveSetHand] = useState("minute");
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
@@ -124,6 +183,8 @@ export default function TellingTimeClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const draggingHandRef = useRef(null);
+  const clockFaceRef = useRef(null);
   const sessionRef = useRef({
     courseId: initialCourseId || "",
     attempts: 0,
@@ -133,6 +194,37 @@ export default function TellingTimeClient({
   const savedRunRef = useRef(false);
 
   const choices = useMemo(() => buildChoices(question, choiceCount), [choiceCount, question]);
+
+  const updateClockFromPointer = useCallback((event, handToMove) => {
+    const clockElement = clockFaceRef.current;
+    if (!clockElement) return;
+    const angle = angleFromPointer(event, clockElement.getBoundingClientRect());
+
+    if (handToMove === "hour") {
+      setSelectedHour(hourFromAngle(angle));
+      return;
+    }
+
+    setSelectedMinute(minuteFromAngle(angle));
+  }, []);
+
+  useEffect(() => {
+    function handlePointerMove(event) {
+      if (!draggingHandRef.current) return;
+      updateClockFromPointer(event, draggingHandRef.current);
+    }
+
+    function handlePointerUp() {
+      draggingHandRef.current = null;
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [updateClockFromPointer]);
 
   const loadLeaderboard = useCallback(
     async (nextCourseId) => {
@@ -434,6 +526,22 @@ export default function TellingTimeClient({
           minute={question.mode === "read" ? question.minute : selectedMinute}
           label={question.mode === "read" ? question.label : `Current setting ${formatTimeLabel(selectedHour, selectedMinute)}`}
           faceStyle={faceStyle}
+          interactive={question.mode === "set" && !runComplete}
+          activeHand={activeSetHand}
+          onClockPointerDown={(event) => {
+            clockFaceRef.current = event.currentTarget;
+            if (question.mode !== "set" || runComplete) return;
+            updateClockFromPointer(event, activeSetHand);
+            draggingHandRef.current = activeSetHand;
+          }}
+          onHandPointerDown={(event, hand) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clockFaceRef.current = event.currentTarget.closest(".timeClock");
+            setActiveSetHand(hand);
+            updateClockFromPointer(event, hand);
+            draggingHandRef.current = hand;
+          }}
         />
         {question.mode === "read" ? (
           readAnswerMode === "fill" ? (
@@ -486,35 +594,27 @@ export default function TellingTimeClient({
         ) : (
           <div className="list" style={{ marginTop: "1rem" }}>
             <p>Set the clock to <strong>{question.label}</strong>.</p>
-            <div className="timeSetControls">
-              <label>
-                Hour
-                <select
-                  className="input"
-                  value={selectedHour}
-                  onChange={(event) => setSelectedHour(Number(event.target.value))}
-                >
-                  {HOUR_OPTIONS.map((hour) => (
-                    <option key={hour} value={hour}>
-                      {hour}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Minute
-                <select
-                  className="input"
-                  value={selectedMinute}
-                  onChange={(event) => setSelectedMinute(Number(event.target.value))}
-                >
-                  {MINUTE_OPTIONS.map((minute) => (
-                    <option key={minute} value={minute}>
-                      {formatMinute(minute)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="ctaRow">
+              <button
+                className={`btn ${activeSetHand === "hour" ? "primary" : "ghost"}`}
+                type="button"
+                onClick={() => setActiveSetHand("hour")}
+              >
+                Move Hour Hand
+              </button>
+              <button
+                className={`btn ${activeSetHand === "minute" ? "primary" : "ghost"}`}
+                type="button"
+                onClick={() => setActiveSetHand("minute")}
+              >
+                Move Minute Hand
+              </button>
+            </div>
+            <p>
+              Drag the hand tips, or tap the clock while <strong>{activeSetHand === "hour" ? "Hour Hand" : "Minute Hand"}</strong> is selected.
+            </p>
+            <div className="pillRow">
+              <span className="pill">Current: {formatTimeLabel(selectedHour, selectedMinute)}</span>
             </div>
             <button className="btn primary" type="button" onClick={answerSetMode} disabled={runComplete}>
               Check Clock
