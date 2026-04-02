@@ -10,13 +10,13 @@ export default function SignInForm({ redirectTo }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [activeMethod, setActiveMethod] = useState(null);
 
   const router = useRouter();
 
   async function onEmailSignIn(event) {
     event.preventDefault();
-    setLoading(true);
+    setActiveMethod("email");
     setError("");
 
     const supabase = createClient();
@@ -26,7 +26,7 @@ export default function SignInForm({ redirectTo }) {
     });
 
     if (signInError) {
-      setLoading(false);
+      setActiveMethod(null);
       setError(signInError.message);
       return;
     }
@@ -36,13 +36,12 @@ export default function SignInForm({ redirectTo }) {
     } = await supabase.auth.getUser();
     const accountType = await getAccountTypeForUser(supabase, user, "teacher");
 
-    setLoading(false);
     router.push(sanitizeNextForAccountType(redirectTo, accountType));
     router.refresh();
   }
 
   async function onGoogleSignIn() {
-    setLoading(true);
+    setActiveMethod("google");
     setError("");
 
     const origin = window.location.origin;
@@ -55,7 +54,7 @@ export default function SignInForm({ redirectTo }) {
     });
 
     if (googleError) {
-      setLoading(false);
+      setActiveMethod(null);
       setError(googleError.message);
     }
   }
@@ -70,8 +69,13 @@ export default function SignInForm({ redirectTo }) {
           fastest way into MathClaw.
         </p>
         <div className="ctaRow authPrimaryRow">
-          <button className="btn primary googleBtn" disabled={loading} onClick={onGoogleSignIn} type="button">
-            {loading ? "Opening Google..." : "Continue with Google"}
+          <button
+            className="btn primary googleBtn"
+            disabled={activeMethod !== null}
+            onClick={onGoogleSignIn}
+            type="button"
+          >
+            {activeMethod === "google" ? "Opening Google..." : "Continue with Google"}
           </button>
         </div>
       </section>
@@ -108,8 +112,8 @@ export default function SignInForm({ redirectTo }) {
         {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
 
         <div className="ctaRow">
-          <button className="btn" disabled={loading} type="submit">
-            {loading ? "Signing in..." : "Sign In with Email"}
+          <button className="btn" disabled={activeMethod !== null} type="submit">
+            {activeMethod === "email" ? "Signing in..." : "Sign In with Email"}
           </button>
         </div>
       </form>
