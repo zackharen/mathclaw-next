@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+function formatDuration(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 function cellColor(value) {
   if (value === "R") return "#cd3b3b";
   if (value === "Y") return "#f1c232";
@@ -34,6 +41,7 @@ export default function Connect4Client({ courses, userId }) {
   const [match, setMatch] = useState(null);
   const [status, setStatus] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [nowTick, setNowTick] = useState(0);
 
   const yourToken = useMemo(() => tokenForUser(match, userId), [match, userId]);
   const liveTurnMessage = useMemo(() => turnLabel(match, userId), [match, userId]);
@@ -57,6 +65,22 @@ export default function Connect4Client({ courses, userId }) {
       ),
     [match]
   );
+  const gameStartedAt = match?.metadata?.gameStartedAt
+    ? new Date(match.metadata.gameStartedAt).getTime()
+    : null;
+  const elapsedSeconds = useMemo(() => {
+    if (!match || !gameStartedAt) return 0;
+    const endTime =
+      match.status === "finished"
+        ? new Date(match.updated_at || match.metadata?.gameStartedAt).getTime()
+        : nowTick;
+    return Math.max(0, Math.round((endTime - gameStartedAt) / 1000));
+  }, [gameStartedAt, match, nowTick]);
+  const averageSecondsPerMove = useMemo(() => {
+    const moves = Number(match?.move_count || 0);
+    if (!moves || !elapsedSeconds) return 0;
+    return elapsedSeconds / moves;
+  }, [elapsedSeconds, match?.move_count]);
 
   const refreshMatch = useCallback(async (matchId) => {
     if (!matchId) return;
@@ -162,6 +186,14 @@ export default function Connect4Client({ courses, userId }) {
     return () => clearInterval(interval);
   }, [match?.id, refreshMatch]);
 
+  useEffect(() => {
+    if (!match || match.status !== "active" || !gameStartedAt) return undefined;
+    const interval = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [gameStartedAt, match]);
+
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
@@ -225,6 +257,14 @@ export default function Connect4Client({ courses, userId }) {
             </p>
             <p>{liveTurnMessage}</p>
             <p>Moves played: {match.move_count || 0}</p>
+            {gameStartedAt ? (
+              <>
+                <p>Game time: {formatDuration(elapsedSeconds)}</p>
+                <p>Average per move: {formatDuration(averageSecondsPerMove)}</p>
+              </>
+            ) : (
+              <p>Game timer starts when the second player joins.</p>
+            )}
             {canRematch ? (
               <div className="ctaRow" style={{ marginTop: "0.5rem" }}>
                 <button className="btn primary" type="button" onClick={startRematch} disabled={isBusy}>

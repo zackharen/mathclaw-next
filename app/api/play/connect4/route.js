@@ -27,6 +27,8 @@ function withNormalizedMatch(match) {
     board: normalizeBoard(match.board),
     metadata: {
       ...(match.metadata || {}),
+      gameStartedAt:
+        typeof match.metadata?.gameStartedAt === "string" ? match.metadata.gameStartedAt : null,
       winningCells: Array.isArray(match.metadata?.winningCells)
         ? match.metadata.winningCells
         : [],
@@ -145,7 +147,12 @@ export async function POST(request) {
           player_one_id: user.id,
           current_turn_id: user.id,
           board: emptyBoard(),
-          metadata: {},
+          metadata: {
+            gameStartedAt: null,
+            winningCells: [],
+            draw: false,
+            rematch_count: 0,
+          },
         })
         .select("id, invite_code, course_id, player_one_id, player_two_id, current_turn_id, winner_id, status, board, move_count, metadata, created_at, updated_at")
         .single();
@@ -205,7 +212,37 @@ export async function POST(request) {
       });
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
-    return NextResponse.json({ match: withNormalizedMatch(updated) });
+    let normalized = withNormalizedMatch(updated);
+
+    if (
+      normalized &&
+      normalized.status === "active" &&
+      normalized.player_one_id &&
+      normalized.player_two_id &&
+      !normalized.metadata?.gameStartedAt
+    ) {
+      const startedAt = new Date().toISOString();
+      const { data: timedMatch, error: timingError } = await supabase
+        .from("connect4_matches")
+        .update({
+          metadata: {
+            ...(normalized.metadata || {}),
+            gameStartedAt: startedAt,
+            winningCells: [],
+            draw: false,
+          },
+          updated_at: startedAt,
+        })
+        .eq("id", normalized.id)
+        .select("*")
+        .single();
+
+      if (!timingError && timedMatch) {
+        normalized = withNormalizedMatch(timedMatch);
+      }
+    }
+
+    return NextResponse.json({ match: normalized });
   }
 
   if (action === "move") {
@@ -262,7 +299,15 @@ export async function POST(request) {
       winner_id: winner,
       status: winner || draw ? "finished" : "active",
       updated_at: new Date().toISOString(),
-      metadata: { ...(match.metadata || {}), draw, winningCells: winningLine },
+      metadata: {
+        ...(match.metadata || {}),
+        gameStartedAt:
+          typeof match.metadata?.gameStartedAt === "string"
+            ? match.metadata.gameStartedAt
+            : match.created_at,
+        draw,
+        winningCells: winningLine,
+      },
     };
 
     const { data: updated, error: updateError } = await supabase
@@ -373,6 +418,7 @@ export async function POST(request) {
       updated_at: new Date().toISOString(),
       metadata: {
         ...(match.metadata || {}),
+        gameStartedAt: new Date().toISOString(),
         draw: false,
         rematch_count: previousRematchCount + 1,
         winningCells: [],
