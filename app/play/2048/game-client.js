@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+const SAVED_GAME_KEY = "mathclaw:2048:saved-game:v1";
+
 function randomEmptyCell(board) {
   const cells = [];
   board.forEach((row, r) => {
@@ -95,6 +97,49 @@ function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
 
+function isValidBoard(board) {
+  return (
+    Array.isArray(board) &&
+    board.length === 4 &&
+    board.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === 4 &&
+        row.every((cell) => Number.isInteger(cell) && cell >= 0)
+    )
+  );
+}
+
+function readSavedGame() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(SAVED_GAME_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!isValidBoard(parsed?.board)) return null;
+    return {
+      board: parsed.board,
+      score: Number(parsed.score || 0),
+      courseId: typeof parsed.courseId === "string" ? parsed.courseId : "",
+      isWon: parsed.isWon === true,
+      savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistSavedGame(snapshot) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SAVED_GAME_KEY, JSON.stringify(snapshot));
+}
+
+function clearSavedGame() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(SAVED_GAME_KEY);
+}
+
 export default function Game2048Client({
   courses,
   initialCourseId,
@@ -113,6 +158,7 @@ export default function Game2048Client({
   const [localBest, setLocalBest] = useState(() =>
     Math.max(Number(personalStats?.best_score || 0), 0)
   );
+  const [hasLoadedSavedGame, setHasLoadedSavedGame] = useState(false);
 
   const touchStartRef = useRef(null);
   const savedResultsRef = useRef(new Set());
@@ -126,6 +172,34 @@ export default function Game2048Client({
   useEffect(() => {
     boardRef.current = board;
   }, [board]);
+
+  useEffect(() => {
+    if (hasLoadedSavedGame) return;
+
+    const savedGame = readSavedGame();
+    if (!savedGame) {
+      setHasLoadedSavedGame(true);
+      return;
+    }
+
+    const courseStillAvailable =
+      !savedGame.courseId || courses.some((course) => course.id === savedGame.courseId);
+
+    if (!courseStillAvailable) {
+      clearSavedGame();
+      setHasLoadedSavedGame(true);
+      return;
+    }
+
+    setBoard(savedGame.board);
+    setScore(savedGame.score);
+    setCourseId(savedGame.courseId || "");
+    setIsWon(savedGame.isWon);
+    setIsGameOver(false);
+    setShowOverlay(false);
+    setStatus("Saved game restored.");
+    setHasLoadedSavedGame(true);
+  }, [courses, hasLoadedSavedGame]);
 
   const bestTile = useMemo(() => bestTileValue(board), [board]);
 
@@ -204,11 +278,27 @@ export default function Game2048Client({
     [courseId, loadLeaderboard]
   );
 
+  const saveBoardState = useCallback(
+    (overrideStatus = "Game saved. Come back any time to continue.") => {
+      const snapshot = {
+        board: boardRef.current,
+        score: scoreRef.current,
+        courseId,
+        isWon,
+        savedAt: new Date().toISOString(),
+      };
+      persistSavedGame(snapshot);
+      setStatus(overrideStatus);
+    },
+    [courseId, isWon]
+  );
+
   const startNewGame = useCallback(
     (resultToSave = null) => {
       if (resultToSave && scoreRef.current > 0) {
         saveSession(scoreRef.current, boardRef.current, resultToSave);
       }
+      clearSavedGame();
       setBoard(freshBoard());
       setScore(0);
       setIsWon(false);
@@ -225,6 +315,7 @@ export default function Game2048Client({
     if (scoreRef.current > 0) {
       await saveSession(scoreRef.current, boardRef.current, "switched_class");
     }
+    clearSavedGame();
     setCourseId(nextCourseId);
     setBoard(freshBoard());
     setScore(0);
@@ -255,17 +346,19 @@ export default function Game2048Client({
       setLocalBest((current) => Math.max(current, nextScore));
 
       if (reached2048 && !isWon) {
-        setIsWon(true);
-        setShowOverlay(true);
-        setStatus("You made 2048!");
-        saveSession(nextScore, nextBoard, "milestone_2048");
-      } else if (ended) {
-        setIsGameOver(true);
-        setShowOverlay(true);
-        setStatus("Game over.");
-        saveSession(nextScore, nextBoard, "finished");
-      } else {
-        setStatus("");
+      setIsWon(true);
+      setShowOverlay(true);
+      setStatus("You made 2048!");
+      clearSavedGame();
+      saveSession(nextScore, nextBoard, "milestone_2048");
+    } else if (ended) {
+      setIsGameOver(true);
+      setShowOverlay(true);
+      setStatus("Game over.");
+      clearSavedGame();
+      saveSession(nextScore, nextBoard, "finished");
+    } else {
+      setStatus("");
       }
     },
     [isGameOver, isWon, saveSession]
@@ -315,7 +408,14 @@ export default function Game2048Client({
         <div className="ctaRow" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <h2>Current Game</h2>
           <div className="ctaRow" style={{ marginTop: 0 }}>
-            <button className="btn" onClick={() => saveSession(score, board, "manual_save")} type="button">
+            <button
+              className="btn"
+              onClick={() => {
+                saveBoardState();
+                saveSession(score, board, "manual_save");
+              }}
+              type="button"
+            >
               Save Now
             </button>
             <button className="btn" onClick={() => startNewGame("reset")} type="button">
@@ -345,6 +445,9 @@ export default function Game2048Client({
         <p style={{ marginTop: "0.75rem" }}>
           Swipe on mobile or use the arrow keys on desktop. Changing the class context
           starts a fresh board so scores stay tied to the right class.
+        </p>
+        <p style={{ marginTop: "0.5rem" }}>
+          `Save Now` keeps a resume point on this device so you can come back and continue from the same board.
         </p>
 
         <div
