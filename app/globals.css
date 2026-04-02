@@ -1221,6 +1221,26 @@ details[open] > summary.btn,
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.adminSchoolGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 1rem;
+}
+
+.adminSchoolCard h3 {
+  margin: 0 0 0.75rem;
+}
+
+.adminSchoolStats {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.adminSchoolStats p {
+  margin: 0;
+}
+
 .adminSectionSwitcher {
   display: grid;
   gap: 0.9rem;
@@ -1338,7 +1358,12 @@ details[open] > summary.btn,
 }
 
 .adminFilterBarWide {
-  grid-template-columns: minmax(0, 2fr) minmax(220px, 240px) minmax(220px, 240px) auto;
+  grid-template-columns:
+    minmax(0, 2fr)
+    minmax(220px, 240px)
+    minmax(220px, 240px)
+    minmax(220px, 240px)
+    auto;
 }
 
 .adminFilterActions {

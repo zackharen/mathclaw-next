@@ -76,6 +76,12 @@ function normalizeSort(value) {
   return ["email", "first_name", "last_name", "recent"].includes(value) ? value : "email";
 }
 
+function normalizeSchoolFilter(value) {
+  if (typeof value !== "string") return "all";
+  const trimmed = value.trim();
+  return trimmed ? trimmed : "all";
+}
+
 function getBestDisplayName(profile, metadata, email, fallback = "-") {
   return (
     profile?.display_name ||
@@ -183,6 +189,7 @@ export default async function AdminPage({ searchParams }) {
   const searchQuery = String(qs.q || "").trim().toLowerCase();
   const roleFilter = normalizeRoleFilter(String(qs.role || "all"));
   const sortBy = normalizeSort(String(qs.sort || "email"));
+  const schoolFilter = normalizeSchoolFilter(qs.school);
   const adminView = normalizeAdminView(String(qs.view || "accounts"));
   const supabase = await createClient();
   const {
@@ -355,6 +362,12 @@ export default async function AdminPage({ searchParams }) {
     }
   }
 
+  const schoolOptions = [...new Set(
+    users
+      .map((item) => item.schoolName)
+      .filter((value) => value && value !== "-")
+  )].sort((a, b) => a.localeCompare(b));
+
   users = users.filter((item) => {
     const matchesRole =
       roleFilter === "all"
@@ -364,6 +377,7 @@ export default async function AdminPage({ searchParams }) {
           : item.accountType === roleFilter;
 
     if (!matchesRole) return false;
+    if (schoolFilter !== "all" && item.schoolName !== schoolFilter) return false;
     if (!searchQuery) return true;
 
     const haystack = [item.displayName, item.firstName, item.lastName, item.email, item.schoolName, item.id]
@@ -384,6 +398,33 @@ export default async function AdminPage({ searchParams }) {
       return new Date(b.lastSignInAt || 0).getTime() - new Date(a.lastSignInAt || 0).getTime();
     }
     return String(a.email).localeCompare(String(b.email));
+  });
+
+  const schoolSummaries = Array.from(
+    users.reduce((map, item) => {
+      if (!item.schoolName || item.schoolName === "-") return map;
+      const current = map.get(item.schoolName) || {
+        schoolName: item.schoolName,
+        total: 0,
+        students: 0,
+        teachers: 0,
+        admins: 0,
+      };
+      current.total += 1;
+      if (item.accountType === "student") {
+        current.students += 1;
+      } else {
+        current.teachers += 1;
+      }
+      if (item.isAdmin || item.isBootstrapOwner) {
+        current.admins += 1;
+      }
+      map.set(item.schoolName, current);
+      return map;
+    }, new Map()).values()
+  ).sort((a, b) => {
+    if (b.total !== a.total) return b.total - a.total;
+    return a.schoolName.localeCompare(b.schoolName);
   });
 
   return (
@@ -423,6 +464,30 @@ export default async function AdminPage({ searchParams }) {
           </div>
         </div>
       </section>
+
+      {schoolSummaries.length > 0 ? (
+        <section className="card">
+          <h2>{schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}</h2>
+          <p>
+            {schoolFilter === "all"
+              ? "Quick counts by school so you can spot where the most accounts and admins live."
+              : "Quick counts for the currently selected school."}
+          </p>
+          <div className="adminSchoolGrid">
+            {(schoolFilter === "all" ? schoolSummaries.slice(0, 8) : schoolSummaries).map((school) => (
+              <article key={school.schoolName} className="card adminSchoolCard">
+                <h3>{school.schoolName}</h3>
+                <div className="adminSchoolStats">
+                  <p><strong>Total:</strong> {school.total}</p>
+                  <p><strong>Teachers:</strong> {school.teachers}</p>
+                  <p><strong>Students:</strong> {school.students}</p>
+                  <p><strong>Admins:</strong> {school.admins}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="card adminSectionSwitcher">
         <h2>Admin Sections</h2>
@@ -555,6 +620,17 @@ export default async function AdminPage({ searchParams }) {
               <option value="first_name">First Name (A-Z)</option>
               <option value="last_name">Last Name (A-Z)</option>
               <option value="recent">Recent Sign-In</option>
+            </select>
+          </label>
+          <label className="stack">
+            <span>School</span>
+            <select className="input" name="school" defaultValue={schoolFilter}>
+              <option value="all">All schools</option>
+              {schoolOptions.map((schoolName) => (
+                <option key={schoolName} value={schoolName}>
+                  {schoolName}
+                </option>
+              ))}
             </select>
           </label>
           <div className="ctaRow adminFilterActions">
