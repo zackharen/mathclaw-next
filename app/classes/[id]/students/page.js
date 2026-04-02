@@ -75,8 +75,8 @@ export default async function StudentsPage({ params, searchParams }) {
   const displayTimeZone = teacherProfile?.timezone || "America/New_York";
 
   const resolvedSearchParams = await searchParams;
-  const joinCodeUpdated = resolvedSearchParams?.join_code_updated === "1";
-  const joinCodeError = resolvedSearchParams?.join_code_error || "";
+  const joinCodeUpdated = resolvedSearchParams?.joinCodeUpdated === "1";
+  const joinCodeError = resolvedSearchParams?.joinCodeError || "";
   const admin = createAdminClient();
 
   const [
@@ -180,12 +180,26 @@ export default async function StudentsPage({ params, searchParams }) {
       <section className="card">
         <h1>{course.title}: Student Progress</h1>
         {joinCodeUpdated ? <p style={{ color: "#0a7a32", fontWeight: 700 }}>Join code updated.</p> : null}
-        {joinCodeError === "missing_column" ? (
+        {joinCodeError === "missing-column" ? (
           <p style={{ color: "#cd3b3b", fontWeight: 700 }}>
             Join codes are not enabled in Supabase yet. Run the student-games SQL migration, then try again.
           </p>
         ) : null}
-        {joinCodeError && joinCodeError !== "missing_column" ? (
+        {joinCodeError === "course-not-found" ? (
+          <p style={{ color: "#cd3b3b", fontWeight: 700 }}>That class could not be found for join-code updates.</p>
+        ) : null}
+        {joinCodeError === "save-failed" ? (
+          <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Could not save a new join code yet. Please try again.</p>
+        ) : null}
+        {joinCodeError === "duplicate-retry-failed" ? (
+          <p style={{ color: "#cd3b3b", fontWeight: 700 }}>
+            Could not find a unique join code after several tries. Please try again.
+          </p>
+        ) : null}
+        {joinCodeError &&
+        !["missing-column", "course-not-found", "save-failed", "duplicate-retry-failed"].includes(
+          joinCodeError
+        ) ? (
           <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Could not generate a join code yet. Please try again.</p>
         ) : null}
         <p>
@@ -211,6 +225,7 @@ export default async function StudentsPage({ params, searchParams }) {
               <span className="pill">Join Code: {course.student_join_code || "Not set yet"}</span>
               <form action={regenerateStudentJoinCodeAction}>
                 <input type="hidden" name="course_id" value={course.id} />
+                <input type="hidden" name="return_to" value="students" />
                 <button className="btn" type="submit">
                   {course.student_join_code ? "Generate New Code" : "Generate Join Code"}
                 </button>

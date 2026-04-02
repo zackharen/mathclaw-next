@@ -89,6 +89,16 @@ function getBestDisplayName(profile, metadata, email, fallback = "-") {
 
 function formatInternalEventTitle(eventKey) {
   const labels = {
+    teacher_join_code_course_not_found: "Teacher join code course not found",
+    teacher_join_code_missing_column: "Teacher join code column missing",
+    teacher_join_code_save_failed: "Teacher join code save failed",
+    teacher_join_code_duplicate_retry_failed: "Teacher join code generation exhausted retries",
+    teacher_co_teacher_course_not_found: "Teacher co-teacher course not found",
+    teacher_co_teacher_lookup_failed: "Teacher co-teacher lookup failed",
+    teacher_co_teacher_add_failed: "Teacher co-teacher add failed",
+    teacher_co_teacher_remove_failed: "Teacher co-teacher removal failed",
+    teacher_game_control_course_not_found: "Teacher game control course not found",
+    teacher_game_control_update_failed: "Teacher game control update failed",
     join_class_rpc_failed: "Class join RPC failed",
     join_class_admin_lookup_failed: "Class join admin lookup failed",
     join_class_admin_lookup_exception: "Class join admin lookup exception",
@@ -113,6 +123,7 @@ function formatInternalEventTitle(eventKey) {
 
 function formatInternalEventSource(source) {
   const labels = {
+    "classes.actions": "Teacher class tools",
     "play.joinClassByCodeAction": "Student join flow",
     "api.play.session": "Game score save API",
     "api.play.connect4": "Connect4 API",

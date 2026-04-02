@@ -17,6 +17,24 @@ function describeCourseRelationship(relationship) {
   return "Joined as student";
 }
 
+function getGameTags(game) {
+  const tags = [];
+
+  if (game.category === "arcade" || game.slug === "connect4") {
+    tags.push("#arcade");
+  }
+
+  if (game.category === "math_skills") {
+    tags.push("#mathskills");
+  }
+
+  if (game.is_multiplayer) {
+    tags.push("#multiplayer");
+  }
+
+  return tags;
+}
+
 export default async function PlayPage({ searchParams }) {
   const supabase = await createClient();
   const {
@@ -52,6 +70,10 @@ export default async function PlayPage({ searchParams }) {
   const activeCourse = joinedCourse || courses[0] || null;
   const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null);
   const visibleGames = games.filter((game) => game.enabled);
+  const arcadeGames = visibleGames.filter(
+    (game) => game.category === "arcade" || game.slug === "connect4"
+  );
+  const mathSkillsGames = visibleGames.filter((game) => game.category === "math_skills");
 
   return (
     <div className="stack">
@@ -147,44 +169,94 @@ export default async function PlayPage({ searchParams }) {
         {activeCourse && visibleGames.length === 0 ? (
           <p style={{ marginTop: "0.75rem" }}>No games are enabled for this class yet.</p>
         ) : null}
-        <div className="featureGrid">
-          {visibleGames.map((game) => {
-            const stats = statsByGame.get(game.slug);
-            return (
-              <article key={game.slug} className="card" style={{ background: "#fff" }}>
-                <h3>{game.name}</h3>
-                <p>{game.description}</p>
-                <p style={{ marginTop: "0.6rem", opacity: 0.75 }}>
-                  {game.category.replaceAll("_", " ")}{game.is_multiplayer ? " · Multiplayer" : ""}
-                </p>
-                {stats ? (
-                  <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                    <div>
-                      <span>Games Played</span>
-                      <strong>{stats.sessions_played}</strong>
+        <div className="arcadeColumns">
+          <div className="arcadeColumn">
+            <div className="arcadeColumnHeader">
+              <h3>#arcade</h3>
+              <p>Arcade-style games and head-to-head play.</p>
+            </div>
+            <div className="arcadeGameList">
+              {arcadeGames.map((game) => {
+                const stats = statsByGame.get(game.slug);
+                return (
+                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                    <h3>{game.name}</h3>
+                    <p>{game.description}</p>
+                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
+                    {stats ? (
+                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                        <div>
+                          <span>Games Played</span>
+                          <strong>{stats.sessions_played}</strong>
+                        </div>
+                        <div>
+                          <span>Average</span>
+                          <strong>{Math.round(Number(stats.average_score || 0) * 10) / 10}</strong>
+                        </div>
+                        <div>
+                          <span>Last 10 Avg</span>
+                          <strong>{Math.round(Number(stats.last_10_average || 0) * 10) / 10}</strong>
+                        </div>
+                        <div>
+                          <span>Best</span>
+                          <strong>{stats.best_score}</strong>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="ctaRow">
+                      <Link className="btn primary" href={gameHref(game.slug)}>
+                        Play {game.name}
+                      </Link>
                     </div>
-                    <div>
-                      <span>Average</span>
-                      <strong>{Math.round(Number(stats.average_score || 0) * 10) / 10}</strong>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="arcadeColumn">
+            <div className="arcadeColumnHeader">
+              <h3>#mathskills</h3>
+              <p>Quick skill practice and fluency-building games.</p>
+            </div>
+            <div className="arcadeGameList">
+              {mathSkillsGames.map((game) => {
+                const stats = statsByGame.get(game.slug);
+                return (
+                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                    <h3>{game.name}</h3>
+                    <p>{game.description}</p>
+                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
+                    {stats ? (
+                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                        <div>
+                          <span>Games Played</span>
+                          <strong>{stats.sessions_played}</strong>
+                        </div>
+                        <div>
+                          <span>Average</span>
+                          <strong>{Math.round(Number(stats.average_score || 0) * 10) / 10}</strong>
+                        </div>
+                        <div>
+                          <span>Last 10 Avg</span>
+                          <strong>{Math.round(Number(stats.last_10_average || 0) * 10) / 10}</strong>
+                        </div>
+                        <div>
+                          <span>Best</span>
+                          <strong>{stats.best_score}</strong>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="ctaRow">
+                      <Link className="btn primary" href={gameHref(game.slug)}>
+                        Play {game.name}
+                      </Link>
                     </div>
-                    <div>
-                      <span>Last 10 Avg</span>
-                      <strong>{Math.round(Number(stats.last_10_average || 0) * 10) / 10}</strong>
-                    </div>
-                    <div>
-                      <span>Best</span>
-                      <strong>{stats.best_score}</strong>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="ctaRow">
-                  <Link className="btn primary" href={gameHref(game.slug)}>
-                    Play {game.name}
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
     </div>

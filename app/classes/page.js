@@ -24,6 +24,59 @@ function getBestDisplayName(profile, metadata, email, fallback = "-") {
   );
 }
 
+function formatJoinCodeNotice(status) {
+  if (status === "1") return "Class join code updated.";
+  if (status === "course-not-found") return "That class could not be found for join-code updates.";
+  if (status === "missing-column")
+    return "Join codes are not enabled in Supabase yet. Run the student-games SQL migration, then try again.";
+  if (status === "save-failed") return "Could not save a new class join code. Please try again.";
+  if (status === "duplicate-retry-failed")
+    return "Could not find a unique class join code after several tries. Please try again.";
+  return "";
+}
+
+function formatCoTeacherNotice(status) {
+  if (status === "added") return "Co-teacher added.";
+  if (status === "removed") return "Co-teacher removed.";
+  if (status === "missing-data") return "Choose a class and teacher before updating co-teachers.";
+  if (status === "course-not-found") return "That class could not be found for co-teacher updates.";
+  if (status === "cannot-add-yourself") return "You are already the owner of this class.";
+  if (status === "lookup-failed") return "Could not look up that teacher account right now.";
+  if (status === "user-not-found") return "That teacher account could not be found.";
+  if (status === "students-cannot-be-co-teachers") return "Student accounts cannot be added as co-teachers.";
+  if (status === "save-failed") return "Could not add that co-teacher. Please try again.";
+  if (status === "remove-failed") return "Could not remove that co-teacher. Please try again.";
+  if (status === "cannot-remove-owner") return "The class owner cannot be removed from the class.";
+  return "";
+}
+
+function formatGameControlNotice(status, gameSlug) {
+  const gameLabel = gameSlug
+    ? {
+        "2048": "2048",
+        connect4: "Connect4",
+        integer_practice: "Adding & Subtracting Integers",
+        number_compare: "Which Number Is Bigger?",
+      }[gameSlug] || gameSlug
+    : "that game";
+
+  if (status === "enabled") return `${gameLabel} is now enabled for this class.`;
+  if (status === "disabled") return `${gameLabel} is now hidden for this class.`;
+  if (status === "missing-data") return "Missing class or game information for that update.";
+  if (status === "course-not-found") return "That class could not be found for game-control updates.";
+  if (status === "unknown-game") return "That game could not be found.";
+  if (status === "save-failed") return `Could not update ${gameLabel} for this class. Please try again.`;
+  return "";
+}
+
+function getGameSupportCopy(game) {
+  if (game.slug === "connect4") return "Students can open multiplayer matches from the Student Arcade.";
+  if (game.slug === "2048") return "Students can practice solo strategy and build high scores.";
+  if (game.slug === "integer_practice") return "Students practice integer addition and subtraction with quick rounds.";
+  if (game.slug === "number_compare") return "Students compare values quickly and build number sense.";
+  return game.description || "Students can launch this game from the Student Arcade when it is enabled.";
+}
+
 export default async function ClassesPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const supabase = await createClient();
@@ -165,11 +218,36 @@ export default async function ClassesPage({ searchParams }) {
       </section>
 
       <section className="card">
-        {qs.coTeacher === "added" ? <p>Co-teacher added.</p> : null}
-        {qs.coTeacher === "removed" ? <p>Co-teacher removed.</p> : null}
-        {qs.coTeacherError ? <p>Co-teacher tools hit a snag: {decodeURIComponent(qs.coTeacherError)}</p> : null}
-        {qs.gameControl === "updated" ? <p>Game controls updated.</p> : null}
-        {qs.gameControlError ? <p>Game controls hit a snag: {decodeURIComponent(qs.gameControlError)}</p> : null}
+        {qs.joinCodeUpdated === "1" ? (
+          <div className="card noticeSuccess">
+            <p>{formatJoinCodeNotice("1")}</p>
+          </div>
+        ) : null}
+        {qs.joinCodeError ? (
+          <div className="card noticeError">
+            <p>{formatJoinCodeNotice(String(qs.joinCodeError))}</p>
+          </div>
+        ) : null}
+        {qs.coTeacher ? (
+          <div className="card noticeSuccess">
+            <p>{formatCoTeacherNotice(String(qs.coTeacher))}</p>
+          </div>
+        ) : null}
+        {qs.coTeacherError ? (
+          <div className="card noticeError">
+            <p>{formatCoTeacherNotice(String(qs.coTeacherError))}</p>
+          </div>
+        ) : null}
+        {qs.gameControl ? (
+          <div className="card noticeSuccess">
+            <p>{formatGameControlNotice(String(qs.gameControl), String(qs.gameSlug || ""))}</p>
+          </div>
+        ) : null}
+        {qs.gameControlError ? (
+          <div className="card noticeError">
+            <p>{formatGameControlNotice(String(qs.gameControlError), String(qs.gameSlug || ""))}</p>
+          </div>
+        ) : null}
         {error ? <p>Could not load classes: {error.message}</p> : null}
 
         {!error && (!courses || courses.length === 0) ? (
@@ -219,6 +297,7 @@ export default async function ClassesPage({ searchParams }) {
                             <form action={removeCoTeacherAction}>
                               <input type="hidden" name="course_id" value={course.id} />
                               <input type="hidden" name="profile_id" value={teacher.profileId} />
+                              <input type="hidden" name="return_to" value="classes" />
                               <button className="btn ghost" type="submit">
                                 Remove Co-Teacher
                               </button>
@@ -231,6 +310,7 @@ export default async function ClassesPage({ searchParams }) {
                     )}
                     <form action={addCoTeacherAction} className="classCoTeacherForm">
                       <input type="hidden" name="course_id" value={course.id} />
+                      <input type="hidden" name="return_to" value="classes" />
                       <select className="input" name="profile_id" defaultValue="" disabled={availableCoTeachers.length === 0}>
                         <option value="" disabled>
                           {availableCoTeachers.length > 0 ? "Add a co-teacher" : "No more teachers available"}
@@ -250,22 +330,32 @@ export default async function ClassesPage({ searchParams }) {
                 ) : null}
                 <div className="classGameControlsBlock">
                   <p className="classCoTeacherHeading">Game Controls</p>
+                  <p className="classGameControlsIntro">
+                    Enabled games appear in the Student Arcade for this class. Hidden games stay out of students&apos; class-linked game list.
+                  </p>
                   <div className="classGameControlsList">
                     {courseGames.map((game) => (
                       <form
                         key={`${course.id}:${game.slug}`}
                         action={updateCourseGameSettingAction}
-                        className="classGameControlItem"
-                      >
-                        <input type="hidden" name="course_id" value={course.id} />
-                        <input type="hidden" name="game_slug" value={game.slug} />
-                        <input type="hidden" name="enabled" value={String(!game.enabled)} />
-                        <div>
-                          <strong>{game.name}</strong>
-                          <span>{game.enabled ? "Enabled for this class" : "Hidden from this class"}</span>
+                        className={`classGameControlItem ${game.enabled ? "isEnabled" : "isHidden"}`}
+                        >
+                          <input type="hidden" name="course_id" value={course.id} />
+                          <input type="hidden" name="game_slug" value={game.slug} />
+                          <input type="hidden" name="enabled" value={String(!game.enabled)} />
+                          <input type="hidden" name="return_to" value="classes" />
+                          <div className="classGameControlCopy">
+                          <div className="classGameControlTopline">
+                            <strong>{game.name}</strong>
+                            <span className={`pill classGameStatusPill ${game.enabled ? "isEnabled" : "isHidden"}`}>
+                              {game.enabled ? "Live for students" : "Hidden from students"}
+                            </span>
+                          </div>
+                          <span>{game.enabled ? "Students in this class can launch it now." : "Students will not see this in their class game list."}</span>
+                          <p>{getGameSupportCopy(game)}</p>
                         </div>
                         <button className={`btn ${game.enabled ? "ghost" : "primary"}`} type="submit">
-                          {game.enabled ? "Disable" : "Enable"}
+                          {game.enabled ? "Hide Game" : "Show Game"}
                         </button>
                       </form>
                     ))}
@@ -281,6 +371,7 @@ export default async function ClassesPage({ searchParams }) {
                   {course.student_join_code ? (
                     <form action={regenerateStudentJoinCodeAction}>
                       <input type="hidden" name="course_id" value={course.id} />
+                      <input type="hidden" name="return_to" value="classes" />
                       <button className="btn" type="submit">
                         New Join Code
                       </button>

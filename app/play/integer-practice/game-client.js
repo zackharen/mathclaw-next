@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function randomInt(max) {
   return Math.floor(Math.random() * max);
@@ -47,6 +47,16 @@ export default function IntegerPracticeClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const sessionRef = useRef({
+    score: 0,
+    attempts: 0,
+    level: 1,
+    streak: 0,
+    courseId: initialCourseId || "",
+    twoDigit: false,
+    multipleChoice: true,
+    choiceCount: 4,
+  });
 
   const options = useMemo(
     () => (multipleChoice ? choices(problem.answer, choiceCount) : []),
@@ -92,21 +102,27 @@ export default function IntegerPracticeClient({
     loadLeaderboard(courseId);
   }, [courseId, initialCourseId, initialLeaderboard, loadLeaderboard]);
 
-  async function saveAttempt(correct, nextLevel, nextStreak) {
+  const saveSession = useCallback(async (sessionSnapshot, options = {}) => {
+    if (!sessionSnapshot || sessionSnapshot.attempts <= 0) {
+      return null;
+    }
+
     const response = await fetch("/api/play/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      keepalive: options.keepalive === true,
       body: JSON.stringify({
         gameSlug: "integer_practice",
-        score: score + (correct ? 1 : 0),
-        result: correct ? "correct" : "incorrect",
-        courseId: courseId || null,
+        score: sessionSnapshot.score,
+        result: sessionSnapshot.score > 0 ? "correct" : "incorrect",
+        courseId: sessionSnapshot.courseId || null,
         metadata: {
-          skillRating: nextLevel,
-          streak: nextStreak,
-          twoDigit,
-          multipleChoice,
-          choiceCount,
+          skillRating: sessionSnapshot.level,
+          streak: sessionSnapshot.streak,
+          attempts: sessionSnapshot.attempts,
+          twoDigit: sessionSnapshot.twoDigit,
+          multipleChoice: sessionSnapshot.multipleChoice,
+          choiceCount: sessionSnapshot.choiceCount,
         },
       }),
     });
@@ -114,11 +130,73 @@ export default function IntegerPracticeClient({
     if (!response.ok) {
       throw new Error(payload.error || "Could not save score.");
     }
-    setSavedStats((current) => ({
-      ...current,
-      ...payload.stats,
-    }));
-    await loadLeaderboard(courseId);
+    if (payload.stats) {
+      setSavedStats((current) => ({
+        ...current,
+        ...payload.stats,
+      }));
+    }
+    if (!options.keepalive) {
+      await loadLeaderboard(sessionSnapshot.courseId || "");
+    }
+    return payload.stats || null;
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    sessionRef.current = {
+      ...sessionRef.current,
+      score,
+      level,
+      streak,
+      courseId,
+      twoDigit,
+      multipleChoice,
+      choiceCount,
+    };
+  }, [choiceCount, courseId, level, multipleChoice, score, streak, twoDigit]);
+
+  useEffect(() => {
+    function handlePageHide() {
+      const snapshot = { ...sessionRef.current };
+      if (snapshot.attempts <= 0) return;
+      saveSession(snapshot, { keepalive: true }).catch(() => {});
+      sessionRef.current = {
+        ...sessionRef.current,
+        score: 0,
+        attempts: 0,
+        streak: 0,
+      };
+    }
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [saveSession]);
+
+  async function handleCourseChange(nextCourseId) {
+    const previousSnapshot = { ...sessionRef.current };
+    if (previousSnapshot.attempts > 0) {
+      try {
+        await saveSession(previousSnapshot);
+      } catch (error) {
+        setFeedback(error.message || "Could not save score.");
+        return;
+      }
+    }
+
+    sessionRef.current = {
+      ...sessionRef.current,
+      score: 0,
+      attempts: 0,
+      level: 1,
+      streak: 0,
+      courseId: nextCourseId,
+    };
+    setScore(0);
+    setLevel(1);
+    setStreak(0);
+    setFeedback("");
+    setCourseId(nextCourseId);
+    setProblem(makeProblem(1, twoDigit));
   }
 
   async function submitAnswer(value) {
@@ -133,11 +211,17 @@ export default function IntegerPracticeClient({
     setProblem(makeProblem(nextLevel, twoDigit));
     setAnswerText("");
 
-    try {
-      await saveAttempt(correct, nextLevel, nextStreak);
-    } catch (error) {
-      setFeedback(error.message || "Could not save score.");
-    }
+    sessionRef.current = {
+      ...sessionRef.current,
+      score: score + (correct ? 1 : 0),
+      attempts: sessionRef.current.attempts + 1,
+      level: nextLevel,
+      streak: nextStreak,
+      courseId,
+      twoDigit,
+      multipleChoice,
+      choiceCount,
+    };
   }
 
   function handleTwoDigitChange(checked) {
@@ -163,7 +247,7 @@ export default function IntegerPracticeClient({
           ) : null}
           <label>
             Class context
-            <select className="input" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+            <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
               <option value="">No class selected</option>
               {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
             </select>

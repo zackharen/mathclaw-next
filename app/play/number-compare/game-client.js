@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function roundTo(value, places) {
   const factor = 10 ** places;
@@ -85,6 +85,18 @@ export default function NumberCompareClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const sessionRef = useRef({
+    score: 0,
+    attempts: 0,
+    level: 1,
+    courseId: initialCourseId || "",
+    settings: {
+      decimals: [1, 2],
+      positiveNegative: true,
+      fractions: true,
+      squareRoots: false,
+    },
+  });
 
   const loadLeaderboard = useCallback(
     async (nextCourseId) => {
@@ -125,6 +137,96 @@ export default function NumberCompareClient({
     loadLeaderboard(courseId);
   }, [courseId, initialCourseId, initialLeaderboard, loadLeaderboard]);
 
+  const saveSession = useCallback(async (sessionSnapshot, options = {}) => {
+    if (!sessionSnapshot || sessionSnapshot.attempts <= 0) {
+      return null;
+    }
+
+    const response = await fetch("/api/play/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: options.keepalive === true,
+      body: JSON.stringify({
+        gameSlug: "number_compare",
+        score: sessionSnapshot.score,
+        result: sessionSnapshot.score > 0 ? "correct" : "incorrect",
+        courseId: sessionSnapshot.courseId || null,
+        metadata: {
+          skillRating: sessionSnapshot.level,
+          attempts: sessionSnapshot.attempts,
+          settings: sessionSnapshot.settings,
+        },
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not save score.");
+    }
+    if (payload.stats) {
+      setSavedStats((current) => ({
+        ...current,
+        ...payload.stats,
+      }));
+    }
+    if (!options.keepalive) {
+      await loadLeaderboard(sessionSnapshot.courseId || "");
+    }
+    return payload.stats || null;
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    sessionRef.current = {
+      ...sessionRef.current,
+      score,
+      attempts: sessionRef.current.attempts,
+      level,
+      courseId,
+      settings,
+    };
+  }, [courseId, level, score, settings]);
+
+  useEffect(() => {
+    function handlePageHide() {
+      const snapshot = { ...sessionRef.current };
+      if (snapshot.attempts <= 0) return;
+      saveSession(snapshot, { keepalive: true }).catch(() => {});
+      sessionRef.current = {
+        ...sessionRef.current,
+        score: 0,
+        attempts: 0,
+      };
+    }
+
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [saveSession]);
+
+  async function handleCourseChange(nextCourseId) {
+    const previousSnapshot = { ...sessionRef.current };
+    if (previousSnapshot.attempts > 0) {
+      try {
+        await saveSession(previousSnapshot);
+      } catch (error) {
+        setFeedback(error.message || "Could not save score.");
+        return;
+      }
+    }
+
+    sessionRef.current = {
+      ...sessionRef.current,
+      score: 0,
+      attempts: 0,
+      level: 1,
+      courseId: nextCourseId,
+      settings,
+    };
+    setScore(0);
+    setLevel(1);
+    setFeedback("");
+    setCourseId(nextCourseId);
+    setPair([buildNumber(settings), buildNumber(settings)]);
+  }
+
   function toggleDecimal(place) {
     setSettings((current) => {
       const decimals = current.decimals.includes(place)
@@ -143,31 +245,15 @@ export default function NumberCompareClient({
     setLevel(nextLevel);
     setFeedback(correct ? "Nice!" : "Try the next one.");
 
-    try {
-      const response = await fetch("/api/play/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gameSlug: "number_compare",
-          score: correct ? 1 : 0,
-          result: correct ? "correct" : "incorrect",
-          courseId: courseId || null,
-          metadata: { skillRating: nextLevel, settings },
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not save score.");
-      }
-      setSavedStats((current) => ({
-        ...current,
-        ...payload.stats,
-      }));
-      await loadLeaderboard(courseId);
-      setPair([buildNumber(settings), buildNumber(settings)]);
-    } catch (error) {
-      setFeedback(error.message || "Could not save score.");
-    }
+    sessionRef.current = {
+      ...sessionRef.current,
+      score: score + (correct ? 1 : 0),
+      attempts: sessionRef.current.attempts + 1,
+      level: nextLevel,
+      courseId,
+      settings,
+    };
+    setPair([buildNumber(settings), buildNumber(settings)]);
   }
 
   return (
@@ -192,7 +278,7 @@ export default function NumberCompareClient({
           <label className="toggleRow"><input type="checkbox" checked={settings.squareRoots} onChange={(e) => setSettings((current) => ({ ...current, squareRoots: e.target.checked }))} /> Square roots</label>
           <label>
             Class context
-            <select className="input" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+            <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
               <option value="">No class selected</option>
               {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
             </select>

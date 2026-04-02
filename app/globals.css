@@ -259,6 +259,12 @@ p {
   gap: 0.7rem;
 }
 
+.classGameControlsIntro {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #4f6476;
+}
+
 .bugReportForm {
   display: grid;
   gap: 0.9rem;
@@ -290,17 +296,74 @@ p {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.7rem 0.8rem;
+  padding: 0.85rem 0.9rem;
   border: 1px solid #93a5b4;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #fff;
+}
+
+.classGameControlItem.isEnabled {
+  border-color: #7aa2c1;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f9fd 100%);
+}
+
+.classGameControlItem.isHidden {
+  border-color: #b5c1cb;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f8f9 100%);
+}
+
+.classGameControlCopy {
+  display: grid;
+  gap: 0.28rem;
+  flex: 1 1 auto;
+}
+
+.classGameControlTopline {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .classGameControlItem span {
   display: block;
   opacity: 0.8;
   font-size: 0.92rem;
-  margin-top: 0.2rem;
+}
+
+.classGameControlCopy p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #577084;
+}
+
+.classGameStatusPill {
+  padding: 0.22rem 0.62rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+.classGameStatusPill.isEnabled {
+  border-color: #7aa2c1;
+  background: #eef6fb;
+  color: #1d4f76;
+}
+
+.classGameStatusPill.isHidden {
+  border-color: #c0c8cf;
+  background: #f2f4f6;
+  color: #586977;
+}
+
+@media (max-width: 760px) {
+  .classGameControlItem {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .classGameControlItem .btn {
+    width: 100%;
+  }
 }
 
 
@@ -370,6 +433,54 @@ p {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.arcadeColumns {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.arcadeColumn {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+}
+
+.arcadeColumnHeader {
+  padding: 0.15rem 0;
+}
+
+.arcadeColumnHeader h3 {
+  margin-bottom: 0.25rem;
+}
+
+.arcadeColumnHeader p {
+  margin: 0;
+  color: #4e6679;
+}
+
+.arcadeGameList {
+  display: grid;
+  gap: 1rem;
+}
+
+.arcadeGameCard {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.arcadeGameTags {
+  margin-top: 0.35rem;
+  color: #55718b;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .arcadeColumns {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ctaRow {
