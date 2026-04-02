@@ -515,9 +515,11 @@ export async function bulkAccountAction(formData) {
     .map((value) => String(value || "").trim())
     .filter(Boolean);
   const actionType = String(formData.get("bulk_action") || "").trim();
-  const selectedSchoolName = String(formData.get("bulk_school_name") || "").trim();
+  const rawSelectedSchoolName = String(formData.get("bulk_school_name") || "").trim();
   const newSchoolName = String(formData.get("bulk_new_school_name") || "").trim();
-  const schoolName = newSchoolName || selectedSchoolName;
+  const shouldClearSchool = rawSelectedSchoolName === "__clear__";
+  const selectedSchoolName = shouldClearSchool ? "" : rawSelectedSchoolName;
+  const schoolName = shouldClearSchool ? "" : newSchoolName || selectedSchoolName;
   const courseId = String(formData.get("bulk_course_id") || "").trim();
 
   if (selectedUserIds.length === 0) {
@@ -528,8 +530,8 @@ export async function bulkAccountAction(formData) {
     redirect("/admin?error=Choose a bulk action first.");
   }
 
-  if (actionType === "school" && !schoolName) {
-    redirect("/admin?error=Choose or type a school for the selected accounts.");
+  if (actionType === "school" && !schoolName && !shouldClearSchool) {
+    redirect("/admin?error=Choose, type, or clear a school for the selected accounts.");
   }
 
   if (actionType === "class" && !courseId) {

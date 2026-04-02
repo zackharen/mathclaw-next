@@ -165,6 +165,7 @@ function summarizeAccountClasses(item) {
   const primaryOwnedClass = item.ownedClasses[0];
   const primaryAssignedClass = item.assignedClasses[0];
   const totalClasses = item.ownedClassCount + item.joinedClassCount;
+  const schoolLabel = item.schoolName && item.schoolName !== "-" ? item.schoolName : "No school";
 
   if (primaryOwnedClass) {
     const extraCount = item.ownedClassCount - 1;
@@ -174,6 +175,7 @@ function summarizeAccountClasses(item) {
         extraCount > 0
           ? `Owns ${item.ownedClassCount} classes total`
           : "Owns this class",
+      school: schoolLabel,
     };
   }
 
@@ -185,6 +187,7 @@ function summarizeAccountClasses(item) {
         extraCount > 0
           ? `In ${item.joinedClassCount} classes total`
           : `Joined with ${primaryAssignedClass.teacherName}`,
+      school: schoolLabel,
     };
   }
 
@@ -194,6 +197,7 @@ function summarizeAccountClasses(item) {
       totalClasses > 0
         ? `${totalClasses} class relationships found`
         : "No class ownership or enrollment",
+    school: schoolLabel,
   };
 }
 
@@ -673,6 +677,7 @@ export default async function AdminPage({ searchParams }) {
                   <span>Existing school</span>
                   <select className="input" name="bulk_school_name" defaultValue="">
                     <option value="">No school selected</option>
+                    <option value="__clear__">Clear school</option>
                     {schoolOptions.map((schoolName) => (
                       <option key={schoolName} value={schoolName}>
                         {schoolName}
@@ -705,7 +710,7 @@ export default async function AdminPage({ searchParams }) {
                 </div>
               </div>
               <p className="adminBulkHelp">
-                Check the boxes next to the accounts you want, then choose one bulk action here. For school updates, a typed new school overrides the existing-school dropdown.
+                Check the boxes next to the accounts you want, then choose one bulk action here. For school updates, a typed new school overrides the existing-school dropdown, and `Clear school` removes school assignments.
               </p>
             </form>
             <BulkSelectionControls />
@@ -729,7 +734,11 @@ export default async function AdminPage({ searchParams }) {
                         <div>
                           <h3>{item.displayName}</h3>
                           <p className="adminUserSummaryClass">{classSummary.title}</p>
-                          <p className="adminUserSummaryMeta">{classSummary.detail}</p>
+                          <p className="adminUserSummaryMeta">
+                            <span>{classSummary.detail}</span>
+                            <span className="adminSummaryDot">·</span>
+                            <span><strong>School:</strong> {classSummary.school}</span>
+                          </p>
                         </div>
                         <div className="adminBadgeRow">
                           <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
