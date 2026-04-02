@@ -77,7 +77,7 @@ function normalizeRoleFilter(value) {
 }
 
 function normalizeSort(value) {
-  return ["email", "first_name", "last_name", "recent"].includes(value) ? value : "email";
+  return ["email", "first_name", "last_name", "recent"].includes(value) ? value : "last_name";
 }
 
 function normalizeSchoolFilter(value) {
@@ -192,7 +192,7 @@ export default async function AdminPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const searchQuery = String(qs.q || "").trim().toLowerCase();
   const roleFilter = normalizeRoleFilter(String(qs.role || "all"));
-  const sortBy = normalizeSort(String(qs.sort || "email"));
+  const sortBy = normalizeSort(String(qs.sort || "last_name"));
   const schoolFilter = normalizeSchoolFilter(qs.school);
   const adminView = normalizeAdminView(String(qs.view || "accounts"));
   const supabase = await createClient();
@@ -649,6 +649,11 @@ export default async function AdminPage({ searchParams }) {
         {!error && users.length === 0 ? <p>No accounts yet.</p> : null}
         {!error && users.length > 0 ? (
           <div className="adminUserList">
+            <datalist id="admin-school-options">
+              {schoolOptions.map((schoolName) => (
+                <option key={schoolName} value={schoolName} />
+              ))}
+            </datalist>
             {users.map((item) => {
               const classSummary = summarizeAccountClasses(item);
 
@@ -709,8 +714,9 @@ export default async function AdminPage({ searchParams }) {
                             className="input"
                             type="text"
                             name="school_name"
+                            list="admin-school-options"
                             defaultValue={item.schoolName === "-" ? "" : item.schoolName}
-                            placeholder="Attach to a school"
+                            placeholder="Choose existing or type a new school"
                           />
                         </label>
                         <div className="ctaRow adminInlineEditorRow adminSingleAction">
