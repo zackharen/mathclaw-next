@@ -1760,16 +1760,14 @@ details[open] > summary.btn,
   position: absolute;
   left: 50%;
   top: 50%;
-  display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
-  margin-left: -0.875rem;
-  margin-top: -0.875rem;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  font-size: 1.25rem;
-  color: #4c6f94;
+  display: block;
+  width: 0.2rem;
+  height: 1rem;
+  margin-left: -0.1rem;
+  margin-top: -0.5rem;
+  border-radius: 999px;
+  background: #4c6f94;
+  transform-origin: center 5.2rem;
 }
 
 .timeClockHand {

@@ -54,6 +54,20 @@ function buildChoices(question, count = 4) {
   return [...choices].sort(() => Math.random() - 0.5);
 }
 
+function randomClockSetting(excludeLabel = "") {
+  let label = excludeLabel;
+  let hour = HOUR_OPTIONS[0];
+  let minute = MINUTE_OPTIONS[0];
+
+  while (label === excludeLabel) {
+    hour = HOUR_OPTIONS[Math.floor(Math.random() * HOUR_OPTIONS.length)];
+    minute = MINUTE_OPTIONS[Math.floor(Math.random() * MINUTE_OPTIONS.length)];
+    label = formatTimeLabel(hour, minute);
+  }
+
+  return { hour, minute };
+}
+
 function ClockFace({ hour, minute, label, faceStyle = "numbers" }) {
   const minuteRotation = minute * 6;
   const hourRotation = ((hour % 12) + minute / 60) * 30;
@@ -67,10 +81,13 @@ function ClockFace({ hour, minute, label, faceStyle = "numbers" }) {
             key={index}
             className={faceStyle === "ticks" ? "timeClockTick" : "timeClockNumber"}
             style={{
-              transform: `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
+              transform:
+                faceStyle === "ticks"
+                  ? `rotate(${index * 30}deg) translateY(-5.2rem)`
+                  : `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
             }}
           >
-            {faceStyle === "ticks" ? "–" : markers[index]}
+            {faceStyle === "ticks" ? "" : markers[index]}
           </span>
         ))}
         <div className="timeClockHand hourHand" style={{ transform: `rotate(${hourRotation}deg)` }} />
@@ -96,8 +113,12 @@ export default function TellingTimeClient({
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [question, setQuestion] = useState(() => buildQuestion("mixed", "multiple_choice"));
-  const [selectedHour, setSelectedHour] = useState(question.hour);
-  const [selectedMinute, setSelectedMinute] = useState(question.minute);
+  const initialSetting = useMemo(
+    () => (question.mode === "set" ? randomClockSetting(question.label) : { hour: question.hour, minute: question.minute }),
+    [question]
+  );
+  const [selectedHour, setSelectedHour] = useState(initialSetting.hour);
+  const [selectedMinute, setSelectedMinute] = useState(initialSetting.minute);
   const [readAnswerHour, setReadAnswerHour] = useState(question.hour);
   const [readAnswerMinute, setReadAnswerMinute] = useState(question.minute || READ_FILL_MINUTE_OPTIONS[0]);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
@@ -212,9 +233,13 @@ export default function TellingTimeClient({
   function resetRun(nextMode = mode, nextCourseId = courseId, nextReadAnswerMode = readAnswerMode) {
     savedRunRef.current = false;
     const nextQuestion = buildQuestion(nextMode, nextReadAnswerMode);
+    const nextSetting =
+      nextQuestion.mode === "set"
+        ? randomClockSetting(nextQuestion.label)
+        : { hour: nextQuestion.hour, minute: nextQuestion.minute };
     setQuestion(nextQuestion);
-    setSelectedHour(nextQuestion.hour);
-    setSelectedMinute(nextQuestion.minute);
+    setSelectedHour(nextSetting.hour);
+    setSelectedMinute(nextSetting.minute);
     setReadAnswerHour(nextQuestion.hour);
     setReadAnswerMinute(nextQuestion.minute || READ_FILL_MINUTE_OPTIONS[0]);
     setRoundIndex(1);
@@ -283,9 +308,13 @@ export default function TellingTimeClient({
     }
 
     const nextQuestion = buildQuestion(nextMode, readAnswerMode);
+    const nextSetting =
+      nextQuestion.mode === "set"
+        ? randomClockSetting(nextQuestion.label)
+        : { hour: nextQuestion.hour, minute: nextQuestion.minute };
     setQuestion(nextQuestion);
-    setSelectedHour(nextQuestion.hour);
-    setSelectedMinute(nextQuestion.minute);
+    setSelectedHour(nextSetting.hour);
+    setSelectedMinute(nextSetting.minute);
     setReadAnswerHour(nextQuestion.hour);
     setReadAnswerMinute(nextQuestion.minute || READ_FILL_MINUTE_OPTIONS[0]);
     setRoundIndex(nextAttempts + 1);
