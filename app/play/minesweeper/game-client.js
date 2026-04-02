@@ -136,6 +136,7 @@ export default function MinesweeperClient({
   const [runState, setRunState] = useState("active");
   const [mode, setMode] = useState("reveal");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [moveCount, setMoveCount] = useState(0);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -259,7 +260,7 @@ export default function MinesweeperClient({
   );
 
   useEffect(() => {
-    if (runState !== "active" || sessionRef.current.moves <= 0) {
+    if (runState !== "active" || moveCount <= 0) {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
         timerRef.current = null;
@@ -284,7 +285,7 @@ export default function MinesweeperClient({
         timerRef.current = null;
       }
     };
-  }, [runState]);
+  }, [moveCount, runState]);
 
   useEffect(() => {
     function handlePageHide() {
@@ -320,6 +321,7 @@ export default function MinesweeperClient({
     setBoard(buildBoard());
     setRunState("active");
     setElapsedSeconds(0);
+    setMoveCount(0);
     setMode("reveal");
     setStatus("Fresh board ready. Reveal every safe square and flag the mines.");
     sessionRef.current = {
@@ -350,6 +352,7 @@ export default function MinesweeperClient({
     setBoard(buildBoard());
     setRunState("active");
     setElapsedSeconds(0);
+    setMoveCount(0);
     setStatus("Class updated. Start a fresh board.");
     sessionRef.current = {
       courseId: nextCourseId,
@@ -403,6 +406,7 @@ export default function MinesweeperClient({
       elapsedSeconds,
       result: "active",
     };
+    setMoveCount(sessionRef.current.moves);
 
     setBoard(nextBoard);
     setStatus(result.revealedCount > 1 ? "Nice clear." : "Safe move.");
@@ -428,6 +432,7 @@ export default function MinesweeperClient({
       elapsedSeconds,
       result: "active",
     };
+    setMoveCount(sessionRef.current.moves);
 
     setBoard(nextBoard);
     setStatus(cell.flagged ? "Flag placed." : "Flag removed.");
