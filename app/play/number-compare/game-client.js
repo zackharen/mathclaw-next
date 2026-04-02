@@ -227,6 +227,31 @@ export default function NumberCompareClient({
     setPair([buildNumber(settings), buildNumber(settings)]);
   }
 
+  async function startNewRun() {
+    const previousSnapshot = { ...sessionRef.current };
+    if (previousSnapshot.attempts > 0) {
+      try {
+        await saveSession({ ...previousSnapshot, result: "reset" });
+      } catch (error) {
+        setFeedback(error.message || "Could not save that run.");
+        return;
+      }
+    }
+
+    sessionRef.current = {
+      ...sessionRef.current,
+      score: 0,
+      attempts: 0,
+      level: 1,
+      courseId,
+      settings,
+    };
+    setScore(0);
+    setLevel(1);
+    setFeedback("");
+    setPair([buildNumber(settings), buildNumber(settings)]);
+  }
+
   function toggleDecimal(place) {
     setSettings((current) => {
       const decimals = current.decimals.includes(place)
@@ -283,6 +308,9 @@ export default function NumberCompareClient({
               {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
             </select>
           </label>
+          <button className="btn primary" type="button" onClick={startNewRun}>
+            Start New Run
+          </button>
         </div>
       </section>
       <section className="card" style={{ background: "#fff" }}>
@@ -291,6 +319,9 @@ export default function NumberCompareClient({
           <span className="pill">Score: {score}</span>
           <span className="pill">Level: {level}</span>
         </div>
+        <p style={{ marginTop: "0.75rem" }}>
+          Tap the larger value. If both values are exactly equal, either button counts as correct.
+        </p>
         <div className="choiceGrid" style={{ marginTop: "1rem" }}>
           {pair.map((entry, index) => (
             <button key={`${entry.label}-${index}`} className="btn bigChoice" type="button" onClick={() => answer(index)}>

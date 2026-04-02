@@ -56,7 +56,10 @@ function formatGameControlNotice(status, gameSlug) {
         "2048": "2048",
         connect4: "Connect4",
         integer_practice: "Adding & Subtracting Integers",
+        money_counting: "Money Counting",
+        minesweeper: "Minesweeper",
         number_compare: "Which Number Is Bigger?",
+        telling_time: "Telling Time",
       }[gameSlug] || gameSlug
     : "that game";
 
@@ -73,7 +76,10 @@ function getGameSupportCopy(game) {
   if (game.slug === "connect4") return "Students can open multiplayer matches from the Student Arcade.";
   if (game.slug === "2048") return "Students can practice solo strategy and build high scores.";
   if (game.slug === "integer_practice") return "Students practice integer addition and subtraction with quick rounds.";
+  if (game.slug === "money_counting") return "Students count money and build target amounts with coins and dollars.";
+  if (game.slug === "minesweeper") return "Students clear safe squares, flag mines, and race the clock.";
   if (game.slug === "number_compare") return "Students compare values quickly and build number sense.";
+  if (game.slug === "telling_time") return "Students read clocks and set times to the nearest five minutes.";
   return game.description || "Students can launch this game from the Student Arcade when it is enabled.";
 }
 

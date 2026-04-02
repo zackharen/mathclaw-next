@@ -220,6 +220,21 @@ export default function Game2048Client({
     [saveSession]
   );
 
+  async function handleCourseChange(nextCourseId) {
+    if (nextCourseId === courseId) return;
+    if (scoreRef.current > 0) {
+      await saveSession(scoreRef.current, boardRef.current, "switched_class");
+    }
+    setCourseId(nextCourseId);
+    setBoard(freshBoard());
+    setScore(0);
+    setIsWon(false);
+    setIsGameOver(false);
+    setShowOverlay(false);
+    savedResultsRef.current.clear();
+    setStatus(nextCourseId ? "Class updated. Start a fresh board." : "Leaderboard cleared. Start a fresh board.");
+  }
+
   const applyMove = useCallback(
     (direction) => {
       if (isGameOver) return;
@@ -317,7 +332,7 @@ export default function Game2048Client({
             className="input"
             style={{ maxWidth: "18rem" }}
             value={courseId}
-            onChange={(e) => setCourseId(e.target.value)}
+            onChange={(e) => handleCourseChange(e.target.value)}
           >
             <option value="">No class leaderboard</option>
             {courses.map((course) => (
@@ -327,6 +342,10 @@ export default function Game2048Client({
             ))}
           </select>
         </div>
+        <p style={{ marginTop: "0.75rem" }}>
+          Swipe on mobile or use the arrow keys on desktop. Changing the class context
+          starts a fresh board so scores stay tied to the right class.
+        </p>
 
         <div
           className="game2048Wrap"

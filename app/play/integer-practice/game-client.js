@@ -199,6 +199,36 @@ export default function IntegerPracticeClient({
     setProblem(makeProblem(1, twoDigit));
   }
 
+  async function startNewRun() {
+    const previousSnapshot = { ...sessionRef.current };
+    if (previousSnapshot.attempts > 0) {
+      try {
+        await saveSession(previousSnapshot);
+      } catch (error) {
+        setFeedback(error.message || "Could not save score.");
+        return;
+      }
+    }
+
+    sessionRef.current = {
+      ...sessionRef.current,
+      score: 0,
+      attempts: 0,
+      level: 1,
+      streak: 0,
+      courseId,
+      twoDigit,
+      multipleChoice,
+      choiceCount,
+    };
+    setScore(0);
+    setLevel(1);
+    setStreak(0);
+    setFeedback("");
+    setAnswerText("");
+    setProblem(makeProblem(1, twoDigit));
+  }
+
   async function submitAnswer(value) {
     const guess = Number(value);
     const correct = guess === problem.answer;
@@ -252,6 +282,9 @@ export default function IntegerPracticeClient({
               {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
             </select>
           </label>
+          <button className="btn primary" type="button" onClick={startNewRun}>
+            Start New Run
+          </button>
         </div>
       </section>
       <section className="card" style={{ background: "#fff" }}>
@@ -261,6 +294,9 @@ export default function IntegerPracticeClient({
           <span className="pill">Streak: {streak}</span>
           <span className="pill">Level: {level}</span>
         </div>
+        <p style={{ marginTop: "0.75rem" }}>
+          Keep a streak going to raise the level. Start a new run any time if you want a clean scoreboard entry.
+        </p>
         <div className="mathPrompt">
           {problem.a} {problem.op} ({problem.b}) = ?
         </div>

@@ -587,5 +587,9 @@ values
   ('2048', '2048', 'arcade', 'Merge tiles and chase higher scores.', false),
   ('connect4', 'Connect4', 'multiplayer', 'Play head-to-head with an invite code.', true),
   ('integer_practice', 'Adding & Subtracting Integers', 'math_skills', 'Adaptive integer fluency practice.', false),
+  ('money_counting', 'Money Counting', 'math_skills', 'Count money or build the right amount with quick replayable rounds.', false),
+  ('minesweeper', 'Minesweeper', 'arcade', 'Clear the board, flag the mines, and beat the clock.', false),
   ('number_compare', 'Which Number Is Bigger?', 'math_skills', 'Compare decimals, negatives, fractions, and more.', false)
+  ,
+  ('telling_time', 'Telling Time', 'math_skills', 'Read clocks and set times with fast clock-based rounds.', false)
 on conflict (slug) do nothing;

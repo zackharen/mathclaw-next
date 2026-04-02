@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
+import { ensureGameCatalog, GAME_SLUGS } from "@/lib/student-games/catalog";
 
-const ALLOWED_GAMES = new Set(["2048", "integer_practice", "number_compare"]);
+const ALLOWED_GAMES = GAME_SLUGS;
 
 export async function POST(request) {
   const supabase = await createClient();
@@ -38,6 +39,20 @@ export async function POST(request) {
       context: { gameSlug, courseId },
     });
     return NextResponse.json({ error: "Unsupported game" }, { status: 400 });
+  }
+
+  try {
+    await ensureGameCatalog();
+  } catch (catalogError) {
+    await logInternalEvent({
+      eventKey: "game_session_catalog_sync_failed",
+      source: "api.play.session",
+      message: String(catalogError?.message || "Could not sync game catalog."),
+      user,
+      accountType,
+      courseId,
+      context: { gameSlug },
+    });
   }
 
   if (courseId) {

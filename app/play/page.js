@@ -7,7 +7,9 @@ import { joinClassByCodeAction } from "./actions";
 
 function gameHref(slug) {
   if (slug === "integer_practice") return "/play/integer-practice";
+  if (slug === "money_counting") return "/play/money-counting";
   if (slug === "number_compare") return "/play/number-compare";
+  if (slug === "telling_time") return "/play/telling-time";
   return `/play/${slug}`;
 }
 
@@ -70,10 +72,12 @@ export default async function PlayPage({ searchParams }) {
   const activeCourse = joinedCourse || courses[0] || null;
   const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null);
   const visibleGames = games.filter((game) => game.enabled);
-  const arcadeGames = visibleGames.filter(
-    (game) => game.category === "arcade" || game.slug === "connect4"
-  );
-  const mathSkillsGames = visibleGames.filter((game) => game.category === "math_skills");
+  const arcadeGames = visibleGames
+    .filter((game) => game.category === "arcade" || game.slug === "connect4")
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const mathSkillsGames = visibleGames
+    .filter((game) => game.category === "math_skills")
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="stack">

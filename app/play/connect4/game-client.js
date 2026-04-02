@@ -131,6 +131,10 @@ export default function Connect4Client({ courses, userId }) {
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
         <h2>Lobby</h2>
+        <p style={{ marginBottom: "0.75rem" }}>
+          Create a match to get an invite code, then share that code with another MathClaw player.
+          If you are joining, paste the code first and then hit Join.
+        </p>
         <div className="ctaRow">
           <select
             className="input"
@@ -146,7 +150,7 @@ export default function Connect4Client({ courses, userId }) {
             ))}
           </select>
           <button className="btn primary" type="button" onClick={createMatch} disabled={isBusy}>
-            Create Match
+            Create Invite Code
           </button>
         </div>
 
@@ -158,10 +162,10 @@ export default function Connect4Client({ courses, userId }) {
             onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
           />
           <button className="btn" type="button" onClick={joinMatch} disabled={isBusy || !inviteCode}>
-            Join By Code
+            Join Match
           </button>
           <button className="btn" type="button" onClick={() => refreshMatch(match?.id)} disabled={!match?.id}>
-            Refresh Match
+            Refresh Board
           </button>
         </div>
 
@@ -195,7 +199,7 @@ export default function Connect4Client({ courses, userId }) {
       <section className="card" style={{ background: "#fff" }}>
         <h2>Board</h2>
         {!match ? (
-          <p>Create or join a match to start.</p>
+          <p>Create or join a match to start. The board will appear here once a match is active.</p>
         ) : (
           <>
             <div className="pillRow">
