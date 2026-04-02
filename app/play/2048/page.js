@@ -11,6 +11,12 @@ export default async function Game2048Page() {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/2048");
 
+  const savedGame =
+    user.user_metadata?.saved_games &&
+    typeof user.user_metadata.saved_games === "object"
+      ? user.user_metadata.saved_games["2048"] || null
+      : null;
+
   const [allCourses, courses, personalResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "2048" }),
@@ -51,6 +57,7 @@ export default async function Game2048Page() {
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        savedGame={savedGame}
       />
     </div>
   );

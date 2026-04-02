@@ -140,11 +140,24 @@ function clearSavedGame() {
   window.localStorage.removeItem(SAVED_GAME_KEY);
 }
 
+function normalizeServerSavedGame(savedGame) {
+  if (!savedGame || !isValidBoard(savedGame?.state?.board)) return null;
+
+  return {
+    board: savedGame.state.board,
+    score: Number(savedGame.state.score || 0),
+    courseId: typeof savedGame.courseId === "string" ? savedGame.courseId : "",
+    isWon: savedGame.state.isWon === true,
+    savedAt: typeof savedGame.updatedAt === "string" ? savedGame.updatedAt : "",
+  };
+}
+
 export default function Game2048Client({
   courses,
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  savedGame,
 }) {
   const [board, setBoard] = useState(freshBoard);
   const [score, setScore] = useState(0);
@@ -176,14 +189,24 @@ export default function Game2048Client({
   useEffect(() => {
     if (hasLoadedSavedGame) return;
 
-    const savedGame = readSavedGame();
-    if (!savedGame) {
+    const localSavedGame = readSavedGame();
+    const serverSavedGame = normalizeServerSavedGame(savedGame);
+    const chosenSavedGame =
+      localSavedGame && serverSavedGame
+        ? new Date(localSavedGame.savedAt || 0).getTime() >=
+          new Date(serverSavedGame.savedAt || 0).getTime()
+          ? localSavedGame
+          : serverSavedGame
+        : localSavedGame || serverSavedGame;
+
+    if (!chosenSavedGame) {
       setHasLoadedSavedGame(true);
       return;
     }
 
     const courseStillAvailable =
-      !savedGame.courseId || courses.some((course) => course.id === savedGame.courseId);
+      !chosenSavedGame.courseId ||
+      courses.some((course) => course.id === chosenSavedGame.courseId);
 
     if (!courseStillAvailable) {
       clearSavedGame();
@@ -191,15 +214,16 @@ export default function Game2048Client({
       return;
     }
 
-    setBoard(savedGame.board);
-    setScore(savedGame.score);
-    setCourseId(savedGame.courseId || "");
-    setIsWon(savedGame.isWon);
+    setBoard(chosenSavedGame.board);
+    setScore(chosenSavedGame.score);
+    setCourseId(chosenSavedGame.courseId || "");
+    setIsWon(chosenSavedGame.isWon);
     setIsGameOver(false);
     setShowOverlay(false);
     setStatus("Saved game restored.");
     setHasLoadedSavedGame(true);
-  }, [courses, hasLoadedSavedGame]);
+    persistSavedGame(chosenSavedGame);
+  }, [courses, hasLoadedSavedGame, savedGame]);
 
   const bestTile = useMemo(() => bestTileValue(board), [board]);
 
@@ -279,7 +303,7 @@ export default function Game2048Client({
   );
 
   const saveBoardState = useCallback(
-    (overrideStatus = "Game saved. Come back any time to continue.") => {
+    async (overrideStatus = "Game saved. Come back any time to continue.") => {
       const snapshot = {
         board: boardRef.current,
         score: scoreRef.current,
@@ -288,17 +312,44 @@ export default function Game2048Client({
         savedAt: new Date().toISOString(),
       };
       persistSavedGame(snapshot);
+
+      const response = await fetch("/api/play/save-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameSlug: "2048",
+          courseId: courseId || null,
+          state: {
+            board: snapshot.board,
+            score: snapshot.score,
+            isWon: snapshot.isWon,
+          },
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not save this board.");
+      }
+
       setStatus(overrideStatus);
     },
     [courseId, isWon]
   );
+
+  const clearSavedBoardState = useCallback(async () => {
+    clearSavedGame();
+    await fetch("/api/play/save-state?gameSlug=2048", {
+      method: "DELETE",
+    }).catch(() => {});
+  }, []);
 
   const startNewGame = useCallback(
     (resultToSave = null) => {
       if (resultToSave && scoreRef.current > 0) {
         saveSession(scoreRef.current, boardRef.current, resultToSave);
       }
-      clearSavedGame();
+      clearSavedBoardState();
       setBoard(freshBoard());
       setScore(0);
       setIsWon(false);
@@ -307,7 +358,7 @@ export default function Game2048Client({
       savedResultsRef.current.clear();
       setStatus("");
     },
-    [saveSession]
+    [clearSavedBoardState, saveSession]
   );
 
   async function handleCourseChange(nextCourseId) {
@@ -315,7 +366,7 @@ export default function Game2048Client({
     if (scoreRef.current > 0) {
       await saveSession(scoreRef.current, boardRef.current, "switched_class");
     }
-    clearSavedGame();
+    await clearSavedBoardState();
     setCourseId(nextCourseId);
     setBoard(freshBoard());
     setScore(0);
@@ -346,22 +397,22 @@ export default function Game2048Client({
       setLocalBest((current) => Math.max(current, nextScore));
 
       if (reached2048 && !isWon) {
-      setIsWon(true);
-      setShowOverlay(true);
-      setStatus("You made 2048!");
-      clearSavedGame();
-      saveSession(nextScore, nextBoard, "milestone_2048");
-    } else if (ended) {
-      setIsGameOver(true);
-      setShowOverlay(true);
-      setStatus("Game over.");
-      clearSavedGame();
-      saveSession(nextScore, nextBoard, "finished");
-    } else {
-      setStatus("");
+        setIsWon(true);
+        setShowOverlay(true);
+        setStatus("You made 2048!");
+        clearSavedBoardState();
+        saveSession(nextScore, nextBoard, "milestone_2048");
+      } else if (ended) {
+        setIsGameOver(true);
+        setShowOverlay(true);
+        setStatus("Game over.");
+        clearSavedBoardState();
+        saveSession(nextScore, nextBoard, "finished");
+      } else {
+        setStatus("");
       }
     },
-    [isGameOver, isWon, saveSession]
+    [clearSavedBoardState, isGameOver, isWon, saveSession]
   );
 
   useEffect(() => {
@@ -410,9 +461,13 @@ export default function Game2048Client({
           <div className="ctaRow" style={{ marginTop: 0 }}>
             <button
               className="btn"
-              onClick={() => {
-                saveBoardState();
-                saveSession(score, board, "manual_save");
+              onClick={async () => {
+                try {
+                  await saveBoardState();
+                  await saveSession(score, board, "manual_save");
+                } catch (error) {
+                  setStatus(error.message || "Could not save this board.");
+                }
               }}
               type="button"
             >
@@ -447,7 +502,7 @@ export default function Game2048Client({
           starts a fresh board so scores stay tied to the right class.
         </p>
         <p style={{ marginTop: "0.5rem" }}>
-          `Save Now` keeps a resume point on this device so you can come back and continue from the same board.
+          `Save Now` keeps a resume point on your account so you can come back from another device too.
         </p>
 
         <div
