@@ -278,12 +278,18 @@ export default function Connect4Client({ courses, userId }) {
             <div className="connect4Board">
               {(match.board || []).map((row, rowIndex) =>
                 row.map((value, colIndex) => (
-                  <div
+                  <button
                     key={`${rowIndex}-${colIndex}`}
+                    type="button"
                     className={`connect4Cell ${
+                      canMove ? "isClickable" : ""
+                    } ${
                       winningCells.has(`${rowIndex}:${colIndex}`) ? "isWinner" : ""
                     }`}
+                    aria-label={`Drop token in column ${colIndex + 1}`}
                     style={{ background: cellColor(value) }}
+                    onClick={() => makeMove(colIndex)}
+                    disabled={!canMove || isBusy}
                   />
                 ))
               )}

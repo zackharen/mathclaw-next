@@ -804,7 +804,13 @@ details[open] > summary.editorSummary .hideLabel {
   border-radius: 50%;
   border: 2px solid var(--line);
   cursor: pointer;
+  padding: 0;
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.connect4Cell.isClickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18);
 }
 
 .connect4Cell.isWinner {
