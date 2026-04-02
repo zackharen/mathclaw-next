@@ -42,6 +42,12 @@ export default function Connect4Client({ courses, userId }) {
     match.status === "active" &&
     match.current_turn_id === userId &&
     !!yourToken;
+  const canRematch =
+    !!match &&
+    match.status === "finished" &&
+    !!match.player_one_id &&
+    !!match.player_two_id &&
+    (match.player_one_id === userId || match.player_two_id === userId);
 
   const refreshMatch = useCallback(async (matchId) => {
     if (!matchId) return;
@@ -107,6 +113,26 @@ export default function Connect4Client({ courses, userId }) {
     }
     setMatch(data.match);
     setStatus("");
+  }
+
+  async function startRematch() {
+    if (!match?.id || !canRematch || isBusy) return;
+    setIsBusy(true);
+    setStatus("Starting rematch...");
+    const response = await fetch("/api/play/connect4", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "rematch", matchId: match.id }),
+    });
+    const data = await response.json();
+    setIsBusy(false);
+    if (!response.ok) {
+      setStatus(data.error || "Could not start rematch.");
+      return;
+    }
+    setMatch(data.match);
+    setInviteCode(data.match.invite_code);
+    setStatus("Rematch ready. Same code, fresh board.");
   }
 
   async function copyCode() {
@@ -190,6 +216,13 @@ export default function Connect4Client({ courses, userId }) {
             </p>
             <p>{liveTurnMessage}</p>
             <p>Moves played: {match.move_count || 0}</p>
+            {canRematch ? (
+              <div className="ctaRow" style={{ marginTop: "0.5rem" }}>
+                <button className="btn primary" type="button" onClick={startRematch} disabled={isBusy}>
+                  Play Again
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -211,6 +244,13 @@ export default function Connect4Client({ courses, userId }) {
                 </span>
               ) : null}
             </div>
+            {canRematch ? (
+              <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+                <button className="btn primary" type="button" onClick={startRematch} disabled={isBusy}>
+                  Play Again With Same Players
+                </button>
+              </div>
+            ) : null}
 
             <div className="connect4DropRow">
               {Array.from({ length: 7 }, (_, index) => (

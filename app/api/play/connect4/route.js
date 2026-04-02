@@ -84,6 +84,7 @@ export async function POST(request) {
   } = await supabase.auth.getUser();
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const accountType = await getAccountTypeForUser(supabase, user);
 
   const body = await request.json();
   const action = String(body.action || "");
@@ -280,6 +281,96 @@ export async function POST(request) {
         });
         return NextResponse.json({ error: statsError.message }, { status: 400 });
       }
+    }
+
+    return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
+  }
+
+  if (action === "rematch") {
+    const matchId = String(body.matchId || "");
+    const { data: match, error } = await supabase
+      .from("connect4_matches")
+      .select("*")
+      .eq("id", matchId)
+      .maybeSingle();
+
+    if (error) {
+      await logInternalEvent({
+        eventKey: "connect4_rematch_fetch_failed",
+        source: "api.play.connect4",
+        message: error.message,
+        user,
+        accountType,
+        context: { matchId, action: "rematch" },
+      });
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (!match) {
+      await logInternalEvent({
+        eventKey: "connect4_rematch_match_not_found",
+        source: "api.play.connect4",
+        level: "warning",
+        message: "Connect4 rematch attempted on missing match",
+        user,
+        accountType,
+        context: { matchId },
+      });
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    const isParticipant =
+      match.player_one_id === user.id || match.player_two_id === user.id;
+    if (!isParticipant) {
+      return NextResponse.json({ error: "Only players in the match can start a rematch." }, { status: 403 });
+    }
+
+    if (!match.player_one_id || !match.player_two_id) {
+      return NextResponse.json({ error: "A rematch needs two connected players." }, { status: 400 });
+    }
+
+    if (match.status !== "finished") {
+      return NextResponse.json({ error: "Finish the current match before starting a rematch." }, { status: 400 });
+    }
+
+    const previousRematchCount = Number(match.metadata?.rematch_count || 0);
+    const nextStarter =
+      previousRematchCount % 2 === 0 && match.player_two_id
+        ? match.player_two_id
+        : match.player_one_id;
+
+    const payload = {
+      board: emptyBoard(),
+      current_turn_id: nextStarter,
+      winner_id: null,
+      status: "active",
+      move_count: 0,
+      updated_at: new Date().toISOString(),
+      metadata: {
+        ...(match.metadata || {}),
+        draw: false,
+        rematch_count: previousRematchCount + 1,
+      },
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from("connect4_matches")
+      .update(payload)
+      .eq("id", match.id)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      await logInternalEvent({
+        eventKey: "connect4_rematch_update_failed",
+        source: "api.play.connect4",
+        message: updateError.message,
+        user,
+        accountType,
+        courseId: match.course_id,
+        context: { matchId },
+      });
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
     }
 
     return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
