@@ -348,7 +348,7 @@ export default async function AdminPage({ searchParams }) {
           displayName,
           firstName,
           lastName,
-          schoolName: profile.school_name || "-",
+          schoolName: profile.school_name || metadata.school_name || "-",
           timezone: profile.timezone || "-",
           discoverable: profile.discoverable ?? metadata.discoverable ?? false,
           accountType,

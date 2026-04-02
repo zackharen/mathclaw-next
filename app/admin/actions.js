@@ -176,6 +176,13 @@ export async function updateSchoolNameAction(formData) {
   const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
   const currentMetadata = authUser?.user_metadata || {};
+  const inferredAccountType = normalizeAccountType(
+    currentMetadata.account_type ||
+      currentMetadata.role ||
+      currentMetadata.user_type
+  );
+
+  await ensureProfileForUser(admin, authUser, inferredAccountType);
 
   let { error: profileError } = await admin
     .from("profiles")
