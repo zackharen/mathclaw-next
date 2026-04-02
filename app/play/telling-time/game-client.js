@@ -123,7 +123,7 @@ function ClockFace({
               key={index}
               className="timeClockNumber"
               style={{
-                transform: `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
+                transform: `rotate(${index * 30}deg) translateY(-6rem) rotate(${-index * 30}deg)`,
               }}
             >
               {markers[index]}
@@ -613,9 +613,6 @@ export default function TellingTimeClient({
             <p>
               Drag the hand tips, or tap the clock while <strong>{activeSetHand === "hour" ? "Hour Hand" : "Minute Hand"}</strong> is selected.
             </p>
-            <div className="pillRow">
-              <span className="pill">Current: {formatTimeLabel(selectedHour, selectedMinute)}</span>
-            </div>
             <button className="btn primary" type="button" onClick={answerSetMode} disabled={runComplete}>
               Check Clock
             </button>
