@@ -798,6 +798,48 @@ details[open] > summary.editorSummary .hideLabel {
   background: #f7fafc;
 }
 
+.connect4TurnBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  align-items: baseline;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #f7fafc;
+}
+
+.connect4TurnBanner strong {
+  font-size: 1.15rem;
+}
+
+.connect4TurnBanner.yourTurn {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.connect4TurnBanner.theirTurn,
+.connect4TurnBanner.waiting {
+  background: #eef4fb;
+  border-color: #4c6f94;
+}
+
+.connect4TurnBanner.won {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.connect4TurnBanner.lost {
+  background: #fdeeee;
+  border-color: #cd3b3b;
+}
+
+.connect4TurnBanner.draw {
+  background: #fff7df;
+  border-color: #d9a441;
+}
+
 .connect4Cell {
   width: 56px;
   height: 56px;

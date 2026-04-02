@@ -35,6 +35,18 @@ function turnLabel(match, userId) {
   return "Opponent's turn.";
 }
 
+function turnTone(match, userId) {
+  if (!match) return "neutral";
+  if (match.status === "waiting") return "waiting";
+  if (match.status === "finished") {
+    if (match.metadata?.draw) return "draw";
+    if (match.winner_id === userId) return "won";
+    if (match.winner_id) return "lost";
+    return "neutral";
+  }
+  return match.current_turn_id === userId ? "yourTurn" : "theirTurn";
+}
+
 export default function Connect4Client({ courses, userId, initialCourseId = "" }) {
   const [courseId, setCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const [inviteCode, setInviteCode] = useState("");
@@ -45,6 +57,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "" }
 
   const yourToken = useMemo(() => tokenForUser(match, userId), [match, userId]);
   const liveTurnMessage = useMemo(() => turnLabel(match, userId), [match, userId]);
+  const liveTurnTone = useMemo(() => turnTone(match, userId), [match, userId]);
   const canMove =
     !!match &&
     match.status === "active" &&
@@ -284,6 +297,22 @@ export default function Connect4Client({ courses, userId, initialCourseId = "" }
           <p>Create or join a match to start. The board will appear here once a match is active.</p>
         ) : (
           <>
+            <div className={`connect4TurnBanner ${liveTurnTone}`}>
+              <strong>
+                {liveTurnTone === "yourTurn"
+                  ? "Your Turn"
+                  : liveTurnTone === "theirTurn"
+                    ? "Their Turn"
+                    : liveTurnTone === "won"
+                      ? "You Won"
+                      : liveTurnTone === "lost"
+                        ? "They Won"
+                        : liveTurnTone === "draw"
+                          ? "Draw"
+                          : "Waiting"}
+              </strong>
+              <span>{liveTurnMessage}</span>
+            </div>
             <div className="pillRow">
               <span className="pill">Status: {match.status}</span>
               {match.metadata?.draw ? <span className="pill">Draw</span> : null}
