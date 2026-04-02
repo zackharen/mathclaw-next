@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const TOTAL_ROUNDS = 10;
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+const CLOCK_FACE_NUMBERS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -61,7 +62,7 @@ function ClockFace({ hour, minute, label }) {
               transform: `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
             }}
           >
-            {index + 1}
+            {CLOCK_FACE_NUMBERS[index]}
           </span>
         ))}
         <div className="timeClockHand hourHand" style={{ transform: `rotate(${hourRotation}deg)` }} />
