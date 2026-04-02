@@ -649,11 +649,6 @@ export default async function AdminPage({ searchParams }) {
         {!error && users.length === 0 ? <p>No accounts yet.</p> : null}
         {!error && users.length > 0 ? (
           <div className="adminUserList">
-            <datalist id="admin-school-options">
-              {schoolOptions.map((schoolName) => (
-                <option key={schoolName} value={schoolName} />
-              ))}
-            </datalist>
             {users.map((item) => {
               const classSummary = summarizeAccountClasses(item);
 
@@ -707,16 +702,29 @@ export default async function AdminPage({ searchParams }) {
                     </form>
                     <form action={updateSchoolNameAction} className="adminRenameForm">
                       <input type="hidden" name="user_id" value={item.id} />
-                      <div className="adminNameGrid">
+                      <div className="adminSchoolEditGrid">
                         <label className="stack">
-                          <span>School</span>
+                          <span>Existing school</span>
+                          <select
+                            className="input"
+                            name="school_name"
+                            defaultValue={item.schoolName === "-" ? "" : item.schoolName}
+                          >
+                            <option value="">No school</option>
+                            {schoolOptions.map((schoolName) => (
+                              <option key={schoolName} value={schoolName}>
+                                {schoolName}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="stack">
+                          <span>Or add a new school</span>
                           <input
                             className="input"
                             type="text"
-                            name="school_name"
-                            list="admin-school-options"
-                            defaultValue={item.schoolName === "-" ? "" : item.schoolName}
-                            placeholder="Choose existing or type a new school"
+                            name="new_school_name"
+                            placeholder="Type a new school name"
                           />
                         </label>
                         <div className="ctaRow adminInlineEditorRow adminSingleAction">

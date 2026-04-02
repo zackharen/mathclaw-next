@@ -165,7 +165,9 @@ export async function updateSchoolNameAction(formData) {
   await requireOwner();
 
   const userId = String(formData.get("user_id") || "").trim();
-  const schoolName = String(formData.get("school_name") || "").trim();
+  const selectedSchoolName = String(formData.get("school_name") || "").trim();
+  const newSchoolName = String(formData.get("new_school_name") || "").trim();
+  const schoolName = newSchoolName || selectedSchoolName;
 
   if (!userId) {
     redirect("/admin?error=missing-user");
