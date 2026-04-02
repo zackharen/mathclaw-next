@@ -12,6 +12,7 @@ import {
   deleteAccountAction,
   toggleDiscoverableAction,
   renameAccountAction,
+  updateSchoolNameAction,
   toggleAdminAccessAction,
   addUserToClassAction,
   restoreDeletedAccountAction,
@@ -42,9 +43,10 @@ function Notice({ searchParams }) {
   const passwordReset = searchParams?.passwordReset === "1";
   const classDeleted = searchParams?.classDeleted === "1";
   const bugReport = searchParams?.bugReport;
+  const schoolUpdated = searchParams?.schoolUpdated;
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !error) {
     return null;
   }
 
@@ -63,6 +65,8 @@ function Notice({ searchParams }) {
       {passwordReset ? <p>Password updated.</p> : null}
       {bugReport === "resolved" ? <p>Bug report marked resolved.</p> : null}
       {bugReport === "open" ? <p>Bug report reopened.</p> : null}
+      {schoolUpdated === "set" ? <p>School assignment updated.</p> : null}
+      {schoolUpdated === "cleared" ? <p>School assignment cleared.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
   );
@@ -693,6 +697,24 @@ export default async function AdminPage({ searchParams }) {
                         </label>
                         <div className="ctaRow adminInlineEditorRow">
                           <button className="btn ghost" type="submit">Save Name</button>
+                        </div>
+                      </div>
+                    </form>
+                    <form action={updateSchoolNameAction} className="adminRenameForm">
+                      <input type="hidden" name="user_id" value={item.id} />
+                      <div className="adminNameGrid">
+                        <label className="stack">
+                          <span>School</span>
+                          <input
+                            className="input"
+                            type="text"
+                            name="school_name"
+                            defaultValue={item.schoolName === "-" ? "" : item.schoolName}
+                            placeholder="Attach to a school"
+                          />
+                        </label>
+                        <div className="ctaRow adminInlineEditorRow adminSingleAction">
+                          <button className="btn ghost" type="submit">Save School</button>
                         </div>
                       </div>
                     </form>

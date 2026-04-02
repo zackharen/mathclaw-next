@@ -161,6 +161,57 @@ export async function renameAccountAction(formData) {
   redirect("/admin?renamed=1");
 }
 
+export async function updateSchoolNameAction(formData) {
+  await requireOwner();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const schoolName = String(formData.get("school_name") || "").trim();
+
+  if (!userId) {
+    redirect("/admin?error=missing-user");
+  }
+
+  const admin = createAdminClient();
+  const authUser = await getManagedAuthUser(admin, userId);
+  const currentMetadata = authUser?.user_metadata || {};
+
+  let { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      school_name: schoolName || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (profileError && isMissingColumnError(profileError, "updated_at")) {
+    const retry = await admin
+      .from("profiles")
+      .update({
+        school_name: schoolName || null,
+      })
+      .eq("id", userId);
+    profileError = retry.error;
+  }
+
+  if (profileError) {
+    redirect(`/admin?error=${encodeURIComponent(profileError.message)}`);
+  }
+
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      ...currentMetadata,
+      school_name: schoolName || null,
+    },
+  });
+
+  if (authError) {
+    redirect(`/admin?error=${encodeURIComponent(authError.message)}`);
+  }
+
+  revalidatePath("/admin");
+  redirect(`/admin?schoolUpdated=${schoolName ? "set" : "cleared"}`);
+}
+
 export async function deleteAccountAction(formData) {
   const { user: owner } = await requireOwner();
 
