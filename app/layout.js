@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/app/auth/actions";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
-import { isOwnerUser } from "@/lib/auth/owner";
+import { canAccessAdminArea } from "@/lib/auth/owner";
 import AppNav from "./app-nav";
 
 export const metadata = {
@@ -19,7 +19,7 @@ export default async function RootLayout({ children }) {
 
   const accountType = user ? await getAccountTypeForUser(supabase, user) : null;
   const isTeacher = Boolean(user && accountType !== "student");
-  const isOwner = Boolean(user && isOwnerUser(user));
+  const canAccessAdmin = Boolean(user && canAccessAdminArea(user));
   const roleLabel = accountType === "student" ? "Student Arcade" : user ? "Teacher Workspace" : null;
 
   let navItems = [];
@@ -47,7 +47,7 @@ export default async function RootLayout({ children }) {
       { href: "/report-bug", label: "Report Bug" },
     ];
 
-    if (isOwner) {
+    if (canAccessAdmin) {
       navItems.push({ href: "/admin", label: "Admin" });
     }
   }

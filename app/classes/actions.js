@@ -35,16 +35,13 @@ export async function deleteClassAction(formData) {
 
   if (!user) return;
 
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id")
-    .eq("id", courseId)
-    .eq("owner_id", user.id)
-    .single();
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
 
   if (!course) return;
 
-  const { error } = await supabase.from("courses").delete().eq("id", course.id);
+  const writeClient = getCourseWriteClient(access, supabase);
+  const { error } = await writeClient.from("courses").delete().eq("id", course.id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/classes");

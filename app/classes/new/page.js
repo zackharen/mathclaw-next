@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import NewClassForm from "./new-class-form";
 
 function defaultSchoolYearDates() {
@@ -28,6 +30,9 @@ export default async function NewClassPage() {
   if (!user) {
     redirect("/auth/sign-in?redirect=/classes/new");
   }
+
+  const admin = createAdminClient();
+  const adminContext = await getAdminAccessContext(user, admin);
 
   let { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -76,11 +81,59 @@ export default async function NewClassPage() {
   const defaultStart = profile.school_year_start || defaults.start;
   const defaultEnd = profile.school_year_end || defaults.end;
 
-  const { data: existingCourses } = await supabase
-    .from("courses")
-    .select("id, title, class_name, school_year_start, school_year_end")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
+  let teacherOptions = [];
+  let existingCourses = [];
+
+  if (!adminContext.isOwner && adminContext.isAdmin && adminContext.schoolName) {
+    const { data: schoolProfiles } = await admin
+      .from("profiles")
+      .select("id, display_name, school_name")
+      .eq("school_name", adminContext.schoolName);
+    const allSchoolIds = (schoolProfiles || []).map((profile) => profile.id);
+    const { data: teacherUsers } = allSchoolIds.length
+      ? await admin.auth.admin.listUsers({ page: 1, perPage: 500 })
+      : { data: { users: [] } };
+    const schoolTeacherProfiles = (schoolProfiles || []).filter((profile) => {
+      const authUser = (teacherUsers?.users || []).find((entry) => entry.id === profile.id);
+      return authUser?.user_metadata?.account_type !== "student";
+    });
+    const teacherIds = schoolTeacherProfiles.map((profile) => profile.id);
+    const authUsersById = new Map(
+      (teacherUsers?.users || [])
+        .filter((authUser) => teacherIds.includes(authUser.id))
+        .map((authUser) => [authUser.id, authUser])
+    );
+
+    teacherOptions = schoolTeacherProfiles.map((profile) => {
+      const authUser = authUsersById.get(profile.id);
+      const displayName =
+        profile.display_name ||
+        authUser?.user_metadata?.display_name ||
+        authUser?.user_metadata?.full_name ||
+        authUser?.email ||
+        "Teacher";
+      return {
+        id: profile.id,
+        label: `${displayName}${profile.id === user.id ? " (You)" : ""}`,
+      };
+    });
+
+    const { data: schoolCourses } = teacherIds.length
+      ? await admin
+          .from("courses")
+          .select("id, title, class_name, school_year_start, school_year_end")
+          .in("owner_id", teacherIds)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+    existingCourses = schoolCourses || [];
+  } else {
+    const existingCoursesResult = await supabase
+      .from("courses")
+      .select("id, title, class_name, school_year_start, school_year_end")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false });
+    existingCourses = existingCoursesResult.data || [];
+  }
 
   return (
     <div className="stack">
@@ -91,6 +144,8 @@ export default async function NewClassPage() {
           timezone={profile.timezone || "America/New_York"}
           libraries={libraries || []}
           existingCourses={existingCourses || []}
+          teacherOptions={teacherOptions}
+          defaultOwnerId={teacherOptions.find((teacher) => teacher.id === user.id)?.id || user.id}
           defaultStart={defaultStart}
           defaultEnd={defaultEnd}
         />

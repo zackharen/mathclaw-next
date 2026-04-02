@@ -3,8 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { generateJoinCode } from "@/lib/student-games/join-code";
+import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 
 function normalizeScheduleModel(value) {
   return value === "ab" ? "ab" : "every_day";
@@ -28,6 +30,7 @@ export async function createClassAction(formData) {
   }
 
   const title = String(formData.get("title") || "").trim();
+  const requestedOwnerId = String(formData.get("owner_id") || "").trim();
   const selectedLibraryId = String(formData.get("selected_library_id") || "").trim();
   const scheduleModel = normalizeScheduleModel(String(formData.get("schedule_model") || ""));
   const abMeetingDayRaw = String(formData.get("ab_meeting_day") || "").trim();
@@ -47,6 +50,32 @@ export async function createClassAction(formData) {
     redirect("/classes/new?error=missing_fields");
   }
 
+  const admin = createAdminClient();
+  const adminContext = await getAdminAccessContext(user, admin);
+  let ownerId = user.id;
+  let writeClient = supabase;
+
+  if (!adminContext.isOwner && adminContext.isAdmin && adminContext.schoolName && requestedOwnerId) {
+    const { data: targetProfile } = await admin
+      .from("profiles")
+      .select("id, school_name")
+      .eq("id", requestedOwnerId)
+      .maybeSingle();
+    const { data: targetAuthUserData } = await admin.auth.admin.getUserById(requestedOwnerId);
+    const targetAccountType = targetAuthUserData?.user?.user_metadata?.account_type;
+
+    if (
+      !targetProfile ||
+      targetProfile.school_name !== adminContext.schoolName ||
+      targetAccountType === "student"
+    ) {
+      redirect("/classes/new?error=invalid_owner");
+    }
+
+    ownerId = requestedOwnerId;
+    writeClient = admin;
+  }
+
   const { data: library, error: libraryError } = await supabase
     .from("curriculum_libraries")
     .select("id, class_name")
@@ -58,7 +87,7 @@ export async function createClassAction(formData) {
   }
 
   const coursePayload = {
-    owner_id: user.id,
+    owner_id: ownerId,
     title: title || library.class_name,
     class_name: library.class_name,
     schedule_model: scheduleModel,
@@ -72,7 +101,7 @@ export async function createClassAction(formData) {
     student_join_code: generateJoinCode(),
   };
 
-  let { data: newCourse, error: courseError } = await supabase
+  let { data: newCourse, error: courseError } = await writeClient
     .from("courses")
     .insert(coursePayload)
     .select("id")
@@ -88,7 +117,7 @@ export async function createClassAction(formData) {
     const fallbackPayload = { ...coursePayload };
     delete fallbackPayload.ab_meeting_day;
     delete fallbackPayload.student_join_code;
-    const retry = await supabase
+    const retry = await writeClient
       .from("courses")
       .insert(fallbackPayload)
       .select("id")
@@ -101,23 +130,23 @@ export async function createClassAction(formData) {
     throw new Error(courseError?.message || "Could not create class.");
   }
 
-  const { error: memberError } = await supabase
+  const { error: memberError } = await writeClient
     .from("course_members")
-    .insert({ course_id: newCourse.id, profile_id: user.id, role: "owner" });
+    .insert({ course_id: newCourse.id, profile_id: ownerId, role: "owner" });
 
   if (memberError) throw new Error(memberError.message);
 
   let importedCount = 0;
   if (importCourseId && importCourseId !== newCourse.id) {
-    const { data: sourceCourse } = await supabase
+    const { data: sourceCourse } = await writeClient
       .from("courses")
       .select("id")
       .eq("id", importCourseId)
-      .eq("owner_id", user.id)
+      .eq("owner_id", ownerId)
       .maybeSingle();
 
     if (sourceCourse) {
-      const { data: sourceDays, error: sourceDaysError } = await supabase
+      const { data: sourceDays, error: sourceDaysError } = await writeClient
         .from("course_calendar_days")
         .select("class_date, day_type, ab_day, reason_id, note")
         .eq("course_id", sourceCourse.id)
@@ -136,7 +165,7 @@ export async function createClassAction(formData) {
       }));
 
       if (rowsToCopy.length > 0) {
-        const { error: insertDaysError } = await supabase
+        const { error: insertDaysError } = await writeClient
           .from("course_calendar_days")
           .insert(rowsToCopy);
         if (insertDaysError) throw new Error(insertDaysError.message);
@@ -173,14 +202,14 @@ export async function createClassAction(formData) {
       });
     }
 
-    const { error: seedError } = await supabase.from("course_calendar_days").insert(rows);
+    const { error: seedError } = await writeClient.from("course_calendar_days").insert(rows);
     if (seedError) throw new Error(seedError.message);
   }
 
   await rebuildPlanFromCalendar({
-    supabase,
+    supabase: writeClient,
     courseId: newCourse.id,
-    userId: user.id,
+    userId: ownerId,
   });
 
   revalidatePath("/classes");

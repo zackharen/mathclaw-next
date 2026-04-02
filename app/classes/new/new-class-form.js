@@ -9,6 +9,8 @@ export default function NewClassForm({
   defaultStart,
   defaultEnd,
   existingCourses,
+  teacherOptions = [],
+  defaultOwnerId = "",
 }) {
   const libraryOptions = useMemo(
     () =>
@@ -31,9 +33,28 @@ export default function NewClassForm({
   const [importCourseId, setImportCourseId] = useState("");
   const [schoolYearStart, setSchoolYearStart] = useState(defaultStart);
   const [schoolYearEnd, setSchoolYearEnd] = useState(defaultEnd);
+  const [ownerId, setOwnerId] = useState(defaultOwnerId || teacherOptions[0]?.id || "");
 
   return (
     <form action={createClassAction} className="list formList" style={{ marginTop: "1rem" }}>
+      {teacherOptions.length > 0 ? (
+        <label>
+          Class Owner
+          <select
+            className="input"
+            name="owner_id"
+            value={ownerId}
+            onChange={(e) => setOwnerId(e.target.value)}
+          >
+            {teacherOptions.map((teacher) => (
+              <option key={teacher.id} value={teacher.id}>
+                {teacher.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <label>
         Class Title
         <input

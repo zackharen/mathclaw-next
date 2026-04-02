@@ -4,14 +4,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isOwnerUser } from "@/lib/auth/owner";
+import { canAccessAdminArea, isOwnerUser } from "@/lib/auth/owner";
+import { getAdminAccessContext, isUserInManagedSchool } from "@/lib/auth/admin-scope";
 import {
   ensureProfileForUser,
   normalizeAccountType,
   splitDisplayName,
 } from "@/lib/auth/account-type";
 
-async function requireOwner() {
+async function requireAdminActor() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -21,11 +22,24 @@ async function requireOwner() {
     redirect("/auth/sign-in?redirect=/admin");
   }
 
-  if (!isOwnerUser(user)) {
+  if (!canAccessAdminArea(user)) {
     redirect("/");
   }
 
-  return { user, supabase };
+  const admin = createAdminClient();
+  const context = await getAdminAccessContext(user, admin);
+
+  return { user, supabase, admin, context };
+}
+
+async function requireOwner() {
+  const actor = await requireAdminActor();
+
+  if (!actor.context.isOwner) {
+    redirect("/");
+  }
+
+  return actor;
 }
 
 function isMissingColumnError(error, columnName) {
@@ -42,6 +56,61 @@ async function getManagedAuthUser(admin, userId) {
     redirect(`/admin?error=${encodeURIComponent(getUserError.message)}`);
   }
   return authUserData?.user || null;
+}
+
+async function getManagedProfile(admin, userId) {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, school_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  return data || null;
+}
+
+function assertInAdminSchool(context, schoolName) {
+  if (context.isOwner) return;
+  if (!isUserInManagedSchool(context, schoolName)) {
+    redirect("/admin?error=You can only manage accounts in your school.");
+  }
+}
+
+async function assertUserIsInScope(admin, context, authUser) {
+  if (context.isOwner) {
+    return getManagedProfile(admin, authUser.id);
+  }
+
+  const profile = await getManagedProfile(admin, authUser.id);
+  const schoolName = String(profile?.school_name || authUser?.user_metadata?.school_name || "").trim();
+  assertInAdminSchool(context, schoolName);
+  return profile;
+}
+
+async function assertCourseIsInScope(admin, context, courseId) {
+  const { data: course, error } = await admin
+    .from("courses")
+    .select("id, owner_id")
+    .eq("id", courseId)
+    .maybeSingle();
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  if (!course) {
+    redirect("/admin?error=missing-course");
+  }
+
+  if (!context.isOwner) {
+    const ownerProfile = await getManagedProfile(admin, course.owner_id);
+    assertInAdminSchool(context, ownerProfile?.school_name);
+  }
+
+  return course;
 }
 
 async function ensureManagedProfile(admin, authUser) {
@@ -125,7 +194,7 @@ async function softDeleteAccount(admin, userId, ownerId, authUser) {
 }
 
 export async function updateAccountTypeAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   const nextTypeRaw = String(formData.get("account_type") || "teacher").trim();
@@ -134,9 +203,8 @@ export async function updateAccountTypeAction(formData) {
   if (!userId) {
     redirect("/admin?error=missing-user");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
   const currentMetadata = authUser?.user_metadata || {};
   const baseProfileUpdate = {
     account_type: nextType,
@@ -184,7 +252,7 @@ export async function updateAccountTypeAction(formData) {
 }
 
 export async function renameAccountAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   const firstName = String(formData.get("first_name") || "").trim();
@@ -194,9 +262,8 @@ export async function renameAccountAction(formData) {
   if (!userId || !displayName) {
     redirect("/admin?error=missing-user");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
   const currentMetadata = authUser?.user_metadata || {};
 
   let { error: profileError } = await admin
@@ -242,7 +309,7 @@ export async function renameAccountAction(formData) {
 }
 
 export async function updateSchoolNameAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   const selectedSchoolName = String(formData.get("school_name") || "").trim();
@@ -252,9 +319,19 @@ export async function updateSchoolNameAction(formData) {
   if (!userId) {
     redirect("/admin?error=missing-user");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  const profile = await assertUserIsInScope(admin, context, authUser);
+  const currentSchoolName = String(profile?.school_name || authUser?.user_metadata?.school_name || "").trim();
+
+  if (!context.isOwner) {
+    if (schoolName && schoolName !== context.schoolName) {
+      redirect("/admin?error=Admins can only assign users to their own school.");
+    }
+
+    if (currentSchoolName && currentSchoolName !== context.schoolName) {
+      redirect("/admin?error=Admins can only edit school assignments in their own school.");
+    }
+  }
   const authError = await saveSchoolName(admin, userId, authUser, schoolName);
 
   if (authError) {
@@ -266,7 +343,7 @@ export async function updateSchoolNameAction(formData) {
 }
 
 export async function deleteAccountAction(formData) {
-  const { user: owner } = await requireOwner();
+  const { user: owner, admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   if (!userId) {
@@ -276,9 +353,8 @@ export async function deleteAccountAction(formData) {
   if (userId === owner.id) {
     redirect("/admin?error=cannot-delete-owner");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
   const error = await softDeleteAccount(admin, userId, owner.id, authUser);
 
   if (error) {
@@ -291,15 +367,15 @@ export async function deleteAccountAction(formData) {
 }
 
 export async function restoreDeletedAccountAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   if (!userId) {
     redirect("/admin/deleted?error=missing-user");
   }
 
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
   const currentAppMetadata = authUser?.app_metadata || {};
   const nextAppMetadata = {
     ...currentAppMetadata,
@@ -356,7 +432,7 @@ export async function toggleAdminAccessAction(formData) {
 }
 
 export async function resetPasswordAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   const nextPassword = String(formData.get("password") || "").trim();
@@ -368,9 +444,8 @@ export async function resetPasswordAction(formData) {
   if (nextPassword.length < 8) {
     redirect("/admin?error=password_must_be_at_least_8_characters");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
   const provider =
     authUser?.app_metadata?.provider ||
     authUser?.identities?.[0]?.provider ||
@@ -393,15 +468,14 @@ export async function resetPasswordAction(formData) {
 }
 
 export async function deleteOwnedClassAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const courseId = String(formData.get("course_id") || "").trim();
 
   if (!courseId) {
     redirect("/admin?error=missing-course");
   }
-
-  const admin = createAdminClient();
+  await assertCourseIsInScope(admin, context, courseId);
   const { error } = await admin.from("courses").delete().eq("id", courseId);
 
   if (error) {
@@ -443,7 +517,7 @@ export async function updateBugReportStatusAction(formData) {
 }
 
 export async function toggleDiscoverableAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   const nextValue = String(formData.get("discoverable") || "").trim() === "true";
@@ -451,9 +525,8 @@ export async function toggleDiscoverableAction(formData) {
   if (!userId) {
     redirect("/admin?error=missing-user");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
   const currentMetadata = authUser?.user_metadata || {};
   let { error } = await admin
     .from("profiles")
@@ -485,7 +558,7 @@ export async function toggleDiscoverableAction(formData) {
 }
 
 export async function addUserToClassAction(formData) {
-  await requireOwner();
+  const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
   const courseId = String(formData.get("course_id") || "").trim();
@@ -493,9 +566,9 @@ export async function addUserToClassAction(formData) {
   if (!userId || !courseId) {
     redirect("/admin?error=missing-user");
   }
-
-  const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
+  await assertCourseIsInScope(admin, context, courseId);
   const error = await addUserToClass(admin, userId, courseId, authUser);
 
   if (error) {
@@ -508,7 +581,7 @@ export async function addUserToClassAction(formData) {
 }
 
 export async function bulkAccountAction(formData) {
-  const { user: owner } = await requireOwner();
+  const { user: owner, admin, context } = await requireAdminActor();
 
   const selectedUserIds = formData
     .getAll("selected_user_ids")
@@ -538,7 +611,6 @@ export async function bulkAccountAction(formData) {
     redirect("/admin?error=Choose a class for the selected accounts.");
   }
 
-  const admin = createAdminClient();
   let updatedCount = 0;
   let skippedOwners = 0;
 
@@ -549,9 +621,19 @@ export async function bulkAccountAction(formData) {
       continue;
     }
 
+    await assertUserIsInScope(admin, context, authUser);
+
     if (actionType === "delete" && userId === owner.id) {
       skippedOwners += 1;
       continue;
+    }
+
+    if (actionType === "school" && !context.isOwner && schoolName && schoolName !== context.schoolName) {
+      redirect("/admin?error=Admins can only assign their own school.");
+    }
+
+    if (actionType === "class") {
+      await assertCourseIsInScope(admin, context, courseId);
     }
 
     let error = null;

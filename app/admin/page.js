@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
+import { canAccessAdminArea, isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
+import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import { splitDisplayName } from "@/lib/auth/account-type";
 import DeleteAccountButton from "./delete-account-button";
 import DeleteClassButton from "./delete-class-button";
@@ -217,11 +218,14 @@ export default async function AdminPage({ searchParams }) {
     redirect("/auth/sign-in?redirect=/admin");
   }
 
-  if (!isOwnerUser(user)) {
+  if (!canAccessAdminArea(user)) {
     redirect("/");
   }
 
   const admin = createAdminClient();
+  const adminContext = await getAdminAccessContext(user, admin);
+  const canViewDiagnostics = adminContext.isOwner;
+  const effectiveAdminView = canViewDiagnostics ? adminView : "accounts";
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
 
   let users = [];
@@ -269,13 +273,27 @@ export default async function AdminPage({ searchParams }) {
       internalEventError = eventResult.error || null;
 
       const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
-      const coursesById = new Map((courses || []).map((course) => [course.id, course]));
+      const visibleAuthUsers = adminContext.isOwner
+        ? authUsers
+        : authUsers.filter((authUser) => {
+            const profile = profilesById.get(authUser.id);
+            const schoolName = String(profile?.school_name || authUser?.user_metadata?.school_name || "").trim();
+            return schoolName && schoolName === adminContext.schoolName;
+          });
+      const visibleUserIds = new Set(visibleAuthUsers.map((authUser) => authUser.id));
+      const visibleCourses = adminContext.isOwner
+        ? courses || []
+        : (courses || []).filter((course) => {
+            const ownerProfile = profilesById.get(course.owner_id);
+            return String(ownerProfile?.school_name || "").trim() === adminContext.schoolName;
+          });
+      const coursesById = new Map(visibleCourses.map((course) => [course.id, course]));
       const membershipsByProfileId = new Map();
       const ownedClassesById = new Map();
       const ownedCoursesByOwnerId = new Map();
       const joinedClassesById = new Map();
 
-      for (const course of courses || []) {
+      for (const course of visibleCourses) {
         ownedClassesById.set(course.owner_id, (ownedClassesById.get(course.owner_id) || 0) + 1);
         const current = ownedCoursesByOwnerId.get(course.owner_id) || [];
         current.push(course);
@@ -283,6 +301,7 @@ export default async function AdminPage({ searchParams }) {
       }
 
       for (const membership of memberships || []) {
+        if (!visibleUserIds.has(membership.profile_id) || !coursesById.has(membership.course_id)) continue;
         joinedClassesById.set(
           membership.profile_id,
           (joinedClassesById.get(membership.profile_id) || 0) + 1
@@ -293,9 +312,9 @@ export default async function AdminPage({ searchParams }) {
         membershipsByProfileId.set(membership.profile_id, current);
       }
 
-      courseOptions = (courses || []).map((course) => {
+      courseOptions = visibleCourses.map((course) => {
         const ownerProfile = profilesById.get(course.owner_id);
-        const ownerAuthUser = authUsers.find((authUser) => authUser.id === course.owner_id);
+        const ownerAuthUser = visibleAuthUsers.find((authUser) => authUser.id === course.owner_id);
         const ownerDisplayName = getBestDisplayName(
           ownerProfile,
           ownerAuthUser?.user_metadata,
@@ -308,7 +327,7 @@ export default async function AdminPage({ searchParams }) {
         };
       });
 
-      users = authUsers.map((authUser) => {
+      users = visibleAuthUsers.map((authUser) => {
         const profile = profilesById.get(authUser.id) || {};
         const metadata = authUser.user_metadata || {};
         const displayName = getBestDisplayName(profile, metadata, authUser.email, "-");
@@ -447,13 +466,23 @@ export default async function AdminPage({ searchParams }) {
   return (
     <div className="stack adminStack">
       <section className="card">
-        <h1>Owner Admin</h1>
+        <h1>{adminContext.isOwner ? "Owner Admin" : "Admin"}</h1>
         <p>
-          Manage MathClaw accounts without digging through Supabase. This is just for the owner account.
+          {adminContext.isOwner
+            ? "Manage MathClaw accounts without digging through Supabase. This is just for the owner account."
+            : adminContext.hasSchoolScope
+              ? `Manage teachers, students, and classes in ${adminContext.schoolName}.`
+              : "Your admin account needs a school assignment before school-scoped tools can load."}
         </p>
       </section>
 
       <Notice searchParams={qs} />
+
+      {!adminContext.isOwner && !adminContext.hasSchoolScope ? (
+        <section className="card noticeError">
+          <p>No school is assigned to this admin account yet, so school-scoped admin tools are unavailable.</p>
+        </section>
+      ) : null}
 
       <section className="card">
         <div className="adminSummaryGrid">
@@ -469,20 +498,24 @@ export default async function AdminPage({ searchParams }) {
             <h3>Teachers</h3>
             <p className="adminStat">{users.filter((item) => item.accountType !== "student").length}</p>
           </div>
-          <div className="card adminSummaryCard">
-            <h3>Open Bug Reports</h3>
-            <p className="adminStat">{bugReports.filter((item) => item.status !== "resolved").length}</p>
-          </div>
-          <div className="card adminSummaryCard">
-            <h3>Recent Internal Issues</h3>
-            <p className="adminStat">
-              {internalEvents.filter((item) => ["error", "warning"].includes(item.level)).length}
-            </p>
-          </div>
+          {canViewDiagnostics ? (
+            <>
+              <div className="card adminSummaryCard">
+                <h3>Open Bug Reports</h3>
+                <p className="adminStat">{bugReports.filter((item) => item.status !== "resolved").length}</p>
+              </div>
+              <div className="card adminSummaryCard">
+                <h3>Recent Internal Issues</h3>
+                <p className="adminStat">
+                  {internalEvents.filter((item) => ["error", "warning"].includes(item.level)).length}
+                </p>
+              </div>
+            </>
+          ) : null}
         </div>
       </section>
 
-      {schoolSummaries.length > 0 ? (
+      {adminContext.hasSchoolScope && schoolSummaries.length > 0 ? (
         <section className="card">
           <h2>{schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}</h2>
           <p>
@@ -506,26 +539,28 @@ export default async function AdminPage({ searchParams }) {
         </section>
       ) : null}
 
-      <section className="card adminSectionSwitcher">
-        <h2>Admin Sections</h2>
-        <p>Choose whether you want to work with people and classes, or review bugs and silent system issues.</p>
-        <div className="adminViewSwitch">
-          <a
-            className={`btn ${adminView === "accounts" ? "primary" : "ghost"}`}
-            href="/admin?view=accounts"
-          >
-            User Information
-          </a>
-          <a
-            className={`btn ${adminView === "diagnostics" ? "primary" : "ghost"}`}
-            href="/admin?view=diagnostics"
-          >
-            Bugs and Internal Errors
-          </a>
-        </div>
-      </section>
+      {canViewDiagnostics ? (
+        <section className="card adminSectionSwitcher">
+          <h2>Admin Sections</h2>
+          <p>Choose whether you want to work with people and classes, or review bugs and silent system issues.</p>
+          <div className="adminViewSwitch">
+            <a
+              className={`btn ${effectiveAdminView === "accounts" ? "primary" : "ghost"}`}
+              href="/admin?view=accounts"
+            >
+              User Information
+            </a>
+            <a
+              className={`btn ${effectiveAdminView === "diagnostics" ? "primary" : "ghost"}`}
+              href="/admin?view=diagnostics"
+            >
+              Bugs and Internal Errors
+            </a>
+          </div>
+        </section>
+      ) : null}
 
-      {adminView === "diagnostics" ? (
+      {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
         <>
           <section className="card">
             <h2>Internal Error Log</h2>
@@ -606,7 +641,7 @@ export default async function AdminPage({ searchParams }) {
         </>
       ) : null}
 
-      {adminView === "accounts" ? (
+      {effectiveAdminView === "accounts" && adminContext.hasSchoolScope ? (
         <section className="card">
           <h2>User Information</h2>
         <form className="adminFilterBar adminFilterBarWide" method="get">
@@ -678,7 +713,7 @@ export default async function AdminPage({ searchParams }) {
                   <select className="input" name="bulk_school_name" defaultValue="">
                     <option value="">No school selected</option>
                     <option value="__clear__">Clear school</option>
-                    {schoolOptions.map((schoolName) => (
+                    {(adminContext.isOwner ? schoolOptions : schoolOptions.filter((schoolName) => schoolName === adminContext.schoolName)).map((schoolName) => (
                       <option key={schoolName} value={schoolName}>
                         {schoolName}
                       </option>
@@ -743,7 +778,7 @@ export default async function AdminPage({ searchParams }) {
                         <div className="adminBadgeRow">
                           <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
                           {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
-                          {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
+                        {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
                           <span className="adminSummaryToggleText">
                             <span className="showLabel">Show Details</span>
                             <span className="hideLabel">Hide Details</span>
@@ -790,7 +825,7 @@ export default async function AdminPage({ searchParams }) {
                             defaultValue={item.schoolName === "-" ? "" : item.schoolName}
                           >
                             <option value="">No school</option>
-                            {schoolOptions.map((schoolName) => (
+                            {(adminContext.isOwner ? schoolOptions : schoolOptions.filter((schoolName) => schoolName === adminContext.schoolName)).map((schoolName) => (
                               <option key={schoolName} value={schoolName}>
                                 {schoolName}
                               </option>
@@ -905,13 +940,15 @@ export default async function AdminPage({ searchParams }) {
                           Make {item.accountType === "student" ? "Teacher" : "Student"}
                         </button>
                       </form>
-                      <form action={toggleAdminAccessAction} className="adminInlineForm">
-                        <input type="hidden" name="user_id" value={item.id} />
-                        <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
-                        <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
-                          {item.isBootstrapOwner ? "Owner Access" : item.isAdmin ? "Remove Admin" : "Make Admin"}
-                        </button>
-                      </form>
+                      {adminContext.isOwner ? (
+                        <form action={toggleAdminAccessAction} className="adminInlineForm">
+                          <input type="hidden" name="user_id" value={item.id} />
+                          <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
+                          <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
+                            {item.isBootstrapOwner ? "Owner Access" : item.isAdmin ? "Remove Admin" : "Make Admin"}
+                          </button>
+                        </form>
+                      ) : null}
                       {item.accountType !== "student" ? (
                         <form action={toggleDiscoverableAction} className="adminInlineForm">
                           <input type="hidden" name="user_id" value={item.id} />

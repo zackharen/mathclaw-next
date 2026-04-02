@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isOwnerUser } from "@/lib/auth/owner";
+import { canAccessAdminArea } from "@/lib/auth/owner";
+import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import { restoreDeletedAccountAction } from "../actions";
 
 function formatDate(value) {
@@ -27,25 +28,50 @@ export default async function DeletedAccountsPage({ searchParams }) {
     redirect("/auth/sign-in?redirect=/admin/deleted");
   }
 
-  if (!isOwnerUser(user)) {
+  if (!canAccessAdminArea(user)) {
     redirect("/");
   }
 
   const admin = createAdminClient();
+  const adminContext = await getAdminAccessContext(user, admin);
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
-  const deletedUsers = (data?.users || []).filter(
+  const deletedAuthUsers = (data?.users || []).filter(
     (authUser) => authUser?.app_metadata?.account_deleted === true
   );
+  const deletedIds = deletedAuthUsers.map((authUser) => authUser.id);
+  const { data: profiles } = deletedIds.length
+    ? await admin.from("profiles").select("id, school_name").in("id", deletedIds)
+    : { data: [] };
+  const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  const deletedUsers = deletedAuthUsers.filter((authUser) => {
+    if (adminContext.isOwner) return true;
+    if (!adminContext.schoolName) return false;
+    const profile = profilesById.get(authUser.id);
+    const schoolName = String(profile?.school_name || authUser?.user_metadata?.school_name || "").trim();
+    return schoolName === adminContext.schoolName;
+  });
 
   return (
     <div className="stack adminStack">
       <section className="card">
         <h1>Deleted Accounts</h1>
-        <p>Restore previously deleted accounts here.</p>
+        <p>
+          {adminContext.isOwner
+            ? "Restore previously deleted accounts here."
+            : adminContext.schoolName
+              ? `View and restore deleted accounts from ${adminContext.schoolName}.`
+              : "This admin account needs a school assignment before deleted-account tools can load."}
+        </p>
         <div className="adminSubnav">
           <Link className="btn ghost" href="/admin">Back to Admin</Link>
         </div>
       </section>
+
+      {!adminContext.isOwner && !adminContext.schoolName ? (
+        <section className="card noticeError">
+          <p>No school is assigned to this admin account yet, so deleted-account tools are unavailable.</p>
+        </section>
+      ) : null}
 
       {qs.restored === "1" ? (
         <section className="card noticeSuccess">
@@ -59,6 +85,7 @@ export default async function DeletedAccountsPage({ searchParams }) {
         </section>
       ) : null}
 
+      {adminContext.isOwner || adminContext.schoolName ? (
       <section className="card">
         <h2>Archived</h2>
         {error ? <p>Could not load deleted accounts: {error.message}</p> : null}
@@ -86,6 +113,7 @@ export default async function DeletedAccountsPage({ searchParams }) {
           </div>
         ) : null}
       </section>
+      ) : null}
     </div>
   );
 }

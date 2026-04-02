@@ -272,7 +272,11 @@ export default async function ClassesPage({ searchParams }) {
                   {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"}
                 </p>
                 <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-                  {course.membership_role === "owner" ? "Role: Owner" : "Role: Co-Teacher"}
+                  {course.membership_role === "owner"
+                    ? "Role: Owner"
+                    : course.membership_role === "admin"
+                      ? "Role: Admin"
+                      : "Role: Co-Teacher"}
                 </p>
                 <p>
                   {course.school_year_start} to {course.school_year_end}
@@ -377,7 +381,7 @@ export default async function ClassesPage({ searchParams }) {
                       </button>
                     </form>
                   ) : null}
-                  {course.membership_role === "owner" ? (
+                  {course.membership_role === "owner" || course.membership_role === "admin" ? (
                     <form action={deleteClassAction}>
                       <input type="hidden" name="course_id" value={course.id} />
                       <button className="btn danger" type="submit">
