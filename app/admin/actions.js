@@ -44,6 +44,86 @@ async function getManagedAuthUser(admin, userId) {
   return authUserData?.user || null;
 }
 
+async function ensureManagedProfile(admin, authUser) {
+  const currentMetadata = authUser?.user_metadata || {};
+  const inferredAccountType = normalizeAccountType(
+    currentMetadata.account_type ||
+      currentMetadata.role ||
+      currentMetadata.user_type
+  );
+
+  await ensureProfileForUser(admin, authUser, inferredAccountType);
+
+  return currentMetadata;
+}
+
+async function saveSchoolName(admin, userId, authUser, schoolName) {
+  const currentMetadata = await ensureManagedProfile(admin, authUser);
+
+  let { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      school_name: schoolName || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (profileError && isMissingColumnError(profileError, "updated_at")) {
+    const retry = await admin
+      .from("profiles")
+      .update({
+        school_name: schoolName || null,
+      })
+      .eq("id", userId);
+    profileError = retry.error;
+  }
+
+  if (profileError) {
+    return profileError;
+  }
+
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      ...currentMetadata,
+      school_name: schoolName || null,
+    },
+  });
+
+  return authError || null;
+}
+
+async function addUserToClass(admin, userId, courseId, authUser) {
+  await ensureManagedProfile(admin, authUser);
+
+  const { error } = await admin
+    .from("student_course_memberships")
+    .upsert(
+      {
+        course_id: courseId,
+        profile_id: userId,
+      },
+      { onConflict: "course_id,profile_id" }
+    );
+
+  return error || null;
+}
+
+async function softDeleteAccount(admin, userId, ownerId, authUser) {
+  const currentAppMetadata = authUser?.app_metadata || {};
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: "876000h",
+    app_metadata: {
+      ...currentAppMetadata,
+      account_deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_by: ownerId,
+    },
+  });
+
+  return error || null;
+}
+
 export async function updateAccountTypeAction(formData) {
   await requireOwner();
 
@@ -175,43 +255,7 @@ export async function updateSchoolNameAction(formData) {
 
   const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
-  const currentMetadata = authUser?.user_metadata || {};
-  const inferredAccountType = normalizeAccountType(
-    currentMetadata.account_type ||
-      currentMetadata.role ||
-      currentMetadata.user_type
-  );
-
-  await ensureProfileForUser(admin, authUser, inferredAccountType);
-
-  let { error: profileError } = await admin
-    .from("profiles")
-    .update({
-      school_name: schoolName || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", userId);
-
-  if (profileError && isMissingColumnError(profileError, "updated_at")) {
-    const retry = await admin
-      .from("profiles")
-      .update({
-        school_name: schoolName || null,
-      })
-      .eq("id", userId);
-    profileError = retry.error;
-  }
-
-  if (profileError) {
-    redirect(`/admin?error=${encodeURIComponent(profileError.message)}`);
-  }
-
-  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: {
-      ...currentMetadata,
-      school_name: schoolName || null,
-    },
-  });
+  const authError = await saveSchoolName(admin, userId, authUser, schoolName);
 
   if (authError) {
     redirect(`/admin?error=${encodeURIComponent(authError.message)}`);
@@ -235,17 +279,7 @@ export async function deleteAccountAction(formData) {
 
   const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
-  const currentAppMetadata = authUser?.app_metadata || {};
-
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    ban_duration: "876000h",
-    app_metadata: {
-      ...currentAppMetadata,
-      account_deleted: true,
-      deleted_at: new Date().toISOString(),
-      deleted_by: owner.id,
-    },
-  });
+  const error = await softDeleteAccount(admin, userId, owner.id, authUser);
 
   if (error) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
@@ -462,19 +496,7 @@ export async function addUserToClassAction(formData) {
 
   const admin = createAdminClient();
   const authUser = await getManagedAuthUser(admin, userId);
-  const inferredAccountType = normalizeAccountType(authUser?.user_metadata?.account_type);
-
-  await ensureProfileForUser(admin, authUser, inferredAccountType);
-
-  const { error } = await admin
-    .from("student_course_memberships")
-    .upsert(
-      {
-        course_id: courseId,
-        profile_id: userId,
-      },
-      { onConflict: "course_id,profile_id" }
-    );
+  const error = await addUserToClass(admin, userId, courseId, authUser);
 
   if (error) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
@@ -483,4 +505,82 @@ export async function addUserToClassAction(formData) {
   revalidatePath("/admin");
   revalidatePath("/play");
   redirect("/admin?membership=added");
+}
+
+export async function bulkAccountAction(formData) {
+  const { user: owner } = await requireOwner();
+
+  const selectedUserIds = formData
+    .getAll("selected_user_ids")
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const actionType = String(formData.get("bulk_action") || "").trim();
+  const selectedSchoolName = String(formData.get("bulk_school_name") || "").trim();
+  const newSchoolName = String(formData.get("bulk_new_school_name") || "").trim();
+  const schoolName = newSchoolName || selectedSchoolName;
+  const courseId = String(formData.get("bulk_course_id") || "").trim();
+
+  if (selectedUserIds.length === 0) {
+    redirect("/admin?error=Select at least one account first.");
+  }
+
+  if (!["school", "class", "delete"].includes(actionType)) {
+    redirect("/admin?error=Choose a bulk action first.");
+  }
+
+  if (actionType === "school" && !schoolName) {
+    redirect("/admin?error=Choose or type a school for the selected accounts.");
+  }
+
+  if (actionType === "class" && !courseId) {
+    redirect("/admin?error=Choose a class for the selected accounts.");
+  }
+
+  const admin = createAdminClient();
+  let updatedCount = 0;
+  let skippedOwners = 0;
+
+  for (const userId of selectedUserIds) {
+    const authUser = await getManagedAuthUser(admin, userId);
+
+    if (!authUser) {
+      continue;
+    }
+
+    if (actionType === "delete" && userId === owner.id) {
+      skippedOwners += 1;
+      continue;
+    }
+
+    let error = null;
+
+    if (actionType === "school") {
+      error = await saveSchoolName(admin, userId, authUser, schoolName);
+    } else if (actionType === "class") {
+      error = await addUserToClass(admin, userId, courseId, authUser);
+    } else if (actionType === "delete") {
+      error = await softDeleteAccount(admin, userId, owner.id, authUser);
+    }
+
+    if (error) {
+      redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+    }
+
+    updatedCount += 1;
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/deleted");
+  revalidatePath("/play");
+
+  const resultParams = new URLSearchParams({
+    bulk: actionType,
+    bulkCount: String(updatedCount),
+  });
+
+  if (skippedOwners > 0) {
+    resultParams.set("bulkSkippedOwners", String(skippedOwners));
+  }
+
+  redirect(`/admin?${resultParams.toString()}`);
 }

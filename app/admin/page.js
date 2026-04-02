@@ -15,6 +15,7 @@ import {
   updateSchoolNameAction,
   toggleAdminAccessAction,
   addUserToClassAction,
+  bulkAccountAction,
   restoreDeletedAccountAction,
   resetPasswordAction,
   deleteOwnedClassAction,
@@ -44,9 +45,12 @@ function Notice({ searchParams }) {
   const classDeleted = searchParams?.classDeleted === "1";
   const bugReport = searchParams?.bugReport;
   const schoolUpdated = searchParams?.schoolUpdated;
+  const bulkAction = searchParams?.bulk;
+  const bulkCount = Number(searchParams?.bulkCount || 0);
+  const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !error) {
     return null;
   }
 
@@ -67,6 +71,10 @@ function Notice({ searchParams }) {
       {bugReport === "open" ? <p>Bug report reopened.</p> : null}
       {schoolUpdated === "set" ? <p>School assignment updated.</p> : null}
       {schoolUpdated === "cleared" ? <p>School assignment cleared.</p> : null}
+      {bulkAction === "school" ? <p>School updated for {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
+      {bulkAction === "class" ? <p>Added {bulkCount} selected account{bulkCount === 1 ? "" : "s"} to the class.</p> : null}
+      {bulkAction === "delete" ? <p>Deleted {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
+      {bulkSkippedOwners > 0 ? <p>Skipped {bulkSkippedOwners} owner account{bulkSkippedOwners === 1 ? "" : "s"}.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
   );
@@ -648,42 +656,103 @@ export default async function AdminPage({ searchParams }) {
         {error ? <p>Could not load accounts: {error.message}</p> : null}
         {!error && users.length === 0 ? <p>No accounts yet.</p> : null}
         {!error && users.length > 0 ? (
-          <div className="adminUserList">
+          <>
+            <form id="adminBulkActionForm" action={bulkAccountAction} className="card adminBulkActionCard">
+              <div className="adminBulkActionGrid">
+                <label className="stack">
+                  <span>Bulk action</span>
+                  <select className="input" name="bulk_action" defaultValue="">
+                    <option value="">Choose an action</option>
+                    <option value="school">Assign school</option>
+                    <option value="class">Add to class</option>
+                    <option value="delete">Delete accounts</option>
+                  </select>
+                </label>
+                <label className="stack">
+                  <span>Existing school</span>
+                  <select className="input" name="bulk_school_name" defaultValue="">
+                    <option value="">No school selected</option>
+                    {schoolOptions.map((schoolName) => (
+                      <option key={schoolName} value={schoolName}>
+                        {schoolName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="stack">
+                  <span>Or add a new school</span>
+                  <input
+                    className="input"
+                    type="text"
+                    name="bulk_new_school_name"
+                    placeholder="Type a new school name"
+                  />
+                </label>
+                <label className="stack">
+                  <span>Class</span>
+                  <select className="input" name="bulk_course_id" defaultValue="">
+                    <option value="">Choose a class</option>
+                    {courseOptions.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="ctaRow adminInlineEditorRow adminSingleAction">
+                  <button className="btn" type="submit">Apply to Selected</button>
+                </div>
+              </div>
+              <p className="adminBulkHelp">
+                Check the boxes next to the accounts you want, then choose one bulk action here. For school updates, a typed new school overrides the existing-school dropdown.
+              </p>
+            </form>
+            <div className="adminUserList">
             {users.map((item) => {
               const classSummary = summarizeAccountClasses(item);
 
               return (
-                <details key={item.id} className="card adminUserCard adminUserDetails">
-                  <summary className="adminUserSummary">
-                    <div className="adminUserSummaryMain">
-                      <div>
-                        <h3>{item.displayName}</h3>
-                        <p className="adminUserSummaryClass">{classSummary.title}</p>
-                        <p className="adminUserSummaryMeta">{classSummary.detail}</p>
+                <div key={item.id} className="adminSelectableCard">
+                  <label className="adminBulkCheckbox">
+                    <input
+                      type="checkbox"
+                      name="selected_user_ids"
+                      value={item.id}
+                      form="adminBulkActionForm"
+                    />
+                    <span>Select</span>
+                  </label>
+                  <details className="card adminUserCard adminUserDetails">
+                    <summary className="adminUserSummary">
+                      <div className="adminUserSummaryMain">
+                        <div>
+                          <h3>{item.displayName}</h3>
+                          <p className="adminUserSummaryClass">{classSummary.title}</p>
+                          <p className="adminUserSummaryMeta">{classSummary.detail}</p>
+                        </div>
+                        <div className="adminBadgeRow">
+                          <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
+                          {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
+                          {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
+                          <span className="adminSummaryToggleText">
+                            <span className="showLabel">Show Details</span>
+                            <span className="hideLabel">Hide Details</span>
+                          </span>
+                        </div>
                       </div>
-                      <div className="adminBadgeRow">
-                        <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
-                        {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
-                        {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
-                        <span className="adminSummaryToggleText">
-                          <span className="showLabel">Show Details</span>
-                          <span className="hideLabel">Hide Details</span>
-                        </span>
+                    </summary>
+                    <div className="adminUserDetailsBody">
+                      <div className="adminUserHeader">
+                        <div>
+                          <h3>{item.displayName}</h3>
+                          <p>{item.email}</p>
+                        </div>
+                        <div className="adminBadgeRow">
+                          <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
+                          {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
+                          {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
+                        </div>
                       </div>
-                    </div>
-                  </summary>
-                  <div className="adminUserDetailsBody">
-                    <div className="adminUserHeader">
-                      <div>
-                        <h3>{item.displayName}</h3>
-                        <p>{item.email}</p>
-                      </div>
-                      <div className="adminBadgeRow">
-                        <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
-                        {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
-                        {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
-                      </div>
-                    </div>
                     <form action={renameAccountAction} className="adminRenameForm">
                       <input type="hidden" name="user_id" value={item.id} />
                       <div className="adminNameGrid">
@@ -850,11 +919,13 @@ export default async function AdminPage({ searchParams }) {
                         />
                       </form>
                     </AccountActionsToggle>
-                  </div>
-                </details>
+                    </div>
+                  </details>
+                </div>
               );
             })}
-          </div>
+            </div>
+          </>
         ) : null}
         </section>
       ) : null}
