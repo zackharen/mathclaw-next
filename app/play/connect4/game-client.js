@@ -48,6 +48,15 @@ export default function Connect4Client({ courses, userId }) {
     !!match.player_one_id &&
     !!match.player_two_id &&
     (match.player_one_id === userId || match.player_two_id === userId);
+  const winningCells = useMemo(
+    () =>
+      new Set(
+        Array.isArray(match?.metadata?.winningCells)
+          ? match.metadata.winningCells.map((cell) => `${cell[0]}:${cell[1]}`)
+          : []
+      ),
+    [match]
+  );
 
   const refreshMatch = useCallback(async (matchId) => {
     if (!matchId) return;
@@ -271,7 +280,9 @@ export default function Connect4Client({ courses, userId }) {
                 row.map((value, colIndex) => (
                   <div
                     key={`${rowIndex}-${colIndex}`}
-                    className="connect4Cell"
+                    className={`connect4Cell ${
+                      winningCells.has(`${rowIndex}:${colIndex}`) ? "isWinner" : ""
+                    }`}
                     style={{ background: cellColor(value) }}
                   />
                 ))

@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { boardFull, dropToken, emptyBoard, hasWinner, nextToken, normalizeBoard } from "@/lib/student-games/connect4";
+import {
+  boardFull,
+  dropToken,
+  emptyBoard,
+  hasWinner,
+  nextToken,
+  normalizeBoard,
+  winningCells,
+} from "@/lib/student-games/connect4";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
 import { upsertGameStats } from "@/lib/student-games/stats";
@@ -10,6 +18,20 @@ import { logInternalEvent } from "@/lib/observability/events";
 
 function normalizeCourseId(value) {
   return typeof value === "string" && value ? value : null;
+}
+
+function withNormalizedMatch(match) {
+  if (!match) return match;
+  return {
+    ...match,
+    board: normalizeBoard(match.board),
+    metadata: {
+      ...(match.metadata || {}),
+      winningCells: Array.isArray(match.metadata?.winningCells)
+        ? match.metadata.winningCells
+        : [],
+    },
+  };
 }
 
 export async function GET(request) {
@@ -35,7 +57,7 @@ export async function GET(request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (!data) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
-  return NextResponse.json({ match: { ...data, board: normalizeBoard(data.board) } });
+  return NextResponse.json({ match: withNormalizedMatch(data) });
 }
 
 async function saveFinishedMatchStats({ supabase, match, winnerId, isDraw }) {
@@ -183,7 +205,7 @@ export async function POST(request) {
       });
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
-    return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
+    return NextResponse.json({ match: withNormalizedMatch(updated) });
   }
 
   if (action === "move") {
@@ -225,7 +247,10 @@ export async function POST(request) {
     const { board, row, placed } = dropToken(match.board, column, token);
     if (!placed) return NextResponse.json({ error: "Column is full" }, { status: 400 });
 
-    const winner = hasWinner(board, row, column, token) ? user.id : null;
+    const winningLine = hasWinner(board, row, column, token)
+      ? winningCells(board, row, column, token)
+      : [];
+    const winner = winningLine.length >= 4 ? user.id : null;
     const draw = !winner && boardFull(board);
     const nextTurn =
       winner || draw ? null : user.id === match.player_one_id ? match.player_two_id : match.player_one_id;
@@ -237,7 +262,7 @@ export async function POST(request) {
       winner_id: winner,
       status: winner || draw ? "finished" : "active",
       updated_at: new Date().toISOString(),
-      metadata: { ...(match.metadata || {}), draw },
+      metadata: { ...(match.metadata || {}), draw, winningCells: winningLine },
     };
 
     const { data: updated, error: updateError } = await supabase
@@ -283,7 +308,7 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
+    return NextResponse.json({ match: withNormalizedMatch(updated) });
   }
 
   if (action === "rematch") {
@@ -350,6 +375,7 @@ export async function POST(request) {
         ...(match.metadata || {}),
         draw: false,
         rematch_count: previousRematchCount + 1,
+        winningCells: [],
       },
     };
 
@@ -373,7 +399,7 @@ export async function POST(request) {
       return NextResponse.json({ error: updateError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ match: { ...updated, board: normalizeBoard(updated.board) } });
+    return NextResponse.json({ match: withNormalizedMatch(updated) });
   }
 
   return NextResponse.json({ error: "Unsupported action" }, { status: 400 });

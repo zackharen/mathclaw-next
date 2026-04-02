@@ -804,6 +804,14 @@ details[open] > summary.editorSummary .hideLabel {
   border-radius: 50%;
   border: 2px solid var(--line);
   cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.connect4Cell.isWinner {
+  border-color: #2f8f45;
+  box-shadow: 0 0 0 4px rgba(47, 143, 69, 0.25);
+  transform: scale(1.05);
+  background: #57c26d !important;
 }
 
 @media (max-width: 980px) {
