@@ -1293,6 +1293,11 @@ details[open] > summary.btn,
   opacity: 0.85;
 }
 
+.adminBulkSelectionHeader {
+  margin-bottom: 0.75rem;
+  margin-left: 0.15rem;
+}
+
 .adminSelectableCard {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1302,11 +1307,18 @@ details[open] > summary.btn,
 
 .adminBulkCheckbox {
   display: inline-flex;
-  gap: 0.45rem;
   align-items: center;
+  justify-content: center;
   align-self: start;
   padding-top: 1rem;
-  font-weight: 700;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+}
+
+.adminBulkCheckbox input {
+  width: 1.35rem;
+  height: 1.35rem;
+  accent-color: var(--navy);
 }
 
 .adminUserCard {
@@ -1452,8 +1464,13 @@ details[open] > summary.btn,
     gap: 0.4rem;
   }
 
+  .adminBulkSelectionHeader {
+    margin-left: 0;
+  }
+
   .adminBulkCheckbox {
     padding-top: 0;
+    justify-content: flex-start;
   }
 }
 

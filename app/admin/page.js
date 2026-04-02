@@ -7,6 +7,7 @@ import DeleteAccountButton from "./delete-account-button";
 import DeleteClassButton from "./delete-class-button";
 import AdminToast from "./admin-toast";
 import AccountActionsToggle from "./account-actions-toggle";
+import BulkSelectionControls from "./bulk-selection-controls";
 import {
   updateAccountTypeAction,
   deleteAccountAction,
@@ -707,20 +708,20 @@ export default async function AdminPage({ searchParams }) {
                 Check the boxes next to the accounts you want, then choose one bulk action here. For school updates, a typed new school overrides the existing-school dropdown.
               </p>
             </form>
+            <BulkSelectionControls />
             <div className="adminUserList">
             {users.map((item) => {
               const classSummary = summarizeAccountClasses(item);
 
               return (
                 <div key={item.id} className="adminSelectableCard">
-                  <label className="adminBulkCheckbox">
+                  <label className="adminBulkCheckbox" aria-label={`Select ${item.displayName}`}>
                     <input
                       type="checkbox"
                       name="selected_user_ids"
                       value={item.id}
                       form="adminBulkActionForm"
                     />
-                    <span>Select</span>
                   </label>
                   <details className="card adminUserCard adminUserDetails">
                     <summary className="adminUserSummary">
