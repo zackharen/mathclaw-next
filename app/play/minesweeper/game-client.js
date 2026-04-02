@@ -119,6 +119,11 @@ function calculateScore(revealedSafeCells, elapsedSeconds, result) {
   return revealedSafeCells;
 }
 
+function numberClassName(cell) {
+  if (!cell?.revealed || cell.adjacent <= 0 || cell.mine) return "";
+  return `isCount${cell.adjacent}`;
+}
+
 export default function MinesweeperClient({
   courses,
   initialCourseId,
@@ -444,10 +449,18 @@ export default function MinesweeperClient({
         <div className="ctaRow" style={{ justifyContent: "space-between", alignItems: "center" }}>
           <h2>Board</h2>
           <div className="ctaRow" style={{ marginTop: 0 }}>
-            <button className="btn" type="button" onClick={() => setMode("reveal")}>
+            <button
+              className={`btn ${mode === "reveal" ? "primary" : "ghost"}`}
+              type="button"
+              onClick={() => setMode("reveal")}
+            >
               Reveal Mode
             </button>
-            <button className="btn ghost" type="button" onClick={() => setMode("flag")}>
+            <button
+              className={`btn ${mode === "flag" ? "primary" : "ghost"}`}
+              type="button"
+              onClick={() => setMode("flag")}
+            >
               Flag Mode
             </button>
             <button className="btn primary" type="button" onClick={() => startNewBoard("reset")}>
@@ -482,7 +495,7 @@ export default function MinesweeperClient({
               let label = "";
               if (cell.revealed && cell.mine) label = "X";
               else if (cell.revealed && cell.adjacent > 0) label = String(cell.adjacent);
-              else if (cell.flagged) label = "F";
+              else if (cell.flagged) label = "🚩";
 
               return (
                 <button
@@ -490,7 +503,7 @@ export default function MinesweeperClient({
                   type="button"
                   className={`minesweeperCell ${cell.revealed ? "isRevealed" : ""} ${
                     cell.mine && cell.revealed ? "isMine" : ""
-                  } ${cell.flagged ? "isFlagged" : ""}`}
+                  } ${cell.flagged ? "isFlagged" : ""} ${numberClassName(cell)}`}
                   onClick={() => handleCellAction(rowIndex, colIndex)}
                   onContextMenu={(event) => {
                     event.preventDefault();

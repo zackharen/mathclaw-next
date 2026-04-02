@@ -1683,12 +1683,45 @@ details[open] > summary.btn,
   background: #f7f1e5;
 }
 
+.minesweeperCell.isCount1 {
+  color: #1d4ed8;
+}
+
+.minesweeperCell.isCount2 {
+  color: #15803d;
+}
+
+.minesweeperCell.isCount3 {
+  color: #b91c1c;
+}
+
+.minesweeperCell.isCount4 {
+  color: #312e81;
+}
+
+.minesweeperCell.isCount5 {
+  color: #9a3412;
+}
+
+.minesweeperCell.isCount6 {
+  color: #0f766e;
+}
+
+.minesweeperCell.isCount7 {
+  color: #374151;
+}
+
+.minesweeperCell.isCount8 {
+  color: #7c2d12;
+}
+
 .minesweeperCell.isMine {
   background: #f3b3b3;
 }
 
 .minesweeperCell.isFlagged {
   background: #ffe59a;
+  font-size: 1.1rem;
 }
 
 .timeClockWrap {

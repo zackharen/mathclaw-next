@@ -42,7 +42,9 @@ export default async function MinesweeperPage({ searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>Minesweeper</h1>
+        <h1>
+          Minesweeper <span aria-hidden="true">😎</span>
+        </h1>
         <p>Reveal safe squares, flag the mines, and clear the board without blowing up.</p>
       </section>
       <MinesweeperClient
