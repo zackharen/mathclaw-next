@@ -6,6 +6,7 @@ const TOTAL_ROUNDS = 10;
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const CLOCK_FACE_NUMBERS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const CLOCK_FACE_ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -47,9 +48,10 @@ function buildChoices(question) {
   return [...choices].sort(() => Math.random() - 0.5);
 }
 
-function ClockFace({ hour, minute, label }) {
+function ClockFace({ hour, minute, label, faceStyle = "numbers" }) {
   const minuteRotation = minute * 6;
   const hourRotation = ((hour % 12) + minute / 60) * 30;
+  const markers = faceStyle === "roman" ? CLOCK_FACE_ROMAN : CLOCK_FACE_NUMBERS;
 
   return (
     <div className="timeClockWrap" aria-label={label}>
@@ -57,12 +59,12 @@ function ClockFace({ hour, minute, label }) {
         {Array.from({ length: 12 }, (_, index) => (
           <span
             key={index}
-            className="timeClockNumber"
+            className={faceStyle === "ticks" ? "timeClockTick" : "timeClockNumber"}
             style={{
               transform: `rotate(${index * 30}deg) translateY(-4.8rem) rotate(${-index * 30}deg)`,
             }}
           >
-            {CLOCK_FACE_NUMBERS[index]}
+            {faceStyle === "ticks" ? "–" : markers[index]}
           </span>
         ))}
         <div className="timeClockHand hourHand" style={{ transform: `rotate(${hourRotation}deg)` }} />
@@ -81,6 +83,7 @@ export default function TellingTimeClient({
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("mixed");
+  const [faceStyle, setFaceStyle] = useState("numbers");
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
@@ -311,6 +314,18 @@ export default function TellingTimeClient({
             </select>
           </label>
           <label>
+            Clock face
+            <select
+              className="input"
+              value={faceStyle}
+              onChange={(event) => setFaceStyle(event.target.value)}
+            >
+              <option value="numbers">Numbers</option>
+              <option value="ticks">Tick Marks</option>
+              <option value="roman">Roman Numerals</option>
+            </select>
+          </label>
+          <label>
             Class context
             <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
               <option value="">No class selected</option>
@@ -337,6 +352,7 @@ export default function TellingTimeClient({
           hour={question.mode === "read" ? question.hour : selectedHour}
           minute={question.mode === "read" ? question.minute : selectedMinute}
           label={question.mode === "read" ? question.label : `Current setting ${formatTimeLabel(selectedHour, selectedMinute)}`}
+          faceStyle={faceStyle}
         />
         {question.mode === "read" ? (
           <div className="choiceGrid">

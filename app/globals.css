@@ -1756,6 +1756,22 @@ details[open] > summary.btn,
   font-weight: 800;
 }
 
+.timeClockTick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: -0.875rem;
+  margin-top: -0.875rem;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 1.25rem;
+  color: #4c6f94;
+}
+
 .timeClockHand {
   position: absolute;
   left: 50%;
