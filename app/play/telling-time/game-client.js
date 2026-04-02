@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const TOTAL_ROUNDS = 10;
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
+const READ_FILL_MINUTE_OPTIONS = Array.from({ length: 11 }, (_, index) => (index + 1) * 5);
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const CLOCK_FACE_NUMBERS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const CLOCK_FACE_ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
@@ -25,21 +26,26 @@ function randomQuestionMode(selectedMode) {
   return Math.random() > 0.5 ? "read" : "set";
 }
 
-function buildQuestion(selectedMode) {
+function buildQuestion(selectedMode, readAnswerMode = "multiple_choice") {
+  const mode = randomQuestionMode(selectedMode);
   const hour = HOUR_OPTIONS[Math.floor(Math.random() * HOUR_OPTIONS.length)];
-  const minute = MINUTE_OPTIONS[Math.floor(Math.random() * MINUTE_OPTIONS.length)];
+  const minutePool =
+    mode === "read" && readAnswerMode === "fill"
+      ? READ_FILL_MINUTE_OPTIONS
+      : MINUTE_OPTIONS;
+  const minute = minutePool[Math.floor(Math.random() * minutePool.length)];
   return {
-    mode: randomQuestionMode(selectedMode),
+    mode,
     hour,
     minute,
     label: formatTimeLabel(hour, minute),
   };
 }
 
-function buildChoices(question) {
+function buildChoices(question, count = 4) {
   const choices = new Set([question.label]);
 
-  while (choices.size < 4) {
+  while (choices.size < count) {
     const hour = HOUR_OPTIONS[Math.floor(Math.random() * HOUR_OPTIONS.length)];
     const minute = MINUTE_OPTIONS[Math.floor(Math.random() * MINUTE_OPTIONS.length)];
     choices.add(formatTimeLabel(hour, minute));
@@ -84,12 +90,16 @@ export default function TellingTimeClient({
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("mixed");
   const [faceStyle, setFaceStyle] = useState("numbers");
+  const [readAnswerMode, setReadAnswerMode] = useState("multiple_choice");
+  const [choiceCount, setChoiceCount] = useState(4);
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [question, setQuestion] = useState(() => buildQuestion("mixed"));
+  const [question, setQuestion] = useState(() => buildQuestion("mixed", "multiple_choice"));
   const [selectedHour, setSelectedHour] = useState(question.hour);
   const [selectedMinute, setSelectedMinute] = useState(question.minute);
+  const [readAnswerHour, setReadAnswerHour] = useState(question.hour);
+  const [readAnswerMinute, setReadAnswerMinute] = useState(question.minute || READ_FILL_MINUTE_OPTIONS[0]);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -101,7 +111,7 @@ export default function TellingTimeClient({
   });
   const savedRunRef = useRef(false);
 
-  const choices = useMemo(() => buildChoices(question), [question]);
+  const choices = useMemo(() => buildChoices(question, choiceCount), [choiceCount, question]);
 
   const loadLeaderboard = useCallback(
     async (nextCourseId) => {
@@ -199,12 +209,14 @@ export default function TellingTimeClient({
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, [saveSession]);
 
-  function resetRun(nextMode = mode, nextCourseId = courseId) {
+  function resetRun(nextMode = mode, nextCourseId = courseId, nextReadAnswerMode = readAnswerMode) {
     savedRunRef.current = false;
-    const nextQuestion = buildQuestion(nextMode);
+    const nextQuestion = buildQuestion(nextMode, nextReadAnswerMode);
     setQuestion(nextQuestion);
     setSelectedHour(nextQuestion.hour);
     setSelectedMinute(nextQuestion.minute);
+    setReadAnswerHour(nextQuestion.hour);
+    setReadAnswerMinute(nextQuestion.minute || READ_FILL_MINUTE_OPTIONS[0]);
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
@@ -227,7 +239,7 @@ export default function TellingTimeClient({
       }
     }
 
-    resetRun();
+    resetRun(mode, courseId, readAnswerMode);
   }
 
   async function handleCourseChange(nextCourseId) {
@@ -242,7 +254,7 @@ export default function TellingTimeClient({
     }
 
     setCourseId(nextCourseId);
-    resetRun(mode, nextCourseId);
+    resetRun(mode, nextCourseId, readAnswerMode);
   }
 
   function advanceRun(correct, nextMode = mode) {
@@ -270,15 +282,24 @@ export default function TellingTimeClient({
       return;
     }
 
-    const nextQuestion = buildQuestion(nextMode);
+    const nextQuestion = buildQuestion(nextMode, readAnswerMode);
     setQuestion(nextQuestion);
     setSelectedHour(nextQuestion.hour);
     setSelectedMinute(nextQuestion.minute);
+    setReadAnswerHour(nextQuestion.hour);
+    setReadAnswerMinute(nextQuestion.minute || READ_FILL_MINUTE_OPTIONS[0]);
     setRoundIndex(nextAttempts + 1);
   }
 
   function answerReadMode(choice) {
     const correct = choice === question.label;
+    setFeedback(correct ? "Nice read." : `Not quite. That clock shows ${question.label}.`);
+    advanceRun(correct);
+  }
+
+  function answerReadFillMode() {
+    const guess = formatTimeLabel(readAnswerHour, readAnswerMinute);
+    const correct = guess === question.label;
     setFeedback(correct ? "Nice read." : `Not quite. That clock shows ${question.label}.`);
     advanceRun(correct);
   }
@@ -313,6 +334,37 @@ export default function TellingTimeClient({
               <option value="set">Set The Clock</option>
             </select>
           </label>
+          <label>
+            Read answers
+            <select
+              className="input"
+              value={readAnswerMode}
+              onChange={(event) => {
+                const nextReadAnswerMode = event.target.value;
+                setReadAnswerMode(nextReadAnswerMode);
+                resetRun(mode, courseId, nextReadAnswerMode);
+              }}
+            >
+              <option value="multiple_choice">Multiple Choice</option>
+              <option value="fill">Fill In</option>
+            </select>
+          </label>
+          {readAnswerMode === "multiple_choice" ? (
+            <label>
+              Multiple choice answers
+              <select
+                className="input"
+                value={choiceCount}
+                onChange={(event) => setChoiceCount(Number(event.target.value))}
+              >
+                {[2, 3, 4, 5, 6].map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             Clock face
             <select
@@ -355,19 +407,53 @@ export default function TellingTimeClient({
           faceStyle={faceStyle}
         />
         {question.mode === "read" ? (
-          <div className="choiceGrid">
-            {choices.map((choice) => (
-              <button
-                key={choice}
-                className="btn bigChoice"
-                type="button"
-                onClick={() => answerReadMode(choice)}
-                disabled={runComplete}
-              >
-                {choice}
+          readAnswerMode === "fill" ? (
+            <div className="list" style={{ marginTop: "1rem" }}>
+              <p>Write the time shown on the clock.</p>
+              <div className="timeAnswerRow">
+                <select
+                  className="input"
+                  value={readAnswerHour}
+                  onChange={(event) => setReadAnswerHour(Number(event.target.value))}
+                >
+                  {HOUR_OPTIONS.map((hour) => (
+                    <option key={hour} value={hour}>
+                      {hour}
+                    </option>
+                  ))}
+                </select>
+                <span className="timeAnswerColon">:</span>
+                <select
+                  className="input"
+                  value={readAnswerMinute}
+                  onChange={(event) => setReadAnswerMinute(Number(event.target.value))}
+                >
+                  {READ_FILL_MINUTE_OPTIONS.map((minute) => (
+                    <option key={minute} value={minute}>
+                      {formatMinute(minute)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button className="btn primary" type="button" onClick={answerReadFillMode} disabled={runComplete}>
+                Check Time
               </button>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="choiceGrid">
+              {choices.map((choice) => (
+                <button
+                  key={choice}
+                  className="btn bigChoice"
+                  type="button"
+                  onClick={() => answerReadMode(choice)}
+                  disabled={runComplete}
+                >
+                  {choice}
+                </button>
+              ))}
+            </div>
+          )
         ) : (
           <div className="list" style={{ marginTop: "1rem" }}>
             <p>Set the clock to <strong>{question.label}</strong>.</p>
