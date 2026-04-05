@@ -1,65 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
-function roundTo(value, places) {
-  const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
-}
-
-function gcd(a, b) {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-  while (y) {
-    [x, y] = [y, x % y];
-  }
-  return x || 1;
-}
-
-function fractionValue() {
-  const numerator = Math.floor(Math.random() * 19) - 9 || 1;
-  const denominator = Math.floor(Math.random() * 8) + 2;
-  const divisor = gcd(numerator, denominator);
-  return {
-    label: `${numerator / divisor}/${denominator / divisor}`,
-    value: numerator / denominator,
-  };
-}
-
-function squareRootValue() {
-  const inside = Math.floor(Math.random() * 90) + 2;
-  return {
-    label: `√${inside}`,
-    value: Math.sqrt(inside),
-  };
-}
-
-function decimalValue(places) {
-  const raw = Math.random() * 40 - 20;
-  const value = roundTo(raw, places);
-  return { label: value.toFixed(places), value };
-}
-
-function integerValue(allowNegative) {
-  const value = allowNegative ? Math.floor(Math.random() * 41) - 20 : Math.floor(Math.random() * 21);
-  return { label: String(value), value };
-}
-
-function buildNumber(settings) {
-  const pool = [];
-  if (settings.decimals.length > 0) pool.push("decimal");
-  if (settings.positiveNegative) pool.push("integer");
-  if (settings.fractions) pool.push("fraction");
-  if (settings.squareRoots) pool.push("root");
-  const choice = pool[Math.floor(Math.random() * pool.length)] || "integer";
-  if (choice === "decimal") {
-    const places = settings.decimals[Math.floor(Math.random() * settings.decimals.length)];
-    return decimalValue(places);
-  }
-  if (choice === "fraction") return fractionValue();
-  if (choice === "root") return squareRootValue();
-  return integerValue(settings.positiveNegative);
-}
+import { numberCompareEngine } from "@/lib/question-engine/generators";
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -81,7 +23,10 @@ export default function NumberCompareClient({
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
   const [feedback, setFeedback] = useState("");
-  const [pair, setPair] = useState(() => [buildNumber(settings), buildNumber(settings)]);
+  const [pair, setPair] = useState(() => [
+    numberCompareEngine.buildQuestion(settings),
+    numberCompareEngine.buildQuestion(settings),
+  ]);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -225,7 +170,10 @@ export default function NumberCompareClient({
     setLevel(1);
     setFeedback("");
     setCourseId(nextCourseId);
-    setPair([buildNumber(settings), buildNumber(settings)]);
+    setPair([
+      numberCompareEngine.buildQuestion(settings),
+      numberCompareEngine.buildQuestion(settings),
+    ]);
   }
 
   async function startNewRun() {
@@ -250,7 +198,10 @@ export default function NumberCompareClient({
     setScore(0);
     setLevel(1);
     setFeedback("");
-    setPair([buildNumber(settings), buildNumber(settings)]);
+    setPair([
+      numberCompareEngine.buildQuestion(settings),
+      numberCompareEngine.buildQuestion(settings),
+    ]);
   }
 
   function toggleDecimal(place) {
@@ -279,7 +230,10 @@ export default function NumberCompareClient({
       courseId,
       settings,
     };
-    setPair([buildNumber(settings), buildNumber(settings)]);
+    setPair([
+      numberCompareEngine.buildQuestion(settings),
+      numberCompareEngine.buildQuestion(settings),
+    ]);
   }
 
   return (

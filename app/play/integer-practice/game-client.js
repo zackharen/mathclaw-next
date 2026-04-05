@@ -1,28 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-function randomInt(max) {
-  return Math.floor(Math.random() * max);
-}
-
-function makeProblem(level, twoDigit) {
-  const limit = twoDigit ? Math.min(99, Math.max(10, 9 + level * 6)) : 9;
-  const a = randomInt(limit * 2 + 1) - limit;
-  const b = randomInt(limit * 2 + 1) - limit;
-  const op = Math.random() > 0.5 ? "+" : "-";
-  const answer = op === "+" ? a + b : a - b;
-  return { a, b, op, answer };
-}
-
-function choices(answer, count) {
-  const set = new Set([answer]);
-  while (set.size < count) {
-    const offset = Math.floor(Math.random() * 13) - 6 || 1;
-    set.add(answer + offset);
-  }
-  return [...set].sort(() => Math.random() - 0.5);
-}
+import { integerPracticeEngine } from "@/lib/question-engine/generators";
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -46,7 +25,9 @@ export default function IntegerPracticeClient({
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [feedback, setFeedback] = useState("");
   const [answerText, setAnswerText] = useState("");
-  const [problem, setProblem] = useState(() => makeProblem(1, false));
+  const [problem, setProblem] = useState(() =>
+    integerPracticeEngine.buildQuestion({ level: 1, twoDigit: false })
+  );
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -65,7 +46,7 @@ export default function IntegerPracticeClient({
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const options = useMemo(
-    () => (multipleChoice ? choices(problem.answer, choiceCount) : []),
+    () => (multipleChoice ? integerPracticeEngine.buildChoices(problem, choiceCount) : []),
     [multipleChoice, problem, choiceCount]
   );
 
@@ -202,7 +183,7 @@ export default function IntegerPracticeClient({
     setStreak(0);
     setFeedback("");
     setCourseId(nextCourseId);
-    setProblem(makeProblem(1, twoDigit));
+    setProblem(integerPracticeEngine.buildQuestion({ level: 1, twoDigit }));
   }
 
   async function startNewRun() {
@@ -232,7 +213,7 @@ export default function IntegerPracticeClient({
     setStreak(0);
     setFeedback("");
     setAnswerText("");
-    setProblem(makeProblem(1, twoDigit));
+    setProblem(integerPracticeEngine.buildQuestion({ level: 1, twoDigit }));
   }
 
   async function submitAnswer(value) {
@@ -244,7 +225,7 @@ export default function IntegerPracticeClient({
     setStreak(nextStreak);
     setLevel(nextLevel);
     if (correct) setScore((current) => current + 1);
-    setProblem(makeProblem(nextLevel, twoDigit));
+    setProblem(integerPracticeEngine.buildQuestion({ level: nextLevel, twoDigit }));
     setAnswerText("");
 
     sessionRef.current = {
@@ -263,7 +244,7 @@ export default function IntegerPracticeClient({
   function handleTwoDigitChange(nextTwoDigit) {
     setTwoDigit(nextTwoDigit);
     setFeedback("");
-    setProblem(makeProblem(level, nextTwoDigit));
+    setProblem(integerPracticeEngine.buildQuestion({ level, twoDigit: nextTwoDigit }));
   }
 
   function handleChoiceCountChange(nextChoiceCount) {
