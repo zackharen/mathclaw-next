@@ -12,6 +12,7 @@ function formatGameLabel(slug) {
     integer_practice: "Adding & Subtracting Integers",
     number_compare: "Which Number Is Bigger?",
     spiral_review: "Spiral Review",
+    question_kind_review: "What Kind Of Question Is This?",
     sudoku: "Sudoku",
     comet_typing: "Comet Typing",
   }[slug] || slug;

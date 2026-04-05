@@ -2209,6 +2209,13 @@ details[open] > summary.btn,
   font-weight: 800;
 }
 
+.spiralReviewPrompt {
+  margin-top: 0.6rem;
+  font-size: clamp(1.1rem, 3vw, 1.45rem);
+  line-height: 1.5;
+  font-weight: 700;
+}
+
 .spiralReviewCompareRow {
   margin-top: 0.85rem;
   display: grid;

@@ -11,6 +11,7 @@ function gameHref(slug, courseId) {
   if (slug === "money_counting") return `/play/money-counting${query}`;
   if (slug === "number_compare") return `/play/number-compare${query}`;
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
+  if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
   if (slug === "comet_typing") return `/play/comet-typing${query}`;
   return `/play/${slug}${query}`;
@@ -149,11 +150,18 @@ export default async function PlayPage({ searchParams }) {
   }));
   const visibleGames = games.filter((game) => game.enabled);
   const spiralReviewGame = visibleGames.find((game) => game.slug === "spiral_review") || null;
+  const questionKindReviewGame =
+    visibleGames.find((game) => game.slug === "question_kind_review") || null;
   const arcadeGames = visibleGames
     .filter((game) => game.category === "arcade" || game.slug === "connect4")
     .sort((a, b) => a.name.localeCompare(b.name));
   const mathSkillsGames = visibleGames
-    .filter((game) => game.category === "math_skills" && game.slug !== "spiral_review")
+    .filter(
+      (game) =>
+        game.category === "math_skills" &&
+        game.slug !== "spiral_review" &&
+        game.slug !== "question_kind_review"
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -287,6 +295,36 @@ export default async function PlayPage({ searchParams }) {
             <div className="ctaRow">
               <Link className="btn primary" href={gameHref(spiralReviewGame.slug, activeCourse?.id || "")}>
                 Open Spiral Review
+              </Link>
+            </div>
+          </article>
+        </section>
+      ) : null}
+      {questionKindReviewGame ? (
+        <section className="card">
+          <h2>Question Type Review</h2>
+          <p>
+            Slow down just enough to recognize the kind of question you are seeing before you choose a strategy.
+          </p>
+          <article className="card arcadeGameCard" style={{ background: "#fff", marginTop: "1rem" }}>
+            <h3>{questionKindReviewGame.name}</h3>
+            <p>{questionKindReviewGame.description}</p>
+            <p className="arcadeGameTags">#review, #mathskills</p>
+            {statsByGame.get(questionKindReviewGame.slug) ? (
+              <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                {statRowsForGame(questionKindReviewGame, statsByGame.get(questionKindReviewGame.slug)).map(
+                  ([label, value]) => (
+                    <div key={label}>
+                      <span>{label}</span>
+                      <strong>{value}</strong>
+                    </div>
+                  )
+                )}
+              </div>
+            ) : null}
+            <div className="ctaRow">
+              <Link className="btn primary" href={gameHref(questionKindReviewGame.slug, activeCourse?.id || "")}>
+                Open Question Type Review
               </Link>
             </div>
           </article>
