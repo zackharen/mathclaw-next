@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser } from "@/lib/courses/access";
-import { regenerateStudentJoinCodeAction } from "@/app/classes/actions";
+import { assignStudentAwardAction, regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 
 function formatGameLabel(slug) {
   return {
@@ -20,6 +20,25 @@ function formatStatScope(scope) {
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
+}
+
+const TEACHER_AWARD_PRESETS = [
+  "Weekly Star",
+  "Most Improved",
+  "Problem Solver",
+  "Great Teammate",
+  "Effort Award",
+  "Extra Credit",
+];
+
+function formatAwardPoints(value) {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return "No extra credit points";
+  return "+" + Math.round(parsed) + " extra credit point" + (Math.round(parsed) === 1 ? "" : "s");
+}
+
+function formatAwardLabel(row) {
+  return String(row?.metadata?.awardLabel || row?.result || "Teacher Award").trim() || "Teacher Award";
 }
 
 function formatDateTime(value, timeZone) {
@@ -77,12 +96,16 @@ export default async function StudentsPage({ params, searchParams }) {
   const resolvedSearchParams = await searchParams;
   const joinCodeUpdated = resolvedSearchParams?.joinCodeUpdated === "1";
   const joinCodeError = resolvedSearchParams?.joinCodeError || "";
+  const awardAdded = resolvedSearchParams?.awardAdded === "1";
+  const awardError = resolvedSearchParams?.awardError || "";
+  const awardStudentId = typeof resolvedSearchParams?.studentId === "string" ? resolvedSearchParams.studentId : "";
   const admin = createAdminClient();
 
   const [
     { data: membershipRows, error: membershipsError },
     { data: statsRows, error: statsError },
     { data: recentSessionRows, error: recentSessionsError },
+    { data: awardRows, error: awardRowsError },
   ] = await Promise.all([
     supabase.rpc("list_course_students", { p_course_id: course.id }),
     supabase.rpc("list_course_student_stats", { p_course_id: course.id }),
@@ -90,13 +113,22 @@ export default async function StudentsPage({ params, searchParams }) {
       .from("game_sessions")
       .select("player_id, game_slug, score, created_at")
       .eq("course_id", course.id)
+      .neq("game_slug", "teacher_awards")
       .order("created_at", { ascending: false })
       .limit(40),
+    admin
+      .from("game_sessions")
+      .select("player_id, score, result, metadata, created_at")
+      .eq("course_id", course.id)
+      .eq("game_slug", "teacher_awards")
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
   const safeMemberships = membershipsError ? [] : membershipRows || [];
   const safeStats = statsError ? [] : statsRows || [];
   const safeRecentSessions = recentSessionsError ? [] : recentSessionRows || [];
+  const safeAwards = awardRowsError ? [] : awardRows || [];
   const recentPlayerIds = [
     ...new Set(
       safeRecentSessions
@@ -168,6 +200,18 @@ export default async function StudentsPage({ params, searchParams }) {
     0
   );
 
+  const awardsByPlayer = new Map();
+  for (const row of safeAwards) {
+    const arr = awardsByPlayer.get(row.player_id) || [];
+    arr.push(row);
+    awardsByPlayer.set(row.player_id, arr);
+  }
+
+  const recentAwards = safeAwards.slice(0, 8).map((row) => ({
+    ...row,
+    displayName: resolveActivityDisplayName(row.player_id),
+  }));
+
   const recentActivity = safeRecentSessions.slice(0, 8).map((row) => {
     return {
       ...row,
@@ -180,6 +224,11 @@ export default async function StudentsPage({ params, searchParams }) {
       <section className="card">
         <h1>{course.title}: Student Progress</h1>
         {joinCodeUpdated ? <p style={{ color: "#0a7a32", fontWeight: 700 }}>Join code updated.</p> : null}
+        {awardAdded ? (
+          <p style={{ color: "#0a7a32", fontWeight: 700 }}>
+            Award saved{awardStudentId ? ' for ' + (membershipByPlayer.get(awardStudentId)?.display_name || 'that student') : ''}.
+          </p>
+        ) : null}
         {joinCodeError === "missing-column" ? (
           <p style={{ color: "#cd3b3b", fontWeight: 700 }}>
             Join codes are not enabled in Supabase yet. Run the student-games SQL migration, then try again.
@@ -202,6 +251,11 @@ export default async function StudentsPage({ params, searchParams }) {
         ) ? (
           <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Could not generate a join code yet. Please try again.</p>
         ) : null}
+        {awardError === "missing-data" ? <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Choose a student and an award title before saving.</p> : null}
+        {awardError === "student-not-found" ? <p style={{ color: "#cd3b3b", fontWeight: 700 }}>That student is not currently joined to this class.</p> : null}
+        {awardError === "catalog-failed" ? <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Could not prepare the awards system yet. Please try again.</p> : null}
+        {awardError === "save-failed" ? <p style={{ color: "#cd3b3b", fontWeight: 700 }}>Could not save that award yet. Please try again.</p> : null}
+        {awardError === "course-not-found" ? <p style={{ color: "#cd3b3b", fontWeight: 700 }}>That class could not be found for awards.</p> : null}
         <p>
           Students join this class from the Student Arcade using your class code. Once they join and play,
           their progress will show up here.
@@ -280,6 +334,25 @@ export default async function StudentsPage({ params, searchParams }) {
       </section>
 
       <section className="card">
+        <h2>Weekly Awards And Extra Credit</h2>
+        {awardRowsError ? <p>Award history could not load yet.</p> : null}
+        {!awardRowsError && recentAwards.length === 0 ? <p>No awards saved yet.</p> : null}
+        {!awardRowsError && recentAwards.length > 0 ? (
+          <div className="list">
+            {recentAwards.map((row, index) => (
+              <div key={String(row.player_id) + '-award-' + String(row.created_at) + '-' + String(index)} className="card" style={{ background: "#fff" }}>
+                <strong>{row.displayName}</strong>
+                <p>
+                  {formatAwardLabel(row)} · {formatAwardPoints(row.score)} · {formatDateTime(row.created_at, displayTimeZone)}
+                </p>
+                {row.metadata?.note ? <p style={{ marginTop: "0.35rem" }}>{row.metadata.note}</p> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="card">
         <h2>Recent Activity</h2>
         {recentSessionsError ? <p>Recent activity could not load yet.</p> : null}
         {!recentSessionsError && recentActivity.length === 0 ? <p>No saved activity yet.</p> : null}
@@ -308,6 +381,7 @@ export default async function StudentsPage({ params, searchParams }) {
           <div className="list">
             {safeMemberships.map((membership) => {
               const playerStats = statsByPlayer.get(membership.profile_id) || [];
+              const playerAwards = awardsByPlayer.get(membership.profile_id) || [];
               const totalSessions = playerStats.reduce(
                 (sum, row) => sum + Number(row.sessions_played || 0),
                 0
@@ -358,6 +432,67 @@ export default async function StudentsPage({ params, searchParams }) {
                       ))}
                     </div>
                   ) : null}
+                  <div className="card" style={{ background: "#f9fbfc", marginTop: "0.9rem" }}>
+                    <h4>Assign Weekly Award</h4>
+                    <form action={assignStudentAwardAction} className="stack" style={{ marginTop: "0.75rem" }}>
+                      <input type="hidden" name="course_id" value={course.id} />
+                      <input type="hidden" name="student_id" value={membership.profile_id} />
+                      <input type="hidden" name="return_to" value="students" />
+                      <label className="stack" style={{ gap: "0.35rem" }}>
+                        <span>Award title</span>
+                        <select className="input" name="award_label" defaultValue="Weekly Star">
+                          {TEACHER_AWARD_PRESETS.map((preset) => (
+                            <option key={preset} value={preset}>
+                              {preset}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="stack" style={{ gap: "0.35rem" }}>
+                        <span>Custom title (optional)</span>
+                        <input className="input" name="custom_award_label" placeholder="Example: Fraction Hero" />
+                      </label>
+                      <label className="stack" style={{ gap: "0.35rem" }}>
+                        <span>Extra credit points</span>
+                        <input className="input" type="number" name="points" min="0" max="100" defaultValue="0" />
+                      </label>
+                      <label className="stack" style={{ gap: "0.35rem" }}>
+                        <span>Note (optional)</span>
+                        <textarea
+                          className="input"
+                          name="note"
+                          rows={3}
+                          placeholder="Add a short reason the student earned it."
+                        />
+                      </label>
+                      <div className="ctaRow">
+                        <button className="btn primary" type="submit">
+                          Save Award
+                        </button>
+                      </div>
+                    </form>
+                    {playerAwards.length > 0 ? (
+                      <div className="list" style={{ marginTop: "0.9rem" }}>
+                        {playerAwards.slice(0, 4).map((row, index) => (
+                          <div
+                            key={membership.profile_id + "-award-history-" + row.created_at + "-" + index}
+                            className="card"
+                            style={{ background: "#fff" }}
+                          >
+                            <strong>{formatAwardLabel(row)}</strong>
+                            <p>
+                              {formatAwardPoints(row.score)} · {formatDateTime(row.created_at, displayTimeZone)}
+                            </p>
+                            {row.metadata?.note ? (
+                              <p style={{ marginTop: "0.35rem" }}>{row.metadata.note}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ marginTop: "0.75rem" }}>No awards saved for this student yet.</p>
+                    )}
+                  </div>
                 </article>
               );
             })}

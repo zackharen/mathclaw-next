@@ -24,6 +24,25 @@ function buildRedirectPath({ returnTo, courseId, params }) {
   return queryString ? `${targetPath}?${queryString}` : targetPath;
 }
 
+const TEACHER_AWARDS_GAME = {
+  slug: "teacher_awards",
+  name: "Teacher Awards",
+  category: "teacher_tools",
+  description: "Teacher-awarded recognitions and extra credit.",
+  is_multiplayer: false,
+};
+
+async function ensureTeacherAwardsGame(admin) {
+  const { error } = await admin.from("games").upsert(TEACHER_AWARDS_GAME, {
+    onConflict: "slug",
+    ignoreDuplicates: false,
+  });
+
+  if (error && !String(error.message || "").includes("duplicate")) {
+    throw new Error(error.message);
+  }
+}
+
 export async function deleteClassAction(formData) {
   const courseId = formData.get("course_id");
   if (!courseId || typeof courseId !== "string") return;
@@ -273,6 +292,124 @@ export async function addCoTeacherAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/students`);
   redirect(buildRedirectPath({ returnTo, courseId: course.id, params: { coTeacher: "added" } }));
+}
+
+export async function assignStudentAwardAction(formData) {
+  const courseId = String(formData.get("course_id") || "").trim();
+  const studentId = String(formData.get("student_id") || "").trim();
+  const awardLabel = String(formData.get("award_label") || "").trim();
+  const customAwardLabel = String(formData.get("custom_award_label") || "").trim();
+  const note = String(formData.get("note") || "").trim();
+  const returnTo = normalizeReturnTo(String(formData.get("return_to") || ""));
+  const rawPoints = Number(formData.get("points") || 0);
+  const points = Number.isFinite(rawPoints) ? Math.max(0, Math.round(rawPoints)) : 0;
+  const finalAwardLabel = customAwardLabel || awardLabel;
+
+  if (!courseId || !studentId || !finalAwardLabel) {
+    redirect(buildRedirectPath({ returnTo, courseId, params: { awardError: "missing-data" } }));
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/classes");
+  }
+
+  const accountType = await getAccountTypeForUser(supabase, user);
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, title, owner_id");
+
+  if (!access?.course) {
+    await logInternalEvent({
+      eventKey: "teacher_award_course_not_found",
+      source: "classes.actions",
+      level: "warning",
+      message: "Teacher attempted to assign an award for a missing or inaccessible course",
+      user,
+      accountType,
+      courseId,
+      context: { studentId, awardLabel: finalAwardLabel, points, returnTo },
+    });
+    redirect(buildRedirectPath({ returnTo, courseId, params: { awardError: "course-not-found" } }));
+  }
+
+  const admin = createAdminClient();
+  const [{ data: membership }, { data: studentProfile }] = await Promise.all([
+    admin
+      .from("student_course_memberships")
+      .select("course_id, student_id")
+      .eq("course_id", access.course.id)
+      .eq("student_id", studentId)
+      .maybeSingle(),
+    admin.from("profiles").select("id, display_name").eq("id", studentId).maybeSingle(),
+  ]);
+
+  if (!membership?.student_id) {
+    redirect(
+      buildRedirectPath({
+        returnTo,
+        courseId: access.course.id,
+        params: { awardError: "student-not-found" },
+      })
+    );
+  }
+
+  try {
+    await ensureTeacherAwardsGame(admin);
+  } catch (error) {
+    await logInternalEvent({
+      eventKey: "teacher_award_catalog_failed",
+      source: "classes.actions",
+      message: error.message,
+      user,
+      accountType,
+      courseId: access.course.id,
+      context: { studentId, awardLabel: finalAwardLabel, points, returnTo },
+    });
+    redirect(buildRedirectPath({ returnTo, courseId: access.course.id, params: { awardError: "catalog-failed" } }));
+  }
+
+  const { error } = await admin.from("game_sessions").insert({
+    game_slug: TEACHER_AWARDS_GAME.slug,
+    player_id: studentId,
+    course_id: access.course.id,
+    score: points,
+    result: "teacher_award",
+    metadata: {
+      awardLabel: finalAwardLabel,
+      note,
+      awardedById: user.id,
+      awardedByName:
+        user.user_metadata?.display_name || user.user_metadata?.full_name || user.email || "Teacher",
+      source: "teacher_awards",
+      studentDisplayName: studentProfile?.display_name || null,
+    },
+  });
+
+  if (error) {
+    await logInternalEvent({
+      eventKey: "teacher_award_save_failed",
+      source: "classes.actions",
+      message: error.message,
+      user,
+      accountType,
+      courseId: access.course.id,
+      context: { studentId, awardLabel: finalAwardLabel, points, returnTo },
+    });
+    redirect(buildRedirectPath({ returnTo, courseId: access.course.id, params: { awardError: "save-failed" } }));
+  }
+
+  revalidatePath("/play");
+  revalidatePath('/classes/' + access.course.id + '/students');
+  redirect(
+    buildRedirectPath({
+      returnTo,
+      courseId: access.course.id,
+      params: { awardAdded: "1", studentId },
+    })
+  );
 }
 
 export async function removeCoTeacherAction(formData) {

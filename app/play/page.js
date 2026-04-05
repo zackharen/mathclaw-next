@@ -51,6 +51,21 @@ function formatPercent(value) {
   return `${Math.round(normalized)}%`;
 }
 
+function formatAwardPoints(value) {
+  const parsed = Number(value || 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return "No extra credit points";
+  return "+" + Math.round(parsed) + " extra credit point" + (Math.round(parsed) === 1 ? "" : "s");
+}
+
+function formatAwardDate(value) {
+  if (!value) return "Unknown date";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function statRowsForGame(game, stats) {
   if (!stats) return [];
 
@@ -100,12 +115,19 @@ export default async function PlayPage({ searchParams }) {
     redirect("/onboarding/profile");
   }
 
-  const [courses, statsResult] = await Promise.all([
+  const [courses, statsResult, awardsResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     supabase
       .from("game_player_global_stats")
       .select("game_slug, average_score, last_10_average, best_score, sessions_played")
       .eq("player_id", user.id),
+    supabase
+      .from("game_sessions")
+      .select("course_id, score, result, metadata, created_at")
+      .eq("player_id", user.id)
+      .eq("game_slug", "teacher_awards")
+      .order("created_at", { ascending: false })
+      .limit(12),
   ]);
 
   const statsByGame = new Map((statsResult.data || []).map((row) => [row.game_slug, row]));
@@ -114,6 +136,15 @@ export default async function PlayPage({ searchParams }) {
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
   const activeCourse = joinedCourse || courses[0] || null;
   const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null);
+  const courseById = new Map(courses.map((course) => [course.id, course]));
+  const awards = (awardsResult.data || []).map((row) => ({
+    ...row,
+    courseTitle: courseById.get(row.course_id)?.title || "Your class",
+    className: courseById.get(row.course_id)?.class_name || "",
+    awardLabel: String(row.metadata?.awardLabel || row.result || "Teacher Award").trim() || "Teacher Award",
+    note: String(row.metadata?.note || "").trim(),
+    awardedByName: String(row.metadata?.awardedByName || "Teacher").trim() || "Teacher",
+  }));
   const visibleGames = games.filter((game) => game.enabled);
   const arcadeGames = visibleGames
     .filter((game) => game.category === "arcade" || game.slug === "connect4")
@@ -206,6 +237,30 @@ export default async function PlayPage({ searchParams }) {
         </div>
       </section>
 
+      <section className="card">
+        <h2>Your Awards And Extra Credit</h2>
+        {awards.length === 0 ? (
+          <p>Your teacher awards and extra credit will show up here once they start handing them out.</p>
+        ) : (
+          <div className="list">
+            {awards.map((award, index) => (
+              <article
+                key={(award.course_id || "course") + "-" + award.created_at + "-" + index}
+                className="card"
+                style={{ background: "#fff" }}
+              >
+                <strong>{award.awardLabel}</strong>
+                <p>
+                  {formatAwardPoints(award.score)} · {award.courseTitle}
+                  {award.className ? ` · ${award.className}` : ""} · {formatAwardDate(award.created_at)}
+                </p>
+                <p style={{ marginTop: "0.35rem", opacity: 0.8 }}>Awarded by {award.awardedByName}</p>
+                {award.note ? <p style={{ marginTop: "0.5rem" }}>{award.note}</p> : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
       <section className="card">
         <h2>{activeCourse ? `Games For ${activeCourse.title}` : "Games"}</h2>
         {activeCourse ? (
