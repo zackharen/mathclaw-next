@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
-import { joinClassByCodeAction } from "./actions";
+import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
 
 function gameHref(slug, courseId) {
   const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
@@ -70,6 +70,14 @@ function formatAwardDate(value) {
   });
 }
 
+const STUDENT_QUESTION_TYPE_OPTIONS = [
+  { slug: "integer", label: "Integer Question" },
+  { slug: "comparison", label: "Comparison Question" },
+  { slug: "money", label: "Money Question" },
+  { slug: "time", label: "Time Question" },
+  { slug: "question_kind", label: "Question Type Challenge" },
+];
+
 function statRowsForGame(game, stats) {
   if (!stats) return [];
 
@@ -119,7 +127,7 @@ export default async function PlayPage({ searchParams }) {
     redirect("/onboarding/profile");
   }
 
-  const [courses, statsResult, awardsResult] = await Promise.all([
+  const [courses, statsResult, awardsResult, studentQuestionsResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     supabase
       .from("game_player_global_stats")
@@ -132,6 +140,13 @@ export default async function PlayPage({ searchParams }) {
       .eq("game_slug", "teacher_awards")
       .order("created_at", { ascending: false })
       .limit(12),
+    supabase
+      .from("game_sessions")
+      .select("course_id, metadata, created_at")
+      .eq("player_id", user.id)
+      .eq("game_slug", "student_created_questions")
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
 
   const statsByGame = new Map((statsResult.data || []).map((row) => [row.game_slug, row]));
@@ -148,6 +163,14 @@ export default async function PlayPage({ searchParams }) {
     awardLabel: String(row.metadata?.awardLabel || row.result || "Teacher Award").trim() || "Teacher Award",
     note: String(row.metadata?.note || "").trim(),
     awardedByName: String(row.metadata?.awardedByName || "Teacher").trim() || "Teacher",
+  }));
+  const studentCreatedQuestions = (studentQuestionsResult.data || []).map((row) => ({
+    ...row,
+    courseTitle: courseById.get(row.course_id)?.title || "Your class",
+    questionType: String(row.metadata?.questionType || "question").trim(),
+    prompt: String(row.metadata?.prompt || "").trim(),
+    correctAnswer: String(row.metadata?.correctAnswer || "").trim(),
+    explanation: String(row.metadata?.explanation || "").trim(),
   }));
   const visibleGames = games.filter((game) => game.enabled);
   const spiralReviewGame = visibleGames.find((game) => game.slug === "spiral_review") || null;
@@ -271,6 +294,122 @@ export default async function PlayPage({ searchParams }) {
                 {award.note ? <p style={{ marginTop: "0.5rem" }}>{award.note}</p> : null}
               </article>
             ))}
+          </div>
+        )}
+      </section>
+      <section className="card">
+        <h2>Create A Math Question</h2>
+        <p>
+          Turn what you know into a performance task by writing your own question, answer, and short explanation for your class.
+        </p>
+        {params?.question_created === "1" ? (
+          <p style={{ color: "#0a7a32", fontWeight: 700, marginTop: "0.75rem" }}>
+            Your question was saved for this class.
+          </p>
+        ) : null}
+        {params?.question_error === "missing" ? (
+          <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+            Choose a class, question type, prompt, and correct answer before saving.
+          </p>
+        ) : null}
+        {params?.question_error === "course" ? (
+          <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+            That class could not be used for your question submission.
+          </p>
+        ) : null}
+        {params?.question_error === "catalog" || params?.question_error === "save" ? (
+          <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+            Your question could not be saved yet. Please try again.
+          </p>
+        ) : null}
+        {courses.length === 0 ? (
+          <p style={{ marginTop: "0.75rem" }}>
+            Join a class first so your question can be attached to your teacher’s class.
+          </p>
+        ) : (
+          <div className="featureGrid" style={{ marginTop: "1rem" }}>
+            <form action={createStudentQuestionAction} className="card" style={{ background: "#fff" }}>
+              <div className="stack">
+                <label className="stack" style={{ gap: "0.35rem" }}>
+                  <span>Class</span>
+                  <select className="input" name="course_id" defaultValue={activeCourse?.id || courses[0]?.id || ""}>
+                    {courses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title}
+                        {course.class_name ? ` · ${course.class_name}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="stack" style={{ gap: "0.35rem" }}>
+                  <span>Question type</span>
+                  <select className="input" name="question_type" defaultValue="integer">
+                    {STUDENT_QUESTION_TYPE_OPTIONS.map((option) => (
+                      <option key={option.slug} value={option.slug}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="stack" style={{ gap: "0.35rem" }}>
+                  <span>Your question prompt</span>
+                  <textarea
+                    className="input"
+                    name="prompt"
+                    rows={4}
+                    placeholder="Example: What is -8 + 13?"
+                  />
+                </label>
+                <label className="stack" style={{ gap: "0.35rem" }}>
+                  <span>Correct answer</span>
+                  <input className="input" name="correct_answer" placeholder="Example: 5" />
+                </label>
+                <label className="stack" style={{ gap: "0.35rem" }}>
+                  <span>Short explanation (optional)</span>
+                  <textarea
+                    className="input"
+                    name="explanation"
+                    rows={3}
+                    placeholder="Example: Starting at -8 and moving 13 to the right lands on 5."
+                  />
+                </label>
+                <div className="ctaRow">
+                  <button className="btn primary" type="submit">
+                    Save Question
+                  </button>
+                </div>
+              </div>
+            </form>
+            <article className="card" style={{ background: "#fff" }}>
+              <h3>Your Recent Question Tasks</h3>
+              {studentCreatedQuestions.length === 0 ? (
+                <p style={{ marginTop: "0.75rem" }}>
+                  Your saved question tasks will show up here after you submit one.
+                </p>
+              ) : (
+                <div className="list" style={{ marginTop: "0.75rem" }}>
+                  {studentCreatedQuestions.map((row, index) => (
+                    <div
+                      key={`${row.course_id || "course"}-${row.created_at}-${index}`}
+                      className="card"
+                      style={{ background: "#f9fbfc" }}
+                    >
+                      <strong>{row.courseTitle}</strong>
+                      <p style={{ marginTop: "0.35rem" }}>
+                        {row.questionType.replaceAll("_", " ")} · {formatAwardDate(row.created_at)}
+                      </p>
+                      <p style={{ marginTop: "0.5rem" }}>{row.prompt}</p>
+                      <p style={{ marginTop: "0.35rem", opacity: 0.85 }}>
+                        Answer: {row.correctAnswer}
+                      </p>
+                      {row.explanation ? (
+                        <p style={{ marginTop: "0.35rem", opacity: 0.85 }}>{row.explanation}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
           </div>
         )}
       </section>

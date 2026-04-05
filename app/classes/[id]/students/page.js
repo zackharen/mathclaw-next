@@ -19,6 +19,7 @@ function formatGameLabel(slug) {
     telling_time: "Telling Time",
     sudoku: "Sudoku",
     comet_typing: "Comet Typing",
+    student_created_questions: "Student-Created Questions",
   }[slug] || slug;
 }
 
@@ -136,6 +137,16 @@ const TEACHER_AWARD_PRESETS = [
   "Extra Credit",
 ];
 
+function formatQuestionTypeLabel(value) {
+  return {
+    integer: "Integer Question",
+    comparison: "Comparison Question",
+    money: "Money Question",
+    time: "Time Question",
+    question_kind: "Question Type Challenge",
+  }[String(value || "").trim()] || "Student Question";
+}
+
 function formatAwardPoints(value) {
   const parsed = Number(value || 0);
   if (!Number.isFinite(parsed) || parsed <= 0) return "No extra credit points";
@@ -224,6 +235,7 @@ export default async function StudentsPage({ params, searchParams }) {
     { data: statsRows, error: statsError },
     { data: recentSessionRows, error: recentSessionsError },
     { data: awardRows, error: awardRowsError },
+    { data: studentQuestionRows, error: studentQuestionRowsError },
   ] = await Promise.all([
     listGamesWithCourseSettings(supabase, course.id),
     supabase.rpc("list_course_students", { p_course_id: course.id }),
@@ -242,12 +254,20 @@ export default async function StudentsPage({ params, searchParams }) {
       .eq("game_slug", "teacher_awards")
       .order("created_at", { ascending: false })
       .limit(100),
+    admin
+      .from("game_sessions")
+      .select("player_id, metadata, created_at")
+      .eq("course_id", course.id)
+      .eq("game_slug", "student_created_questions")
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
   const safeMemberships = membershipsError ? [] : membershipRows || [];
   const safeStats = statsError ? [] : statsRows || [];
   const safeRecentSessions = recentSessionsError ? [] : recentSessionRows || [];
   const safeAwards = awardRowsError ? [] : awardRows || [];
+  const safeStudentQuestions = studentQuestionRowsError ? [] : studentQuestionRows || [];
   const recentPlayerIds = [
     ...new Set(
       safeRecentSessions
@@ -330,6 +350,16 @@ export default async function StudentsPage({ params, searchParams }) {
     ...row,
     displayName: resolveActivityDisplayName(row.player_id),
   }));
+  const studentQuestionsByPlayer = new Map();
+  for (const row of safeStudentQuestions) {
+    const arr = studentQuestionsByPlayer.get(row.player_id) || [];
+    arr.push(row);
+    studentQuestionsByPlayer.set(row.player_id, arr);
+  }
+  const recentStudentQuestions = safeStudentQuestions.slice(0, 8).map((row) => ({
+    ...row,
+    displayName: resolveActivityDisplayName(row.player_id),
+  }));
 
   const recentActivity = safeRecentSessions.slice(0, 8).map((row) => {
     return {
@@ -356,6 +386,7 @@ export default async function StudentsPage({ params, searchParams }) {
   const playerCards = safeMemberships.map((membership) => {
     const playerStats = statsByPlayer.get(membership.profile_id) || [];
     const playerAwards = awardsByPlayer.get(membership.profile_id) || [];
+    const playerCreatedQuestions = studentQuestionsByPlayer.get(membership.profile_id) || [];
     const totalSessions = playerStats.reduce(
       (sum, row) => sum + Number(row.sessions_played || 0),
       0
@@ -372,11 +403,13 @@ export default async function StudentsPage({ params, searchParams }) {
       membership,
       playerStats,
       playerAwards,
+      playerCreatedQuestions,
       totalSessions,
       strongestGame,
       recentPlayerSession,
       averageScore: averageForPlayerRows(playerStats),
       awardCount: playerAwards.length,
+      questionCount: playerCreatedQuestions.length,
       lastSevenDaysSessions,
     };
   });
@@ -635,6 +668,39 @@ export default async function StudentsPage({ params, searchParams }) {
       </section>
 
       <section className="card">
+        <h2>Student-Created Questions</h2>
+        {studentQuestionRowsError ? <p>Student question submissions could not load yet.</p> : null}
+        {!studentQuestionRowsError && recentStudentQuestions.length === 0 ? (
+          <p>No student-created question tasks saved yet.</p>
+        ) : null}
+        {!studentQuestionRowsError && recentStudentQuestions.length > 0 ? (
+          <div className="list">
+            {recentStudentQuestions.map((row, index) => (
+              <div
+                key={`${row.player_id}-question-${row.created_at}-${index}`}
+                className="card"
+                style={{ background: "#fff" }}
+              >
+                <strong>{row.displayName}</strong>
+                <p>
+                  {formatQuestionTypeLabel(row.metadata?.questionType)} · {formatDateTime(row.created_at, displayTimeZone)}
+                </p>
+                {row.metadata?.prompt ? <p style={{ marginTop: "0.5rem" }}>{row.metadata.prompt}</p> : null}
+                {row.metadata?.correctAnswer ? (
+                  <p style={{ marginTop: "0.35rem", opacity: 0.85 }}>
+                    Answer: {row.metadata.correctAnswer}
+                  </p>
+                ) : null}
+                {row.metadata?.explanation ? (
+                  <p style={{ marginTop: "0.35rem", opacity: 0.85 }}>{row.metadata.explanation}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="card">
         <h2>Recent Activity</h2>
         {recentSessionsError ? <p>Recent activity could not load yet.</p> : null}
         {!recentSessionsError && recentActivity.length === 0 ? <p>No saved activity yet.</p> : null}
@@ -661,7 +727,7 @@ export default async function StudentsPage({ params, searchParams }) {
 
         {!membershipsError && safeMemberships.length > 0 ? (
           <div className="list">
-            {playerCards.map(({ membership, playerStats, playerAwards, totalSessions, strongestGame, recentPlayerSession }) => {
+            {playerCards.map(({ membership, playerStats, playerAwards, playerCreatedQuestions, totalSessions, strongestGame, recentPlayerSession, questionCount }) => {
               return (
                 <article key={membership.profile_id} className="card" style={{ background: "#fff" }}>
                   <h3>{getPlayerDisplayName(membership)}</h3>
@@ -678,6 +744,7 @@ export default async function StudentsPage({ params, searchParams }) {
                     <span className="pill">
                       Strongest Game: {strongestGame ? formatGameLabel(strongestGame.game_slug) : "No data yet"}
                     </span>
+                    <span className="pill">Created Questions: {questionCount}</span>
                   </div>
                   {statsError ? <p style={{ marginTop: "0.75rem" }}>Game stats are not available yet.</p> : null}
                   {!statsError && playerStats.length === 0 ? (
@@ -761,6 +828,36 @@ export default async function StudentsPage({ params, searchParams }) {
                       </div>
                     ) : (
                       <p style={{ marginTop: "0.75rem" }}>No awards saved for this student yet.</p>
+                    )}
+                  </div>
+                  <div className="card" style={{ background: "#f9fbfc", marginTop: "0.9rem" }}>
+                    <h4>Student-Created Question Tasks</h4>
+                    {playerCreatedQuestions.length > 0 ? (
+                      <div className="list" style={{ marginTop: "0.75rem" }}>
+                        {playerCreatedQuestions.slice(0, 3).map((row, index) => (
+                          <div
+                            key={`${membership.profile_id}-created-question-${row.created_at}-${index}`}
+                            className="card"
+                            style={{ background: "#fff" }}
+                          >
+                            <strong>{formatQuestionTypeLabel(row.metadata?.questionType)}</strong>
+                            <p style={{ marginTop: "0.35rem" }}>
+                              {formatDateTime(row.created_at, displayTimeZone)}
+                            </p>
+                            {row.metadata?.prompt ? <p style={{ marginTop: "0.5rem" }}>{row.metadata.prompt}</p> : null}
+                            {row.metadata?.correctAnswer ? (
+                              <p style={{ marginTop: "0.35rem", opacity: 0.85 }}>
+                                Answer: {row.metadata.correctAnswer}
+                              </p>
+                            ) : null}
+                            {row.metadata?.explanation ? (
+                              <p style={{ marginTop: "0.35rem", opacity: 0.85 }}>{row.metadata.explanation}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ marginTop: "0.75rem" }}>No student-created question tasks saved for this student yet.</p>
                     )}
                   </div>
                 </article>
