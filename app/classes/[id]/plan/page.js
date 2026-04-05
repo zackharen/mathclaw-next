@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
+import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
   markLessonCompleteAction,
   markLessonPlannedAction,
@@ -19,6 +20,62 @@ import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
+const LESSON_SKILL_RULES = [
+  {
+    slug: "integer_practice",
+    match: ["integer", "negative", "positive", "add integers", "subtract integers", "absolute value"],
+    why: "Build fluency with signed-number operations and number-line thinking.",
+  },
+  {
+    slug: "number_compare",
+    match: ["compare", "greater than", "less than", "order numbers", "decimal", "fraction", "place value"],
+    why: "Give students quick comparison reps across tricky number forms.",
+  },
+  {
+    slug: "money_counting",
+    match: ["money", "coin", "bill", "dollar", "cent", "value of coins", "making change"],
+    why: "Reinforce coin and bill value with fast amount-building practice.",
+  },
+  {
+    slug: "telling_time",
+    match: ["time", "clock", "hour", "minute", "elapsed time", "analog"],
+    why: "Support clock reading and time-setting with visual repetition.",
+  },
+  {
+    slug: "spiral_review",
+    match: ["review", "mixed practice", "spiral", "warm-up", "do now", "check for understanding"],
+    why: "Mix prior skills together when the lesson needs cumulative review.",
+  },
+  {
+    slug: "question_kind_review",
+    match: ["question type", "word problem", "problem type", "recognize", "classify", "identify the kind"],
+    why: "Help students notice what a problem is asking before they solve it.",
+  },
+  {
+    slug: "sudoku",
+    match: ["logic", "patterns", "perseverance", "reasoning", "grid"],
+    why: "Add a structured logic challenge when the lesson leans on reasoning habits.",
+  },
+  {
+    slug: "comet_typing",
+    match: ["typing", "keyboard", "fluency", "speed", "accuracy"],
+    why: "Build keyboard fluency and accuracy during tech-heavy routines.",
+  },
+];
+
+const GAME_LABELS = {
+  "2048": "2048",
+  connect4: "Connect4",
+  integer_practice: "Adding & Subtracting Integers",
+  money_counting: "Money Counting",
+  minesweeper: "Minesweeper",
+  number_compare: "Which Number Is Bigger?",
+  spiral_review: "Spiral Review",
+  question_kind_review: "What Kind Of Question Is This?",
+  telling_time: "Telling Time",
+  sudoku: "Sudoku",
+  comet_typing: "Comet Typing",
+};
 
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -47,6 +104,30 @@ function formatLessonLabel(sourceLessonCode, title) {
   }
 
   return `${normalizedCode}: ${normalizedTitle}`;
+}
+
+function gameHref(slug, courseId) {
+  const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
+  if (slug === "integer_practice") return `/play/integer-practice${query}`;
+  if (slug === "money_counting") return `/play/money-counting${query}`;
+  if (slug === "number_compare") return `/play/number-compare${query}`;
+  if (slug === "spiral_review") return `/play/spiral-review${query}`;
+  if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
+  if (slug === "telling_time") return `/play/telling-time${query}`;
+  if (slug === "comet_typing") return `/play/comet-typing${query}`;
+  return `/play/${slug}${query}`;
+}
+
+function findSuggestedSkills({ lesson, enabledGames }) {
+  if (!lesson) return [];
+
+  const haystack = `${lesson.source_lesson_code || ""} ${lesson.title || ""} ${lesson.objective || ""}`
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  return LESSON_SKILL_RULES.filter((rule) => enabledGames.has(rule.slug)).filter((rule) =>
+    rule.match.some((needle) => haystack.includes(needle))
+  ).slice(0, 3);
 }
 
 export default async function ClassPlanPage({ params, searchParams }) {
@@ -89,6 +170,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     reasonsRes,
     planRes,
     announcementsRes,
+    gamesRes,
   ] = await Promise.all([
     supabase
       .from("curriculum_lessons")
@@ -116,6 +198,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .select("class_date, content")
       .eq("course_id", course.id)
       .order("class_date", { ascending: true }),
+    listGamesWithCourseSettings(supabase, course.id),
   ]);
 
   const totalLessonsCount = lessonsCountRes.count || 0;
@@ -124,6 +207,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const planRows = planRes.data || [];
   const planError = planRes.error;
   const announcements = announcementsRes.data || [];
+  const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
 
   if (PERF_ENABLED) {
     console.info(
@@ -344,6 +428,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 : lesson
                   ? "No objective provided."
                   : "Add full days and click Apply Calendar Changes.";
+              const suggestedSkills = findSuggestedSkills({ lesson, enabledGames });
               const announcementText = announcementByDate.get(day.class_date) || "";
               const reasonLabel = day.reason_id ? reasonById.get(day.reason_id) : null;
 
@@ -403,6 +488,24 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
                     Status: {row?.status || "planned"}
                   </p>
+                  {suggestedSkills.length > 0 ? (
+                    <div className="lessonSkillBlock">
+                      <strong>Suggested MathClaw Skills</strong>
+                      <div className="lessonSkillGrid">
+                        {suggestedSkills.map((skill) => (
+                          <div key={`${day.class_date}-${skill.slug}`} className="lessonSkillCard">
+                            <div>
+                              <p className="lessonSkillTitle">{GAME_LABELS[skill.slug] || skill.slug}</p>
+                              <p className="lessonSkillWhy">{skill.why}</p>
+                            </div>
+                            <Link className="btn" href={gameHref(skill.slug, course.id)}>
+                              Open Skill
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {course.pacing_mode === "manual_complete" ? (
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
                       Manual pacing mode: this lesson repeats until you click Mark Complete.
