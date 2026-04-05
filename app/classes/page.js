@@ -60,6 +60,7 @@ function formatGameControlNotice(status, gameSlug) {
         minesweeper: "Minesweeper",
         number_compare: "Which Number Is Bigger?",
         telling_time: "Telling Time",
+        sudoku: "Sudoku",
       }[gameSlug] || gameSlug
     : "that game";
 
@@ -80,6 +81,7 @@ function getGameSupportCopy(game) {
   if (game.slug === "minesweeper") return "Students clear safe squares, flag mines, and race the clock.";
   if (game.slug === "number_compare") return "Students compare values quickly and build number sense.";
   if (game.slug === "telling_time") return "Students read clocks and set times to the nearest five minutes.";
+  if (game.slug === "sudoku") return "Students fill the grid by keeping every row, column, and 3x3 box valid.";
   return game.description || "Students can launch this game from the Student Arcade when it is enabled.";
 }
 

@@ -1984,3 +1984,78 @@ details[open] > summary.btn,
     width: 100%;
   }
 }
+
+.sudokuNumberPad {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.sudokuBoard {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 0;
+  width: min(100%, 34rem);
+  border: 3px solid var(--navy);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #0f2742;
+}
+
+.sudokuCell {
+  appearance: none;
+  border: 1px solid rgba(15, 39, 66, 0.15);
+  background: #f8fbff;
+  color: var(--navy);
+  min-height: 3.1rem;
+  font: inherit;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.sudokuCell:hover {
+  background: #e7f1fb;
+}
+
+.sudokuCell.isFixed {
+  background: #dbe9f7;
+}
+
+.sudokuCell.isSelected {
+  background: #ffe7a8;
+}
+
+.sudokuCell.isMatching {
+  background: #eef6cf;
+}
+
+.sudokuCell.isWrong {
+  background: #ffd9d6;
+  color: #9b1c1c;
+}
+
+.sudokuCell:nth-child(3n) {
+  border-right: 3px solid var(--navy);
+}
+
+.sudokuCell:nth-child(9n) {
+  border-right: none;
+}
+
+.sudokuCell:nth-child(n + 19):nth-child(-n + 27),
+.sudokuCell:nth-child(n + 46):nth-child(-n + 54) {
+  border-bottom: 3px solid var(--navy);
+}
+
+@media (max-width: 720px) {
+  .sudokuNumberPad {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sudokuCell {
+    min-height: 2.5rem;
+    font-size: 1rem;
+  }
+}
