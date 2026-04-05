@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import { integerPracticeEngine } from "@/lib/question-engine/generators";
 
 function formatScore(value) {
@@ -36,6 +37,7 @@ export default function IntegerPracticeClient({
     attempts: 0,
     level: 1,
     streak: 0,
+    accuracy: 0,
     courseId: initialCourseId || "",
     twoDigit: false,
     multipleChoice: true,
@@ -132,9 +134,13 @@ export default function IntegerPracticeClient({
   useEffect(() => {
     sessionRef.current = {
       ...sessionRef.current,
+      ...buildAdaptiveSnapshot({
+        level,
+        streak,
+        correctAnswers: score,
+        attempts: sessionRef.current.attempts,
+      }),
       score,
-      level,
-      streak,
       courseId,
       twoDigit,
       multipleChoice,
@@ -152,6 +158,7 @@ export default function IntegerPracticeClient({
         score: 0,
         attempts: 0,
         streak: 0,
+        accuracy: 0,
       };
     }
 
@@ -176,6 +183,7 @@ export default function IntegerPracticeClient({
       attempts: 0,
       level: 1,
       streak: 0,
+      accuracy: 0,
       courseId: nextCourseId,
     };
     setScore(0);
@@ -203,6 +211,7 @@ export default function IntegerPracticeClient({
       attempts: 0,
       level: 1,
       streak: 0,
+      accuracy: 0,
       courseId,
       twoDigit,
       multipleChoice,
@@ -220,7 +229,14 @@ export default function IntegerPracticeClient({
     const guess = Number(value);
     const correct = guess === problem.answer;
     const nextStreak = correct ? streak + 1 : 0;
-    const nextLevel = correct ? Math.min(level + (nextStreak >= 3 ? 1 : 0), 10) : Math.max(level - 1, 1);
+    const nextScore = score + (correct ? 1 : 0);
+    const nextAttempts = sessionRef.current.attempts + 1;
+    const nextLevel = nextAdaptiveLevel({
+      currentLevel: level,
+      correct,
+      streak: nextStreak,
+      riseAfterStreak: 3,
+    });
     setFeedback(correct ? "Correct!" : `Not quite. The answer was ${formatInteger(problem.answer)}.`);
     setStreak(nextStreak);
     setLevel(nextLevel);
@@ -230,10 +246,14 @@ export default function IntegerPracticeClient({
 
     sessionRef.current = {
       ...sessionRef.current,
-      score: score + (correct ? 1 : 0),
-      attempts: sessionRef.current.attempts + 1,
-      level: nextLevel,
-      streak: nextStreak,
+      ...buildAdaptiveSnapshot({
+        level: nextLevel,
+        streak: nextStreak,
+        correctAnswers: nextScore,
+        attempts: nextAttempts,
+      }),
+      score: nextScore,
+      attempts: nextAttempts,
       courseId,
       twoDigit,
       multipleChoice,
@@ -325,7 +345,7 @@ export default function IntegerPracticeClient({
           <span className="pill">Level: {level}</span>
         </div>
         <p style={{ marginTop: "0.75rem" }}>
-          Keep a streak going to raise the level. Start a new run any time if you want a clean scoreboard entry.
+          Keep a streak going to raise the level. Missed questions lower the level a bit so the practice keeps matching you.
         </p>
         <div className="mathPrompt">
           {formatInteger(problem.a)} {problem.op} {formatInteger(problem.b)} = ?

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import { numberCompareEngine } from "@/lib/question-engine/generators";
 
 function formatScore(value) {
@@ -35,6 +36,7 @@ export default function NumberCompareClient({
     score: 0,
     attempts: 0,
     level: 1,
+    accuracy: 0,
     courseId: initialCourseId || "",
     settings: {
       decimals: [1, 2],
@@ -123,9 +125,12 @@ export default function NumberCompareClient({
   useEffect(() => {
     sessionRef.current = {
       ...sessionRef.current,
+      ...buildAdaptiveSnapshot({
+        level,
+        correctAnswers: score,
+        attempts: sessionRef.current.attempts,
+      }),
       score,
-      attempts: sessionRef.current.attempts,
-      level,
       courseId,
       settings,
     };
@@ -140,6 +145,7 @@ export default function NumberCompareClient({
         ...sessionRef.current,
         score: 0,
         attempts: 0,
+        accuracy: 0,
       };
     }
 
@@ -163,6 +169,7 @@ export default function NumberCompareClient({
       score: 0,
       attempts: 0,
       level: 1,
+      accuracy: 0,
       courseId: nextCourseId,
       settings,
     };
@@ -192,6 +199,7 @@ export default function NumberCompareClient({
       score: 0,
       attempts: 0,
       level: 1,
+      accuracy: 0,
       courseId,
       settings,
     };
@@ -217,16 +225,27 @@ export default function NumberCompareClient({
     const values = [pair[0].value, pair[1].value];
     const winner = values[0] === values[1] ? null : values[0] > values[1] ? 0 : 1;
     const correct = winner === null || winner === index;
-    const nextLevel = correct ? Math.min(level + 1, 10) : Math.max(level - 1, 1);
+    const nextScore = score + (correct ? 1 : 0);
+    const nextAttempts = sessionRef.current.attempts + 1;
+    const nextLevel = nextAdaptiveLevel({
+      currentLevel: level,
+      correct,
+      streak: correct ? 1 : 0,
+      riseAfterStreak: 1,
+    });
     if (correct) setScore((current) => current + 1);
     setLevel(nextLevel);
     setFeedback(correct ? "Nice!" : "Try the next one.");
 
     sessionRef.current = {
       ...sessionRef.current,
-      score: score + (correct ? 1 : 0),
-      attempts: sessionRef.current.attempts + 1,
-      level: nextLevel,
+      ...buildAdaptiveSnapshot({
+        level: nextLevel,
+        correctAnswers: nextScore,
+        attempts: nextAttempts,
+      }),
+      score: nextScore,
+      attempts: nextAttempts,
       courseId,
       settings,
     };
