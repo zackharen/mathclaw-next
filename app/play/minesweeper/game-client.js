@@ -45,12 +45,15 @@ function neighbors(row, col, boardSize) {
   return cells;
 }
 
-function buildBoard(boardSize, mineCount) {
+function buildBoard(boardSize, mineCount, safeCell = null) {
   const board = createEmptyBoard(boardSize);
   const mineSpots = new Set();
+  const safeKey = safeCell ? `${safeCell.row}:${safeCell.col}` : null;
 
   while (mineSpots.size < mineCount) {
-    mineSpots.add(`${Math.floor(Math.random() * boardSize)}:${Math.floor(Math.random() * boardSize)}`);
+    const spot = `${Math.floor(Math.random() * boardSize)}:${Math.floor(Math.random() * boardSize)}`;
+    if (spot === safeKey) continue;
+    mineSpots.add(spot);
   }
 
   mineSpots.forEach((spot) => {
@@ -132,6 +135,12 @@ function calculateScore(revealedSafeCells, elapsedSeconds, result) {
 function numberClassName(cell) {
   if (!cell?.revealed || cell.adjacent <= 0 || cell.mine) return "";
   return `isCount${cell.adjacent}`;
+}
+
+function progressPercent(revealedSafeCells, boardSize, mineCount) {
+  const safeSquares = boardSize * boardSize - mineCount;
+  if (safeSquares <= 0) return 0;
+  return Math.round((revealedSafeCells / safeSquares) * 100);
 }
 
 export default function MinesweeperClient({
@@ -432,16 +441,25 @@ export default function MinesweeperClient({
   async function revealCell(row, col) {
     if (runState !== "active") return;
 
-    const cell = boardRef.current[row][col];
+    let activeBoard = boardRef.current;
+    let cell = activeBoard[row][col];
     if (cell.revealed || cell.flagged) return;
 
+    if (sessionRef.current.moves === 0 && cell.mine) {
+      activeBoard = buildBoard(boardSize, mineCount, { row, col });
+      boardRef.current = activeBoard;
+      setBoard(activeBoard);
+      cell = activeBoard[row][col];
+      setStatus("First move is always safe. Keep going.");
+    }
+
     if (cell.mine) {
-      const nextBoard = revealAllMines(cloneBoard(boardRef.current));
+      const nextBoard = revealAllMines(cloneBoard(activeBoard));
       await finishRun(nextBoard, "lost", "Boom. You hit a mine.");
       return;
     }
 
-    const result = revealCascade(boardRef.current, row, col);
+    const result = revealCascade(activeBoard, row, col);
     const nextBoard = result.board;
     const nextRevealedSafeCells = countRevealedSafeCells(nextBoard);
 
@@ -496,6 +514,9 @@ export default function MinesweeperClient({
   }
 
   const flagsUsed = countFlags(board);
+  const minesRemaining = Math.max(0, mineCount - flagsUsed);
+  const progress = progressPercent(sessionRef.current.revealedSafeCells, boardSize, mineCount);
+  const statusTone = runState === "won" ? "won" : runState === "lost" ? "lost" : "active";
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class leaderboard";
 
   return (
@@ -527,7 +548,9 @@ export default function MinesweeperClient({
           <span className="pill">Mode: {mode === "flag" ? "Flag" : "Reveal"}</span>
           <span className="pill">Board: {boardSize}x{boardSize}</span>
           <span className="pill">Flags: {flagsUsed}/{mineCount}</span>
+          <span className="pill">Mines Left: {minesRemaining}</span>
           <span className="pill">Time: {elapsedSeconds}s</span>
+          <span className="pill">Progress: {progress}%</span>
           <span className="pill">Safe Squares: {sessionRef.current.revealedSafeCells}</span>
         </div>
         <details className="gameControlsDetails" style={{ marginTop: "0.75rem" }}>
@@ -609,7 +632,7 @@ export default function MinesweeperClient({
           Tap squares to reveal them. On desktop, right-click places flags. On mobile,
           switch into Flag Mode when you want to mark mines.
         </p>
-        {status ? <p style={{ marginTop: "0.5rem", fontWeight: 700 }}>{status}</p> : null}
+        {status ? <div className={`minesweeperStatusBanner ${statusTone}`} style={{ marginTop: "0.6rem" }}><strong>{status}</strong></div> : null}
       </section>
 
       <section className="card" style={{ background: "#fff" }}>

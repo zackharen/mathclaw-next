@@ -1783,6 +1783,28 @@ details[open] > summary.btn,
   font-size: 1.1rem;
 }
 
+.minesweeperStatusBanner {
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem 0.95rem;
+  background: #eef4fb;
+}
+
+.minesweeperStatusBanner.active {
+  background: #eef4fb;
+  border-color: #4c6f94;
+}
+
+.minesweeperStatusBanner.won {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.minesweeperStatusBanner.lost {
+  background: #fdeeee;
+  border-color: #cd3b3b;
+}
+
 .timeClockWrap {
   display: flex;
   justify-content: center;
