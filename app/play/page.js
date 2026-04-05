@@ -10,6 +10,7 @@ function gameHref(slug, courseId) {
   if (slug === "integer_practice") return `/play/integer-practice${query}`;
   if (slug === "money_counting") return `/play/money-counting${query}`;
   if (slug === "number_compare") return `/play/number-compare${query}`;
+  if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
   if (slug === "comet_typing") return `/play/comet-typing${query}`;
   return `/play/${slug}${query}`;
@@ -147,11 +148,12 @@ export default async function PlayPage({ searchParams }) {
     awardedByName: String(row.metadata?.awardedByName || "Teacher").trim() || "Teacher",
   }));
   const visibleGames = games.filter((game) => game.enabled);
+  const spiralReviewGame = visibleGames.find((game) => game.slug === "spiral_review") || null;
   const arcadeGames = visibleGames
     .filter((game) => game.category === "arcade" || game.slug === "connect4")
     .sort((a, b) => a.name.localeCompare(b.name));
   const mathSkillsGames = visibleGames
-    .filter((game) => game.category === "math_skills")
+    .filter((game) => game.category === "math_skills" && game.slug !== "spiral_review")
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -262,6 +264,34 @@ export default async function PlayPage({ searchParams }) {
           </div>
         )}
       </section>
+      {spiralReviewGame ? (
+        <section className="card">
+          <h2>Spiral Review</h2>
+          <p>
+            Mix together review questions from multiple skills so today&apos;s practice feels more like a real checkpoint.
+          </p>
+          <article className="card arcadeGameCard" style={{ background: "#fff", marginTop: "1rem" }}>
+            <h3>{spiralReviewGame.name}</h3>
+            <p>{spiralReviewGame.description}</p>
+            <p className="arcadeGameTags">#review, #mathskills</p>
+            {statsByGame.get(spiralReviewGame.slug) ? (
+              <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                {statRowsForGame(spiralReviewGame, statsByGame.get(spiralReviewGame.slug)).map(([label, value]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className="ctaRow">
+              <Link className="btn primary" href={gameHref(spiralReviewGame.slug, activeCourse?.id || "")}>
+                Open Spiral Review
+              </Link>
+            </div>
+          </article>
+        </section>
+      ) : null}
       <section className="card">
         <h2>{activeCourse ? `Games For ${activeCourse.title}` : "Games"}</h2>
         {activeCourse ? (

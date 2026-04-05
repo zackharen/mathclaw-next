@@ -2185,6 +2185,57 @@ details[open] > summary.btn,
   letter-spacing: 0.04em;
 }
 
+.spiralReviewCard {
+  margin-top: 1rem;
+  border: 2px dashed #93a5b4;
+  border-radius: 18px;
+  padding: 1rem;
+  background: #f7fafc;
+}
+
+.spiralReviewLabel {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.spiralReviewEquation {
+  margin-top: 0.6rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: clamp(1.7rem, 5vw, 2.4rem);
+  font-weight: 800;
+}
+
+.spiralReviewCompareRow {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.spiralReviewValueCard {
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem;
+  background: #fff;
+  text-align: center;
+  font-family: "Courier New", Courier, monospace;
+  font-size: clamp(1.2rem, 4vw, 1.7rem);
+  font-weight: 700;
+}
+
+.spiralReviewVs {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
 @media (max-width: 720px) {
   .sudokuNumberPad {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2197,5 +2248,9 @@ details[open] > summary.btn,
 
   .cometRider {
     top: 1.2rem;
+  }
+
+  .spiralReviewCompareRow {
+    grid-template-columns: 1fr;
   }
 }

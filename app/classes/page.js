@@ -59,6 +59,7 @@ function formatGameControlNotice(status, gameSlug) {
         money_counting: "Money Counting",
         minesweeper: "Minesweeper",
         number_compare: "Which Number Is Bigger?",
+        spiral_review: "Spiral Review",
         telling_time: "Telling Time",
         sudoku: "Sudoku",
         comet_typing: "Comet Typing",
@@ -81,6 +82,7 @@ function getGameSupportCopy(game) {
   if (game.slug === "money_counting") return "Students count money and build target amounts with coins and dollars.";
   if (game.slug === "minesweeper") return "Students clear safe squares, flag mines, and race the clock.";
   if (game.slug === "number_compare") return "Students compare values quickly and build number sense.";
+  if (game.slug === "spiral_review") return "Students cycle through mixed review questions pulled from multiple skill types.";
   if (game.slug === "telling_time") return "Students read clocks and set times to the nearest five minutes.";
   if (game.slug === "sudoku") return "Students fill the grid by keeping every row, column, and 3x3 box valid.";
   if (game.slug === "comet_typing") return "Students guide Nova the courier by typing words accurately and building streaks.";

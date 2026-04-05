@@ -11,6 +11,7 @@ function formatGameLabel(slug) {
     connect4: "Connect4",
     integer_practice: "Adding & Subtracting Integers",
     number_compare: "Which Number Is Bigger?",
+    spiral_review: "Spiral Review",
     sudoku: "Sudoku",
     comet_typing: "Comet Typing",
   }[slug] || slug;
