@@ -194,6 +194,7 @@ export default function TellingTimeClient({
   const savedRunRef = useRef(false);
 
   const choices = useMemo(() => buildChoices(question, choiceCount), [choiceCount, question]);
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const updateClockFromPointer = useCallback((event, handToMove) => {
     const clockElement = clockFaceRef.current;
@@ -437,82 +438,95 @@ export default function TellingTimeClient({
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
-        <h2>Settings</h2>
-        <div className="list">
-          <label>
-            Game mode
-            <select
-              className="input"
-              value={mode}
-              onChange={(event) => {
-                const nextMode = event.target.value;
-                setMode(nextMode);
-                resetRun(nextMode, courseId);
-              }}
-            >
-              <option value="mixed">Mixed</option>
-              <option value="read">Read The Clock</option>
-              <option value="set">Set The Clock</option>
-            </select>
-          </label>
-          <label>
-            Read answers
-            <select
-              className="input"
-              value={readAnswerMode}
-              onChange={(event) => {
-                const nextReadAnswerMode = event.target.value;
-                setReadAnswerMode(nextReadAnswerMode);
-                resetRun(mode, courseId, nextReadAnswerMode);
-              }}
-            >
-              <option value="multiple_choice">Multiple Choice</option>
-              <option value="fill">Fill In</option>
-            </select>
-          </label>
-          {readAnswerMode === "multiple_choice" ? (
+        <details className="gameControlsDetails">
+          <summary className="gameControlsSummary">
+            <div>
+              <h2>Game Controls</h2>
+              <p>
+                {(mode === "mixed" ? "Mixed mode" : mode === "read" ? "Read The Clock" : "Set The Clock") + " · " + (readAnswerMode === "fill" ? "Fill in answers" : String(choiceCount) + " multiple choice") + " · " + (faceStyle === "roman" ? "Roman numerals" : faceStyle === "ticks" ? "Tick marks" : "Numbers") + " · " + courseSummary}
+              </p>
+            </div>
+            <span className="gameControlsToggle">
+              <span className="showLabel">Show</span>
+              <span className="hideLabel">Hide</span>
+            </span>
+          </summary>
+          <div className="gameControlsBody list">
             <label>
-              Multiple choice answers
+              Game mode
               <select
                 className="input"
-                value={choiceCount}
-                onChange={(event) => setChoiceCount(Number(event.target.value))}
+                value={mode}
+                onChange={(event) => {
+                  const nextMode = event.target.value;
+                  setMode(nextMode);
+                  resetRun(nextMode, courseId);
+                }}
               >
-                {[2, 3, 4, 5, 6].map((count) => (
-                  <option key={count} value={count}>
-                    {count}
+                <option value="mixed">Mixed</option>
+                <option value="read">Read The Clock</option>
+                <option value="set">Set The Clock</option>
+              </select>
+            </label>
+            <label>
+              Read answers
+              <select
+                className="input"
+                value={readAnswerMode}
+                onChange={(event) => {
+                  const nextReadAnswerMode = event.target.value;
+                  setReadAnswerMode(nextReadAnswerMode);
+                  resetRun(mode, courseId, nextReadAnswerMode);
+                }}
+              >
+                <option value="multiple_choice">Multiple Choice</option>
+                <option value="fill">Fill In</option>
+              </select>
+            </label>
+            {readAnswerMode === "multiple_choice" ? (
+              <label>
+                Multiple choice answers
+                <select
+                  className="input"
+                  value={choiceCount}
+                  onChange={(event) => setChoiceCount(Number(event.target.value))}
+                >
+                  {[2, 3, 4, 5, 6].map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label>
+              Clock face
+              <select
+                className="input"
+                value={faceStyle}
+                onChange={(event) => setFaceStyle(event.target.value)}
+              >
+                <option value="numbers">Numbers</option>
+                <option value="ticks">Tick Marks</option>
+                <option value="roman">Roman Numerals</option>
+              </select>
+            </label>
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+                <option value="">No class selected</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
                   </option>
                 ))}
               </select>
             </label>
-          ) : null}
-          <label>
-            Clock face
-            <select
-              className="input"
-              value={faceStyle}
-              onChange={(event) => setFaceStyle(event.target.value)}
-            >
-              <option value="numbers">Numbers</option>
-              <option value="ticks">Tick Marks</option>
-              <option value="roman">Roman Numerals</option>
-            </select>
-          </label>
-          <label>
-            Class context
-            <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
-              <option value="">No class selected</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="btn primary" type="button" onClick={startNewRun}>
-            Start New Run
-          </button>
-        </div>
+            <button className="btn primary" type="button" onClick={startNewRun}>
+              Start New Run
+            </button>
+          </div>
+        </details>
       </section>
 
       <section className="card" style={{ background: "#fff" }}>

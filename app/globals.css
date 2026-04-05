@@ -649,6 +649,65 @@ details[open] > summary.editorSummary .hideLabel {
   gap: 0.6rem;
 }
 
+.gameControlsDetails {
+  margin-bottom: 1rem;
+}
+
+.gameControlsSummary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+}
+
+.gameControlsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.gameControlsSummary h2 {
+  margin: 0;
+}
+
+.gameControlsSummary p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.gameControlsToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.75rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  background: #f4f8fb;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 700;
+  color: var(--navy);
+  flex-shrink: 0;
+}
+
+.gameControlsSummary .hideLabel {
+  display: none;
+}
+
+details[open] > summary.gameControlsSummary .showLabel {
+  display: none;
+}
+
+details[open] > summary.gameControlsSummary .hideLabel {
+  display: inline;
+}
+
+.gameControlsBody {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;

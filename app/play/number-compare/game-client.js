@@ -85,6 +85,7 @@ export default function NumberCompareClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
   const sessionRef = useRef({
     score: 0,
     attempts: 0,
@@ -284,34 +285,47 @@ export default function NumberCompareClient({
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
-        <h2>Settings</h2>
-        <div className="list">
-          <div className="ctaRow">
-            {[1, 2, 3, 4].map((place) => (
-              <button
-                key={place}
-                type="button"
-                className={`btn ${settings.decimals.includes(place) ? "primary" : ""}`}
-                onClick={() => toggleDecimal(place)}
-              >
-                {place === 1 ? "Tenths" : place === 2 ? "Hundredths" : place === 3 ? "Thousandths" : "Ten-Thousandths"}
-              </button>
-            ))}
+        <details className="gameControlsDetails">
+          <summary className="gameControlsSummary">
+            <div>
+              <h2>Game Controls</h2>
+              <p>
+                {String(settings.decimals.length) + " decimal mode" + (settings.decimals.length === 1 ? "" : "s") + " · " + (settings.positiveNegative ? "Integers on" : "Integers off") + " · " + (settings.fractions ? "Fractions on" : "Fractions off") + " · " + (settings.squareRoots ? "Roots on" : "Roots off") + " · " + courseSummary}
+              </p>
+            </div>
+            <span className="gameControlsToggle">
+              <span className="showLabel">Show</span>
+              <span className="hideLabel">Hide</span>
+            </span>
+          </summary>
+          <div className="gameControlsBody list">
+            <div className="ctaRow">
+              {[1, 2, 3, 4].map((place) => (
+                <button
+                  key={place}
+                  type="button"
+                  className={"btn " + (settings.decimals.includes(place) ? "primary" : "")}
+                  onClick={() => toggleDecimal(place)}
+                >
+                  {place === 1 ? "Tenths" : place === 2 ? "Hundredths" : place === 3 ? "Thousandths" : "Ten-Thousandths"}
+                </button>
+              ))}
+            </div>
+            <label className="toggleRow"><input type="checkbox" checked={settings.positiveNegative} onChange={(e) => setSettings((current) => ({ ...current, positiveNegative: e.target.checked }))} /> Positive / negative integers</label>
+            <label className="toggleRow"><input type="checkbox" checked={settings.fractions} onChange={(e) => setSettings((current) => ({ ...current, fractions: e.target.checked }))} /> Fractions</label>
+            <label className="toggleRow"><input type="checkbox" checked={settings.squareRoots} onChange={(e) => setSettings((current) => ({ ...current, squareRoots: e.target.checked }))} /> Square roots</label>
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
+                <option value="">No class selected</option>
+                {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+              </select>
+            </label>
+            <button className="btn primary" type="button" onClick={startNewRun}>
+              Start New Run
+            </button>
           </div>
-          <label className="toggleRow"><input type="checkbox" checked={settings.positiveNegative} onChange={(e) => setSettings((current) => ({ ...current, positiveNegative: e.target.checked }))} /> Positive / negative integers</label>
-          <label className="toggleRow"><input type="checkbox" checked={settings.fractions} onChange={(e) => setSettings((current) => ({ ...current, fractions: e.target.checked }))} /> Fractions</label>
-          <label className="toggleRow"><input type="checkbox" checked={settings.squareRoots} onChange={(e) => setSettings((current) => ({ ...current, squareRoots: e.target.checked }))} /> Square roots</label>
-          <label>
-            Class context
-            <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
-              <option value="">No class selected</option>
-              {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-            </select>
-          </label>
-          <button className="btn primary" type="button" onClick={startNewRun}>
-            Start New Run
-          </button>
-        </div>
+        </details>
       </section>
       <section className="card" style={{ background: "#fff" }}>
         <h2>Pick The Bigger Number</h2>

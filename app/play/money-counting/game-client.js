@@ -107,6 +107,7 @@ export default function MoneyCountingClient({
 
   const choices = useMemo(() => buildChoices(question.total), [question.total]);
   const builtTotal = useMemo(() => pileTotal(playerPile), [playerPile]);
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const loadLeaderboard = useCallback(
     async (nextCourseId) => {
@@ -296,39 +297,52 @@ export default function MoneyCountingClient({
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
-        <h2>Settings</h2>
-        <div className="list">
-          <label>
-            Game mode
-            <select
-              className="input"
-              value={mode}
-              onChange={(event) => {
-                const nextMode = event.target.value;
-                setMode(nextMode);
-                resetRun(nextMode, courseId);
-              }}
-            >
-              <option value="mixed">Mixed</option>
-              <option value="count">Count The Money</option>
-              <option value="make">Make The Amount</option>
-            </select>
-          </label>
-          <label>
-            Class context
-            <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
-              <option value="">No class selected</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="btn primary" type="button" onClick={startNewRun}>
-            Start New Run
-          </button>
-        </div>
+        <details className="gameControlsDetails">
+          <summary className="gameControlsSummary">
+            <div>
+              <h2>Game Controls</h2>
+              <p>
+                {(mode === "mixed" ? "Mixed mode" : mode === "count" ? "Count The Money" : "Make The Amount") + " · " + courseSummary}
+              </p>
+            </div>
+            <span className="gameControlsToggle">
+              <span className="showLabel">Show</span>
+              <span className="hideLabel">Hide</span>
+            </span>
+          </summary>
+          <div className="gameControlsBody list">
+            <label>
+              Game mode
+              <select
+                className="input"
+                value={mode}
+                onChange={(event) => {
+                  const nextMode = event.target.value;
+                  setMode(nextMode);
+                  resetRun(nextMode, courseId);
+                }}
+              >
+                <option value="mixed">Mixed</option>
+                <option value="count">Count The Money</option>
+                <option value="make">Make The Amount</option>
+              </select>
+            </label>
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+                <option value="">No class selected</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn primary" type="button" onClick={startNewRun}>
+              Start New Run
+            </button>
+          </div>
+        </details>
       </section>
 
       <section className="card" style={{ background: "#fff" }}>

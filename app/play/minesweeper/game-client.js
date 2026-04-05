@@ -496,6 +496,7 @@ export default function MinesweeperClient({
   }
 
   const flagsUsed = countFlags(board);
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class leaderboard";
 
   return (
     <div className="featureGrid">
@@ -529,33 +530,47 @@ export default function MinesweeperClient({
           <span className="pill">Time: {elapsedSeconds}s</span>
           <span className="pill">Safe Squares: {sessionRef.current.revealedSafeCells}</span>
         </div>
-        <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-          <select
-            className="input"
-            style={{ maxWidth: "12rem" }}
-            value={String(boardSize)}
-            onChange={(event) => handleBoardSizeChange(Number(event.target.value))}
-          >
-            {BOARD_SIZE_OPTIONS.map((sizeOption) => (
-              <option key={sizeOption} value={sizeOption}>
-                {sizeOption} x {sizeOption}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
-            style={{ maxWidth: "18rem" }}
-            value={courseId}
-            onChange={(event) => handleCourseChange(event.target.value)}
-          >
-            <option value="">No class leaderboard</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
-        </div>
+        <details className="gameControlsDetails" style={{ marginTop: "0.75rem" }}>
+          <summary className="gameControlsSummary">
+            <div>
+              <h2 style={{ fontSize: "1.05rem" }}>Board Controls</h2>
+              <p>
+                {String(boardSize) + " x " + String(boardSize) + " board · " + courseSummary}
+              </p>
+            </div>
+            <span className="gameControlsToggle">
+              <span className="showLabel">Show</span>
+              <span className="hideLabel">Hide</span>
+            </span>
+          </summary>
+          <div className="gameControlsBody ctaRow">
+            <select
+              className="input"
+              style={{ maxWidth: "12rem" }}
+              value={String(boardSize)}
+              onChange={(event) => handleBoardSizeChange(Number(event.target.value))}
+            >
+              {BOARD_SIZE_OPTIONS.map((sizeOption) => (
+                <option key={sizeOption} value={sizeOption}>
+                  {sizeOption} x {sizeOption}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input"
+              style={{ maxWidth: "18rem" }}
+              value={courseId}
+              onChange={(event) => handleCourseChange(event.target.value)}
+            >
+              <option value="">No class leaderboard</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </details>
         <div
           className="minesweeperBoard"
           style={{

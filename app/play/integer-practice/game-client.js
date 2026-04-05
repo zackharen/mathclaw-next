@@ -62,6 +62,7 @@ export default function IntegerPracticeClient({
   });
 
   const multipleChoice = choiceCount > 0;
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const options = useMemo(
     () => (multipleChoice ? choices(problem.answer, choiceCount) : []),
@@ -274,53 +275,66 @@ export default function IntegerPracticeClient({
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
-        <h2>Settings</h2>
-        <div className="list">
-          <div>
-            <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Number Size</p>
-            <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
-              <button
-                className={`btn ${twoDigit ? "" : "primary"}`}
-                type="button"
-                onClick={() => handleTwoDigitChange(false)}
-              >
-                Single Digit
-              </button>
-              <button
-                className={`btn ${twoDigit ? "primary" : ""}`}
-                type="button"
-                onClick={() => handleTwoDigitChange(true)}
-              >
-                Double Digit
-              </button>
+        <details className="gameControlsDetails">
+          <summary className="gameControlsSummary">
+            <div>
+              <h2>Game Controls</h2>
+              <p>
+                {(twoDigit ? "Double digit" : "Single digit") + " · " + (multipleChoice ? String(choiceCount) + " multiple choice" : "Typed answers") + " · " + courseSummary}
+              </p>
             </div>
-          </div>
-          <div>
-            <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Answer Mode</p>
-            <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
-              {[0, 2, 3, 4, 5, 6].map((count) => (
+            <span className="gameControlsToggle">
+              <span className="showLabel">Show</span>
+              <span className="hideLabel">Hide</span>
+            </span>
+          </summary>
+          <div className="gameControlsBody list">
+            <div>
+              <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Number Size</p>
+              <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
                 <button
-                  key={count}
-                  className={`btn ${choiceCount === count ? "primary" : ""}`}
+                  className={"btn " + (twoDigit ? "" : "primary")}
                   type="button"
-                  onClick={() => handleChoiceCountChange(count)}
+                  onClick={() => handleTwoDigitChange(false)}
                 >
-                  {count === 0 ? "None" : `${count} MP`}
+                  Single Digit
                 </button>
-              ))}
+                <button
+                  className={"btn " + (twoDigit ? "primary" : "")}
+                  type="button"
+                  onClick={() => handleTwoDigitChange(true)}
+                >
+                  Double Digit
+                </button>
+              </div>
             </div>
+            <div>
+              <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Answer Mode</p>
+              <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
+                {[0, 2, 3, 4, 5, 6].map((count) => (
+                  <button
+                    key={count}
+                    className={"btn " + (choiceCount === count ? "primary" : "")}
+                    type="button"
+                    onClick={() => handleChoiceCountChange(count)}
+                  >
+                    {count === 0 ? "None" : count + " MP"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
+                <option value="">No class selected</option>
+                {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+              </select>
+            </label>
+            <button className="btn primary" type="button" onClick={startNewRun}>
+              Start New Run
+            </button>
           </div>
-          <label>
-            Class context
-            <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
-              <option value="">No class selected</option>
-              {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
-            </select>
-          </label>
-          <button className="btn primary" type="button" onClick={startNewRun}>
-            Start New Run
-          </button>
-        </div>
+        </details>
       </section>
       <section className="card" style={{ background: "#fff" }}>
         <h2>Practice</h2>
