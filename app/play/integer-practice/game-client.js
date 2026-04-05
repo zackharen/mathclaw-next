@@ -28,6 +28,10 @@ function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
 
+function formatInteger(value) {
+  return value < 0 ? `(${value})` : String(value);
+}
+
 export default function IntegerPracticeClient({
   courses,
   initialCourseId,
@@ -38,7 +42,6 @@ export default function IntegerPracticeClient({
   const [streak, setStreak] = useState(0);
   const [score, setScore] = useState(0);
   const [twoDigit, setTwoDigit] = useState(false);
-  const [multipleChoice, setMultipleChoice] = useState(true);
   const [choiceCount, setChoiceCount] = useState(4);
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [feedback, setFeedback] = useState("");
@@ -57,6 +60,8 @@ export default function IntegerPracticeClient({
     multipleChoice: true,
     choiceCount: 4,
   });
+
+  const multipleChoice = choiceCount > 0;
 
   const options = useMemo(
     () => (multipleChoice ? choices(problem.answer, choiceCount) : []),
@@ -234,7 +239,7 @@ export default function IntegerPracticeClient({
     const correct = guess === problem.answer;
     const nextStreak = correct ? streak + 1 : 0;
     const nextLevel = correct ? Math.min(level + (nextStreak >= 3 ? 1 : 0), 10) : Math.max(level - 1, 1);
-    setFeedback(correct ? "Correct!" : `Not quite. The answer was ${problem.answer}.`);
+    setFeedback(correct ? "Correct!" : `Not quite. The answer was ${formatInteger(problem.answer)}.`);
     setStreak(nextStreak);
     setLevel(nextLevel);
     if (correct) setScore((current) => current + 1);
@@ -254,10 +259,16 @@ export default function IntegerPracticeClient({
     };
   }
 
-  function handleTwoDigitChange(checked) {
-    setTwoDigit(checked);
+  function handleTwoDigitChange(nextTwoDigit) {
+    setTwoDigit(nextTwoDigit);
     setFeedback("");
-    setProblem(makeProblem(level, checked));
+    setProblem(makeProblem(level, nextTwoDigit));
+  }
+
+  function handleChoiceCountChange(nextChoiceCount) {
+    setChoiceCount(nextChoiceCount);
+    setFeedback("");
+    setAnswerText("");
   }
 
   return (
@@ -265,16 +276,40 @@ export default function IntegerPracticeClient({
       <section className="card" style={{ background: "#fff" }}>
         <h2>Settings</h2>
         <div className="list">
-          <label className="toggleRow"><input type="checkbox" checked={twoDigit} onChange={(e) => handleTwoDigitChange(e.target.checked)} /> Two-digit numbers</label>
-          <label className="toggleRow"><input type="checkbox" checked={multipleChoice} onChange={(e) => setMultipleChoice(e.target.checked)} /> Multiple choice</label>
-          {multipleChoice ? (
-            <label>
-              Answer choices
-              <select className="input" value={choiceCount} onChange={(e) => setChoiceCount(Number(e.target.value))}>
-                {[2, 3, 4, 5].map((count) => <option key={count} value={count}>{count}</option>)}
-              </select>
-            </label>
-          ) : null}
+          <div>
+            <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Number Size</p>
+            <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
+              <button
+                className={`btn ${twoDigit ? "" : "primary"}`}
+                type="button"
+                onClick={() => handleTwoDigitChange(false)}
+              >
+                Single Digit
+              </button>
+              <button
+                className={`btn ${twoDigit ? "primary" : ""}`}
+                type="button"
+                onClick={() => handleTwoDigitChange(true)}
+              >
+                Double Digit
+              </button>
+            </div>
+          </div>
+          <div>
+            <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Answer Mode</p>
+            <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
+              {[0, 2, 3, 4, 5, 6].map((count) => (
+                <button
+                  key={count}
+                  className={`btn ${choiceCount === count ? "primary" : ""}`}
+                  type="button"
+                  onClick={() => handleChoiceCountChange(count)}
+                >
+                  {count === 0 ? "None" : `${count} MP`}
+                </button>
+              ))}
+            </div>
+          </div>
           <label>
             Class context
             <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
@@ -298,13 +333,13 @@ export default function IntegerPracticeClient({
           Keep a streak going to raise the level. Start a new run any time if you want a clean scoreboard entry.
         </p>
         <div className="mathPrompt">
-          {problem.a} {problem.op} ({problem.b}) = ?
+          {formatInteger(problem.a)} {problem.op} {formatInteger(problem.b)} = ?
         </div>
         {multipleChoice ? (
           <div className="choiceGrid">
             {options.map((option) => (
               <button key={option} className="btn" type="button" onClick={() => submitAnswer(option)}>
-                {option}
+                {formatInteger(option)}
               </button>
             ))}
           </div>
