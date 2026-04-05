@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const TOTAL_ROUNDS = 10;
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
-const READ_FILL_MINUTE_OPTIONS = Array.from({ length: 11 }, (_, index) => (index + 1) * 5);
+const READ_FILL_MINUTE_OPTIONS = MINUTE_OPTIONS;
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const CLOCK_FACE_NUMBERS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const CLOCK_FACE_ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
@@ -87,6 +87,16 @@ function hourFromAngle(angle) {
 
 function minuteFromAngle(angle) {
   return (Math.round(angle / 30) % 12) * 5;
+}
+
+function stepHour(hour, delta) {
+  const normalized = (((hour - 1 + delta) % 12) + 12) % 12;
+  return normalized + 1;
+}
+
+function stepMinute(minute, delta) {
+  const normalized = (((minute + delta) % 60) + 60) % 60;
+  return normalized;
 }
 
 function ClockFace({
@@ -179,7 +189,7 @@ export default function TellingTimeClient({
   const [selectedHour, setSelectedHour] = useState(initialSetting.hour);
   const [selectedMinute, setSelectedMinute] = useState(initialSetting.minute);
   const [readAnswerHour, setReadAnswerHour] = useState(question.hour);
-  const [readAnswerMinute, setReadAnswerMinute] = useState(question.minute || READ_FILL_MINUTE_OPTIONS[0]);
+  const [readAnswerMinute, setReadAnswerMinute] = useState(question.minute ?? READ_FILL_MINUTE_OPTIONS[0]);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -334,7 +344,7 @@ export default function TellingTimeClient({
     setSelectedHour(nextSetting.hour);
     setSelectedMinute(nextSetting.minute);
     setReadAnswerHour(nextQuestion.hour);
-    setReadAnswerMinute(nextQuestion.minute || READ_FILL_MINUTE_OPTIONS[0]);
+    setReadAnswerMinute(nextQuestion.minute ?? READ_FILL_MINUTE_OPTIONS[0]);
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
@@ -409,7 +419,7 @@ export default function TellingTimeClient({
     setSelectedHour(nextSetting.hour);
     setSelectedMinute(nextSetting.minute);
     setReadAnswerHour(nextQuestion.hour);
-    setReadAnswerMinute(nextQuestion.minute || READ_FILL_MINUTE_OPTIONS[0]);
+    setReadAnswerMinute(nextQuestion.minute ?? READ_FILL_MINUTE_OPTIONS[0]);
     setRoundIndex(nextAttempts + 1);
   }
 
@@ -622,6 +632,44 @@ export default function TellingTimeClient({
                 onClick={() => setActiveSetHand("minute")}
               >
                 Move Minute Hand
+              </button>
+            </div>
+            <div className="pillRow">
+              <span className="pill">Target: {question.label}</span>
+              <span className="pill">Your Clock: {formatTimeLabel(selectedHour, selectedMinute)}</span>
+            </div>
+            <div className="ctaRow">
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() => setSelectedHour((current) => stepHour(current, -1))}
+                disabled={runComplete}
+              >
+                Hour -1
+              </button>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() => setSelectedHour((current) => stepHour(current, 1))}
+                disabled={runComplete}
+              >
+                Hour +1
+              </button>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() => setSelectedMinute((current) => stepMinute(current, -5))}
+                disabled={runComplete}
+              >
+                Minute -5
+              </button>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() => setSelectedMinute((current) => stepMinute(current, 5))}
+                disabled={runComplete}
+              >
+                Minute +5
               </button>
             </div>
             <p>
