@@ -11,6 +11,7 @@ function gameHref(slug, courseId) {
   if (slug === "money_counting") return `/play/money-counting${query}`;
   if (slug === "number_compare") return `/play/number-compare${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
+  if (slug === "comet_typing") return `/play/comet-typing${query}`;
   return `/play/${slug}${query}`;
 }
 

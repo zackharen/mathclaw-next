@@ -2098,6 +2098,93 @@ details[open] > summary.btn,
   border-bottom: 3px solid var(--navy);
 }
 
+.cometTypingCard {
+  overflow: hidden;
+}
+
+.cometLane {
+  position: relative;
+  margin-top: 1rem;
+  min-height: 6rem;
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), transparent 36%),
+    linear-gradient(180deg, #0c2746 0%, #173f68 100%);
+  color: var(--white);
+  overflow: hidden;
+}
+
+.cometLaneTrack,
+.cometLaneProgress {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  top: 50%;
+  height: 0.7rem;
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
+
+.cometLaneTrack {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cometLaneProgress {
+  right: auto;
+  background: linear-gradient(90deg, #ffd15c 0%, #ff8c42 100%);
+  box-shadow: 0 0 16px rgba(255, 209, 92, 0.45);
+}
+
+.cometRider {
+  position: absolute;
+  top: 0.95rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  min-width: 2.6rem;
+}
+
+.cometAvatar {
+  font-size: 1.5rem;
+}
+
+.cometFinish {
+  position: absolute;
+  right: 0.9rem;
+  top: 0.8rem;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 700;
+}
+
+.cometPromptCard {
+  margin-top: 1rem;
+  border: 2px dashed #6f8dad;
+  border-radius: 16px;
+  padding: 1rem;
+  background: #f7fafc;
+  text-align: center;
+}
+
+.cometPromptLabel,
+.cometPromptHint {
+  opacity: 0.8;
+}
+
+.cometPromptWord {
+  margin-top: 0.45rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.cometTypingInput {
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+}
+
 @media (max-width: 720px) {
   .sudokuNumberPad {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2106,5 +2193,9 @@ details[open] > summary.btn,
   .sudokuCell {
     min-height: 2.5rem;
     font-size: 1rem;
+  }
+
+  .cometRider {
+    top: 1.2rem;
   }
 }
