@@ -4,15 +4,19 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser } from "@/lib/courses/access";
 import { assignStudentAwardAction, regenerateStudentJoinCodeAction } from "@/app/classes/actions";
+import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 
 function formatGameLabel(slug) {
   return {
     "2048": "2048",
     connect4: "Connect4",
     integer_practice: "Adding & Subtracting Integers",
+    money_counting: "Money Counting",
+    minesweeper: "Minesweeper",
     number_compare: "Which Number Is Bigger?",
     spiral_review: "Spiral Review",
     question_kind_review: "What Kind Of Question Is This?",
+    telling_time: "Telling Time",
     sudoku: "Sudoku",
     comet_typing: "Comet Typing",
   }[slug] || slug;
@@ -25,6 +29,103 @@ function formatStatScope(scope) {
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
+
+function formatPercent(value) {
+  return `${Math.round(Number(value || 0))}%`;
+}
+
+const WORD_WALL_TERMS = [
+  {
+    key: "integer",
+    label: "Integer",
+    gameSlug: "integer_practice",
+    description: "A whole number that can be positive, negative, or zero.",
+  },
+  {
+    key: "absolute-value",
+    label: "Absolute Value",
+    gameSlug: "integer_practice",
+    description: "How far a number is from zero on the number line.",
+  },
+  {
+    key: "compare",
+    label: "Compare",
+    gameSlug: "number_compare",
+    description: "Decide which value is greater, smaller, or the same.",
+  },
+  {
+    key: "digit",
+    label: "Digit",
+    gameSlug: "sudoku",
+    description: "One number symbol from 0 to 9 used to build a number.",
+  },
+  {
+    key: "coin",
+    label: "Coin",
+    gameSlug: "money_counting",
+    description: "A piece of money like a penny, nickel, dime, or quarter.",
+  },
+  {
+    key: "value",
+    label: "Value",
+    gameSlug: "money_counting",
+    description: "How much a number, coin, bill, or answer is worth.",
+  },
+  {
+    key: "minute-hand",
+    label: "Minute Hand",
+    gameSlug: "telling_time",
+    description: "The longer clock hand that shows how many minutes have passed.",
+  },
+  {
+    key: "hour-hand",
+    label: "Hour Hand",
+    gameSlug: "telling_time",
+    description: "The shorter clock hand that shows the hour.",
+  },
+  {
+    key: "row",
+    label: "Row",
+    gameSlug: "sudoku",
+    description: "A straight line of boxes that goes across from left to right.",
+  },
+  {
+    key: "column",
+    label: "Column",
+    gameSlug: "sudoku",
+    description: "A straight line of boxes that goes up and down.",
+  },
+  {
+    key: "pattern",
+    label: "Pattern",
+    gameSlug: "spiral_review",
+    description: "Something that repeats or follows a rule you can notice.",
+  },
+  {
+    key: "strategy",
+    label: "Strategy",
+    gameSlug: "2048",
+    description: "A plan you use to make strong moves and avoid mistakes.",
+  },
+  {
+    key: "streak",
+    label: "Streak",
+    gameSlug: "comet_typing",
+    description: "A run of correct answers or hits in a row.",
+  },
+  {
+    key: "question-type",
+    label: "Question Type",
+    gameSlug: "question_kind_review",
+    description: "The kind of thinking a problem is asking you to do.",
+  },
+  {
+    key: "safe-square",
+    label: "Safe Square",
+    gameSlug: "minesweeper",
+    description: "A square you can reveal without hitting a mine.",
+  },
+];
 
 const TEACHER_AWARD_PRESETS = [
   "Weekly Star",
@@ -58,6 +159,18 @@ function formatDateTime(value, timeZone) {
     hour12: true,
     timeZoneName: "short",
   });
+}
+
+function getPlayerDisplayName(membership) {
+  return membership?.display_name || `Student ${String(membership?.profile_id || "").slice(0, 8)}`;
+}
+
+function averageForPlayerRows(rows) {
+  if (!rows || rows.length === 0) return 0;
+  return (
+    rows.reduce((sum, row) => sum + Number(row.average_score || 0), 0) /
+    Math.max(rows.length, 1)
+  );
 }
 
 export default async function StudentsPage({ params, searchParams }) {
@@ -106,11 +219,13 @@ export default async function StudentsPage({ params, searchParams }) {
   const admin = createAdminClient();
 
   const [
+    courseGames,
     { data: membershipRows, error: membershipsError },
     { data: statsRows, error: statsError },
     { data: recentSessionRows, error: recentSessionsError },
     { data: awardRows, error: awardRowsError },
   ] = await Promise.all([
+    listGamesWithCourseSettings(supabase, course.id),
     supabase.rpc("list_course_students", { p_course_id: course.id }),
     supabase.rpc("list_course_student_stats", { p_course_id: course.id }),
     admin
@@ -222,6 +337,68 @@ export default async function StudentsPage({ params, searchParams }) {
       displayName: resolveActivityDisplayName(row.player_id),
     };
   });
+
+  const enabledGameSlugs = new Set(
+    (courseGames || []).filter((game) => game.enabled).map((game) => game.slug)
+  );
+  const playedGameSlugs = new Set(safeStats.map((row) => row.game_slug).filter(Boolean));
+  const relevantGameSlugs = new Set([...enabledGameSlugs, ...playedGameSlugs]);
+  const wordWallTerms = WORD_WALL_TERMS.filter((term) => relevantGameSlugs.has(term.gameSlug)).slice(0, 12);
+  const fallbackWordWallTerms = WORD_WALL_TERMS.filter(
+    (term) =>
+      term.gameSlug === "integer_practice" ||
+      term.gameSlug === "number_compare" ||
+      term.gameSlug === "telling_time" ||
+      term.gameSlug === "money_counting"
+  ).slice(0, 8);
+  const displayedWordWallTerms = wordWallTerms.length > 0 ? wordWallTerms : fallbackWordWallTerms;
+
+  const playerCards = safeMemberships.map((membership) => {
+    const playerStats = statsByPlayer.get(membership.profile_id) || [];
+    const playerAwards = awardsByPlayer.get(membership.profile_id) || [];
+    const totalSessions = playerStats.reduce(
+      (sum, row) => sum + Number(row.sessions_played || 0),
+      0
+    );
+    const strongestGame =
+      [...playerStats].sort((a, b) => Number(b.average_score || 0) - Number(a.average_score || 0))[0] ||
+      null;
+    const recentPlayerSession = safeRecentSessions.find((row) => row.player_id === membership.profile_id);
+    const lastSevenDaysSessions = safeRecentSessions.filter((row) => {
+      if (row.player_id !== membership.profile_id || !row.created_at) return false;
+      return Date.now() - new Date(row.created_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
+    }).length;
+    return {
+      membership,
+      playerStats,
+      playerAwards,
+      totalSessions,
+      strongestGame,
+      recentPlayerSession,
+      averageScore: averageForPlayerRows(playerStats),
+      awardCount: playerAwards.length,
+      lastSevenDaysSessions,
+    };
+  });
+
+  const mostActiveStudent =
+    [...playerCards].sort((a, b) => b.totalSessions - a.totalSessions)[0] || null;
+  const classAverageLeader =
+    [...playerCards].filter((card) => card.playerStats.length > 0).sort((a, b) => b.averageScore - a.averageScore)[0] ||
+    null;
+  const awardLeader =
+    [...playerCards].filter((card) => card.awardCount > 0).sort((a, b) => b.awardCount - a.awardCount)[0] ||
+    null;
+  const momentumLeader =
+    [...playerCards].filter((card) => card.lastSevenDaysSessions > 0).sort((a, b) => b.lastSevenDaysSessions - a.lastSevenDaysSessions)[0] ||
+    null;
+  const gameWallCards = [...gameSummary.values()]
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 4)
+    .map((row) => ({
+      ...row,
+      averageScore: row.players > 0 ? row.totalAverage / row.players : 0,
+    }));
 
   return (
     <div className="stack">
@@ -338,6 +515,107 @@ export default async function StudentsPage({ params, searchParams }) {
       </section>
 
       <section className="card">
+        <h2>Data Wall</h2>
+        <p>
+          A quick teacher view of who is active, who is building momentum, and which games are driving the most class practice.
+        </p>
+        <div className="adminSummaryGrid" style={{ marginTop: "1rem" }}>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Most Active Student</h3>
+            <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
+              {mostActiveStudent ? getPlayerDisplayName(mostActiveStudent.membership) : "No data yet"}
+            </p>
+            <p style={{ marginTop: "0.35rem" }}>
+              {mostActiveStudent ? `${mostActiveStudent.totalSessions} saved sessions` : "Students have not saved enough games yet."}
+            </p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Top Average Across Games</h3>
+            <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
+              {classAverageLeader ? getPlayerDisplayName(classAverageLeader.membership) : "No data yet"}
+            </p>
+            <p style={{ marginTop: "0.35rem" }}>
+              {classAverageLeader ? formatScore(classAverageLeader.averageScore) : "No cross-game averages yet."}
+            </p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Weekly Award Leader</h3>
+            <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
+              {awardLeader ? getPlayerDisplayName(awardLeader.membership) : "No awards yet"}
+            </p>
+            <p style={{ marginTop: "0.35rem" }}>
+              {awardLeader ? `${awardLeader.awardCount} awards saved` : "Start using weekly awards to highlight progress."}
+            </p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Recent Momentum</h3>
+            <p style={{ fontWeight: 700, fontSize: "1.15rem" }}>
+              {momentumLeader ? getPlayerDisplayName(momentumLeader.membership) : "No recent streak yet"}
+            </p>
+            <p style={{ marginTop: "0.35rem" }}>
+              {momentumLeader ? `${momentumLeader.lastSevenDaysSessions} saved sessions in the last 7 days` : "No saved sessions in the last week yet."}
+            </p>
+          </div>
+        </div>
+        <div className="dataWallGrid" style={{ marginTop: "1rem" }}>
+          <div className="card" style={{ background: "#fff" }}>
+            <h3>Most Used Games</h3>
+            {gameWallCards.length === 0 ? (
+              <p>No game trends yet.</p>
+            ) : (
+              <div className="list" style={{ marginTop: "0.75rem" }}>
+                {gameWallCards.map((row) => (
+                  <div key={row.gameSlug} className="dataWallRow">
+                    <div>
+                      <strong>{formatGameLabel(row.gameSlug)}</strong>
+                      <p>{row.players} students tracked</p>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <strong>{row.sessions} sessions</strong>
+                      <p>Avg {formatScore(row.averageScore)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="card" style={{ background: "#fff" }}>
+            <h3>Class Momentum Notes</h3>
+            <div className="list" style={{ marginTop: "0.75rem" }}>
+              <div className="dataWallNote">
+                <strong>Participation</strong>
+                <p>{formatPercent(safeMemberships.length > 0 ? (activeStudents / safeMemberships.length) * 100 : 0)} of joined students have saved at least one game.</p>
+              </div>
+              <div className="dataWallNote">
+                <strong>Recognition</strong>
+                <p>{safeAwards.length} total award entries have been saved for this class.</p>
+              </div>
+              <div className="dataWallNote">
+                <strong>Favorite Skill Area</strong>
+                <p>{topGame ? formatGameLabel(topGame.gameSlug) : "No favorite yet"} is leading the class right now.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Word Wall</h2>
+        <p>
+          A reusable class vocabulary board pulled from the games and review modes students are actually seeing in this class.
+        </p>
+        <div className="wordWallGrid" style={{ marginTop: "1rem" }}>
+          {displayedWordWallTerms.map((term) => (
+            <article key={term.key} className="card wordWallCard" style={{ background: "#fff" }}>
+              <span className="pill">{formatGameLabel(term.gameSlug)}</span>
+              <h3>{term.label}</h3>
+              <p>{term.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
         <h2>Weekly Awards And Extra Credit</h2>
         {awardRowsError ? <p>Award history could not load yet.</p> : null}
         {!awardRowsError && recentAwards.length === 0 ? <p>No awards saved yet.</p> : null}
@@ -383,22 +661,10 @@ export default async function StudentsPage({ params, searchParams }) {
 
         {!membershipsError && safeMemberships.length > 0 ? (
           <div className="list">
-            {safeMemberships.map((membership) => {
-              const playerStats = statsByPlayer.get(membership.profile_id) || [];
-              const playerAwards = awardsByPlayer.get(membership.profile_id) || [];
-              const totalSessions = playerStats.reduce(
-                (sum, row) => sum + Number(row.sessions_played || 0),
-                0
-              );
-              const strongestGame =
-                [...playerStats].sort((a, b) => Number(b.average_score || 0) - Number(a.average_score || 0))[0] ||
-                null;
-              const recentPlayerSession = safeRecentSessions.find(
-                (row) => row.player_id === membership.profile_id
-              );
+            {playerCards.map(({ membership, playerStats, playerAwards, totalSessions, strongestGame, recentPlayerSession }) => {
               return (
                 <article key={membership.profile_id} className="card" style={{ background: "#fff" }}>
-                  <h3>{membership.display_name || `Student ${membership.profile_id.slice(0, 8)}`}</h3>
+                  <h3>{getPlayerDisplayName(membership)}</h3>
                   <p>
                     Joined {new Date(membership.joined_at).toLocaleDateString()}
                     {membership.school_name ? ` · ${membership.school_name}` : ""}
