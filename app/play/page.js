@@ -10,6 +10,7 @@ function gameHref(slug, courseId) {
   if (slug === "integer_practice") return `/play/integer-practice${query}`;
   if (slug === "money_counting") return `/play/money-counting${query}`;
   if (slug === "number_compare") return `/play/number-compare${query}`;
+  if (slug === "review_games") return `/play/review-games${query}`;
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
@@ -152,6 +153,7 @@ export default async function PlayPage({ searchParams }) {
   const spiralReviewGame = visibleGames.find((game) => game.slug === "spiral_review") || null;
   const questionKindReviewGame =
     visibleGames.find((game) => game.slug === "question_kind_review") || null;
+  const reviewGames = [spiralReviewGame, questionKindReviewGame].filter(Boolean);
   const arcadeGames = visibleGames
     .filter((game) => game.category === "arcade" || game.slug === "connect4")
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -272,62 +274,45 @@ export default async function PlayPage({ searchParams }) {
           </div>
         )}
       </section>
-      {spiralReviewGame ? (
+      {reviewGames.length > 0 ? (
         <section className="card">
-          <h2>Spiral Review</h2>
+          <h2>Review Games</h2>
           <p>
-            Mix together review questions from multiple skills so today&apos;s practice feels more like a real checkpoint.
+            Use these modes when you want mixed review, strategy reminders, and more of a checkpoint feeling than a single-skill drill.
           </p>
-          <article className="card arcadeGameCard" style={{ background: "#fff", marginTop: "1rem" }}>
-            <h3>{spiralReviewGame.name}</h3>
-            <p>{spiralReviewGame.description}</p>
-            <p className="arcadeGameTags">#review, #mathskills</p>
-            {statsByGame.get(spiralReviewGame.slug) ? (
-              <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                {statRowsForGame(spiralReviewGame, statsByGame.get(spiralReviewGame.slug)).map(([label, value]) => (
-                  <div key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
+          <div className="ctaRow" style={{ marginTop: "0.9rem" }}>
+            <Link className="btn primary" href={gameHref("review_games", activeCourse?.id || "")}>
+              Open Review Hub
+            </Link>
+          </div>
+          <div className="reviewGameFamilyGrid" style={{ marginTop: "1rem" }}>
+            {reviewGames.map((game) => (
+              <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                <h3>{game.name}</h3>
+                <p>{game.description}</p>
+                <p className="arcadeGameTags">#review, #mathskills</p>
+                {statsByGame.get(game.slug) ? (
+                  <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                    {statRowsForGame(game, statsByGame.get(game.slug)).map(([label, value]) => (
+                      <div key={label}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : null}
-            <div className="ctaRow">
-              <Link className="btn primary" href={gameHref(spiralReviewGame.slug, activeCourse?.id || "")}>
-                Open Spiral Review
-              </Link>
-            </div>
-          </article>
-        </section>
-      ) : null}
-      {questionKindReviewGame ? (
-        <section className="card">
-          <h2>Question Type Review</h2>
-          <p>
-            Slow down just enough to recognize the kind of question you are seeing before you choose a strategy.
-          </p>
-          <article className="card arcadeGameCard" style={{ background: "#fff", marginTop: "1rem" }}>
-            <h3>{questionKindReviewGame.name}</h3>
-            <p>{questionKindReviewGame.description}</p>
-            <p className="arcadeGameTags">#review, #mathskills</p>
-            {statsByGame.get(questionKindReviewGame.slug) ? (
-              <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                {statRowsForGame(questionKindReviewGame, statsByGame.get(questionKindReviewGame.slug)).map(
-                  ([label, value]) => (
-                    <div key={label}>
-                      <span>{label}</span>
-                      <strong>{value}</strong>
-                    </div>
-                  )
-                )}
-              </div>
-            ) : null}
-            <div className="ctaRow">
-              <Link className="btn primary" href={gameHref(questionKindReviewGame.slug, activeCourse?.id || "")}>
-                Open Question Type Review
-              </Link>
-            </div>
-          </article>
+                ) : null}
+                <div className="ctaRow">
+                  <Link className="btn" href={gameHref(game.slug, activeCourse?.id || "")}>
+                    Open {game.name}
+                  </Link>
+                </div>
+              </article>
+            ))}
+            <article className="card reviewFamilyComingSoon" style={{ background: "#f7fafc" }}>
+              <h3>More Review Modes</h3>
+              <p>Adaptive review paths, family-style review games, and future checkpoints will land here next.</p>
+            </article>
+          </div>
         </section>
       ) : null}
       <section className="card">

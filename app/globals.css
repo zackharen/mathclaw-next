@@ -2243,6 +2243,16 @@ details[open] > summary.btn,
   opacity: 0.7;
 }
 
+.reviewGameFamilyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.reviewFamilyComingSoon {
+  border-style: dashed;
+}
+
 @media (max-width: 720px) {
   .sudokuNumberPad {
     grid-template-columns: repeat(3, minmax(0, 1fr));
