@@ -75,6 +75,18 @@ function pileTotal(pile) {
   );
 }
 
+function describeDifference(delta) {
+  if (delta === 0) {
+    return "Exact match";
+  }
+
+  if (delta > 0) {
+    return `${formatMoney(delta)} too high`;
+  }
+
+  return `${formatMoney(Math.abs(delta))} to go`;
+}
+
 export default function MoneyCountingClient({
   courses,
   initialCourseId,
@@ -107,6 +119,7 @@ export default function MoneyCountingClient({
 
   const choices = useMemo(() => buildChoices(question.total), [question.total]);
   const builtTotal = useMemo(() => pileTotal(playerPile), [playerPile]);
+  const buildDelta = question.total - builtTotal;
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const loadLeaderboard = useCallback(
@@ -288,7 +301,11 @@ export default function MoneyCountingClient({
 
   function answerMakeMode() {
     const correct = builtTotal === question.total;
-    setFeedback(correct ? "You built the right amount." : `Not quite. The target was ${formatMoney(question.total)}.`);
+    setFeedback(
+      correct
+        ? "You built the right amount."
+        : `Not quite. The target was ${formatMoney(question.total)} and your pile was ${formatMoney(builtTotal)}.`
+    );
     advanceRun(correct);
   }
 
@@ -382,41 +399,65 @@ export default function MoneyCountingClient({
         ) : (
           <div className="list" style={{ marginTop: "1rem" }}>
             <p>Build <strong>{formatMoney(question.total)}</strong>.</p>
-            <div className="moneyDisplayRow">
-              {DENOMINATIONS.map((denomination) => (
-                <div key={denomination.key} className="moneyAdjustCard">
-                  <strong>{denomination.label}</strong>
-                  <span>Count: {playerPile[denomination.key]}</span>
-                  <div className="ctaRow" style={{ marginTop: "0.4rem" }}>
-                    <button
-                      className="btn ghost"
-                      type="button"
-                      onClick={() =>
-                        setPlayerPile((current) => ({
-                          ...current,
-                          [denomination.key]: Math.max(0, current[denomination.key] - 1),
-                        }))
-                      }
-                    >
-                      -
-                    </button>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() =>
-                        setPlayerPile((current) => ({
-                          ...current,
-                          [denomination.key]: current[denomination.key] + 1,
-                        }))
-                      }
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="pillRow">
+              <span className="pill">Target: {formatMoney(question.total)}</span>
+              <span className="pill">Your Total: {formatMoney(builtTotal)}</span>
+              <span className={`pill moneyDeltaPill ${buildDelta === 0 ? "exact" : buildDelta > 0 ? "under" : "over"}`}>
+                {describeDifference(-buildDelta)}
+              </span>
             </div>
-            <p><strong>Your total:</strong> {formatMoney(builtTotal)}</p>
+            <div className="moneyQuickActions">
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() => setPlayerPile({ one: 0, quarter: 0, dime: 0, nickel: 0, penny: 0 })}
+                disabled={runComplete || builtTotal === 0}
+              >
+                Clear Amount
+              </button>
+              <span className="moneyHelperText">Build the target exactly before you check.</span>
+            </div>
+            <div className="moneyDisplayRow">
+              {DENOMINATIONS.map((denomination) => {
+                const denominationCount = playerPile[denomination.key];
+                const denominationTotal = denomination.cents * denominationCount;
+                return (
+                  <div key={denomination.key} className="moneyAdjustCard">
+                    <strong>{denomination.label}</strong>
+                    <span>Count: {denominationCount}</span>
+                    <span>Total: {formatMoney(denominationTotal)}</span>
+                    <div className="ctaRow" style={{ marginTop: "0.4rem" }}>
+                      <button
+                        className="btn ghost"
+                        type="button"
+                        onClick={() =>
+                          setPlayerPile((current) => ({
+                            ...current,
+                            [denomination.key]: Math.max(0, current[denomination.key] - 1),
+                          }))
+                        }
+                        disabled={runComplete || denominationCount === 0}
+                      >
+                        -
+                      </button>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() =>
+                          setPlayerPile((current) => ({
+                            ...current,
+                            [denomination.key]: current[denomination.key] + 1,
+                          }))
+                        }
+                        disabled={runComplete}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             <button className="btn primary" type="button" onClick={answerMakeMode} disabled={runComplete}>
               Check Amount
             </button>

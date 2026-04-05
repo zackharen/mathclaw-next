@@ -1957,6 +1957,33 @@ details[open] > summary.btn,
   gap: 0.35rem;
 }
 
+.moneyQuickActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.moneyHelperText {
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.moneyDeltaPill.exact {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.moneyDeltaPill.under {
+  background: #eef4fb;
+  border-color: #4c6f94;
+}
+
+.moneyDeltaPill.over {
+  background: #fdeeee;
+  border-color: #cd3b3b;
+}
+
 @media (max-width: 720px) {
   .adminFilterBar {
     grid-template-columns: 1fr;
