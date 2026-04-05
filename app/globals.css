@@ -2336,6 +2336,49 @@ details[open] > summary.btn,
   opacity: 0.8;
 }
 
+.skillBuilderMeter {
+  margin-top: 1rem;
+  width: 100%;
+  height: 0.9rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #dce7ef;
+  overflow: hidden;
+}
+
+.skillBuilderMeterFill {
+  height: 100%;
+  background: linear-gradient(90deg, #f2b544 0%, #d97a2f 50%, #0a7a32 100%);
+  border-radius: 999px;
+  transition: width 180ms ease;
+}
+
+.skillBuilderMeterLabel {
+  margin-top: 0.5rem;
+  font-weight: 700;
+}
+
+.skillBuilderPromptCard {
+  border: 2px dashed #93a5b4;
+  border-radius: 18px;
+}
+
+.skillBuilderPromptLabel {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.skillBuilderChoices {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 1rem;
+}
+
 @media (max-width: 720px) {
   .sudokuNumberPad {
     grid-template-columns: repeat(3, minmax(0, 1fr));

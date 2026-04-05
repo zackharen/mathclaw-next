@@ -59,6 +59,7 @@ function formatGameControlNotice(status, gameSlug) {
         money_counting: "Money Counting",
         minesweeper: "Minesweeper",
         number_compare: "Which Number Is Bigger?",
+        skill_builder: "Skill Builder",
         spiral_review: "Spiral Review",
         question_kind_review: "What Kind Of Question Is This?",
         telling_time: "Telling Time",
@@ -83,6 +84,7 @@ function getGameSupportCopy(game) {
   if (game.slug === "money_counting") return "Students count money and build target amounts with coins and dollars.";
   if (game.slug === "minesweeper") return "Students clear safe squares, flag mines, and race the clock.";
   if (game.slug === "number_compare") return "Students compare values quickly and build number sense.";
+  if (game.slug === "skill_builder") return "Students choose a target skill, build mastery over a focused run, and raise their level.";
   if (game.slug === "spiral_review") return "Students cycle through mixed review questions pulled from multiple skill types.";
   if (game.slug === "question_kind_review") return "Students identify the kind of math question they are seeing before they solve it.";
   if (game.slug === "telling_time") return "Students read clocks and set times to the nearest five minutes.";
