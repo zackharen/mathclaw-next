@@ -2386,6 +2386,61 @@ details[open] > summary.btn,
   margin-top: 0.75rem;
 }
 
+.showdownArena {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.showdownFighterCard {
+  padding: 1rem;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: #f9fbfc;
+}
+
+.showdownRoundBadge {
+  text-align: center;
+  padding: 0.9rem 1rem;
+  border: 2px dashed #8ea3b3;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.showdownRoundBadge p,
+.showdownFighterCard p {
+  margin: 0.4rem 0 0;
+}
+
+.showdownHpBar {
+  margin-top: 0.6rem;
+  width: 100%;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: #dce7ef;
+  overflow: hidden;
+}
+
+.showdownHpFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.playerHp {
+  background: linear-gradient(90deg, #0a7a32 0%, #58a65c 100%);
+}
+
+.rivalHp {
+  background: linear-gradient(90deg, #cd3b3b 0%, #f08b63 100%);
+}
+
+.showdownPromptCard {
+  border: 2px dashed #93a5b4;
+  border-radius: 18px;
+}
+
 @media (max-width: 720px) {
   .sudokuNumberPad {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2407,5 +2462,9 @@ details[open] > summary.btn,
   .lessonSkillCard {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .showdownArena {
+    grid-template-columns: 1fr;
   }
 }

@@ -15,6 +15,7 @@ function formatGameLabel(slug) {
     minesweeper: "Minesweeper",
     number_compare: "Which Number Is Bigger?",
     skill_builder: "Skill Builder",
+    showdown_framework: "Showdown Framework",
     spiral_review: "Spiral Review",
     question_kind_review: "What Kind Of Question Is This?",
     telling_time: "Telling Time",

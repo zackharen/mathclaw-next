@@ -11,6 +11,7 @@ function gameHref(slug, courseId) {
   if (slug === "money_counting") return `/play/money-counting${query}`;
   if (slug === "number_compare") return `/play/number-compare${query}`;
   if (slug === "skill_builder") return `/play/skill-builder${query}`;
+  if (slug === "showdown_framework") return `/play/showdown-framework${query}`;
   if (slug === "review_games") return `/play/review-games${query}`;
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
