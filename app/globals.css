@@ -164,6 +164,11 @@ main {
     justify-content: flex-start;
     width: 100%;
   }
+
+  .nav {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 .stack {
@@ -501,6 +506,12 @@ p {
   cursor: pointer;
   font-weight: 700;
   transition: transform 90ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.btn,
+.nav a,
+.navButton {
+  max-width: 100%;
 }
 
 .btn:hover {
@@ -971,6 +982,39 @@ details[open] > summary.gameControlsSummary .hideLabel {
     grid-template-columns: 1fr;
     gap: 0.25rem;
   }
+
+  .topbarNav,
+  .nav,
+  .navForm {
+    width: 100%;
+  }
+
+  .nav {
+    gap: 0.5rem;
+  }
+
+  .nav a,
+  .navButton {
+    width: 100%;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .ctaRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ctaRow > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .btn {
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 
@@ -1154,6 +1198,37 @@ details[open] > summary.btn,
   .abScheduleForm {
     flex-wrap: wrap;
     min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .controlBar,
+  .inlineControlForm,
+  .abScheduleForm,
+  .compactDayActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .controlBar > *,
+  .inlineControlForm > *,
+  .abScheduleForm > *,
+  .compactDayActions > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .inlineDetails,
+  .dayModifyDetails,
+  .applyCalendarControl {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .controlStatusLine,
+  .controlStatusLineStatic,
+  .statusNote {
+    white-space: normal;
   }
 }
 
