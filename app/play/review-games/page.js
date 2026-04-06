@@ -8,6 +8,7 @@ function reviewHref(slug, courseId) {
   const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
+  if (slug === "double_board_review") return `/play/double-board${query}`;
   return `/play${query}`;
 }
 
@@ -29,7 +30,10 @@ export default async function ReviewGamesPage({ searchParams }) {
     (game) => game.enabled
   );
   const reviewGames = visibleGames.filter(
-    (game) => game.slug === "spiral_review" || game.slug === "question_kind_review"
+    (game) =>
+      game.slug === "spiral_review" ||
+      game.slug === "question_kind_review" ||
+      game.slug === "double_board_review"
   );
 
   return (

@@ -15,6 +15,7 @@ function gameHref(slug, courseId) {
   if (slug === "review_games") return `/play/review-games${query}`;
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
+  if (slug === "double_board_review") return `/play/double-board${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
   if (slug === "comet_typing") return `/play/comet-typing${query}`;
   return `/play/${slug}${query}`;
@@ -178,7 +179,9 @@ export default async function PlayPage({ searchParams }) {
   const spiralReviewGame = visibleGames.find((game) => game.slug === "spiral_review") || null;
   const questionKindReviewGame =
     visibleGames.find((game) => game.slug === "question_kind_review") || null;
-  const reviewGames = [spiralReviewGame, questionKindReviewGame].filter(Boolean);
+  const doubleBoardReviewGame =
+    visibleGames.find((game) => game.slug === "double_board_review") || null;
+  const reviewGames = [spiralReviewGame, questionKindReviewGame, doubleBoardReviewGame].filter(Boolean);
   const arcadeGames = visibleGames
     .filter((game) => game.category === "arcade" || game.slug === "connect4")
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -187,7 +190,8 @@ export default async function PlayPage({ searchParams }) {
       (game) =>
         game.category === "math_skills" &&
         game.slug !== "spiral_review" &&
-        game.slug !== "question_kind_review"
+        game.slug !== "question_kind_review" &&
+        game.slug !== "double_board_review"
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 

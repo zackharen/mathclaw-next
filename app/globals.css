@@ -2253,6 +2253,173 @@ details[open] > summary.btn,
   border-style: dashed;
 }
 
+.doubleBoardScoreStrip {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.doubleBoardScoreCard {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f9fbfc;
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.doubleBoardScoreCard span {
+  font-size: 0.88rem;
+  opacity: 0.7;
+}
+
+.doubleBoardScoreCard strong {
+  font-size: 1.35rem;
+}
+
+.doubleBoardScoreCard.active {
+  border-color: #2d6b9f;
+  background: #e8f1f8;
+}
+
+.doubleBoardGridWrap {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.doubleBoardCard {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f9fbfc;
+  padding: 1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.doubleBoardCard.active {
+  border-color: #2d6b9f;
+  box-shadow: 0 0 0 3px rgba(45, 107, 159, 0.12);
+}
+
+.doubleBoardCardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.doubleBoardCardHeader p,
+.doubleBoardCardHeader h3 {
+  margin: 0;
+}
+
+.doubleBoardBoard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.doubleBoardCell {
+  min-height: 96px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: #fff;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.25rem;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  position: relative;
+}
+
+.doubleBoardCell.turnActive {
+  cursor: pointer;
+}
+
+.doubleBoardCell.selected {
+  border-color: #2d6b9f;
+  background: #e8f1f8;
+}
+
+.doubleBoardCell.status-correct {
+  border-color: #0a7a32;
+  background: #eff9f2;
+}
+
+.doubleBoardCell.status-wrong {
+  border-color: #d4a438;
+  background: #fff7e5;
+}
+
+.doubleBoardCellValue {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.doubleBoardCellPoints,
+.doubleBoardCellBonus {
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+.doubleBoardCell.hoverReveal .doubleBoardHoverText {
+  position: absolute;
+  inset: auto 0.5rem 0.45rem auto;
+  font-size: 1rem;
+  font-weight: 800;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.doubleBoardCell.hoverReveal:hover .doubleBoardHoverText,
+.doubleBoardCell.hoverReveal:focus-visible .doubleBoardHoverText {
+  opacity: 1;
+}
+
+.doubleBoardCoachNote {
+  margin-top: 1rem;
+  border: 1px dashed #8ea3b3;
+  border-radius: 14px;
+  background: #f9fbfc;
+  padding: 0.9rem 1rem;
+}
+
+.doubleBoardCoachNote p,
+.doubleBoardCoachNote strong {
+  margin: 0;
+}
+
+.doubleBoardCoachNote p {
+  margin-top: 0.35rem;
+}
+
+.doubleBoardPromptCard,
+.doubleBoardPracticeCard {
+  margin-top: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.doubleBoardPromptEyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  font-weight: 800;
+  opacity: 0.65;
+}
+
+@media (max-width: 720px) {
+  .doubleBoardScoreStrip {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dataWallGrid {
   display: grid;
   gap: 1rem;
