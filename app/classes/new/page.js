@@ -66,17 +66,6 @@ export default async function NewClassPage() {
     .eq("curriculum_providers.code", "math_medic")
     .order("class_name", { ascending: true });
 
-  if (librariesError) {
-    return (
-      <div className="stack">
-        <section className="card">
-          <h1>Create Class</h1>
-          <p>Could not load curriculum libraries: {librariesError.message}</p>
-        </section>
-      </div>
-    );
-  }
-
   const defaults = defaultSchoolYearDates();
   const defaultStart = profile.school_year_start || defaults.start;
   const defaultEnd = profile.school_year_end || defaults.end;
@@ -139,7 +128,12 @@ export default async function NewClassPage() {
     <div className="stack">
       <section className="card">
         <h1>Create Class</h1>
-        <p>Select curriculum, schedule model, and school year. Optionally import another class calendar.</p>
+        <p>Select curriculum, schedule model, and school year. You can also create no-curriculum or friends/family debug classes.</p>
+        {librariesError ? (
+          <p style={{ marginTop: "0.75rem", color: "var(--red)" }}>
+            Curriculum libraries could not load right now. You can still create no-curriculum or debug classes.
+          </p>
+        ) : null}
         <NewClassForm
           timezone={profile.timezone || "America/New_York"}
           libraries={libraries || []}

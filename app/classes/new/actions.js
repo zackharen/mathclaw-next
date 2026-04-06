@@ -30,6 +30,7 @@ export async function createClassAction(formData) {
   }
 
   const title = String(formData.get("title") || "").trim();
+  const classMode = String(formData.get("class_mode") || "curriculum").trim();
   const requestedOwnerId = String(formData.get("owner_id") || "").trim();
   const selectedLibraryId = String(formData.get("selected_library_id") || "").trim();
   const scheduleModel = normalizeScheduleModel(String(formData.get("schedule_model") || ""));
@@ -46,7 +47,9 @@ export async function createClassAction(formData) {
   const pacingMode = normalizePacingMode(String(formData.get("pacing_mode") || ""));
   const importCourseId = String(formData.get("import_course_id") || "").trim();
 
-  if (!selectedLibraryId || !schoolYearStart || !schoolYearEnd) {
+  const curriculumRequired = classMode === "curriculum";
+
+  if ((curriculumRequired && !selectedLibraryId) || !schoolYearStart || !schoolYearEnd) {
     redirect("/classes/new?error=missing_fields");
   }
 
@@ -76,27 +79,40 @@ export async function createClassAction(formData) {
     writeClient = admin;
   }
 
-  const { data: library, error: libraryError } = await supabase
-    .from("curriculum_libraries")
-    .select("id, class_name")
-    .eq("id", selectedLibraryId)
-    .single();
+  let library = null;
+  if (selectedLibraryId) {
+    const { data, error: libraryError } = await supabase
+      .from("curriculum_libraries")
+      .select("id, class_name")
+      .eq("id", selectedLibraryId)
+      .single();
 
-  if (libraryError || !library) {
-    redirect("/classes/new?error=library_not_found");
+    if (libraryError || !data) {
+      redirect("/classes/new?error=library_not_found");
+    }
+
+    library = data;
   }
+
+  const fallbackTitle =
+    classMode === "friends_family_debug"
+      ? "Friends And Family Debug Class"
+      : classMode === "no_curriculum"
+        ? "No-Curriculum Class"
+        : library?.class_name || "Math Class";
+  const resolvedTitle = title || fallbackTitle;
 
   const coursePayload = {
     owner_id: ownerId,
-    title: title || library.class_name,
-    class_name: library.class_name,
+    title: resolvedTitle,
+    class_name: library?.class_name || resolvedTitle,
     schedule_model: scheduleModel,
     ab_meeting_day: abMeetingDay,
     ab_pattern_start_date: scheduleModel === "ab" ? abPatternStartDate || schoolYearStart : null,
     school_year_start: schoolYearStart,
     school_year_end: schoolYearEnd,
     timezone,
-    selected_library_id: library.id,
+    selected_library_id: library?.id || null,
     pacing_mode: pacingMode,
     student_join_code: generateJoinCode(),
   };
@@ -206,11 +222,13 @@ export async function createClassAction(formData) {
     if (seedError) throw new Error(seedError.message);
   }
 
-  await rebuildPlanFromCalendar({
-    supabase: writeClient,
-    courseId: newCourse.id,
-    userId: ownerId,
-  });
+  if (library?.id) {
+    await rebuildPlanFromCalendar({
+      supabase: writeClient,
+      courseId: newCourse.id,
+      userId: ownerId,
+    });
+  }
 
   revalidatePath("/classes");
   revalidatePath(`/classes/${newCourse.id}/plan`);

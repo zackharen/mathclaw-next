@@ -23,6 +23,9 @@ export default function NewClassForm({
   );
 
   const [title, setTitle] = useState("");
+  const [classMode, setClassMode] = useState(
+    libraryOptions.length > 0 ? "curriculum" : "no_curriculum"
+  );
   const [selectedLibraryId, setSelectedLibraryId] = useState(
     libraryOptions[0]?.id || ""
   );
@@ -56,6 +59,20 @@ export default function NewClassForm({
       ) : null}
 
       <label>
+        Class Setup
+        <select
+          className="input"
+          name="class_mode"
+          value={classMode}
+          onChange={(e) => setClassMode(e.target.value)}
+        >
+          {libraryOptions.length > 0 ? <option value="curriculum">Curriculum Class</option> : null}
+          <option value="no_curriculum">No-Curriculum Class</option>
+          <option value="friends_family_debug">Friends/Family Debug Class</option>
+        </select>
+      </label>
+
+      <label>
         Class Title
         <input
           className="input"
@@ -63,26 +80,47 @@ export default function NewClassForm({
           name="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g., Algebra I - Period 2"
+          placeholder={
+            classMode === "friends_family_debug"
+              ? "e.g., MathClaw Friends & Family"
+              : classMode === "no_curriculum"
+                ? "e.g., Saturday Practice Club"
+                : "e.g., Algebra I - Period 2"
+          }
         />
       </label>
 
-      <label>
-        Curriculum Track (Math Medic)
-        <select
-          className="input"
-          name="selected_library_id"
-          required
-          value={selectedLibraryId}
-          onChange={(e) => setSelectedLibraryId(e.target.value)}
-        >
-          {libraryOptions.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.classCode} - {option.className}
-            </option>
-          ))}
-        </select>
-      </label>
+      {classMode === "curriculum" ? (
+        <label>
+          Curriculum Track (Math Medic)
+          <select
+            className="input"
+            name="selected_library_id"
+            required
+            value={selectedLibraryId}
+            onChange={(e) => setSelectedLibraryId(e.target.value)}
+          >
+            {libraryOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.classCode} - {option.className}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div className="card" style={{ background: "#fff" }}>
+          <strong>
+            {classMode === "friends_family_debug"
+              ? "Friends/Family Debug Class"
+              : "No-Curriculum Class"}
+          </strong>
+          <p style={{ marginTop: "0.5rem" }}>
+            This class will skip curriculum lesson planning. You can still use join codes, student progress,
+            arcade games, awards, and teacher tools.
+          </p>
+          <input type="hidden" name="selected_library_id" value="" />
+        </div>
+      )}
 
       <label>
         Schedule Model
@@ -125,22 +163,26 @@ export default function NewClassForm({
         </>
       ) : null}
 
-      <label>
-        Pacing Mode
-        <select
-          className="input"
-          name="pacing_mode"
-          value={pacingMode}
-          onChange={(e) => setPacingMode(e.target.value)}
-        >
-          <option value="one_lesson_per_day">One Lesson Per Full Day</option>
-          <option value="two_lessons_per_day">2 Lessons Per Day</option>
-          <option value="two_lessons_unless_modified">
-            2 Lessons Per Day Unless There Is a Modified Schedule
-          </option>
-          <option value="manual_complete">Manual (Move On When Marked Complete)</option>
-        </select>
-      </label>
+      {classMode === "curriculum" ? (
+        <label>
+          Pacing Mode
+          <select
+            className="input"
+            name="pacing_mode"
+            value={pacingMode}
+            onChange={(e) => setPacingMode(e.target.value)}
+          >
+            <option value="one_lesson_per_day">One Lesson Per Full Day</option>
+            <option value="two_lessons_per_day">2 Lessons Per Day</option>
+            <option value="two_lessons_unless_modified">
+              2 Lessons Per Day Unless There Is a Modified Schedule
+            </option>
+            <option value="manual_complete">Manual (Move On When Marked Complete)</option>
+          </select>
+        </label>
+      ) : (
+        <input type="hidden" name="pacing_mode" value="manual_complete" />
+      )}
 
       <label>
         Import Calendar From Existing Class (Optional)
@@ -184,7 +226,9 @@ export default function NewClassForm({
       </label>
 
       <p>
-        You can change pacing mode later from the class Plan page.
+        {classMode === "curriculum"
+          ? "You can change pacing mode later from the class Plan page."
+          : "You can still manage the calendar later from the class Plan page even without a curriculum track."}
       </p>
 
       <input type="hidden" name="timezone" value={timezone} />

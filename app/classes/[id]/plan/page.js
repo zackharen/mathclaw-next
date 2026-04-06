@@ -77,6 +77,10 @@ const GAME_LABELS = {
   comet_typing: "Comet Typing",
 };
 
+function hasCurriculum(course) {
+  return Boolean(course?.selected_library_id);
+}
+
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(year, month - 1, day);
@@ -162,6 +166,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     redirect("/classes");
   }
   const courseDataClient = getCourseWriteClient(access, supabase);
+  const curriculumEnabled = hasCurriculum(course);
 
   const dataFetchStart = process.hrtime.bigint();
   const [
@@ -172,10 +177,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
     announcementsRes,
     gamesRes,
   ] = await Promise.all([
-    supabase
-      .from("curriculum_lessons")
-      .select("id", { count: "exact", head: true })
-      .eq("library_id", course.selected_library_id),
+    curriculumEnabled
+      ? supabase
+          .from("curriculum_lessons")
+          .select("id", { count: "exact", head: true })
+          .eq("library_id", course.selected_library_id)
+      : Promise.resolve({ count: 0 }),
     courseDataClient
       .from("course_calendar_days")
       .select("class_date, day_type, ab_day, reason_id, note")
@@ -304,6 +311,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
         </div>
       </section>
 
+      {!curriculumEnabled ? (
+        <section className="card">
+          <h2>No-Curriculum Class</h2>
+          <p>
+            This class is using calendar and arcade tools without a curriculum lesson track. You can still manage the
+            calendar, join students, use awards, and run games, but lesson-by-day pacing is intentionally turned off.
+          </p>
+        </section>
+      ) : null}
+
       <section className="card" id="modify-calendar">
         <h2>Modify Calendar</h2>
 
@@ -409,13 +426,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
       <section className="card">
         <h2>Lesson by Day</h2>
+        {!curriculumEnabled ? (
+          <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
+        ) : null}
         {planError ? <p>Could not load pacing plan: {planError.message}</p> : null}
 
-        {!planError && visibleCalendarDays.length === 0 ? (
+        {!planError && curriculumEnabled && visibleCalendarDays.length === 0 ? (
           <p>No class days in calendar yet.</p>
         ) : null}
 
-        {!planError && visibleCalendarDays.length > 0 ? (
+        {!planError && curriculumEnabled && visibleCalendarDays.length > 0 ? (
           <div className="list">
             {visibleCalendarDays.map((day) => {
               const row = planByDate.get(day.class_date);
