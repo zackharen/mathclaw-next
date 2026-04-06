@@ -158,6 +158,26 @@ function formatInternalEventLevel(level) {
   return level || "Notice";
 }
 
+function formatGameLabel(slug) {
+  return {
+    "2048": "2048",
+    connect4: "Connect4",
+    integer_practice: "Adding & Subtracting Integers",
+    money_counting: "Money Counting",
+    minesweeper: "Minesweeper",
+    number_compare: "Which Number Is Bigger?",
+    skill_builder: "Skill Builder",
+    spiral_review: "Spiral Review",
+    question_kind_review: "What Kind Of Question Is This?",
+    telling_time: "Telling Time",
+    sudoku: "Sudoku",
+    comet_typing: "Comet Typing",
+    showdown_framework: "Showdown Framework",
+    teacher_awards: "Teacher Awards",
+    student_created_questions: "Student-Created Questions",
+  }[slug] || slug || "Unknown";
+}
+
 function normalizeAdminView(value) {
   return ["accounts", "diagnostics"].includes(value) ? value : "accounts";
 }
@@ -234,6 +254,8 @@ export default async function AdminPage({ searchParams }) {
   let bugReportError = null;
   let internalEvents = [];
   let internalEventError = null;
+  let recentSessions = [];
+  let recentSessionsError = null;
 
   if (!error) {
     const authUsers = (data?.users || []).filter(
@@ -242,7 +264,7 @@ export default async function AdminPage({ searchParams }) {
     const ids = authUsers.map((item) => item.id);
 
     if (ids.length) {
-      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult, eventResult] = await Promise.all([
+      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult, eventResult, recentSessionResult] = await Promise.all([
         admin
           .from("profiles")
           .select("id, display_name, school_name, account_type, discoverable, timezone")
@@ -265,12 +287,19 @@ export default async function AdminPage({ searchParams }) {
           .select("id, event_key, source, level, message, user_email, account_type, course_id, context, created_at")
           .order("created_at", { ascending: false })
           .limit(30),
+        admin
+          .from("game_sessions")
+          .select("id, game_slug, player_id, course_id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
       ]);
 
       bugReports = bugReportResult.data || [];
       bugReportError = bugReportResult.error || null;
       internalEvents = eventResult.data || [];
       internalEventError = eventResult.error || null;
+      recentSessions = recentSessionResult.data || [];
+      recentSessionsError = recentSessionResult.error || null;
 
       const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
       const visibleAuthUsers = adminContext.isOwner
@@ -463,6 +492,46 @@ export default async function AdminPage({ searchParams }) {
     return a.schoolName.localeCompare(b.schoolName);
   });
 
+  const now = Date.now();
+  const recentWindowSessions = recentSessions.filter((session) => {
+    if (!session?.created_at) return false;
+    return now - new Date(session.created_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
+  });
+  const sessionCountByGame = new Map();
+  for (const session of recentWindowSessions) {
+    sessionCountByGame.set(
+      session.game_slug,
+      (sessionCountByGame.get(session.game_slug) || 0) + 1
+    );
+  }
+  const topGamesLast7Days = [...sessionCountByGame.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([slug, count]) => ({
+      slug,
+      label: formatGameLabel(slug),
+      count,
+    }));
+  const activePlayerCountLast7Days = new Set(
+    recentWindowSessions.map((session) => session.player_id).filter(Boolean)
+  ).size;
+  const activeCourseCountLast7Days = new Set(
+    recentWindowSessions.map((session) => session.course_id).filter(Boolean)
+  ).size;
+  const internalIssueCountLast7Days = internalEvents.filter((event) => {
+    if (!event?.created_at) return false;
+    if (!["error", "warning"].includes(event.level)) return false;
+    return now - new Date(event.created_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
+  }).length;
+  const diagnosticsDecision =
+    topGamesLast7Days.length === 0
+      ? "Collect more live usage before making a major product-direction cut."
+      : topGamesLast7Days[0].slug === "showdown_framework"
+        ? "Lean further into battle-style arcade experiences because the newest framework is already pulling activity."
+        : topGamesLast7Days.some((item) => item.slug === "spiral_review" || item.slug === "question_kind_review" || item.slug === "skill_builder")
+          ? "Keep investing in question-engine and review-family systems because student practice depth is leading the app."
+          : "Keep the app arcade-first while trimming low-usage complexity and watching whether review systems overtake pure games.";
+
   return (
     <div className="stack adminStack">
       <section className="card">
@@ -562,6 +631,68 @@ export default async function AdminPage({ searchParams }) {
 
       {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
         <>
+          <section className="card">
+            <h2>Performance Spend And App Decision</h2>
+            <p>
+              This owner view turns recent usage and silent-failure signals into a practical product-direction checkpoint.
+            </p>
+            <div className="adminSummaryGrid" style={{ marginTop: "1rem" }}>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Sessions Last 7 Days</h3>
+                <p className="adminStat">{recentWindowSessions.length}</p>
+              </div>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Active Players</h3>
+                <p className="adminStat">{activePlayerCountLast7Days}</p>
+              </div>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Active Classes</h3>
+                <p className="adminStat">{activeCourseCountLast7Days}</p>
+              </div>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Issues Last 7 Days</h3>
+                <p className="adminStat">{internalIssueCountLast7Days}</p>
+              </div>
+            </div>
+            <div className="featureGrid" style={{ marginTop: "1rem" }}>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Where Students Are Spending Time</h3>
+                {recentSessionsError ? (
+                  <p>Recent session data could not load.</p>
+                ) : topGamesLast7Days.length === 0 ? (
+                  <p>No recent session activity yet.</p>
+                ) : (
+                  <div className="list" style={{ marginTop: "0.75rem" }}>
+                    {topGamesLast7Days.map((item) => (
+                      <div key={item.slug} className="dataWallRow">
+                        <strong>{item.label}</strong>
+                        <span>{item.count} sessions</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Current App Decision</h3>
+                <p style={{ marginTop: "0.75rem" }}>{diagnosticsDecision}</p>
+                <div className="list" style={{ marginTop: "0.9rem" }}>
+                  <div className="dataWallNote">
+                    <strong>Spend Rule</strong>
+                    <p>Favor features that strengthen the highest-usage game family instead of spreading polish evenly across everything.</p>
+                  </div>
+                  <div className="dataWallNote">
+                    <strong>Perf Rule</strong>
+                    <p>Watch planning and diagnostics-heavy flows for cost, because those are where explicit perf logging already exists.</p>
+                  </div>
+                  <div className="dataWallNote">
+                    <strong>Ship Rule</strong>
+                    <p>When issues rise faster than sessions, prioritize simplification and reliability before expanding the surface area again.</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+
           <section className="card">
             <h2>Internal Error Log</h2>
             <p>These are silent failures captured automatically from important flows like class joins, score saves, and Connect4.</p>
