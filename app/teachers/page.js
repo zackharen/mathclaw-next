@@ -12,6 +12,11 @@ function connectionKey(a, b) {
   return [a, b].sort().join("__");
 }
 
+function getTeacherStatsLabel(stats) {
+  if (!stats) return "No class stats yet";
+  return `${stats.classCount} classes · ${stats.studentCount} joined students`;
+}
+
 export default async function TeachersPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const query = typeof qs.q === "string" ? qs.q.trim() : "";
@@ -34,7 +39,7 @@ export default async function TeachersPage({ searchParams }) {
 
   const { data: myProfile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, display_name, school_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -116,6 +121,57 @@ export default async function TeachersPage({ searchParams }) {
     r.requester_id === user.id ? r.addressee_id : r.requester_id
   );
 
+  const discoverableTeacherIds = searchableProfiles.map((profile) => profile.id);
+  const teacherIdsForStats = [...new Set([...discoverableTeacherIds, ...acceptedOtherIds, ...incomingRequesterIds])];
+
+  let teacherStatsById = new Map();
+  if (teacherIdsForStats.length > 0) {
+    const { data: ownedCourses } = await supabase
+      .from("courses")
+      .select("id, owner_id")
+      .in("owner_id", teacherIdsForStats);
+
+    const coursesByOwner = new Map();
+    const ownedCourseIds = [];
+    for (const course of ownedCourses || []) {
+      const arr = coursesByOwner.get(course.owner_id) || [];
+      arr.push(course.id);
+      coursesByOwner.set(course.owner_id, arr);
+      ownedCourseIds.push(course.id);
+    }
+
+    let memberships = [];
+    if (ownedCourseIds.length > 0) {
+      const membershipsRes = await supabase
+        .from("student_course_memberships")
+        .select("course_id")
+        .in("course_id", ownedCourseIds);
+      memberships = membershipsRes.data || [];
+    }
+
+    const studentCountByCourse = new Map();
+    for (const row of memberships) {
+      studentCountByCourse.set(row.course_id, (studentCountByCourse.get(row.course_id) || 0) + 1);
+    }
+
+    teacherStatsById = new Map(
+      teacherIdsForStats.map((teacherId) => {
+        const teacherCourseIds = coursesByOwner.get(teacherId) || [];
+        const studentCount = teacherCourseIds.reduce(
+          (sum, courseId) => sum + (studentCountByCourse.get(courseId) || 0),
+          0
+        );
+        return [
+          teacherId,
+          {
+            classCount: teacherCourseIds.length,
+            studentCount,
+          },
+        ];
+      })
+    );
+  }
+
   const [incomingProfilesRes, acceptedProfilesRes] = await Promise.all([
     incomingRequesterIds.length
       ? supabase
@@ -133,12 +189,27 @@ export default async function TeachersPage({ searchParams }) {
 
   const incomingById = new Map((incomingProfilesRes.data || []).map((p) => [p.id, p]));
   const acceptedById = new Map((acceptedProfilesRes.data || []).map((p) => [p.id, p]));
+  const mySchoolName = String(myProfile?.school_name || "").trim();
+  const sameSchoolProfiles = searchableProfiles.filter(
+    (profile) => mySchoolName && String(profile.school_name || "").trim() === mySchoolName
+  );
+  const suggestedProfiles = searchableProfiles
+    .filter((profile) => {
+      const key = connectionKey(user.id, profile.id);
+      return !connectionByPair.has(key);
+    })
+    .sort((a, b) => {
+      const aSame = mySchoolName && String(a.school_name || "").trim() === mySchoolName ? 1 : 0;
+      const bSame = mySchoolName && String(b.school_name || "").trim() === mySchoolName ? 1 : 0;
+      if (aSame !== bSame) return bSame - aSame;
+      return String(a.display_name || "").localeCompare(String(b.display_name || ""));
+    });
 
   return (
     <div className="stack">
       <section className="card">
         <h1>Teachers</h1>
-        <p>Find colleagues and send connection requests.</p>
+        <p>Find colleagues, build your school network, and grow a MathClaw teaching community.</p>
         <form className="ctaRow" action="/teachers" method="get">
           <input
             className="input"
@@ -155,28 +226,87 @@ export default async function TeachersPage({ searchParams }) {
       </section>
 
       <section className="card">
-        <h2>People</h2>
-        {searchableProfiles.length === 0 ? (
-          <p>No teachers found.</p>
+        <h2>Community Snapshot</h2>
+        <div className="adminSummaryGrid" style={{ marginTop: "1rem" }}>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Discoverable Teachers</h3>
+            <p className="adminStat">{searchableProfiles.length}</p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Same School</h3>
+            <p className="adminStat">{sameSchoolProfiles.length}</p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Incoming Requests</h3>
+            <p className="adminStat">{incoming.length}</p>
+          </div>
+          <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+            <h3>Connected Teachers</h3>
+            <p className="adminStat">{acceptedOtherIds.length}</p>
+          </div>
+        </div>
+      </section>
+
+      {mySchoolName ? (
+        <section className="card">
+          <h2>Your School Community</h2>
+          <p>{mySchoolName}</p>
+          {sameSchoolProfiles.length === 0 ? (
+            <p style={{ marginTop: "0.75rem" }}>No discoverable teachers from your school are showing up yet.</p>
+          ) : (
+            <div className="list" style={{ marginTop: "1rem" }}>
+              {sameSchoolProfiles.map((profile) => {
+                const key = connectionKey(user.id, profile.id);
+                const conn = connectionByPair.get(key);
+                const stats = teacherStatsById.get(profile.id);
+                return (
+                  <article key={profile.id} className="card" style={{ background: "#fff" }}>
+                    <h3>{profile.display_name || "Teacher"}</h3>
+                    <div className="teacherBadgeRow">
+                      <span className="pill">Same School</span>
+                      <span className="pill">{getTeacherStatsLabel(stats)}</span>
+                    </div>
+                    <div className="ctaRow" style={{ marginTop: "0.9rem" }}>
+                      {!conn ? (
+                        <form action={sendTeacherRequestAction}>
+                          <input type="hidden" name="target_id" value={profile.id} />
+                          <button className="btn" type="submit">Connect</button>
+                        </form>
+                      ) : null}
+                      {conn?.status === "pending" && conn.requester_id === user.id ? (
+                        <span className="statusNote">Request Sent</span>
+                      ) : null}
+                      {conn?.status === "accepted" ? <span className="statusNote">Connected</span> : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      <section className="card">
+        <h2>Suggested Connections</h2>
+        {suggestedProfiles.length === 0 ? (
+          <p>No new teacher suggestions right now.</p>
         ) : (
           <div className="list">
-            {searchableProfiles.map((profile) => {
+            {suggestedProfiles.map((profile) => {
               const key = connectionKey(user.id, profile.id);
               const conn = connectionByPair.get(key);
-              const minePending =
-                conn &&
-                conn.status === "pending" &&
-                conn.requester_id === user.id;
-              const incomingPending =
-                conn &&
-                conn.status === "pending" &&
-                conn.addressee_id === user.id;
-              const isConnected = conn && conn.status === "accepted";
+              const stats = teacherStatsById.get(profile.id);
+              const isSameSchool =
+                mySchoolName && String(profile.school_name || "").trim() === mySchoolName;
 
               return (
                 <article key={profile.id} className="card" style={{ background: "#fff" }}>
                   <h3>{profile.display_name || "Teacher"}</h3>
                   <p>{profile.school_name || "School not listed"}</p>
+                  <div className="teacherBadgeRow">
+                    {isSameSchool ? <span className="pill">Same School</span> : null}
+                    <span className="pill">{getTeacherStatsLabel(stats)}</span>
+                  </div>
                   <div className="ctaRow">
                     {!conn ? (
                       <form action={sendTeacherRequestAction}>
@@ -184,20 +314,9 @@ export default async function TeachersPage({ searchParams }) {
                         <button className="btn" type="submit">Connect</button>
                       </form>
                     ) : null}
-                    {minePending ? <span className="statusNote">Request Sent</span> : null}
-                    {incomingPending ? (
-                      <>
-                        <form action={acceptTeacherRequestAction}>
-                          <input type="hidden" name="connection_id" value={conn.id} />
-                          <button className="btn primary" type="submit">Accept</button>
-                        </form>
-                        <form action={declineTeacherRequestAction}>
-                          <input type="hidden" name="connection_id" value={conn.id} />
-                          <button className="btn" type="submit">Decline</button>
-                        </form>
-                      </>
+                    {conn?.status === "pending" && conn.requester_id === user.id ? (
+                      <span className="statusNote">Request Sent</span>
                     ) : null}
-                    {isConnected ? <span className="statusNote">Connected</span> : null}
                   </div>
                 </article>
               );
@@ -243,10 +362,17 @@ export default async function TeachersPage({ searchParams }) {
           <div className="list">
             {acceptedOtherIds.map((id) => {
               const profile = acceptedById.get(id);
+              const stats = teacherStatsById.get(id);
               return (
                 <article key={id} className="card" style={{ background: "#fff" }}>
                   <h3>{profile?.display_name || "Teacher"}</h3>
                   <p>{profile?.school_name || "School not listed"}</p>
+                  <div className="teacherBadgeRow">
+                    <span className="pill">{getTeacherStatsLabel(stats)}</span>
+                    {mySchoolName && profile?.school_name === mySchoolName ? (
+                      <span className="pill">Same School</span>
+                    ) : null}
+                  </div>
                 </article>
               );
             })}
