@@ -66,9 +66,6 @@ export default async function HomePage() {
               <Link className="btn primary" href={user ? "/play" : "/auth/sign-in?redirect=/play"}>
                 Open Student Arcade
               </Link>
-              <Link className="btn" href="/about">
-                About MathClaw
-              </Link>
             </div>
           </article>
         </div>
