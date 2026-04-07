@@ -27,12 +27,14 @@ export default async function RootLayout({ children }) {
   if (!user) {
     navItems = [
       { href: "/", label: "Home" },
+      { href: "/about", label: "About" },
       { href: "/auth/sign-in", label: "Log In" },
       { href: "/auth/sign-up", label: "Create Account" },
     ];
   } else if (accountType === "student") {
     navItems = [
       { href: "/play", label: "Arcade" },
+      { href: "/about", label: "About" },
       { href: "/onboarding/profile", label: "Profile" },
       { href: "/report-bug", label: "Report Bug" },
     ];
@@ -42,6 +44,7 @@ export default async function RootLayout({ children }) {
       { href: "/dashboard", label: "Dashboard" },
       { href: "/teachers", label: "Teachers" },
       { href: "/play", label: "Arcade" },
+      { href: "/about", label: "About" },
       { href: "/onboarding/profile", label: "Profile" },
       { href: "/report-bug", label: "Report Bug" },
     ];

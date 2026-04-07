@@ -7,6 +7,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessAdminArea, isOwnerUser } from "@/lib/auth/owner";
 import { getAdminAccessContext, isUserInManagedSchool } from "@/lib/auth/admin-scope";
 import {
+  DEFAULT_SITE_COPY,
+  ensureSiteConfigCatalog,
+  normalizeSiteAudience,
+  SITE_COPY_SETTINGS_GAME,
+  SITE_FEATURE_SETTINGS_GAME,
+} from "@/lib/site-config";
+import {
   ensureProfileForUser,
   normalizeAccountType,
   splitDisplayName,
@@ -667,4 +674,105 @@ export async function bulkAccountAction(formData) {
   }
 
   redirect(`/admin?${resultParams.toString()}`);
+}
+
+export async function updateSiteFeatureAudienceAction(formData) {
+  const { admin, context, user } = await requireOwner();
+
+  if (!context.isOwner) {
+    redirect("/");
+  }
+
+  const gameSlug = String(formData.get("game_slug") || "").trim();
+  const audience = normalizeSiteAudience(String(formData.get("audience") || ""));
+
+  if (!gameSlug) {
+    redirect("/admin?error=missing-game");
+  }
+
+  await ensureSiteConfigCatalog(admin);
+
+  const existingResult = await admin
+    .from("game_sessions")
+    .select("metadata")
+    .eq("game_slug", SITE_FEATURE_SETTINGS_GAME.slug)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (existingResult.error) {
+    redirect(`/admin?error=${encodeURIComponent(existingResult.error.message)}`);
+  }
+
+  const currentMetadata = existingResult.data?.[0]?.metadata || {};
+  const nextAudienceBySlug = {
+    ...(currentMetadata?.audienceBySlug || {}),
+    [gameSlug]: audience,
+  };
+
+  const { error } = await admin.from("game_sessions").insert({
+    game_slug: SITE_FEATURE_SETTINGS_GAME.slug,
+    player_id: user.id,
+    course_id: null,
+    score: 1,
+    result: "site_feature_flags",
+    metadata: {
+      audienceBySlug: nextAudienceBySlug,
+      updatedGameSlug: gameSlug,
+      source: "owner_site_config",
+    },
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/about");
+  revalidatePath("/admin");
+  revalidatePath("/classes");
+  revalidatePath("/play");
+  revalidatePath("/play/review-games");
+  redirect("/admin?siteFeatureUpdated=1");
+}
+
+export async function updateSiteCopyAction(formData) {
+  const { admin, context, user } = await requireOwner();
+
+  if (!context.isOwner) {
+    redirect("/");
+  }
+
+  await ensureSiteConfigCatalog(admin);
+
+  const metadata = {
+    homeBanner: String(formData.get("home_banner") || "").trim(),
+    homeIntro: String(formData.get("home_intro") || "").trim() || DEFAULT_SITE_COPY.homeIntro,
+    teacherCardCopy:
+      String(formData.get("teacher_card_copy") || "").trim() || DEFAULT_SITE_COPY.teacherCardCopy,
+    studentCardCopy:
+      String(formData.get("student_card_copy") || "").trim() || DEFAULT_SITE_COPY.studentCardCopy,
+    aboutTitle: String(formData.get("about_title") || "").trim() || DEFAULT_SITE_COPY.aboutTitle,
+    missionStatement:
+      String(formData.get("mission_statement") || "").trim() || DEFAULT_SITE_COPY.missionStatement,
+    aboutStory: String(formData.get("about_story") || "").trim() || DEFAULT_SITE_COPY.aboutStory,
+    source: "owner_site_config",
+  };
+
+  const { error } = await admin.from("game_sessions").insert({
+    game_slug: SITE_COPY_SETTINGS_GAME.slug,
+    player_id: user.id,
+    course_id: null,
+    score: 1,
+    result: "site_copy_settings",
+    metadata,
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/about");
+  revalidatePath("/admin");
+  redirect("/admin?siteCopyUpdated=1");
 }

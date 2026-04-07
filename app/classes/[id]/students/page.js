@@ -239,7 +239,7 @@ export default async function StudentsPage({ params, searchParams }) {
     { data: awardRows, error: awardRowsError },
     { data: studentQuestionRows, error: studentQuestionRowsError },
   ] = await Promise.all([
-    listGamesWithCourseSettings(supabase, course.id),
+    listGamesWithCourseSettings(supabase, course.id, { viewerAccountType: "teacher" }),
     supabase.rpc("list_course_students", { p_course_id: course.id }),
     supabase.rpc("list_course_student_stats", { p_course_id: course.id }),
     admin

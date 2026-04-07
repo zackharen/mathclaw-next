@@ -157,7 +157,9 @@ export default async function PlayPage({ searchParams }) {
   const joinedCourseId = typeof params?.course === "string" ? params.course : "";
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
   const activeCourse = joinedCourse || courses[0] || null;
-  const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null);
+  const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null, {
+    viewerAccountType: accountType || "student",
+  });
   const courseById = new Map(courses.map((course) => [course.id, course]));
   const awards = (awardsResult.data || []).map((row) => ({
     ...row,

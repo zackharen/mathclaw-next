@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 
@@ -22,11 +23,14 @@ export default async function ReviewGamesPage({ searchParams }) {
     redirect("/auth/sign-in?redirect=/play/review-games");
   }
 
+  const accountType = await getAccountTypeForUser(supabase, user);
   const courses = await listAccessibleCourses(supabase, user.id);
   const params = (await searchParams) || {};
   const requestedCourseId = typeof params.course === "string" ? params.course : "";
   const activeCourse = courses.find((course) => course.id === requestedCourseId) || courses[0] || null;
-  const visibleGames = (await listGamesWithCourseSettings(supabase, activeCourse?.id || null)).filter(
+  const visibleGames = (await listGamesWithCourseSettings(supabase, activeCourse?.id || null, {
+    viewerAccountType: accountType || "student",
+  })).filter(
     (game) => game.enabled
   );
   const reviewGames = visibleGames.filter(

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
@@ -153,6 +154,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   if (!user) {
     redirect(`/auth/sign-in?redirect=/classes/${id}/plan`);
   }
+  const accountType = await getAccountTypeForUser(supabase, user);
 
   const access = await getCourseAccessForUser(
     supabase,
@@ -205,7 +207,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .select("class_date, content")
       .eq("course_id", course.id)
       .order("class_date", { ascending: true }),
-    listGamesWithCourseSettings(supabase, course.id),
+    listGamesWithCourseSettings(supabase, course.id, { viewerAccountType: accountType || "teacher" }),
   ]);
 
   const totalLessonsCount = lessonsCountRes.count || 0;

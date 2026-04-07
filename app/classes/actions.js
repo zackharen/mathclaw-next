@@ -517,7 +517,10 @@ export async function updateCourseGameSettingAction(formData) {
     redirect(buildRedirectPath({ returnTo, courseId, params: { gameControlError: "course-not-found" } }));
   }
 
-  const games = await listGamesWithCourseSettings(supabase);
+  const games = await listGamesWithCourseSettings(supabase, null, {
+    viewerAccountType: "teacher",
+    includeDisabledBySite: true,
+  });
   if (!games.some((game) => game.slug === gameSlug)) {
     redirect(buildRedirectPath({ returnTo, courseId, params: { gameControlError: "unknown-game" } }));
   }

@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessAdminArea, isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import { splitDisplayName } from "@/lib/auth/account-type";
+import { describeSiteAudience, getSiteCopy, getSiteFeatureConfig } from "@/lib/site-config";
+import { GAME_CATALOG } from "@/lib/student-games/catalog";
 import DeleteAccountButton from "./delete-account-button";
 import DeleteClassButton from "./delete-class-button";
 import AdminToast from "./admin-toast";
@@ -22,6 +24,8 @@ import {
   resetPasswordAction,
   deleteOwnedClassAction,
   updateBugReportStatusAction,
+  updateSiteCopyAction,
+  updateSiteFeatureAudienceAction,
 } from "./actions";
 
 function formatDate(value) {
@@ -48,11 +52,13 @@ function Notice({ searchParams }) {
   const bugReport = searchParams?.bugReport;
   const schoolUpdated = searchParams?.schoolUpdated;
   const bulkAction = searchParams?.bulk;
+  const siteFeatureUpdated = searchParams?.siteFeatureUpdated === "1";
+  const siteCopyUpdated = searchParams?.siteCopyUpdated === "1";
   const bulkCount = Number(searchParams?.bulkCount || 0);
   const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteCopyUpdated && !error) {
     return null;
   }
 
@@ -76,6 +82,8 @@ function Notice({ searchParams }) {
       {bulkAction === "school" ? <p>School updated for {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
       {bulkAction === "class" ? <p>Added {bulkCount} selected account{bulkCount === 1 ? "" : "s"} to the class.</p> : null}
       {bulkAction === "delete" ? <p>Deleted {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
+      {siteFeatureUpdated ? <p>Site-wide feature visibility updated.</p> : null}
+      {siteCopyUpdated ? <p>Site copy updated.</p> : null}
       {bulkSkippedOwners > 0 ? <p>Skipped {bulkSkippedOwners} owner account{bulkSkippedOwners === 1 ? "" : "s"}.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
@@ -531,6 +539,10 @@ export default async function AdminPage({ searchParams }) {
         : topGamesLast7Days.some((item) => item.slug === "spiral_review" || item.slug === "question_kind_review" || item.slug === "skill_builder")
           ? "Keep investing in question-engine and review-family systems because student practice depth is leading the app."
           : "Keep the app arcade-first while trimming low-usage complexity and watching whether review systems overtake pure games.";
+  const managedSiteGames = GAME_CATALOG.filter((game) => game.category !== "admin");
+  const [siteFeatureConfig, siteCopy] = canViewDiagnostics
+    ? await Promise.all([getSiteFeatureConfig(admin), getSiteCopy(admin)])
+    : [{ audienceBySlug: {} }, null];
 
   return (
     <div className="stack adminStack">
@@ -631,6 +643,87 @@ export default async function AdminPage({ searchParams }) {
 
       {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
         <>
+          <section className="card">
+            <h2>Owner Site Controls</h2>
+            <p>
+              Use these controls to hide features site-wide, release them to teachers before students, and edit public-facing copy without leaving MathClaw.
+            </p>
+            <div className="featureGrid" style={{ marginTop: "1rem" }}>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Feature Rollout Controls</h3>
+                <p>Set each feature to live for everyone, visible only to teachers, or disabled site-wide.</p>
+                <div className="list" style={{ marginTop: "0.85rem" }}>
+                  {managedSiteGames.map((game) => (
+                    <form key={game.slug} action={updateSiteFeatureAudienceAction} className="classGameControlItem isEnabled">
+                      <input type="hidden" name="game_slug" value={game.slug} />
+                      <div className="classGameControlCopy">
+                        <div className="classGameControlTopline">
+                          <strong>{game.name}</strong>
+                          <span className="pill classGameStatusPill isEnabled">
+                            {describeSiteAudience(siteFeatureConfig.audienceBySlug?.[game.slug])}
+                          </span>
+                        </div>
+                        <span>{game.description}</span>
+                      </div>
+                      <select
+                        className="input"
+                        name="audience"
+                        defaultValue={siteFeatureConfig.audienceBySlug?.[game.slug] || "everyone"}
+                        style={{ maxWidth: "14rem" }}
+                      >
+                        <option value="everyone">Everyone</option>
+                        <option value="teachers_only">Teachers only</option>
+                        <option value="disabled">Disabled site-wide</option>
+                      </select>
+                      <button className="btn primary" type="submit">
+                        Save
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              </article>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Editable Site Copy</h3>
+                <p>Update the homepage banner, workspace copy, and mission statement from here.</p>
+                <form action={updateSiteCopyAction} className="list" style={{ marginTop: "0.85rem" }}>
+                  <label>
+                    Homepage banner
+                    <input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} />
+                  </label>
+                  <label>
+                    Homepage intro
+                    <textarea className="input" name="home_intro" rows={3} defaultValue={siteCopy?.homeIntro || ""} />
+                  </label>
+                  <label>
+                    Teacher card copy
+                    <textarea className="input" name="teacher_card_copy" rows={3} defaultValue={siteCopy?.teacherCardCopy || ""} />
+                  </label>
+                  <label>
+                    Student card copy
+                    <textarea className="input" name="student_card_copy" rows={3} defaultValue={siteCopy?.studentCardCopy || ""} />
+                  </label>
+                  <label>
+                    About page title
+                    <input className="input" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
+                  </label>
+                  <label>
+                    Mission statement
+                    <textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} />
+                  </label>
+                  <label>
+                    About story
+                    <textarea className="input" name="about_story" rows={5} defaultValue={siteCopy?.aboutStory || ""} />
+                  </label>
+                  <div className="ctaRow">
+                    <button className="btn primary" type="submit">
+                      Save Site Copy
+                    </button>
+                  </div>
+                </form>
+              </article>
+            </div>
+          </section>
+
           <section className="card">
             <h2>Performance Spend And App Decision</h2>
             <p>

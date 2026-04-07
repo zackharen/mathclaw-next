@@ -137,7 +137,10 @@ export default async function ClassesPage({ searchParams }) {
         user.id,
           "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at"
       ),
-      listGamesWithCourseSettings(supabase),
+      listGamesWithCourseSettings(supabase, null, {
+        viewerAccountType: "teacher",
+        includeDisabledBySite: true,
+      }),
     ]);
     gameSettingsByKey = await listCourseGameSettingsMap(courses.map((course) => course.id));
 
@@ -280,7 +283,10 @@ export default async function ClassesPage({ searchParams }) {
                 coTeacherState.candidateOptionsByCourseId.get(course.id) || [];
               const courseGames = games.map((game) => ({
                 ...game,
-                enabled: gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true,
+                courseEnabled: gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true,
+                enabled: (gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true) && game.siteVisibleToViewer,
+                studentEnabled:
+                  (gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true) && game.siteVisibleToStudents,
               }));
 
               return (
@@ -369,15 +375,16 @@ export default async function ClassesPage({ searchParams }) {
                           <div className="classGameControlCopy">
                           <div className="classGameControlTopline">
                             <strong>{game.name}</strong>
-                            <span className={`pill classGameStatusPill ${game.enabled ? "isEnabled" : "isHidden"}`}>
-                              {game.enabled ? "Live for students" : "Hidden from students"}
+                            <span className={`pill classGameStatusPill ${game.studentEnabled ? "isEnabled" : "isHidden"}`}>
+                              {game.studentEnabled ? "Live for students" : "Hidden from students"}
                             </span>
                           </div>
-                          <span>{game.enabled ? "Students in this class can launch it now." : "Students will not see this in their class game list."}</span>
+                          <span>{game.studentEnabled ? "Students in this class can launch it now." : "Students will not see this in their class game list."}</span>
                           <p>{getGameSupportCopy(game)}</p>
+                          <p><strong>Site-wide rollout:</strong> {game.siteStatusLabel}</p>
                         </div>
-                        <button className={`btn ${game.enabled ? "ghost" : "primary"}`} type="submit">
-                          {game.enabled ? "Hide Game" : "Show Game"}
+                        <button className={`btn ${game.courseEnabled ? "ghost" : "primary"}`} type="submit">
+                          {game.courseEnabled ? "Hide Game" : "Show Game"}
                         </button>
                       </form>
                     ))}

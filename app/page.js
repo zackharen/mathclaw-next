@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, sortCoursesAlphabetically } from "@/lib/student-games/courses";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { getSiteCopy } from "@/lib/site-config";
 
 function describeCourseRelationship(relationship) {
   if (relationship === "owner") return "teacher";
@@ -18,6 +19,7 @@ export default async function HomePage() {
   let courses = [];
   let playCourses = [];
   let accountType = null;
+  const siteCopy = await getSiteCopy();
 
   if (user) {
     accountType = await getAccountTypeForUser(supabase, user);
@@ -36,24 +38,20 @@ export default async function HomePage() {
 
   return (
     <div className="stack">
-      <section className="card" style={{ background: "#fff4d6", borderColor: "#cd3b3b" }}>
-        <p style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Ahily won Wingstop!</p>
-      </section>
+      {siteCopy.homeBanner ? (
+        <section className="card" style={{ background: "#fff4d6", borderColor: "#cd3b3b" }}>
+          <p style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>{siteCopy.homeBanner}</p>
+        </section>
+      ) : null}
 
       <section className="card">
         <h1>MathClaw</h1>
-        <p>
-          MathClaw helps teachers plan with less friction and gives students a clean,
-          trackable arcade for math practice and challenge games.
-        </p>
+        <p>{siteCopy.homeIntro}</p>
         <div className="featureGrid" style={{ marginTop: "1rem" }}>
           {!isStudent ? (
             <article className="card" style={{ background: "#fff" }}>
               <h2>Teacher Site</h2>
-              <p>
-                Build classes, control pacing, edit calendars, and generate what your
-                class needs each day.
-              </p>
+              <p>{siteCopy.teacherCardCopy}</p>
               <div className="ctaRow">
                 <Link className="btn primary" href={user ? "/classes" : "/auth/sign-in?redirect=/classes"}>
                   Open Teacher Workspace
@@ -63,13 +61,13 @@ export default async function HomePage() {
           ) : null}
           <article className="card" style={{ background: "#fff" }}>
             <h2>Student Games</h2>
-            <p>
-              Practice, compete, and track progress across arcade games and quick math
-              challenges.
-            </p>
+            <p>{siteCopy.studentCardCopy}</p>
             <div className="ctaRow">
               <Link className="btn primary" href={user ? "/play" : "/auth/sign-in?redirect=/play"}>
                 Open Student Arcade
+              </Link>
+              <Link className="btn" href="/about">
+                About MathClaw
               </Link>
             </div>
           </article>
