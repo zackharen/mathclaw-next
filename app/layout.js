@@ -69,7 +69,7 @@ export default async function RootLayout({ children }) {
               <div className="topbarNav">
                 <AppNav items={navItems} />
                 {user ? (
-                  <form action={signOutAction} className="navForm">
+                  <form action={signOutAction} className="navForm topbarMenuForm">
                     <button className="navButton" type="submit">
                       Log Out
                     </button>

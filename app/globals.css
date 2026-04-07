@@ -161,13 +161,38 @@ main {
   }
 
   .topbarNav {
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    justify-content: stretch;
     width: 100%;
+    gap: 0.5rem;
   }
 
   .nav {
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    display: contents;
+  }
+
+  .navForm,
+  .topbarMenuForm {
+    display: contents;
+  }
+
+  .nav a,
+  .navButton {
+    width: 100%;
+    min-height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.15;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .roleBadge {
+    width: fit-content;
   }
 }
 
@@ -983,21 +1008,17 @@ details[open] > summary.gameControlsSummary .hideLabel {
     gap: 0.25rem;
   }
 
-  .topbarNav,
-  .nav,
-  .navForm {
+  .topbarNav {
     width: 100%;
   }
 
-  .nav {
-    gap: 0.5rem;
+  .topbarNav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .nav a,
   .navButton {
-    width: 100%;
-    text-align: center;
-    white-space: normal;
+    font-size: 0.95rem;
   }
 
   .ctaRow {
