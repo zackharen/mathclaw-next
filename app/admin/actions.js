@@ -744,6 +744,14 @@ export async function bulkUpdateSiteFeatureAudienceAction(formData) {
   }
 
   const audience = normalizeSiteAudience(String(formData.get("bulk_audience") || ""));
+  const selectedGameSlugs = formData
+    .getAll("selected_game_slugs")
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  if (selectedGameSlugs.length === 0) {
+    redirect("/admin?error=Select at least one feature first.");
+  }
 
   await ensureSiteConfigCatalog(admin);
 
@@ -763,9 +771,8 @@ export async function bulkUpdateSiteFeatureAudienceAction(formData) {
     ...(currentMetadata?.audienceBySlug || {}),
   };
 
-  for (const game of GAME_CATALOG) {
-    if (game.category === "admin") continue;
-    nextAudienceBySlug[game.slug] = audience;
+  for (const gameSlug of selectedGameSlugs) {
+    nextAudienceBySlug[gameSlug] = audience;
   }
 
   const { error } = await admin.from("game_sessions").insert({
@@ -777,6 +784,7 @@ export async function bulkUpdateSiteFeatureAudienceAction(formData) {
     metadata: {
       audienceBySlug: nextAudienceBySlug,
       bulkAudience: audience,
+      selectedGameSlugs,
       source: "owner_site_config",
     },
   });
@@ -791,7 +799,7 @@ export async function bulkUpdateSiteFeatureAudienceAction(formData) {
   revalidatePath("/classes");
   revalidatePath("/play");
   revalidatePath("/play/review-games");
-  redirect("/admin?siteFeatureBulkUpdated=1");
+  redirect(`/admin?siteFeatureBulkUpdated=1&siteFeatureBulkCount=${selectedGameSlugs.length}`);
 }
 
 export async function updateSiteCopyAction(formData) {

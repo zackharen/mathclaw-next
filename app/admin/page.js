@@ -55,6 +55,7 @@ function Notice({ searchParams }) {
   const bulkAction = searchParams?.bulk;
   const siteFeatureUpdated = searchParams?.siteFeatureUpdated === "1";
   const siteFeatureBulkUpdated = searchParams?.siteFeatureBulkUpdated === "1";
+  const siteFeatureBulkCount = Number(searchParams?.siteFeatureBulkCount || 0);
   const siteCopyUpdated = searchParams?.siteCopyUpdated === "1";
   const bulkCount = Number(searchParams?.bulkCount || 0);
   const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
@@ -85,7 +86,7 @@ function Notice({ searchParams }) {
       {bulkAction === "class" ? <p>Added {bulkCount} selected account{bulkCount === 1 ? "" : "s"} to the class.</p> : null}
       {bulkAction === "delete" ? <p>Deleted {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
       {siteFeatureUpdated ? <p>Site-wide feature visibility updated.</p> : null}
-      {siteFeatureBulkUpdated ? <p>Bulk site-wide feature visibility updated.</p> : null}
+      {siteFeatureBulkUpdated ? <p>Bulk site-wide feature visibility updated for {siteFeatureBulkCount || 0} feature{siteFeatureBulkCount === 1 ? "" : "s"}.</p> : null}
       {siteCopyUpdated ? <p>Site copy updated.</p> : null}
       {bulkSkippedOwners > 0 ? <p>Skipped {bulkSkippedOwners} owner account{bulkSkippedOwners === 1 ? "" : "s"}.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
@@ -655,13 +656,18 @@ export default async function AdminPage({ searchParams }) {
               <article className="card" style={{ background: "#fff" }}>
                 <h3>Feature Rollout Controls</h3>
                 <p>Set each feature to live for everyone, visible only to teachers, or disabled site-wide.</p>
-                <form action={bulkUpdateSiteFeatureAudienceAction} className="classGameControlItem isEnabled" style={{ marginTop: "0.85rem" }}>
+                <form
+                  id="bulkFeatureUpdateForm"
+                  action={bulkUpdateSiteFeatureAudienceAction}
+                  className="classGameControlItem isEnabled"
+                  style={{ marginTop: "0.85rem" }}
+                >
                   <div className="classGameControlCopy">
                     <div className="classGameControlTopline">
-                      <strong>Bulk Update All Features</strong>
+                      <strong>Bulk Update Selected Features</strong>
                       <span className="pill classGameStatusPill isEnabled">Owner control</span>
                     </div>
-                    <span>Set every tracked feature to the same site-wide rollout state in one save.</span>
+                    <span>Check the features you want below, then apply one rollout state to that selected set.</span>
                   </div>
                   <select className="input" name="bulk_audience" defaultValue="everyone" style={{ maxWidth: "14rem" }}>
                     <option value="everyone">Everyone</option>
@@ -669,12 +675,19 @@ export default async function AdminPage({ searchParams }) {
                     <option value="disabled">Disabled site-wide</option>
                   </select>
                   <button className="btn primary" type="submit">
-                    Apply To All
+                    Apply To Selected
                   </button>
                 </form>
                 <div className="list" style={{ marginTop: "0.85rem" }}>
                   {managedSiteGames.map((game) => (
                     <form key={game.slug} action={updateSiteFeatureAudienceAction} className="classGameControlItem isEnabled">
+                      <input
+                        type="checkbox"
+                        name="selected_game_slugs"
+                        value={game.slug}
+                        form="bulkFeatureUpdateForm"
+                        aria-label={`Select ${game.name} for bulk update`}
+                      />
                       <input type="hidden" name="game_slug" value={game.slug} />
                       <div className="classGameControlCopy">
                         <div className="classGameControlTopline">
