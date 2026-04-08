@@ -13,6 +13,7 @@ import {
   SITE_COPY_SETTINGS_GAME,
   SITE_FEATURE_SETTINGS_GAME,
 } from "@/lib/site-config";
+import { GAME_CATALOG } from "@/lib/student-games/catalog";
 import {
   ensureProfileForUser,
   normalizeAccountType,
@@ -733,6 +734,64 @@ export async function updateSiteFeatureAudienceAction(formData) {
   revalidatePath("/play");
   revalidatePath("/play/review-games");
   redirect("/admin?siteFeatureUpdated=1");
+}
+
+export async function bulkUpdateSiteFeatureAudienceAction(formData) {
+  const { admin, context, user } = await requireOwner();
+
+  if (!context.isOwner) {
+    redirect("/");
+  }
+
+  const audience = normalizeSiteAudience(String(formData.get("bulk_audience") || ""));
+
+  await ensureSiteConfigCatalog(admin);
+
+  const existingResult = await admin
+    .from("game_sessions")
+    .select("metadata")
+    .eq("game_slug", SITE_FEATURE_SETTINGS_GAME.slug)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (existingResult.error) {
+    redirect(`/admin?error=${encodeURIComponent(existingResult.error.message)}`);
+  }
+
+  const currentMetadata = existingResult.data?.[0]?.metadata || {};
+  const nextAudienceBySlug = {
+    ...(currentMetadata?.audienceBySlug || {}),
+  };
+
+  for (const game of GAME_CATALOG) {
+    if (game.category === "admin") continue;
+    nextAudienceBySlug[game.slug] = audience;
+  }
+
+  const { error } = await admin.from("game_sessions").insert({
+    game_slug: SITE_FEATURE_SETTINGS_GAME.slug,
+    player_id: user.id,
+    course_id: null,
+    score: 1,
+    result: "site_feature_flags_bulk",
+    metadata: {
+      audienceBySlug: nextAudienceBySlug,
+      bulkAudience: audience,
+      source: "owner_site_config",
+    },
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/about");
+  revalidatePath("/admin");
+  revalidatePath("/classes");
+  revalidatePath("/play");
+  revalidatePath("/play/review-games");
+  redirect("/admin?siteFeatureBulkUpdated=1");
 }
 
 export async function updateSiteCopyAction(formData) {

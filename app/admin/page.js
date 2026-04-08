@@ -26,6 +26,7 @@ import {
   updateBugReportStatusAction,
   updateSiteCopyAction,
   updateSiteFeatureAudienceAction,
+  bulkUpdateSiteFeatureAudienceAction,
 } from "./actions";
 
 function formatDate(value) {
@@ -53,12 +54,13 @@ function Notice({ searchParams }) {
   const schoolUpdated = searchParams?.schoolUpdated;
   const bulkAction = searchParams?.bulk;
   const siteFeatureUpdated = searchParams?.siteFeatureUpdated === "1";
+  const siteFeatureBulkUpdated = searchParams?.siteFeatureBulkUpdated === "1";
   const siteCopyUpdated = searchParams?.siteCopyUpdated === "1";
   const bulkCount = Number(searchParams?.bulkCount || 0);
   const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteCopyUpdated && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !error) {
     return null;
   }
 
@@ -83,6 +85,7 @@ function Notice({ searchParams }) {
       {bulkAction === "class" ? <p>Added {bulkCount} selected account{bulkCount === 1 ? "" : "s"} to the class.</p> : null}
       {bulkAction === "delete" ? <p>Deleted {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
       {siteFeatureUpdated ? <p>Site-wide feature visibility updated.</p> : null}
+      {siteFeatureBulkUpdated ? <p>Bulk site-wide feature visibility updated.</p> : null}
       {siteCopyUpdated ? <p>Site copy updated.</p> : null}
       {bulkSkippedOwners > 0 ? <p>Skipped {bulkSkippedOwners} owner account{bulkSkippedOwners === 1 ? "" : "s"}.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
@@ -652,6 +655,23 @@ export default async function AdminPage({ searchParams }) {
               <article className="card" style={{ background: "#fff" }}>
                 <h3>Feature Rollout Controls</h3>
                 <p>Set each feature to live for everyone, visible only to teachers, or disabled site-wide.</p>
+                <form action={bulkUpdateSiteFeatureAudienceAction} className="classGameControlItem isEnabled" style={{ marginTop: "0.85rem" }}>
+                  <div className="classGameControlCopy">
+                    <div className="classGameControlTopline">
+                      <strong>Bulk Update All Features</strong>
+                      <span className="pill classGameStatusPill isEnabled">Owner control</span>
+                    </div>
+                    <span>Set every tracked feature to the same site-wide rollout state in one save.</span>
+                  </div>
+                  <select className="input" name="bulk_audience" defaultValue="everyone" style={{ maxWidth: "14rem" }}>
+                    <option value="everyone">Everyone</option>
+                    <option value="teachers_only">Teachers only</option>
+                    <option value="disabled">Disabled site-wide</option>
+                  </select>
+                  <button className="btn primary" type="submit">
+                    Apply To All
+                  </button>
+                </form>
                 <div className="list" style={{ marginTop: "0.85rem" }}>
                   {managedSiteGames.map((game) => (
                     <form key={game.slug} action={updateSiteFeatureAudienceAction} className="classGameControlItem isEnabled">
