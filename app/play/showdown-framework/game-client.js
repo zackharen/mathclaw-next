@@ -2,17 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  applyShowdownAnswer,
-  buildShowdownPrompt,
   initialShowdownState,
-  listShowdownStyles,
+  LINEAR_LARRY,
+  performPlayerAction,
   showdownScore,
+  stepShowdownFight,
 } from "@/lib/question-engine/showdown-framework";
-
-const STYLES = listShowdownStyles();
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
+}
+
+function phaseLabel(state) {
+  if (state.result === "won") return "Victory";
+  if (state.result === "lost") return "Knocked Out";
+  if (state.enemyPhase === "opening") return "Counter Window";
+  if (state.enemyPhase === "telegraph") return "Read The Tell";
+  return "Reset";
 }
 
 export default function ShowdownFrameworkClient({
@@ -22,25 +28,19 @@ export default function ShowdownFrameworkClient({
   personalStats,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
-  const [style, setStyle] = useState(STYLES[0]?.slug || "counter_cadet");
-  const [status, setStatus] = useState("Answer cleanly to land punches and protect your stamina.");
-  const [battleState, setBattleState] = useState(() => initialShowdownState(STYLES[0]?.slug || "counter_cadet"));
-  const [prompt, setPrompt] = useState(() => buildShowdownPrompt(1));
+  const [battleState, setBattleState] = useState(() => initialShowdownState());
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
   const savedRunRef = useRef(false);
   const sessionRef = useRef({
-    ...initialShowdownState(STYLES[0]?.slug || "counter_cadet"),
+    ...initialShowdownState(),
     courseId: initialCourseId || "",
-    result: "active",
   });
 
-  const styleSummary = STYLES.find((item) => item.slug === style) || STYLES[0];
   const liveScore = useMemo(() => showdownScore(battleState), [battleState]);
   const battleOver = battleState.result === "won" || battleState.result === "lost";
-  const pressureLabel =
-    battleState.combo >= 3 ? "Hot streak" : battleState.playerHp <= 30 ? "Danger" : "Steady";
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -59,7 +59,10 @@ export default function ShowdownFrameworkClient({
       }
       setLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []);
     } catch (error) {
-      setStatus(error.message || "Could not load class leaderboard.");
+      setBattleState((current) => ({
+        ...current,
+        statusText: error.message || "Could not load class leaderboard.",
+      }));
     } finally {
       setLeaderboardLoading(false);
     }
@@ -82,14 +85,16 @@ export default function ShowdownFrameworkClient({
           result: snapshot.result,
           courseId: snapshot.courseId || null,
           metadata: {
-            style: snapshot.style,
-            round: snapshot.round,
-            playerHp: snapshot.playerHp,
-            rivalHp: snapshot.rivalHp,
-            combo: snapshot.combo,
-            correctAnswers: snapshot.correctAnswers,
+            opponent: snapshot.opponentName,
+            playerHealth: snapshot.playerHealth,
+            opponentHealth: snapshot.opponentHealth,
             attempts: snapshot.attempts,
-            knockdowns: snapshot.knockdowns,
+            punchesLanded: snapshot.punchesLanded,
+            punchesMissed: snapshot.punchesMissed,
+            dodges: snapshot.dodges,
+            blocks: snapshot.blocks,
+            successfulDefenses: snapshot.successfulDefenses,
+            enemyAttacksSeen: snapshot.enemyAttacksSeen,
           },
         }),
       });
@@ -97,7 +102,7 @@ export default function ShowdownFrameworkClient({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         savedRunRef.current = false;
-        throw new Error(payload.error || "Could not save score.");
+        throw new Error(payload.error || "Could not save that fight.");
       }
 
       if (payload.stats) {
@@ -130,6 +135,35 @@ export default function ShowdownFrameworkClient({
   }, [courseId, initialCourseId, initialLeaderboard, loadLeaderboard]);
 
   useEffect(() => {
+    sessionRef.current = {
+      ...battleState,
+      courseId,
+    };
+  }, [battleState, courseId]);
+
+  useEffect(() => {
+    if (battleOver) return undefined;
+
+    const interval = window.setInterval(() => {
+      setBattleState((current) => stepShowdownFight(current, Date.now()));
+    }, 100);
+
+    return () => window.clearInterval(interval);
+  }, [battleOver]);
+
+  useEffect(() => {
+    if (battleState.result !== "active") {
+      const snapshot = { ...sessionRef.current, courseId };
+      saveSession(snapshot).catch((error) => {
+        setBattleState((current) => ({
+          ...current,
+          statusText: error.message || "Could not save that fight.",
+        }));
+      });
+    }
+  }, [battleState.result, courseId, saveSession]);
+
+  useEffect(() => {
     function handlePageHide() {
       const snapshot = { ...sessionRef.current };
       if (snapshot.attempts <= 0) return;
@@ -143,21 +177,40 @@ export default function ShowdownFrameworkClient({
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, [saveSession]);
 
-  function resetBattle(nextStyle = style, nextCourseId = courseId) {
+  const triggerAction = useCallback((action) => {
+    setBattleState((current) => performPlayerAction(current, action, Date.now()));
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.repeat || battleOver) return;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        triggerAction("dodge_left");
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        triggerAction("dodge_right");
+      } else if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        triggerAction("block");
+      } else if (event.key === " " || event.key.toLowerCase() === "x" || event.key === "Enter") {
+        event.preventDefault();
+        triggerAction("jab");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [battleOver, triggerAction]);
+
+  function resetBattle(nextCourseId = courseId) {
     savedRunRef.current = false;
-    const initialState = {
-      ...initialShowdownState(nextStyle),
-      courseId: nextCourseId,
-      result: "active",
-    };
-    setStyle(nextStyle);
-    setBattleState(initialState);
-    setPrompt(buildShowdownPrompt(1));
-    setStatus("Answer cleanly to land punches and protect your stamina.");
-    sessionRef.current = initialState;
+    setBattleState(initialShowdownState());
+    setCourseId(nextCourseId);
   }
 
-  async function startFreshBattle(resultToSave = "reset", nextStyle = style, nextCourseId = courseId) {
+  async function startFreshBattle(resultToSave = "reset", nextCourseId = courseId) {
     const previousSnapshot = { ...sessionRef.current };
     if (previousSnapshot.attempts > 0 && !savedRunRef.current) {
       try {
@@ -166,47 +219,20 @@ export default function ShowdownFrameworkClient({
           result: previousSnapshot.result === "active" ? resultToSave : previousSnapshot.result,
         });
       } catch (error) {
-        setStatus(error.message || "Could not save that showdown.");
+        setBattleState((current) => ({
+          ...current,
+          statusText: error.message || "Could not save that fight.",
+        }));
         return;
       }
     }
 
-    resetBattle(nextStyle, nextCourseId);
+    resetBattle(nextCourseId);
   }
 
   async function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
-    await startFreshBattle("switched_class", style, nextCourseId);
-  }
-
-  async function answerPrompt(choice) {
-    const correct = prompt.checkAnswer(choice);
-    const nextState = {
-      ...applyShowdownAnswer(battleState, correct),
-      style,
-      courseId,
-    };
-
-    setBattleState(nextState);
-    setStatus(
-      correct
-        ? nextState.knockdowns > battleState.knockdowns
-          ? "Knockdown! The next round starts now."
-          : "Direct hit. Keep the pressure on."
-        : prompt.explanation
-    );
-    sessionRef.current = nextState;
-
-    if (nextState.result === "won" || nextState.result === "lost") {
-      try {
-        await saveSession(nextState);
-      } catch (error) {
-        setStatus(error.message || "Could not save that showdown.");
-      }
-      return;
-    }
-
-    setPrompt(buildShowdownPrompt(nextState.round + nextState.combo));
+    await startFreshBattle("switched_class", nextCourseId);
   }
 
   return (
@@ -215,10 +241,8 @@ export default function ShowdownFrameworkClient({
         <details className="gameControlsDetails">
           <summary className="gameControlsSummary">
             <div>
-              <h2>Framework Controls</h2>
-              <p>
-                {styleSummary?.label || "Counter Cadet"} · {courses.find((course) => course.id === courseId)?.title || "No class selected"}
-              </p>
+              <h2>Fight Controls</h2>
+              <p>{LINEAR_LARRY.name} · {courseSummary}</p>
             </div>
             <span className="gameControlsToggle">
               <span className="showLabel">Show</span>
@@ -226,20 +250,6 @@ export default function ShowdownFrameworkClient({
             </span>
           </summary>
           <div className="gameControlsBody list">
-            <label>
-              Rival style
-              <select
-                className="input"
-                value={style}
-                onChange={(event) => startFreshBattle("switched_style", event.target.value, courseId)}
-              >
-                {STYLES.map((option) => (
-                  <option key={option.slug} value={option.slug}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label>
               Class context
               <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
@@ -252,84 +262,110 @@ export default function ShowdownFrameworkClient({
               </select>
             </label>
             <div className="card" style={{ background: "#f9fbfc" }}>
-              <strong>{styleSummary?.label || "Counter Cadet"}</strong>
-              <p style={{ marginTop: "0.35rem" }}>{styleSummary?.intro || ""}</p>
+              <strong>{LINEAR_LARRY.name}</strong>
+              <p style={{ marginTop: "0.35rem" }}>{LINEAR_LARRY.intro}</p>
+            </div>
+            <div className="card" style={{ background: "#f9fbfc" }}>
+              <strong>How To Win</strong>
+              <p style={{ marginTop: "0.35rem" }}>
+                Read the tell, dodge or block the punch, then jab during the opening. Larry repeats the same three-step pattern.
+              </p>
             </div>
             <div className="ctaRow">
-              <button className="btn" type="button" onClick={() => startFreshBattle("manual_reset", style, courseId)}>
-                Restart Framework Run
+              <button className="btn primary" type="button" onClick={() => startFreshBattle("manual_reset", courseId)}>
+                Restart Fight
               </button>
             </div>
           </div>
         </details>
 
-        <div className="showdownArena">
+        <div className="showdownScoreboard">
           <div className="showdownFighterCard">
             <strong>You</strong>
             <div className="showdownHpBar">
-              <div className="showdownHpFill playerHp" style={{ width: `${battleState.playerHp}%` }} />
+              <div className="showdownHpFill playerHp" style={{ width: `${battleState.playerHealth}%` }} />
             </div>
-            <p>{battleState.playerHp} stamina</p>
+            <p>{battleState.playerHealth} health</p>
           </div>
           <div className="showdownRoundBadge">
-            <strong>Round {battleState.round}</strong>
-            <p>{pressureLabel}</p>
+            <strong>{phaseLabel(battleState)}</strong>
+            <p>{battleState.enemyActionLabel}</p>
           </div>
           <div className="showdownFighterCard">
-            <strong>{styleSummary?.label || "Rival"}</strong>
+            <strong>{LINEAR_LARRY.name}</strong>
             <div className="showdownHpBar">
-              <div className="showdownHpFill rivalHp" style={{ width: `${battleState.rivalHp}%` }} />
+              <div className="showdownHpFill rivalHp" style={{ width: `${battleState.opponentHealth}%` }} />
             </div>
-            <p>{battleState.rivalHp} stamina</p>
+            <p>{battleState.opponentHealth} health</p>
           </div>
         </div>
 
-        <div className="pillRow" style={{ marginTop: "1rem" }}>
-          <span className="pill">Combo: {battleState.combo}</span>
-          <span className="pill">Correct: {battleState.correctAnswers}</span>
-          <span className="pill">Attempts: {battleState.attempts}</span>
-          <span className="pill">Knockdowns: {battleState.knockdowns}</span>
-          <span className="pill">Live Score: {liveScore}</span>
-        </div>
-
-        <div className="card showdownPromptCard" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
-          <span className="skillBuilderPromptLabel">Attack Window</span>
-          <h3 style={{ marginTop: "0.6rem" }}>{prompt.prompt}</h3>
-          {prompt.leftLabel && prompt.rightLabel ? (
-            <div className="spiralReviewCompareRow">
-              <div className="spiralReviewValueCard">{prompt.leftLabel}</div>
-              <div className="spiralReviewVs">vs</div>
-              <div className="spiralReviewValueCard">{prompt.rightLabel}</div>
+        <div className="showdownRing">
+          <div className={`showdownCorner playerCorner pose-${battleState.playerPose}`}>
+            <div className="showdownSprite playerSprite">
+              <div className="showdownHead" />
+              <div className="showdownBody" />
+              <div className="showdownGlove left" />
+              <div className="showdownGlove right" />
             </div>
-          ) : null}
+            <strong>You</strong>
+            <span>{battleState.playerPose.replace("_", " ")}</span>
+          </div>
+
+          <div className="showdownCenterPanel">
+            <span className={`showdownCallout ${battleState.enemyPhase === "opening" ? "opening" : ""}`}>
+              {battleState.enemyPhase === "opening" ? "Opening" : battleState.enemyActionLabel}
+            </span>
+            <p>{battleState.telegraphText}</p>
+            <div className="pillRow" style={{ justifyContent: "center" }}>
+              <span className="pill">Score: {liveScore}</span>
+              <span className="pill">Defenses: {battleState.successfulDefenses}</span>
+              <span className="pill">Landed: {battleState.punchesLanded}</span>
+            </div>
+          </div>
+
+          <div className={`showdownCorner rivalCorner phase-${battleState.enemyPhase}`}>
+            <div className="showdownSprite rivalSprite">
+              <div className="showdownHead" />
+              <div className="showdownBody" />
+              <div className="showdownGlove left" />
+              <div className="showdownGlove right" />
+            </div>
+            <strong>{LINEAR_LARRY.name}</strong>
+            <span>{LINEAR_LARRY.title}</span>
+          </div>
         </div>
 
-        <div className="skillBuilderChoices">
-          {prompt.choices.map((choice) => (
-            <button
-              key={String(choice)}
-              type="button"
-              className="btn"
-              onClick={() => answerPrompt(choice)}
-              disabled={battleOver}
-            >
-              {prompt.formatChoice ? prompt.formatChoice(choice) : String(choice)}
-            </button>
-          ))}
+        <div className="showdownActionGrid">
+          <button className="btn" type="button" onClick={() => triggerAction("dodge_left")} disabled={battleOver}>
+            Dodge Left
+          </button>
+          <button className="btn" type="button" onClick={() => triggerAction("block")} disabled={battleOver}>
+            Block
+          </button>
+          <button className="btn" type="button" onClick={() => triggerAction("dodge_right")} disabled={battleOver}>
+            Dodge Right
+          </button>
+          <button className="btn primary" type="button" onClick={() => triggerAction("jab")} disabled={battleOver}>
+            Jab
+          </button>
         </div>
 
-        <p style={{ marginTop: "1rem", minHeight: "1.5rem" }}>{status}</p>
+        <p className="showdownStatusText">{battleState.statusText}</p>
+        <p className="showdownHintText">
+          Keyboard: Left Arrow = dodge left, Right Arrow = dodge right, Down Arrow or S = block, Space/X/Enter = jab.
+        </p>
 
         {battleOver ? (
           <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
-            <h3>{battleState.result === "won" ? "Framework Victory" : "Framework Defeat"}</h3>
+            <h3>{battleState.result === "won" ? "You Beat Linear Larry" : "Linear Larry Got You"}</h3>
             <p>
-              This run ended with {battleState.knockdowns} knockdowns, {battleState.correctAnswers} correct answers,
-              and a score of {liveScore}.
+              Final score {liveScore}. You landed {battleState.punchesLanded} jabs, defended {battleState.successfulDefenses} attacks,
+              and saw {battleState.enemyAttacksSeen} Larry punches.
             </p>
             <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-              <button className="btn primary" type="button" onClick={() => startFreshBattle("restart_after_finish", style, courseId)}>
-                Run It Again
+              <button className="btn primary" type="button" onClick={() => startFreshBattle("restart_after_finish", courseId)}>
+                Fight Again
               </button>
             </div>
           </div>
@@ -337,10 +373,10 @@ export default function ShowdownFrameworkClient({
       </section>
 
       <section className="card" style={{ background: "#fff" }}>
-        <h2>Framework Stats</h2>
+        <h2>Fight Stats</h2>
         <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
           <div>
-            <span>Runs Played</span>
+            <span>Fights Played</span>
             <strong>{savedStats?.sessions_played || 0}</strong>
           </div>
           <div>
@@ -357,17 +393,24 @@ export default function ShowdownFrameworkClient({
           </div>
         </div>
 
+        <div className="pillRow" style={{ marginTop: "1rem" }}>
+          <span className="pill">Dodges: {battleState.dodges}</span>
+          <span className="pill">Blocks: {battleState.blocks}</span>
+          <span className="pill">Misses: {battleState.punchesMissed}</span>
+          <span className="pill">Actions: {battleState.attempts}</span>
+        </div>
+
         <h2 style={{ marginTop: "1.25rem" }}>Class Leaderboard</h2>
         {courseId && leaderboardLoading ? <p style={{ marginTop: "0.75rem" }}>Loading class leaderboard...</p> : null}
         {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-          <p style={{ marginTop: "0.75rem" }}>No class scores yet. Finish a framework run to start the board.</p>
+          <p style={{ marginTop: "0.75rem" }}>No class scores yet. Finish a fight to start the board.</p>
         ) : null}
         {!courseId ? <p style={{ marginTop: "0.75rem" }}>Choose a class to load the leaderboard.</p> : null}
         {leaderboardRows.map((row, index) => (
           <div key={`${row.player_id || row.display_name}-${index}`} className="card" style={{ background: "#f9fbfc", marginTop: "0.75rem" }}>
             <strong>#{index + 1} {row.display_name || "Student"}</strong>
             <p style={{ marginTop: "0.35rem" }}>
-              Score {formatScore(row.score)} · {row.sessions_played || 0} runs
+              Score {formatScore(row.score)} · {row.sessions_played || 0} fights
             </p>
           </div>
         ))}

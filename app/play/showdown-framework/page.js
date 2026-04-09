@@ -44,8 +44,8 @@ export default async function ShowdownFrameworkPage({ searchParams }) {
       <section className="card">
         <h1>Showdown Framework</h1>
         <p>
-          A Punch-Out-inspired arcade framework with rounds, stamina bars, and math-triggered attack windows
-          that future review fighters can plug into.
+          A simple Punch-Out-inspired boxing prototype. Read Linear Larry&apos;s tells, dodge or block the pattern,
+          and jab the openings before he wears you down.
         </p>
       </section>
       <ShowdownFrameworkClient

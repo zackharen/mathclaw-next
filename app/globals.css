@@ -2822,7 +2822,7 @@ details[open] > summary.btn,
   margin-top: 0.75rem;
 }
 
-.showdownArena {
+.showdownScoreboard {
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -2834,7 +2834,7 @@ details[open] > summary.btn,
   padding: 1rem;
   border: 2px solid var(--line);
   border-radius: 16px;
-  background: #f9fbfc;
+  background: linear-gradient(180deg, #f8fbfd 0%, #edf4f8 100%);
 }
 
 .showdownRoundBadge {
@@ -2862,6 +2862,7 @@ details[open] > summary.btn,
 .showdownHpFill {
   height: 100%;
   border-radius: 999px;
+  transition: width 160ms ease;
 }
 
 .playerHp {
@@ -2872,9 +2873,164 @@ details[open] > summary.btn,
   background: linear-gradient(90deg, #cd3b3b 0%, #f08b63 100%);
 }
 
-.showdownPromptCard {
-  border: 2px dashed #93a5b4;
-  border-radius: 18px;
+.showdownRing {
+  margin-top: 1rem;
+  padding: 1.2rem;
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.2) 35%, rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, #dbeaf4 0%, #b9d1df 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.showdownCorner {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+}
+
+.showdownCorner span {
+  opacity: 0.8;
+  text-transform: capitalize;
+}
+
+.showdownCenterPanel {
+  display: grid;
+  gap: 0.7rem;
+  text-align: center;
+  padding: 1rem;
+  border: 2px dashed rgba(0, 50, 90, 0.35);
+  border-radius: 20px;
+  background: rgba(255,255,255,0.78);
+}
+
+.showdownCallout {
+  justify-self: center;
+  padding: 0.35rem 0.8rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #f3f7fb;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 700;
+}
+
+.showdownCallout.opening {
+  background: #ffeab5;
+}
+
+.showdownSprite {
+  position: relative;
+  width: 7.5rem;
+  height: 11rem;
+  transition: transform 140ms ease;
+}
+
+.showdownHead {
+  position: absolute;
+  left: 50%;
+  top: 0.4rem;
+  width: 2.55rem;
+  height: 2.55rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #ffd9b7;
+  transform: translateX(-50%);
+}
+
+.showdownBody {
+  position: absolute;
+  left: 50%;
+  top: 2.6rem;
+  width: 4.4rem;
+  height: 5.8rem;
+  border: 2px solid var(--line);
+  border-radius: 1.2rem 1.2rem 0.9rem 0.9rem;
+  transform: translateX(-50%);
+}
+
+.showdownGlove {
+  position: absolute;
+  top: 3.4rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+}
+
+.showdownGlove.left {
+  left: 0.8rem;
+}
+
+.showdownGlove.right {
+  right: 0.8rem;
+}
+
+.playerSprite .showdownBody {
+  background: linear-gradient(180deg, #2d76b1 0%, #16476f 100%);
+}
+
+.playerSprite .showdownGlove {
+  background: #f3f7fb;
+}
+
+.rivalSprite .showdownBody {
+  background: linear-gradient(180deg, #ffca89 0%, #f08b63 100%);
+}
+
+.rivalSprite .showdownGlove {
+  background: #cd3b3b;
+}
+
+.pose-dodge_left .playerSprite {
+  transform: translateX(-0.9rem) rotate(-7deg);
+}
+
+.pose-dodge_right .playerSprite {
+  transform: translateX(0.9rem) rotate(7deg);
+}
+
+.pose-block .playerSprite .showdownGlove.left,
+.pose-block .playerSprite .showdownGlove.right {
+  top: 2.3rem;
+}
+
+.pose-jab .playerSprite .showdownGlove.right {
+  transform: translateX(0.95rem);
+}
+
+.phase-telegraph .rivalSprite {
+  transform: translateY(-0.35rem);
+}
+
+.phase-opening .rivalSprite {
+  transform: translateY(0.4rem) rotate(-5deg);
+}
+
+.phase-reset .rivalSprite {
+  transform: translateX(-0.2rem);
+}
+
+.showdownActionGrid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.showdownStatusText {
+  margin-top: 1rem;
+  min-height: 1.6rem;
+  font-weight: 700;
+}
+
+.showdownHintText {
+  margin-top: 0.45rem;
+  opacity: 0.82;
+  font-size: 0.95rem;
 }
 
 @media (max-width: 720px) {
@@ -2900,7 +3056,12 @@ details[open] > summary.btn,
     align-items: stretch;
   }
 
-  .showdownArena {
+  .showdownScoreboard,
+  .showdownRing {
     grid-template-columns: 1fr;
+  }
+
+  .showdownActionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
