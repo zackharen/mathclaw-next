@@ -5,6 +5,7 @@ import {
   initialShowdownState,
   LINEAR_LARRY,
   performPlayerAction,
+  SHOWDOWN_DIFFICULTIES,
   showdownScore,
   stepShowdownFight,
 } from "@/lib/question-engine/showdown-framework";
@@ -40,7 +41,8 @@ export default function ShowdownFrameworkClient({
   personalStats,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
-  const [battleState, setBattleState] = useState(() => initialShowdownState());
+  const [difficulty, setDifficulty] = useState("easy");
+  const [battleState, setBattleState] = useState(() => initialShowdownState(Date.now(), "easy"));
   const [fightStarted, setFightStarted] = useState(false);
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
   const [showTutorialOverlay, setShowTutorialOverlay] = useState(false);
@@ -49,7 +51,7 @@ export default function ShowdownFrameworkClient({
   const [savedStats, setSavedStats] = useState(personalStats);
   const savedRunRef = useRef(false);
   const sessionRef = useRef({
-    ...initialShowdownState(),
+    ...initialShowdownState(Date.now(), "easy"),
     courseId: initialCourseId || "",
   });
   const rafRef = useRef(0);
@@ -58,6 +60,7 @@ export default function ShowdownFrameworkClient({
   const battleOver = battleState.result === "won" || battleState.result === "lost";
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
   const interactionLocked = !fightStarted || showTutorialPrompt || showTutorialOverlay;
+  const difficultySummary = SHOWDOWN_DIFFICULTIES.find((option) => option.slug === difficulty) || SHOWDOWN_DIFFICULTIES[0];
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -103,6 +106,7 @@ export default function ShowdownFrameworkClient({
           courseId: snapshot.courseId || null,
           metadata: {
             opponent: snapshot.opponentName,
+            difficulty: snapshot.difficulty,
             playerHealth: snapshot.playerHealth,
             opponentHealth: snapshot.opponentHealth,
             attempts: snapshot.attempts,
@@ -233,7 +237,7 @@ export default function ShowdownFrameworkClient({
 
   function resetBattle(nextCourseId = courseId) {
     savedRunRef.current = false;
-    setBattleState(initialShowdownState());
+    setBattleState(initialShowdownState(Date.now(), difficulty));
     setCourseId(nextCourseId);
     setFightStarted(false);
   }
@@ -266,6 +270,13 @@ export default function ShowdownFrameworkClient({
   function startFightNow() {
     setFightStarted(true);
     setShowTutorialOverlay(false);
+  }
+
+  function handleDifficultyChange(nextDifficulty) {
+    setDifficulty(nextDifficulty);
+    savedRunRef.current = false;
+    setBattleState(initialShowdownState(Date.now(), nextDifficulty));
+    setFightStarted(false);
   }
 
   function rememberTutorialPrompt() {
@@ -335,6 +346,24 @@ export default function ShowdownFrameworkClient({
             <div className="card" style={{ background: "#f9fbfc" }}>
               <strong>{LINEAR_LARRY.name}</strong>
               <p style={{ marginTop: "0.35rem" }}>{LINEAR_LARRY.intro}</p>
+            </div>
+            <label>
+              Difficulty
+              <select
+                className="input"
+                value={difficulty}
+                onChange={(event) => handleDifficultyChange(event.target.value)}
+              >
+                {SHOWDOWN_DIFFICULTIES.map((option) => (
+                  <option key={option.slug} value={option.slug}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="card" style={{ background: "#f9fbfc" }}>
+              <strong>{difficultySummary.label}</strong>
+              <p style={{ marginTop: "0.35rem" }}>{difficultySummary.intro}</p>
             </div>
             <div className="ctaRow">
               <button className="btn" type="button" onClick={openTutorial}>
