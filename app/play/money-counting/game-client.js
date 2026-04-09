@@ -66,14 +66,28 @@ function buildQuestion(mode) {
   };
 }
 
-function buildChoices(total) {
+function buildChoices(total, choiceCount) {
   const options = new Set([total]);
-  while (options.size < 4) {
-    const shift = (Math.floor(Math.random() * 8) - 3) * 5;
+  const shifts = [-55, -40, -30, -25, -20, -15, -10, -5, 5, 10, 15, 20, 25, 30, 40, 55];
+  let attempts = 0;
+
+  while (options.size < choiceCount && attempts < 200) {
+    const shift = shifts[Math.floor(Math.random() * shifts.length)];
     const next = Math.max(0, total + shift);
     options.add(next);
+    attempts += 1;
   }
-  return [...options].sort(() => Math.random() - 0.5);
+
+  let fallbackStep = 1;
+  while (options.size < choiceCount) {
+    options.add(Math.max(0, total + fallbackStep));
+    if (options.size < choiceCount) {
+      options.add(Math.max(0, total - fallbackStep));
+    }
+    fallbackStep += 1;
+  }
+
+  return [...options].sort(() => Math.random() - 0.5).slice(0, choiceCount);
 }
 
 function pileTotal(pile) {
@@ -103,12 +117,16 @@ export default function MoneyCountingClient({
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("mixed");
+  const [countAnswerMode, setCountAnswerMode] = useState("multiple_choice");
+  const [choiceCount, setChoiceCount] = useState(4);
   const [showRunningTotal, setShowRunningTotal] = useState(true);
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [question, setQuestion] = useState(() => buildQuestion("mixed"));
   const [playerPile, setPlayerPile] = useState(EMPTY_PILE);
+  const [countAnswerDollars, setCountAnswerDollars] = useState("");
+  const [countAnswerCents, setCountAnswerCents] = useState("");
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -117,10 +135,12 @@ export default function MoneyCountingClient({
     attempts: 0,
     score: 0,
     mode: "mixed",
+    countAnswerMode: "multiple_choice",
+    choiceCount: 4,
   });
   const savedRunRef = useRef(false);
 
-  const choices = useMemo(() => buildChoices(question.total), [question.total]);
+  const choices = useMemo(() => buildChoices(question.total, choiceCount), [choiceCount, question.total]);
   const builtTotal = useMemo(() => pileTotal(playerPile), [playerPile]);
   const buildDelta = question.total - builtTotal;
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
@@ -184,6 +204,8 @@ export default function MoneyCountingClient({
           metadata: {
             attempts: snapshot.attempts,
             mode: snapshot.mode,
+            count_answer_mode: snapshot.countAnswerMode,
+            choice_count: snapshot.choiceCount,
           },
         }),
       });
@@ -226,6 +248,8 @@ export default function MoneyCountingClient({
     const nextQuestion = buildQuestion(nextMode);
     setQuestion(nextQuestion);
     setPlayerPile(EMPTY_PILE);
+    setCountAnswerDollars("");
+    setCountAnswerCents("");
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
@@ -234,6 +258,8 @@ export default function MoneyCountingClient({
       attempts: 0,
       score: 0,
       mode: nextMode,
+      countAnswerMode,
+      choiceCount,
     };
   }
 
@@ -276,6 +302,8 @@ export default function MoneyCountingClient({
       attempts: nextAttempts,
       score: nextScore,
       mode,
+      countAnswerMode,
+      choiceCount,
     };
 
     setScore(nextScore);
@@ -293,12 +321,31 @@ export default function MoneyCountingClient({
     const nextQuestion = buildQuestion(mode);
     setQuestion(nextQuestion);
     setPlayerPile(EMPTY_PILE);
+    setCountAnswerDollars("");
+    setCountAnswerCents("");
     setRoundIndex(nextAttempts + 1);
   }
 
   function answerCountMode(choice) {
     const correct = choice === question.total;
     setFeedback(correct ? "Correct total." : `Not quite. The money shown is ${formatMoney(question.total)}.`);
+    advanceRun(correct);
+  }
+
+  function answerCountFillMode() {
+    const dollars = Number.parseInt(countAnswerDollars || "0", 10);
+    const cents = Number.parseInt(countAnswerCents || "0", 10);
+
+    if (Number.isNaN(dollars) || Number.isNaN(cents) || cents < 0 || cents > 99) {
+      setFeedback("Enter a valid dollar amount and a cents value from 00 to 99.");
+      return;
+    }
+
+    const submittedTotal = dollars * 100 + cents;
+    const correct = submittedTotal === question.total;
+    setFeedback(correct ? "Correct total." : `Not quite. The money shown is ${formatMoney(question.total)}.`);
+    setCountAnswerDollars("");
+    setCountAnswerCents("");
     advanceRun(correct);
   }
 
@@ -354,6 +401,20 @@ export default function MoneyCountingClient({
     );
   }
 
+  function handleChoiceCountChange(nextChoiceCount) {
+    setChoiceCount(nextChoiceCount);
+    setFeedback("");
+    setCountAnswerDollars("");
+    setCountAnswerCents("");
+  }
+
+  function handleCountAnswerModeChange(nextCountAnswerMode) {
+    setCountAnswerMode(nextCountAnswerMode);
+    setFeedback("");
+    setCountAnswerDollars("");
+    setCountAnswerCents("");
+  }
+
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
 
   return (
@@ -364,7 +425,7 @@ export default function MoneyCountingClient({
             <div>
               <h2>Game Controls</h2>
               <p>
-                {(mode === "mixed" ? "Mixed mode" : mode === "count" ? "Count The Money" : "Make The Amount") + " · " + courseSummary}
+                {(mode === "mixed" ? "Mixed mode" : mode === "count" ? "Count The Money" : "Make The Amount") + " · " + (countAnswerMode === "fill" ? "Fill in answers" : String(choiceCount) + " multiple choice") + " · " + courseSummary}
               </p>
             </div>
             <span className="gameControlsToggle">
@@ -389,6 +450,31 @@ export default function MoneyCountingClient({
                 <option value="make">Make The Amount</option>
               </select>
             </label>
+            <div>
+              <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Count Answers</p>
+              <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
+                <button
+                  className={"btn " + (countAnswerMode === "fill" ? "primary" : "")}
+                  type="button"
+                  onClick={() => handleCountAnswerModeChange("fill")}
+                >
+                  Fill In
+                </button>
+                {[2, 3, 4, 5, 6].map((count) => (
+                  <button
+                    key={count}
+                    className={"btn " + (countAnswerMode === "multiple_choice" && choiceCount === count ? "primary" : "")}
+                    type="button"
+                    onClick={() => {
+                      handleCountAnswerModeChange("multiple_choice");
+                      handleChoiceCountChange(count);
+                    }}
+                  >
+                    {count} MP
+                  </button>
+                ))}
+              </div>
+            </div>
             <label>
               Class context
               <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
@@ -437,19 +523,52 @@ export default function MoneyCountingClient({
                 ) : null
               )}
             </div>
-            <div className="choiceGrid">
-              {choices.map((choice) => (
-                <button
-                  key={choice}
-                  className="btn bigChoice"
-                  type="button"
-                  onClick={() => answerCountMode(choice)}
-                  disabled={runComplete}
-                >
-                  {formatMoney(choice)}
+            {countAnswerMode === "fill" ? (
+              <div className="list">
+                <p>Write the total amount shown.</p>
+                <div className="moneyAnswerRow">
+                  <span className="moneyAnswerDollar">$</span>
+                  <input
+                    className="input moneyAnswerInput"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={countAnswerDollars}
+                    onChange={(event) => setCountAnswerDollars(event.target.value.replace(/\D/g, ""))}
+                    placeholder="0"
+                    disabled={runComplete}
+                  />
+                  <span className="moneyAnswerDot">.</span>
+                  <input
+                    className="input moneyAnswerInput"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={countAnswerCents}
+                    onChange={(event) => setCountAnswerCents(event.target.value.replace(/\D/g, "").slice(0, 2))}
+                    placeholder="00"
+                    disabled={runComplete}
+                  />
+                </div>
+                <button className="btn primary" type="button" onClick={answerCountFillMode} disabled={runComplete}>
+                  Check Total
                 </button>
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className="choiceGrid">
+                {choices.map((choice) => (
+                  <button
+                    key={choice}
+                    className="btn bigChoice"
+                    type="button"
+                    onClick={() => answerCountMode(choice)}
+                    disabled={runComplete}
+                  >
+                    {formatMoney(choice)}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           <div className="list" style={{ marginTop: "1rem" }}>
