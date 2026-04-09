@@ -2075,6 +2075,8 @@ details[open] > summary.btn,
   gap: 0.3rem;
   justify-items: center;
   text-align: center;
+  align-content: start;
+  min-width: 9rem;
 }
 
 .moneyAdjustCard {
@@ -2098,6 +2100,21 @@ details[open] > summary.btn,
   min-height: 3.6rem;
 }
 
+.moneyPieceField {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 5.2rem;
+  padding: 0.25rem 0;
+}
+
+.moneyPieceField.billField {
+  min-height: 4rem;
+}
+
 .moneyVisual {
   position: absolute;
   left: 0;
@@ -2111,6 +2128,13 @@ details[open] > summary.btn,
   letter-spacing: 0.02em;
   border: 2px solid rgba(0, 0, 0, 0.5);
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.moneyPiece {
+  position: relative;
+  left: auto;
+  top: auto;
+  flex: 0 0 auto;
 }
 
 .moneyVisual span {
@@ -2245,6 +2269,10 @@ details[open] > summary.btn,
   .moneyVisualStack {
     width: 100%;
     max-width: 6.5rem;
+  }
+
+  .moneyPieceField {
+    justify-content: flex-start;
   }
 }
 

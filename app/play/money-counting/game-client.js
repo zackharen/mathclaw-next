@@ -336,6 +336,24 @@ export default function MoneyCountingClient({
     );
   }
 
+  function renderSpreadMoneyVisuals(denomination, count) {
+    return (
+      <div className={`moneyPieceField ${denomination.visual}Field`} aria-label={`${count} ${denomination.name}${count === 1 ? "" : "s"}`}>
+        {Array.from({ length: count }).map((_, index) => (
+          <span
+            key={`${denomination.key}-piece-${index}`}
+            className={`moneyVisual ${denomination.visual} ${denomination.colorClass} moneyPiece`}
+            style={{
+              transform: `rotate(${(index % 4) * 4 - 6}deg)`,
+            }}
+          >
+            <span>{denomination.label}</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
 
   return (
@@ -413,10 +431,8 @@ export default function MoneyCountingClient({
               {DENOMINATIONS.map((denomination) =>
                 question.pile[denomination.key] > 0 ? (
                   <div key={denomination.key} className="moneyTile">
-                    {renderMoneyVisual(denomination, question.pile[denomination.key], true)}
+                    {renderSpreadMoneyVisuals(denomination, question.pile[denomination.key])}
                     <strong>{denomination.name}</strong>
-                    <span>{denomination.label} each</span>
-                    <span>{question.pile[denomination.key]} shown</span>
                   </div>
                 ) : null
               )}
