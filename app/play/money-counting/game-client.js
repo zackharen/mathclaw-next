@@ -4,12 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const TOTAL_ROUNDS = 10;
 const DENOMINATIONS = [
-  { key: "one", label: "$1", cents: 100 },
-  { key: "quarter", label: "25c", cents: 25 },
-  { key: "dime", label: "10c", cents: 10 },
-  { key: "nickel", label: "5c", cents: 5 },
-  { key: "penny", label: "1c", cents: 1 },
+  { key: "one", label: "$1", cents: 100, name: "Dollar", shortName: "bill", visual: "bill", colorClass: "dollar" },
+  { key: "quarter", label: "25c", cents: 25, name: "Quarter", shortName: "coin", visual: "coin", colorClass: "quarter" },
+  { key: "dime", label: "10c", cents: 10, name: "Dime", shortName: "coin", visual: "coin", colorClass: "dime" },
+  { key: "nickel", label: "5c", cents: 5, name: "Nickel", shortName: "coin", visual: "coin", colorClass: "nickel" },
+  { key: "penny", label: "1c", cents: 1, name: "Penny", shortName: "coin", visual: "coin", colorClass: "penny" },
 ];
+
+const EMPTY_PILE = {
+  one: 0,
+  quarter: 0,
+  dime: 0,
+  nickel: 0,
+  penny: 0,
+};
 
 function randomCount(limit) {
   return Math.floor(Math.random() * (limit + 1));
@@ -95,17 +103,12 @@ export default function MoneyCountingClient({
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("mixed");
+  const [showRunningTotal, setShowRunningTotal] = useState(true);
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [question, setQuestion] = useState(() => buildQuestion("mixed"));
-  const [playerPile, setPlayerPile] = useState({
-    one: 0,
-    quarter: 0,
-    dime: 0,
-    nickel: 0,
-    penny: 0,
-  });
+  const [playerPile, setPlayerPile] = useState(EMPTY_PILE);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -222,7 +225,7 @@ export default function MoneyCountingClient({
     savedRunRef.current = false;
     const nextQuestion = buildQuestion(nextMode);
     setQuestion(nextQuestion);
-    setPlayerPile({ one: 0, quarter: 0, dime: 0, nickel: 0, penny: 0 });
+    setPlayerPile(EMPTY_PILE);
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
@@ -289,7 +292,7 @@ export default function MoneyCountingClient({
 
     const nextQuestion = buildQuestion(mode);
     setQuestion(nextQuestion);
-    setPlayerPile({ one: 0, quarter: 0, dime: 0, nickel: 0, penny: 0 });
+    setPlayerPile(EMPTY_PILE);
     setRoundIndex(nextAttempts + 1);
   }
 
@@ -307,6 +310,30 @@ export default function MoneyCountingClient({
         : `Not quite. The target was ${formatMoney(question.total)} and your pile was ${formatMoney(builtTotal)}.`
     );
     advanceRun(correct);
+  }
+
+  function renderMoneyVisual(denomination, count, compact = false) {
+    const visibleCount = Math.min(count, compact ? 3 : 4);
+    const extraCount = Math.max(0, count - visibleCount);
+
+    return (
+      <div className={`moneyVisualStack ${compact ? "compact" : ""}`} aria-hidden="true">
+        {Array.from({ length: Math.max(visibleCount, 1) }).map((_, index) => (
+          <span
+            key={`${denomination.key}-${index}`}
+            className={`moneyVisual ${denomination.visual} ${denomination.colorClass}`}
+            style={{
+              transform: `translate(${index * 6}px, ${index * 3}px)`,
+              zIndex: visibleCount - index,
+            }}
+          >
+            <span>{denomination.label}</span>
+          </span>
+        ))}
+        {count > 1 ? <span className="moneyVisualCount">x{count}</span> : null}
+        {extraCount > 0 ? <span className="moneyVisualExtra">+{extraCount}</span> : null}
+      </div>
+    );
   }
 
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
@@ -355,6 +382,16 @@ export default function MoneyCountingClient({
                 ))}
               </select>
             </label>
+            <label className="moneyToggleControl">
+              Running total
+              <button
+                className={`btn ${showRunningTotal ? "primary" : "ghost"}`}
+                type="button"
+                onClick={() => setShowRunningTotal((current) => !current)}
+              >
+                {showRunningTotal ? "Shown" : "Hidden"}
+              </button>
+            </label>
             <button className="btn primary" type="button" onClick={startNewRun}>
               Start New Run
             </button>
@@ -376,8 +413,10 @@ export default function MoneyCountingClient({
               {DENOMINATIONS.map((denomination) =>
                 question.pile[denomination.key] > 0 ? (
                   <div key={denomination.key} className="moneyTile">
-                    <strong>{denomination.label}</strong>
-                    <span>x {question.pile[denomination.key]}</span>
+                    {renderMoneyVisual(denomination, question.pile[denomination.key], true)}
+                    <strong>{denomination.name}</strong>
+                    <span>{denomination.label} each</span>
+                    <span>{question.pile[denomination.key]} shown</span>
                   </div>
                 ) : null
               )}
@@ -401,21 +440,27 @@ export default function MoneyCountingClient({
             <p>Build <strong>{formatMoney(question.total)}</strong>.</p>
             <div className="pillRow">
               <span className="pill">Target: {formatMoney(question.total)}</span>
-              <span className="pill">Your Total: {formatMoney(builtTotal)}</span>
-              <span className={`pill moneyDeltaPill ${buildDelta === 0 ? "exact" : buildDelta > 0 ? "under" : "over"}`}>
-                {describeDifference(-buildDelta)}
-              </span>
+              {showRunningTotal ? <span className="pill">Your Total: {formatMoney(builtTotal)}</span> : null}
+              {showRunningTotal ? (
+                <span className={`pill moneyDeltaPill ${buildDelta === 0 ? "exact" : buildDelta > 0 ? "under" : "over"}`}>
+                  {describeDifference(-buildDelta)}
+                </span>
+              ) : (
+                <span className="pill">Total hidden</span>
+              )}
             </div>
             <div className="moneyQuickActions">
               <button
                 className="btn ghost"
                 type="button"
-                onClick={() => setPlayerPile({ one: 0, quarter: 0, dime: 0, nickel: 0, penny: 0 })}
+                onClick={() => setPlayerPile(EMPTY_PILE)}
                 disabled={runComplete || builtTotal === 0}
               >
                 Clear Amount
               </button>
-              <span className="moneyHelperText">Build the target exactly before you check.</span>
+              <span className="moneyHelperText">
+                {showRunningTotal ? "Build the target exactly before you check." : "Running total is hidden. Count your pile as you build."}
+              </span>
             </div>
             <div className="moneyDisplayRow">
               {DENOMINATIONS.map((denomination) => {
@@ -423,9 +468,11 @@ export default function MoneyCountingClient({
                 const denominationTotal = denomination.cents * denominationCount;
                 return (
                   <div key={denomination.key} className="moneyAdjustCard">
-                    <strong>{denomination.label}</strong>
+                    {renderMoneyVisual(denomination, denominationCount, false)}
+                    <strong>{denomination.name}</strong>
+                    <span>{denomination.label} each</span>
                     <span>Count: {denominationCount}</span>
-                    <span>Total: {formatMoney(denominationTotal)}</span>
+                    <span>{showRunningTotal ? `Total: ${formatMoney(denominationTotal)}` : "Total hidden"}</span>
                     <div className="ctaRow" style={{ marginTop: "0.4rem" }}>
                       <button
                         className="btn ghost"
