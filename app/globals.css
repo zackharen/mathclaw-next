@@ -3097,6 +3097,32 @@ details[open] > summary.btn,
   min-width: min(18rem, calc(100% - 2rem));
 }
 
+.showdownModalBackdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 24, 40, 0.48);
+  z-index: 3;
+}
+
+.showdownModalCard {
+  width: min(27rem, 100%);
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+  border: 3px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef5f9 100%);
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.16);
+  text-align: center;
+}
+
+.showdownModalCard.tutorial {
+  width: min(34rem, 100%);
+}
+
 .showdownOverlayBadge {
   display: inline-flex;
   align-items: center;

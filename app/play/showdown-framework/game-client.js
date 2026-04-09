@@ -41,6 +41,9 @@ export default function ShowdownFrameworkClient({
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [battleState, setBattleState] = useState(() => initialShowdownState());
+  const [fightStarted, setFightStarted] = useState(false);
+  const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
+  const [showTutorialOverlay, setShowTutorialOverlay] = useState(false);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -54,6 +57,7 @@ export default function ShowdownFrameworkClient({
   const liveScore = useMemo(() => showdownScore(battleState), [battleState]);
   const battleOver = battleState.result === "won" || battleState.result === "lost";
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
+  const interactionLocked = !fightStarted || showTutorialPrompt || showTutorialOverlay;
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -155,7 +159,7 @@ export default function ShowdownFrameworkClient({
   }, [battleState, courseId]);
 
   useEffect(() => {
-    if (battleOver) return undefined;
+    if (battleOver || !fightStarted || showTutorialPrompt || showTutorialOverlay) return undefined;
 
     function loop() {
       setBattleState((current) => stepShowdownFight(current, Date.now()));
@@ -164,7 +168,15 @@ export default function ShowdownFrameworkClient({
 
     rafRef.current = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(rafRef.current);
-  }, [battleOver]);
+  }, [battleOver, fightStarted, showTutorialOverlay, showTutorialPrompt]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasSeenTutorialPrompt = window.localStorage.getItem("showdown_tutorial_prompt_seen");
+    if (!hasSeenTutorialPrompt) {
+      setShowTutorialPrompt(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (battleState.result !== "active") {
@@ -198,7 +210,7 @@ export default function ShowdownFrameworkClient({
 
   useEffect(() => {
     function handleKeyDown(event) {
-      if (event.repeat || battleOver) return;
+      if (event.repeat || battleOver || interactionLocked) return;
 
       if (event.key === "ArrowLeft") {
         event.preventDefault();
@@ -217,12 +229,13 @@ export default function ShowdownFrameworkClient({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [battleOver, triggerAction]);
+  }, [battleOver, interactionLocked, triggerAction]);
 
   function resetBattle(nextCourseId = courseId) {
     savedRunRef.current = false;
     setBattleState(initialShowdownState());
     setCourseId(nextCourseId);
+    setFightStarted(false);
   }
 
   async function startFreshBattle(resultToSave = "reset", nextCourseId = courseId) {
@@ -248,6 +261,33 @@ export default function ShowdownFrameworkClient({
   async function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
     await startFreshBattle("switched_class", nextCourseId);
+  }
+
+  function startFightNow() {
+    setFightStarted(true);
+    setShowTutorialOverlay(false);
+  }
+
+  function rememberTutorialPrompt() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("showdown_tutorial_prompt_seen", "yes");
+    }
+    setShowTutorialPrompt(false);
+  }
+
+  function openTutorial() {
+    setShowTutorialOverlay(true);
+    setFightStarted(false);
+  }
+
+  function chooseTutorial() {
+    rememberTutorialPrompt();
+    openTutorial();
+  }
+
+  function skipTutorial() {
+    rememberTutorialPrompt();
+    setShowTutorialOverlay(false);
   }
 
   const enemyStyle = {
@@ -297,6 +337,9 @@ export default function ShowdownFrameworkClient({
               <p style={{ marginTop: "0.35rem" }}>{LINEAR_LARRY.intro}</p>
             </div>
             <div className="ctaRow">
+              <button className="btn" type="button" onClick={openTutorial}>
+                How To Play
+              </button>
               <button className="btn primary" type="button" onClick={() => startFreshBattle("manual_reset", courseId)}>
                 Restart Fight
               </button>
@@ -360,19 +403,85 @@ export default function ShowdownFrameworkClient({
             <span className={`showdownOverlayBadge ${battleState.enemyState}`}>{stateLabel(battleState)}</span>
             <p>{battleState.effectText}</p>
           </div>
+
+          {!fightStarted && !showTutorialPrompt && !showTutorialOverlay ? (
+            <div className="showdownModalBackdrop">
+              <div className="showdownModalCard">
+                <span className="showdownRetroTag">Ready</span>
+                <h3>Step Into The Ring</h3>
+                <p>Start when you are ready. Larry will begin his pattern as soon as the bell rings.</p>
+                <div className="ctaRow" style={{ justifyContent: "center" }}>
+                  <button className="btn" type="button" onClick={openTutorial}>
+                    Tutorial
+                  </button>
+                  <button className="btn primary" type="button" onClick={startFightNow}>
+                    Start Fight
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {showTutorialPrompt ? (
+            <div className="showdownModalBackdrop">
+              <div className="showdownModalCard">
+                <span className="showdownRetroTag">First Time?</span>
+                <h3>Want A Quick Tutorial?</h3>
+                <p>It will show you Larry&apos;s tells, the controls, and when to counter before the real fight starts.</p>
+                <div className="ctaRow" style={{ justifyContent: "center" }}>
+                  <button className="btn" type="button" onClick={skipTutorial}>
+                    Skip
+                  </button>
+                  <button className="btn primary" type="button" onClick={chooseTutorial}>
+                    Teach Me
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {showTutorialOverlay ? (
+            <div className="showdownModalBackdrop">
+              <div className="showdownModalCard tutorial">
+                <span className="showdownRetroTag">Tutorial</span>
+                <h3>How To Beat Linear Larry</h3>
+                <div className="list" style={{ textAlign: "left" }}>
+                  <p><strong>1.</strong> Watch Larry&apos;s shoulders and the side warning arrows.</p>
+                  <p><strong>2.</strong> If he leans left, dodge right. If he leans right, dodge left.</p>
+                  <p><strong>3.</strong> Down Arrow blocks if you are not sure you can dodge in time.</p>
+                  <p><strong>4.</strong> Jab with Space or Z only when Larry is recovering or stunned.</p>
+                  <p><strong>5.</strong> If you punch too early, you whiff and give Larry a free shot.</p>
+                </div>
+                <div className="ctaRow" style={{ justifyContent: "center" }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      setShowTutorialOverlay(false);
+                    }}
+                  >
+                    Close Tutorial
+                  </button>
+                  <button className="btn primary" type="button" onClick={startFightNow}>
+                    Start Fight
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="showdownActionGrid">
-          <button className="btn" type="button" onClick={() => triggerAction("dodge_left")} disabled={battleOver}>
+          <button className="btn" type="button" onClick={() => triggerAction("dodge_left")} disabled={battleOver || interactionLocked}>
             Dodge Left
           </button>
-          <button className="btn" type="button" onClick={() => triggerAction("block")} disabled={battleOver}>
+          <button className="btn" type="button" onClick={() => triggerAction("block")} disabled={battleOver || interactionLocked}>
             Block
           </button>
-          <button className="btn" type="button" onClick={() => triggerAction("dodge_right")} disabled={battleOver}>
+          <button className="btn" type="button" onClick={() => triggerAction("dodge_right")} disabled={battleOver || interactionLocked}>
             Dodge Right
           </button>
-          <button className="btn primary" type="button" onClick={() => triggerAction("jab")} disabled={battleOver}>
+          <button className="btn primary" type="button" onClick={() => triggerAction("jab")} disabled={battleOver || interactionLocked}>
             Jab
           </button>
         </div>
