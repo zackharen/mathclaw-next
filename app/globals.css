@@ -3003,6 +3003,12 @@ details[open] > summary.btn,
   transform: translateX(-50%);
 }
 
+.showdownEnemySprite.state-windup .showdownEnemyHead,
+.showdownEnemySprite.state-windup .showdownEnemyBody,
+.showdownEnemySprite.state-windup .showdownEnemyShorts {
+  box-shadow: 0 0 0 2px rgba(255, 234, 181, 0.45);
+}
+
 .showdownEnemyHair {
   left: 50%;
   top: 0.2rem;
