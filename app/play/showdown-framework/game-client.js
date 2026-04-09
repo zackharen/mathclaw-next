@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildShowdownTutorialScenario,
   initialShowdownState,
   LINEAR_LARRY,
   performPlayerAction,
@@ -44,6 +45,8 @@ export default function ShowdownFrameworkClient({
   const [difficulty, setDifficulty] = useState("easy");
   const [battleState, setBattleState] = useState(() => initialShowdownState(Date.now(), "easy"));
   const [fightStarted, setFightStarted] = useState(false);
+  const [tutorialMode, setTutorialMode] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState("intro");
   const [showTutorialPrompt, setShowTutorialPrompt] = useState(false);
   const [showTutorialOverlay, setShowTutorialOverlay] = useState(false);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
@@ -90,7 +93,7 @@ export default function ShowdownFrameworkClient({
 
   const saveSession = useCallback(
     async (snapshot, options = {}) => {
-      if (!snapshot || snapshot.attempts <= 0 || savedRunRef.current) {
+      if (!snapshot || snapshot.attempts <= 0 || savedRunRef.current || snapshot.isTutorial) {
         return null;
       }
 
@@ -159,8 +162,9 @@ export default function ShowdownFrameworkClient({
     sessionRef.current = {
       ...battleState,
       courseId,
+      isTutorial: tutorialMode,
     };
-  }, [battleState, courseId]);
+  }, [battleState, courseId, tutorialMode]);
 
   useEffect(() => {
     if (battleOver || !fightStarted || showTutorialPrompt || showTutorialOverlay) return undefined;
@@ -193,6 +197,47 @@ export default function ShowdownFrameworkClient({
       });
     }
   }, [battleState.result, courseId, saveSession]);
+
+  useEffect(() => {
+    if (!tutorialMode) return;
+
+    if (tutorialStep === "dodge") {
+      if (battleState.successfulDefenses >= 1) {
+        setTutorialStep("jab");
+        setBattleState(buildShowdownTutorialScenario("jab", difficulty, Date.now()));
+        return;
+      }
+
+      if (battleState.playerHealth < 100) {
+        setBattleState(
+          {
+            ...buildShowdownTutorialScenario("dodge", difficulty, Date.now()),
+            effectText: "Too late. Watch Larry hop and dodge right when he throws.",
+          }
+        );
+      }
+    }
+
+    if (tutorialStep === "jab") {
+      if (battleState.punchesLanded >= 1) {
+        setTutorialMode(false);
+        setTutorialStep("complete");
+        setShowTutorialOverlay(true);
+        setFightStarted(false);
+        setBattleState(initialShowdownState(Date.now(), difficulty));
+        return;
+      }
+
+      if (battleState.punchesMissed > 0 || battleState.playerHealth < 100) {
+        setBattleState(
+          {
+            ...buildShowdownTutorialScenario("jab", difficulty, Date.now()),
+            effectText: "Wait for Larry to reel backward, then jab into the opening.",
+          }
+        );
+      }
+    }
+  }, [battleState, difficulty, tutorialMode, tutorialStep]);
 
   useEffect(() => {
     function handlePageHide() {
@@ -240,6 +285,8 @@ export default function ShowdownFrameworkClient({
     setBattleState(initialShowdownState(Date.now(), difficulty));
     setCourseId(nextCourseId);
     setFightStarted(false);
+    setTutorialMode(false);
+    setTutorialStep("intro");
   }
 
   async function startFreshBattle(resultToSave = "reset", nextCourseId = courseId) {
@@ -270,6 +317,7 @@ export default function ShowdownFrameworkClient({
   function startFightNow() {
     setFightStarted(true);
     setShowTutorialOverlay(false);
+    setTutorialMode(false);
   }
 
   function handleDifficultyChange(nextDifficulty) {
@@ -287,6 +335,7 @@ export default function ShowdownFrameworkClient({
   }
 
   function openTutorial() {
+    setTutorialStep("intro");
     setShowTutorialOverlay(true);
     setFightStarted(false);
   }
@@ -299,6 +348,14 @@ export default function ShowdownFrameworkClient({
   function skipTutorial() {
     rememberTutorialPrompt();
     setShowTutorialOverlay(false);
+  }
+
+  function beginTutorialDrill() {
+    setTutorialMode(true);
+    setTutorialStep("dodge");
+    setShowTutorialOverlay(false);
+    setFightStarted(true);
+    setBattleState(buildShowdownTutorialScenario("dodge", difficulty, Date.now()));
   }
 
   const enemyStyle = {
@@ -473,27 +530,47 @@ export default function ShowdownFrameworkClient({
             <div className="showdownModalBackdrop">
               <div className="showdownModalCard tutorial">
                 <span className="showdownRetroTag">Tutorial</span>
-                <h3>How To Beat Linear Larry</h3>
-                <div className="list" style={{ textAlign: "left" }}>
-                  <p><strong>1.</strong> Watch Larry&apos;s shoulders and the side warning arrows.</p>
-                  <p><strong>2.</strong> If he leans left, dodge right. If he leans right, dodge left.</p>
-                  <p><strong>3.</strong> Down Arrow blocks if you are not sure you can dodge in time.</p>
-                  <p><strong>4.</strong> Jab with Space or Z only when Larry is recovering or stunned.</p>
-                  <p><strong>5.</strong> If you punch too early, you whiff and give Larry a free shot.</p>
-                </div>
+                <h3>{tutorialStep === "complete" ? "Nice Counter" : "How To Beat Linear Larry"}</h3>
+                {tutorialStep === "complete" ? (
+                  <div className="list" style={{ textAlign: "left" }}>
+                    <p><strong>1.</strong> You just felt the rhythm: watch the hop, dodge the side, then jab the opening.</p>
+                    <p><strong>2.</strong> That same loop is the heart of the real fight.</p>
+                    <p><strong>3.</strong> If you want, you can replay the drill before starting for real.</p>
+                  </div>
+                ) : (
+                  <div className="list" style={{ textAlign: "left" }}>
+                    <p><strong>1.</strong> First you&apos;ll practice one successful dodge against Larry&apos;s left-side attack.</p>
+                    <p><strong>2.</strong> Then the game will freeze him in a safe opening so you can feel what a good jab-back looks like.</p>
+                    <p><strong>3.</strong> Once you land that counter, you&apos;ll be ready to start the real fight.</p>
+                  </div>
+                )}
                 <div className="ctaRow" style={{ justifyContent: "center" }}>
-                  <button
-                    className="btn"
-                    type="button"
-                    onClick={() => {
-                      setShowTutorialOverlay(false);
-                    }}
-                  >
-                    Close Tutorial
-                  </button>
-                  <button className="btn primary" type="button" onClick={startFightNow}>
-                    Start Fight
-                  </button>
+                  {tutorialStep === "complete" ? (
+                    <>
+                      <button className="btn" type="button" onClick={beginTutorialDrill}>
+                        Practice Again
+                      </button>
+                      <button className="btn primary" type="button" onClick={startFightNow}>
+                        Start Fight
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => {
+                          setShowTutorialOverlay(false);
+                          setTutorialMode(false);
+                        }}
+                      >
+                        Close Tutorial
+                      </button>
+                      <button className="btn primary" type="button" onClick={beginTutorialDrill}>
+                        Start Drill
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
