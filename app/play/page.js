@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
@@ -129,6 +130,8 @@ export default async function PlayPage({ searchParams }) {
   if (!profile) {
     redirect("/onboarding/profile");
   }
+
+  const accountType = await getAccountTypeForUser(supabase, user);
 
   const [courses, statsResult, awardsResult, studentQuestionsResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
