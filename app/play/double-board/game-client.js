@@ -15,6 +15,28 @@ function boardQuestions(board) {
   return Array.isArray(board) ? board : [];
 }
 
+function normalizeBoardRows(board) {
+  if (!Array.isArray(board)) return [];
+  return board.map((row) => (Array.isArray(row) ? row : []));
+}
+
+function normalizeSessionPayload(session) {
+  if (!session || typeof session !== "object") return null;
+
+  const boards = session.boards && typeof session.boards === "object" ? session.boards : {};
+
+  return {
+    ...session,
+    boards: {
+      A: normalizeBoardRows(boards.A),
+      B: normalizeBoardRows(boards.B),
+    },
+    leaderboard: Array.isArray(session.leaderboard) ? session.leaderboard : [],
+    reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
+    answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
+  };
+}
+
 function statusTone(status) {
   if (status === "live") return "live";
   if (status === "ended") return "ended";
@@ -102,9 +124,14 @@ function BoardPanel({
       <div className="doubleBoardGrid">
         {rows.map((row, rowIndex) => (
           <div className="doubleBoardGridRow" key={`${boardKey}-row-${rowIndex}`}>
-            {row.map((question) => {
+            {boardQuestions(row).map((question, columnIndex) => {
               if (!question) {
-                return <div key={`${boardKey}-${rowIndex}-empty`} className="doubleBoardTile empty" />;
+                return (
+                  <div
+                    key={`${boardKey}-${rowIndex}-${columnIndex}-empty`}
+                    className="doubleBoardTile empty"
+                  />
+                );
               }
 
               const isSelected = selectedQuestionId === question.id;
@@ -306,7 +333,7 @@ export default function DoubleBoardClient({
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Double Board.");
       }
-      setSession(payload.session);
+      setSession(normalizeSessionPayload(payload.session));
       if (!options.quiet) {
         setFlashMessage("");
       }
@@ -339,8 +366,9 @@ export default function DoubleBoardClient({
         throw new Error(payload.error || "Double Board request failed.");
       }
       if (payload.session) {
-        setSession(payload.session);
-        setAnswerMode(payload.session.answerMode || "typed");
+        const normalizedSession = normalizeSessionPayload(payload.session);
+        setSession(normalizedSession);
+        setAnswerMode(normalizedSession?.answerMode || "typed");
       }
       if (payload.result?.message) {
         setFlashMessage(payload.result.message);
