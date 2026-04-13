@@ -2750,8 +2750,8 @@ details[open] > summary.btn,
 
 .doubleBoardGrid {
   display: grid;
-  grid-template-columns: minmax(4.75rem, 6rem) repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
   margin-top: 0.75rem;
 }
 
@@ -2759,43 +2759,20 @@ details[open] > summary.btn,
   display: contents;
 }
 
-.doubleBoardGridCorner,
-.doubleBoardAxisCell,
 .doubleBoardTile {
-  min-height: 5.75rem;
-}
-
-.doubleBoardGridCorner {
-  border-radius: 18px;
-  background: rgba(11, 61, 105, 0.06);
-}
-
-.doubleBoardAxisCell {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.2rem;
-  border: 2px dashed rgba(11, 61, 105, 0.25);
-  border-radius: 18px;
-  padding: 0.55rem;
-  background: rgba(255, 255, 255, 0.72);
-  text-align: center;
-  font-size: 0.92rem;
-}
-
-.doubleBoardAxisCell.column {
-  font-weight: 800;
+  min-height: 7.25rem;
 }
 
 .doubleBoardTile {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.25rem;
   border: 3px solid #0b3d69;
   border-radius: 20px;
-  padding: 0.7rem;
+  padding: 0.75rem 0.5rem 0.9rem;
   background: #ffffff;
   color: #0b3d69;
   text-align: center;
@@ -2817,16 +2794,31 @@ details[open] > summary.btn,
 }
 
 .doubleBoardTileValue {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 800;
-  line-height: 1.25;
-  min-height: 2.8rem;
-  white-space: normal;
+  line-height: 1.15;
+  min-height: 1.25rem;
+  white-space: nowrap;
 }
 
 .doubleBoardTileMeta {
   font-size: 0.82rem;
   line-height: 1.2;
+}
+
+.doubleBoardTileValueBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: #f3d24f;
+  color: #0b3d69;
+  border: 2px solid #d0ab17;
+  font-weight: 900;
+  font-size: 0.95rem;
 }
 
 .doubleBoardTileBadge {
@@ -3076,23 +3068,27 @@ details[open] > summary.btn,
   }
 
   .doubleBoardGrid {
-    grid-template-columns: minmax(3.25rem, 4rem) repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.4rem;
   }
 
-  .doubleBoardGridCorner,
-  .doubleBoardAxisCell,
   .doubleBoardTile {
-    min-height: 4.75rem;
+    min-height: 6.2rem;
   }
 
   .doubleBoardTile {
-    padding: 0.5rem;
+    padding: 0.55rem 0.3rem 0.75rem;
   }
 
   .doubleBoardTileValue {
-    font-size: 0.92rem;
-    min-height: 2.3rem;
+    font-size: 0.76rem;
+    min-height: 1rem;
+  }
+
+  .doubleBoardTileValueBadge {
+    min-width: 1.7rem;
+    height: 1.7rem;
+    font-size: 0.8rem;
   }
 }
 

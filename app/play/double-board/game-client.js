@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  DOUBLE_BOARD_COLUMN_PATTERNS,
   DOUBLE_BOARD_NUMBER_MODES,
-  DOUBLE_BOARD_ROW_PATTERNS,
   formatBoardLocation,
 } from "@/lib/question-engine/double-board";
 
@@ -102,18 +100,8 @@ function BoardPanel({
         <h2>Board {boardKey}</h2>
       </div>
       <div className="doubleBoardGrid">
-        <div className="doubleBoardGridCorner" />
-        {DOUBLE_BOARD_COLUMN_PATTERNS.map((column) => (
-          <div key={column.colIndex} className="doubleBoardAxisCell column">
-            C{column.colIndex + 1}
-          </div>
-        ))}
         {rows.map((row, rowIndex) => (
           <div className="doubleBoardGridRow" key={`${boardKey}-row-${rowIndex}`}>
-            <div className="doubleBoardAxisCell row">
-              <strong>R{rowIndex + 1}</strong>
-              <span>{DOUBLE_BOARD_ROW_PATTERNS[rowIndex].label}</span>
-            </div>
             {row.map((question) => {
               if (!question) {
                 return <div key={`${boardKey}-${rowIndex}-empty`} className="doubleBoardTile empty" />;
@@ -145,16 +133,10 @@ function BoardPanel({
                   {!question.solved && question.everMissed ? (
                     <span className="doubleBoardTileBadge">X</span>
                   ) : null}
-                  <span className="doubleBoardTileMeta">
-                    {question.solved
-                      ? "Solved"
-                      : question.everMissed
-                        ? `${question.attemptCount} miss${question.attemptCount === 1 ? "" : "es"}`
-                        : "Open"}
-                  </span>
-                  <span className="doubleBoardTileMeta">
-                    Retry value {question.retryValue}
-                  </span>
+                  {question.solved ? (
+                    <span className="doubleBoardTileMeta">Solved</span>
+                  ) : null}
+                  <span className="doubleBoardTileValueBadge">{question.retryValue}</span>
                 </button>
               );
             })}
