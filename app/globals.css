@@ -3300,11 +3300,13 @@ details[open] > summary.btn,
 .showdownViewport {
   position: relative;
   margin-top: 1rem;
-  min-height: 32rem;
+  min-height: 37rem;
   overflow: hidden;
   border: 3px solid var(--line);
   border-radius: 24px;
-  background: linear-gradient(180deg, #bfd3e3 0%, #dce8f0 42%, #d8edf0 42%, #a8ced0 100%);
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.26) 0, transparent 28%),
+    linear-gradient(180deg, #1d3557 0%, #274b78 24%, #b7d2e6 24%, #dce8f0 47%, #8fc4cf 47%, #7ab0b5 100%);
 }
 
 .showdownBackdrop {
@@ -3317,45 +3319,63 @@ details[open] > summary.btn,
   left: 0;
   right: 0;
   top: 0;
-  height: 34%;
+  height: 28%;
   background:
-    linear-gradient(180deg, rgba(17, 36, 58, 0.88) 0%, rgba(17, 36, 58, 0.45) 100%),
+    linear-gradient(180deg, rgba(9, 24, 41, 0.92) 0%, rgba(9, 24, 41, 0.46) 100%),
     repeating-linear-gradient(
       90deg,
-      rgba(255,255,255,0.06) 0,
-      rgba(255,255,255,0.06) 14px,
+      rgba(255,255,255,0.07) 0,
+      rgba(255,255,255,0.07) 10px,
       transparent 14px,
-      transparent 30px
+      transparent 24px
     );
+}
+
+.showdownRingPost {
+  position: absolute;
+  top: 21%;
+  bottom: 15%;
+  width: 1rem;
+  border: 3px solid var(--line);
+  background: linear-gradient(180deg, #faf7ec 0%, #d7d0c0 100%);
+}
+
+.showdownRingPost.left {
+  left: 1.2rem;
+}
+
+.showdownRingPost.right {
+  right: 1.2rem;
 }
 
 .showdownRopes {
   position: absolute;
-  left: -4%;
-  right: -4%;
+  left: 4%;
+  right: 4%;
   height: 6px;
   border-top: 2px solid var(--line);
   border-bottom: 2px solid var(--line);
-  background: #e14f4f;
+  background: linear-gradient(180deg, #f3f0ea 0%, #d8d3ca 100%);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
 }
 
 .showdownRopes.top {
-  top: 34%;
+  top: 28%;
 }
 
 .showdownRopes.middle {
-  top: 46%;
+  top: 40%;
 }
 
 .showdownRopes.bottom {
-  top: 58%;
+  top: 52%;
 }
 
 .showdownCanvasOverlay {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 35%),
+    linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 34%),
     repeating-linear-gradient(
       0deg,
       rgba(255,255,255,0.035) 0,
@@ -3366,153 +3386,91 @@ details[open] > summary.btn,
   pointer-events: none;
 }
 
-.showdownEnemySprite {
+.showdownRingFloor {
   position: absolute;
-  left: 50%;
-  bottom: 6.8rem;
-  width: 12rem;
-  height: 18rem;
+  left: 6%;
+  right: 6%;
+  bottom: 4%;
+  height: 43%;
+  border: 3px solid var(--line);
+  border-radius: 52% 52% 18% 18% / 40% 40% 24% 24%;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.48) 0, rgba(255, 255, 255, 0.1) 26%, transparent 52%),
+    linear-gradient(180deg, #dff2f3 0%, #c3e1e5 42%, #a3c9d1 100%);
+  box-shadow:
+    inset 0 12px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -10px 0 rgba(55, 101, 113, 0.12);
+}
+
+.showdownFighter {
+  position: absolute;
   transform-origin: center bottom;
-  transition: filter 80ms linear;
+  transition: transform 90ms linear, filter 90ms linear, opacity 90ms linear;
 }
 
-.showdownEnemySprite.tint-flash {
-  filter: brightness(1.2) saturate(1.15);
+.showdownFighter.enemy {
+  left: 50%;
+  top: 17%;
+  width: min(16rem, 34vw);
+  aspect-ratio: 384 / 341;
+  transform: translateX(-50%);
+  z-index: 2;
 }
 
-.showdownEnemySprite.tint-stunned {
-  filter: saturate(0.8) brightness(1.08);
+.showdownFighter.player {
+  left: 50%;
+  bottom: 5%;
+  width: min(19rem, 42vw);
+  aspect-ratio: 384 / 341;
+  transform: translateX(-50%);
+  z-index: 4;
 }
 
-.showdownEnemyShadow {
+.showdownFighterShadow {
   position: absolute;
   left: 50%;
-  bottom: -0.35rem;
-  width: 8rem;
-  height: 1.5rem;
+  bottom: -0.25rem;
+  width: 62%;
+  height: 0.95rem;
   border-radius: 999px;
   background: rgba(21, 39, 58, 0.24);
   transform: translateX(-50%);
 }
 
-.showdownEnemyHead,
-.showdownEnemyBody,
-.showdownEnemyArm,
-.showdownEnemyGlove,
-.showdownEnemyHair,
-.showdownEnemyShorts {
+.showdownSpriteSheet {
   position: absolute;
+  inset: 0;
   image-rendering: pixelated;
+  filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.12));
 }
 
-.showdownEnemyHead {
-  left: 50%;
-  top: 0.6rem;
-  width: 4.4rem;
-  height: 4.4rem;
-  background: #ffd3ad;
-  border: 3px solid var(--line);
-  transform: translateX(-50%);
+.showdownSpriteSheet.player {
+  transform: scaleX(-1);
+  filter: hue-rotate(138deg) saturate(1.22) brightness(1.04) drop-shadow(0 8px 0 rgba(0, 0, 0, 0.12));
 }
 
-.showdownEnemySprite.state-windup .showdownEnemyHead,
-.showdownEnemySprite.state-windup .showdownEnemyBody,
-.showdownEnemySprite.state-windup .showdownEnemyShorts {
-  box-shadow: 0 0 0 2px rgba(255, 234, 181, 0.45);
-}
-
-.showdownEnemyHair {
-  left: 50%;
-  top: 0.2rem;
-  width: 4.7rem;
-  height: 1.1rem;
-  background: #4f3522;
-  border: 3px solid var(--line);
-  transform: translateX(-50%);
-}
-
-.showdownEnemyBody {
-  left: 50%;
-  top: 4.5rem;
-  width: 6.5rem;
-  height: 7.6rem;
-  background: #f3a266;
-  border: 3px solid var(--line);
-  transform: translateX(-50%);
-}
-
-.showdownEnemyShorts {
-  left: 50%;
-  top: 10.9rem;
-  width: 7rem;
-  height: 2rem;
-  background: #4476c3;
-  border: 3px solid var(--line);
-  transform: translateX(-50%);
-}
-
-.showdownEnemyArm {
-  top: 5rem;
-  width: 2rem;
-  height: 5.2rem;
-  background: #ffd3ad;
-  border: 3px solid var(--line);
-}
-
-.showdownEnemyGlove {
-  top: 8.7rem;
-  width: 2.6rem;
-  height: 2.4rem;
-  background: #d44a46;
-  border: 3px solid var(--line);
-}
-
-.showdownEnemyArm.left,
-.showdownEnemyGlove.left {
-  left: 50%;
-}
-
-.showdownEnemyArm.right,
-.showdownEnemyGlove.right {
-  left: 50%;
-}
-
-.showdownPlayerLayer {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 12rem;
-  transition: transform 90ms linear;
-}
-
-.showdownPlayerGlove {
+.showdownNamePlate {
   position: absolute;
   left: 50%;
-  bottom: 1.3rem;
-  width: 5.3rem;
-  height: 5.1rem;
-  background: linear-gradient(180deg, #f7fbff 0%, #c7d5e6 100%);
-  border: 3px solid var(--line);
-  box-shadow: 0 6px 0 rgba(0,0,0,0.14);
+  min-width: 7rem;
+  padding: 0.3rem 0.6rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  text-align: center;
+  transform: translateX(-50%);
 }
 
-.showdownPlayerLayer.tint-stunned .showdownPlayerGlove {
-  background: linear-gradient(180deg, #eed7d7 0%, #d6c1c1 100%);
+.showdownNamePlate.enemy {
+  top: -0.25rem;
+}
+
+.showdownNamePlate.player {
+  bottom: -1rem;
 }
 
 .showdownOverlayHud {
-  position: absolute;
-  left: 50%;
-  top: 1rem;
-  transform: translateX(-50%);
-  display: grid;
-  gap: 0.45rem;
-  justify-items: center;
-  text-align: center;
-  padding: 0.6rem 0.85rem;
-  border: 2px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255,255,255,0.86);
-  min-width: min(18rem, calc(100% - 2rem));
+  display: none;
 }
 
 .showdownModalBackdrop {
@@ -3541,60 +3499,6 @@ details[open] > summary.btn,
   width: min(34rem, 100%);
 }
 
-.showdownOverlayBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 6.5rem;
-  padding: 0.18rem 0.6rem;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
-  font-weight: 800;
-  background: #eef3f8;
-}
-
-.showdownOverlayBadge.windup {
-  background: #ffeab5;
-}
-
-.showdownOverlayBadge.punch {
-  background: #ffd0d0;
-}
-
-.showdownOverlayBadge.recovery,
-.showdownOverlayBadge.stunned {
-  background: #d8f2db;
-}
-
-.showdownWarning {
-  position: absolute;
-  top: 8.8rem;
-  padding: 0.3rem 0.55rem;
-  border: 3px solid var(--line);
-  background: #fff;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
-  font-size: 1.5rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  opacity: 0;
-  transform: scale(0.8);
-  transition: opacity 80ms linear, transform 80ms linear;
-}
-
-.showdownWarning.side-left {
-  left: 1rem;
-}
-
-.showdownWarning.side-right {
-  right: 1rem;
-}
-
-.showdownWarning.isActive {
-  opacity: 1;
-  transform: scale(1);
-}
-
 .showdownActionGrid {
   display: grid;
   gap: 0.75rem;
@@ -3602,10 +3506,83 @@ details[open] > summary.btn,
   margin-top: 1rem;
 }
 
-.showdownHintText {
-  margin-top: 0.8rem;
-  opacity: 0.82;
-  font-size: 0.95rem;
+.showdownViewport.enemy-windup_left .showdownFighter.enemy {
+  transform: translateX(calc(-50% - 3.4rem)) translateY(-1.2rem) rotate(-8deg) scale(0.97);
+}
+
+.showdownViewport.enemy-windup_right .showdownFighter.enemy {
+  transform: translateX(calc(-50% + 3.4rem)) translateY(-1.2rem) rotate(8deg) scale(0.97);
+}
+
+.showdownViewport.enemy-windup_block .showdownFighter.enemy {
+  transform: translateX(-50%) translateY(-1.9rem) scale(0.94);
+}
+
+.showdownViewport.enemy-punch_left .showdownFighter.enemy {
+  transform: translateX(calc(-50% - 5rem)) translateY(0.2rem) rotate(-10deg) scale(1.04);
+}
+
+.showdownViewport.enemy-punch_right .showdownFighter.enemy {
+  transform: translateX(calc(-50% + 5rem)) translateY(0.2rem) rotate(10deg) scale(1.04);
+}
+
+.showdownViewport.enemy-punch_block .showdownFighter.enemy {
+  transform: translateX(-50%) translateY(1rem) scale(1.08);
+}
+
+.showdownViewport.enemy-recovery .showdownFighter.enemy {
+  transform: translateX(-50%) translateY(1.35rem) rotate(4deg) scale(0.96);
+}
+
+.showdownViewport.enemy-hit_reaction .showdownFighter.enemy {
+  transform: translateX(-50%) translateY(0.8rem) rotate(-6deg) scale(0.95);
+}
+
+.showdownViewport.enemy-stunned .showdownFighter.enemy {
+  animation: showdown-stunned 180ms linear infinite alternate;
+}
+
+.showdownViewport.enemy-knocked_down .showdownFighter.enemy,
+.showdownViewport.result-won .showdownFighter.enemy {
+  transform: translateX(-50%) translateY(7rem) rotate(86deg) scale(1.08);
+  opacity: 0.96;
+}
+
+.showdownViewport.player-dodge_left .showdownFighter.player {
+  transform: translateX(calc(-50% - 4.9rem)) translateY(-0.65rem) rotate(-7deg);
+}
+
+.showdownViewport.player-dodge_right .showdownFighter.player {
+  transform: translateX(calc(-50% + 4.9rem)) translateY(-0.65rem) rotate(7deg);
+}
+
+.showdownViewport.player-block .showdownFighter.player {
+  transform: translateX(-50%) translateY(0.35rem) scale(1.02);
+}
+
+.showdownViewport.player-punch .showdownFighter.player {
+  transform: translateX(-50%) translateY(-1.1rem) scale(1.04);
+}
+
+.showdownViewport.player-hurt .showdownFighter.player {
+  transform: translateX(-50%) translateY(1rem) rotate(-5deg);
+  filter: saturate(0.85);
+}
+
+.showdownViewport.player-knocked_down .showdownFighter.player,
+.showdownViewport.result-lost .showdownFighter.player {
+  transform: translateX(-50%) translateY(6rem) rotate(-86deg) scale(1.06);
+  opacity: 0.96;
+}
+
+@keyframes showdown-stunned {
+  from {
+    transform: translateX(calc(-50% - 0.55rem)) translateY(1rem) rotate(-5deg);
+  }
+
+  to {
+    transform: translateX(calc(-50% + 0.55rem)) translateY(1rem) rotate(5deg);
+  }
 }
 
 @media (max-width: 720px) {
@@ -3640,21 +3617,22 @@ details[open] > summary.btn,
   }
 
   .showdownViewport {
-    min-height: 28rem;
+    min-height: 32rem;
   }
 
-  .showdownEnemySprite {
-    width: 10rem;
-    height: 15rem;
-    bottom: 6.1rem;
+  .showdownFighter.enemy {
+    width: min(13rem, 42vw);
   }
 
-  .showdownPlayerGlove {
-    width: 4.45rem;
-    height: 4.3rem;
+  .showdownFighter.player {
+    width: min(15rem, 52vw);
   }
 
-  .showdownOverlayHud {
-    min-width: calc(100% - 1.3rem);
+  .showdownActionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .showdownNamePlate.player {
+    bottom: -0.3rem;
   }
 }
