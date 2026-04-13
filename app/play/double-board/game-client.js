@@ -2,7 +2,9 @@
 
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  DOUBLE_BOARD_COLUMN_PATTERNS,
   DOUBLE_BOARD_NUMBER_MODES,
+  DOUBLE_BOARD_ROW_PATTERNS,
   formatBoardLocation,
 } from "@/lib/question-engine/double-board";
 
