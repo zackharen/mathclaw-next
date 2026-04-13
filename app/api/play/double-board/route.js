@@ -37,6 +37,10 @@ function normalizeAnswerMode(value) {
   return value === "multiple_choice" ? "multiple_choice" : "typed";
 }
 
+function normalizePlayMode(value) {
+  return value === "one_at_a_time" ? "one_at_a_time" : "free_for_all";
+}
+
 function isTeacherRelationship(relationship) {
   return relationship === "owner" || relationship === "co_teacher";
 }
@@ -87,11 +91,36 @@ async function resolveDisplayName(supabase, user) {
   return String(data?.display_name || buildDefaultDisplayName(user)).trim() || "MathClaw User";
 }
 
+function sortQuestionsInBoardOrder(questions) {
+  return [...(questions || [])].sort((a, b) => {
+    const boardCompare = String(a.boardKey || a.board_key || "").localeCompare(
+      String(b.boardKey || b.board_key || "")
+    );
+    if (boardCompare !== 0) return boardCompare;
+
+    const rowCompare = Number(a.rowIndex ?? a.row_index ?? 0) - Number(b.rowIndex ?? b.row_index ?? 0);
+    if (rowCompare !== 0) return rowCompare;
+
+    return Number(a.colIndex ?? a.col_index ?? 0) - Number(b.colIndex ?? b.col_index ?? 0);
+  });
+}
+
+function getActiveQuestionId(questions, playMode, sessionStatus) {
+  if (playMode !== "one_at_a_time" || sessionStatus !== "live") {
+    return null;
+  }
+
+  return (
+    sortQuestionsInBoardOrder(questions).find((question) => !question.solved)?.id || null
+  );
+}
+
 function serializeQuestion(row, canManage, sessionStatus) {
   const solved = Boolean(row.solved);
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
   const revealAnswer = solved || sessionStatus === "ended" || canManage;
+  const revealExpression = canManage || sessionStatus !== "waiting";
   const expressionText =
     row.expression_text ||
     formatDoubleBoardExpression(row.operand1, row.operator, row.operand2);
@@ -104,12 +133,13 @@ function serializeQuestion(row, canManage, sessionStatus) {
     operand1: row.operand1,
     operator: row.operator,
     operand2: row.operand2,
-    expressionText,
+    expressionText: revealExpression ? expressionText : "Hidden until start",
     correctAnswer: revealAnswer ? row.correct_answer : null,
     solved,
     everMissed,
     attemptCount,
     retryValue: 2 ** attemptCount,
+    isHidden: !revealExpression,
     state: solved ? (everMissed ? "solved-after-miss" : "solved") : everMissed ? "missed" : "unanswered",
     displayValue: solved ? String(row.correct_answer) : everMissed ? "X" : " ",
   };
@@ -142,6 +172,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
   const serializedQuestions = (questions || []).map((row) =>
     serializeQuestion(row, canManage, session.status)
   );
+  const playMode = normalizePlayMode(session.metadata?.playMode);
+  const activeQuestionId = getActiveQuestionId(serializedQuestions, playMode, session.status);
   const boards = buildDoubleBoardMatrix(
     serializedQuestions.map((question) => ({
       ...question,
@@ -184,6 +216,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     resultsRecordedAt: session.results_recorded_at,
     answerMode: normalizeAnswerMode(session.metadata?.answerMode),
     multipleChoiceEnabled: normalizeAnswerMode(session.metadata?.answerMode) === "multiple_choice",
+    playMode,
+    activeQuestionId,
     canManage,
     isJoined: Boolean(viewerPlayer),
     viewerPlayerId: viewerPlayer?.id || null,
@@ -347,7 +381,8 @@ async function createFreshSession(
   courseId,
   numberMode,
   displayName,
-  answerMode
+  answerMode,
+  playMode
 ) {
   if (!canManageCourse(viewer.courses, courseId, viewer.accountType)) {
     return NextResponse.json(
@@ -375,6 +410,7 @@ async function createFreshSession(
       metadata: {
         mockMode: !courseId,
         answerMode,
+        playMode,
       },
       updated_at: nowIso(),
     })
@@ -411,6 +447,29 @@ async function createFreshSession(
 
   const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
   return NextResponse.json({ session: bundle });
+}
+
+async function resolveSolverDisplayName(admin, sessionId, solverUserId) {
+  if (!solverUserId) return "Someone";
+
+  const { data: player } = await admin
+    .from("double_board_players")
+    .select("display_name")
+    .eq("session_id", sessionId)
+    .eq("user_id", solverUserId)
+    .maybeSingle();
+
+  if (player?.display_name) {
+    return player.display_name;
+  }
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("display_name")
+    .eq("id", solverUserId)
+    .maybeSingle();
+
+  return String(profile?.display_name || "Someone").trim() || "Someone";
 }
 
 export async function GET(request) {
@@ -467,6 +526,7 @@ export async function POST(request) {
       const courseId = normalizeId(body.courseId);
       const numberMode = normalizeDoubleBoardMode(body.numberMode);
       const answerMode = normalizeAnswerMode(body.answerMode);
+      const playMode = normalizePlayMode(body.playMode);
 
       if (courseId && !canAccessCourse(viewer.courses, courseId)) {
         return NextResponse.json(
@@ -497,7 +557,8 @@ export async function POST(request) {
         courseId,
         numberMode,
         displayName,
-        answerMode
+        answerMode,
+        playMode
       );
     }
 
@@ -558,8 +619,8 @@ export async function POST(request) {
     }
 
     if (action === "join") {
-      if (session.status !== "live") {
-        return NextResponse.json({ error: "This game is not live yet." }, { status: 400 });
+      if (session.status !== "live" && session.status !== "waiting") {
+        return NextResponse.json({ error: "This game is not accepting joins right now." }, { status: 400 });
       }
 
       await ensurePlayer(
@@ -592,6 +653,7 @@ export async function POST(request) {
         displayName,
         canManage ? "teacher" : "student"
       );
+      const playMode = normalizePlayMode(session.metadata?.playMode);
       const { data: question } = await admin
         .from("double_board_questions")
         .select("*")
@@ -605,14 +667,38 @@ export async function POST(request) {
 
       if (question.solved) {
         const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        const solverName = await resolveSolverDisplayName(admin, session.id, question.solved_by_player_id);
         return NextResponse.json({
           session: bundle,
           result: {
             correct: false,
             stale: true,
-            message: "That question was already solved by someone else.",
+            message:
+              playMode === "free_for_all"
+                ? `${solverName} stole your points!`
+                : "That question was already solved by someone else.",
           },
         });
+      }
+
+      if (playMode === "one_at_a_time") {
+        const { data: allQuestions } = await admin
+          .from("double_board_questions")
+          .select("id, board_key, row_index, col_index, solved")
+          .eq("session_id", session.id);
+
+        const activeQuestionId = getActiveQuestionId(allQuestions || [], playMode, session.status);
+        if (activeQuestionId && activeQuestionId !== question.id) {
+          const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+          return NextResponse.json({
+            session: bundle,
+            result: {
+              correct: false,
+              stale: true,
+              message: "That is not the active question right now.",
+            },
+          });
+        }
       }
 
       const isCorrect = submittedAnswer === Number(question.correct_answer);
@@ -633,12 +719,21 @@ export async function POST(request) {
 
         if (!solvedQuestion || solveError) {
           const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+          const latestQuestion = solvedQuestion || question;
+          const solverName = await resolveSolverDisplayName(
+            admin,
+            session.id,
+            latestQuestion?.solved_by_player_id
+          );
           return NextResponse.json({
             session: bundle,
             result: {
               correct: false,
               stale: true,
-              message: "That question was already solved by someone else.",
+              message:
+                playMode === "free_for_all"
+                  ? `${solverName} stole your points!`
+                  : "That question was already solved by someone else.",
             },
           });
         }

@@ -36,6 +36,8 @@ function normalizeSessionPayload(session) {
     leaderboard: Array.isArray(session.leaderboard) ? session.leaderboard : [],
     reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
+    playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
+    activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
   };
 }
 
@@ -145,6 +147,10 @@ function BoardPanel({
   board,
   selectedQuestionId,
   canAnswer,
+  canManage,
+  sessionStatus,
+  playMode,
+  activeQuestionId,
   onSelect,
 }) {
   const rows = boardQuestions(board);
@@ -168,8 +174,29 @@ function BoardPanel({
               }
 
               const isSelected = selectedQuestionId === question.id;
-              const disabled = !canAnswer || question.solved;
+              const isPlayableQuestion =
+                playMode !== "one_at_a_time" || question.id === activeQuestionId;
+              const disabled =
+                !canAnswer || question.solved || (sessionStatus === "live" && !isPlayableQuestion);
               const highValue = question.attemptCount >= 2;
+              const tileLabel =
+                sessionStatus === "waiting" && !canManage
+                  ? "Waiting"
+                  : question.solved
+                    ? question.displayValue || " "
+                    : question.expressionText;
+              const ariaDescription =
+                sessionStatus === "waiting" && !canManage
+                  ? `${formatBoardLocation(
+                      question.boardKey,
+                      question.rowIndex,
+                      question.colIndex
+                    )}. Hidden until the teacher starts the game.`
+                  : `${formatBoardLocation(
+                      question.boardKey,
+                      question.rowIndex,
+                      question.colIndex
+                    )}. ${question.expressionText}`;
 
               return (
                 <button
@@ -181,15 +208,9 @@ function BoardPanel({
                   onClick={() => onSelect(question)}
                   disabled={disabled}
                   title={tileTooltip(question)}
-                  aria-label={`${formatBoardLocation(
-                    question.boardKey,
-                    question.rowIndex,
-                    question.colIndex
-                  )}. ${question.expressionText}`}
+                  aria-label={ariaDescription}
                 >
-                  <span className="doubleBoardTileValue">
-                    {question.solved ? question.displayValue || " " : question.expressionText}
-                  </span>
+                  <span className="doubleBoardTileValue">{tileLabel}</span>
                   {!question.solved && question.everMissed ? (
                     <span className="doubleBoardTileBadge">X</span>
                   ) : null}
@@ -333,6 +354,7 @@ export default function DoubleBoardClient({
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [numberMode, setNumberMode] = useState("single_digit");
   const [answerMode, setAnswerMode] = useState("typed");
+  const [playMode, setPlayMode] = useState("free_for_all");
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -360,7 +382,7 @@ export default function DoubleBoardClient({
     try {
       const params = new URLSearchParams();
       if (nextCourseId) params.set("courseId", nextCourseId);
-      if (canHost) params.set("includeWaiting", "1");
+      params.set("includeWaiting", "1");
       const response = await fetch(`/api/play/double-board?${params.toString()}`);
       const payload = await response.json();
       if (!response.ok) {
@@ -377,7 +399,7 @@ export default function DoubleBoardClient({
         setLoading(false);
       }
     }
-  }, [canHost, courseId]);
+  }, [courseId]);
 
   async function postAction(action, extra = {}) {
     setBusy(true);
@@ -390,6 +412,7 @@ export default function DoubleBoardClient({
           courseId: courseId || null,
           numberMode,
           answerMode,
+          playMode,
           sessionId: session?.id || null,
           ...extra,
         }),
@@ -402,6 +425,7 @@ export default function DoubleBoardClient({
         const normalizedSession = normalizeSessionPayload(payload.session);
         setSession(normalizedSession);
         setAnswerMode(normalizedSession?.answerMode || "typed");
+        setPlayMode(normalizedSession?.playMode || "free_for_all");
       }
       if (payload.result?.message) {
         setFlashMessage(payload.result.message);
@@ -444,6 +468,12 @@ export default function DoubleBoardClient({
       setAnswerMode(session.answerMode);
     }
   }, [session?.answerMode]);
+
+  useEffect(() => {
+    if (session?.playMode) {
+      setPlayMode(session.playMode);
+    }
+  }, [session?.playMode]);
 
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
@@ -551,6 +581,10 @@ export default function DoubleBoardClient({
               board={boards.A}
               selectedQuestionId={selectedQuestion?.id}
               canAnswer={canAnswer}
+              canManage={Boolean(session?.canManage)}
+              sessionStatus={session?.status}
+              playMode={session?.playMode || playMode}
+              activeQuestionId={session?.activeQuestionId}
               onSelect={handleSelect}
             />
 
@@ -597,6 +631,18 @@ export default function DoubleBoardClient({
                   >
                     <option value="typed">Typed answer</option>
                     <option value="multiple_choice">Multiple choice</option>
+                  </select>
+                </label>
+                <label>
+                  Play mode
+                  <select
+                    className="input"
+                    value={playMode}
+                    onChange={(event) => setPlayMode(event.target.value)}
+                    disabled={busy || session?.status === "live"}
+                  >
+                    <option value="free_for_all">Free for all</option>
+                    <option value="one_at_a_time">One at a time</option>
                   </select>
                 </label>
                 <div className="ctaRow">
@@ -656,16 +702,30 @@ export default function DoubleBoardClient({
                   </div>
                 </div>
 
-                {!session.isJoined && session.status === "live" ? (
+                {!session.isJoined && (session.status === "live" || session.status === "waiting") ? (
                   <button className="btn primary doubleBoardJoinButton" type="button" onClick={() => postAction("join")}>
-                    Join Game
+                    {session.status === "waiting" ? "Join Lobby" : "Join Game"}
                   </button>
                 ) : null}
 
                 {session.status === "waiting" && !canHost ? (
                   <div className="doubleBoardWaitingCard">
                     <h3>Waiting for the host</h3>
-                    <p>Your teacher has generated the boards. You will be able to join once the game starts.</p>
+                    <p>
+                      {session.isJoined
+                        ? "You are in the room. The questions will appear once your teacher starts the game."
+                        : "Your teacher has generated the boards. Join now, and the questions will appear once the game starts."}
+                    </p>
+                  </div>
+                ) : null}
+
+                {session?.playMode === "one_at_a_time" && session?.status === "live" ? (
+                  <div className="doubleBoardWaitingCard">
+                    <h3>One Question At A Time</h3>
+                    <p>
+                      The class is working through one shared tile at a time. When the current tile is solved,
+                      the next one unlocks automatically.
+                    </p>
                   </div>
                 ) : null}
 
@@ -704,6 +764,10 @@ export default function DoubleBoardClient({
               board={boards.B}
               selectedQuestionId={selectedQuestion?.id}
               canAnswer={canAnswer}
+              canManage={Boolean(session?.canManage)}
+              sessionStatus={session?.status}
+              playMode={session?.playMode || playMode}
+              activeQuestionId={session?.activeQuestionId}
               onSelect={handleSelect}
             />
           </div>
