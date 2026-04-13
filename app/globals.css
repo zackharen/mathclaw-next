@@ -3442,6 +3442,7 @@ details[open] > summary.btn,
   position: absolute;
   inset: 0;
   image-rendering: pixelated;
+  background-repeat: no-repeat;
   filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.12));
 }
 
