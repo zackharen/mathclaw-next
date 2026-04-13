@@ -3013,6 +3013,15 @@ details[open] > summary.btn,
   display: block;
 }
 
+.doubleBoardErrorCard {
+  background: #fff7f2;
+  border-color: #c85a1c;
+}
+
+.doubleBoardErrorCard h2 {
+  margin-bottom: 0.5rem;
+}
+
 .doubleBoardModalBackdrop {
   position: fixed;
   inset: 0;

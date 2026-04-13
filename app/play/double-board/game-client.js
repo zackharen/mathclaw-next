@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import {
   DOUBLE_BOARD_NUMBER_MODES,
   formatBoardLocation,
@@ -35,6 +35,37 @@ function normalizeSessionPayload(session) {
     reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
   };
+}
+
+class DoubleBoardErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Double Board render error", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <section className="card doubleBoardErrorCard">
+          <h2>Double Board Hit A Page Error</h2>
+          <p>
+            The game data loaded, but part of the page crashed while rendering. Refresh once more,
+            and if it happens again I need the browser console message to pinpoint the exact line.
+          </p>
+        </section>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 function statusTone(status) {
@@ -456,9 +487,10 @@ export default function DoubleBoardClient({
   }
 
   return (
-    <div className="stack">
-      <section className="card doubleBoardShell">
-        <div className="doubleBoardTopRow">
+    <DoubleBoardErrorBoundary>
+      <div className="stack">
+        <section className="card doubleBoardShell">
+          <div className="doubleBoardTopRow">
           <div>
             <p className="doubleBoardEyebrow">Live classroom review game</p>
             <h2>Double Board Arena</h2>
@@ -509,32 +541,32 @@ export default function DoubleBoardClient({
           </div>
         </div>
 
-        {flashMessage ? <div className="doubleBoardFlash">{flashMessage}</div> : null}
+          {flashMessage ? <div className="doubleBoardFlash">{flashMessage}</div> : null}
 
-        <div className="doubleBoardArena">
-          <BoardPanel
-            boardKey="A"
-            board={boards.A}
-            selectedQuestionId={selectedQuestion?.id}
-            canAnswer={canAnswer}
-            onSelect={handleSelect}
-          />
+          <div className="doubleBoardArena">
+            <BoardPanel
+              boardKey="A"
+              board={boards.A}
+              selectedQuestionId={selectedQuestion?.id}
+              canAnswer={canAnswer}
+              onSelect={handleSelect}
+            />
 
-          <section className={`card doubleBoardCenterCard tone-${liveTone}`}>
-            <div className="doubleBoardStatusBanner">
-              <strong>
-                {session?.status === "live"
-                  ? "Live Game"
-                  : session?.status === "ended"
-                    ? "Game Ended"
-                    : "Waiting"}
-              </strong>
-              <span>
-                {session
-                  ? `${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
-                  : "No active session"}
-              </span>
-            </div>
+            <section className={`card doubleBoardCenterCard tone-${liveTone}`}>
+              <div className="doubleBoardStatusBanner">
+                <strong>
+                  {session?.status === "live"
+                    ? "Live Game"
+                    : session?.status === "ended"
+                      ? "Game Ended"
+                      : "Waiting"}
+                </strong>
+                <span>
+                  {session
+                    ? `${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+                    : "No active session"}
+                </span>
+              </div>
 
             {canHost ? (
               <div className="doubleBoardHostControls">
@@ -663,32 +695,33 @@ export default function DoubleBoardClient({
                 </details>
               </>
             ) : null}
-          </section>
+            </section>
 
-          <BoardPanel
-            boardKey="B"
-            board={boards.B}
-            selectedQuestionId={selectedQuestion?.id}
-            canAnswer={canAnswer}
-            onSelect={handleSelect}
-          />
-        </div>
-      </section>
+            <BoardPanel
+              boardKey="B"
+              board={boards.B}
+              selectedQuestionId={selectedQuestion?.id}
+              canAnswer={canAnswer}
+              onSelect={handleSelect}
+            />
+          </div>
+        </section>
 
-      {reviewOpen && session?.status === "ended" ? (
-        <ReviewPanel reviewItems={session.reviewItems || []} />
-      ) : null}
+        {reviewOpen && session?.status === "ended" ? (
+          <ReviewPanel reviewItems={session.reviewItems || []} />
+        ) : null}
 
-      <AnswerModal
-        open={Boolean(selectedQuestion)}
-        question={selectedQuestion}
-        answerMode={session?.answerMode || answerMode}
-        answerValue={answerValue}
-        onAnswerChange={setAnswerValue}
-        onCancel={() => setSelectedQuestion(null)}
-        onSubmit={handleSubmitAnswer}
-        busy={busy}
-      />
-    </div>
+        <AnswerModal
+          open={Boolean(selectedQuestion)}
+          question={selectedQuestion}
+          answerMode={session?.answerMode || answerMode}
+          answerValue={answerValue}
+          onAnswerChange={setAnswerValue}
+          onCancel={() => setSelectedQuestion(null)}
+          onSubmit={handleSubmitAnswer}
+          busy={busy}
+        />
+      </div>
+    </DoubleBoardErrorBoundary>
   );
 }
