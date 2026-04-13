@@ -3299,6 +3299,7 @@ details[open] > summary.btn,
 
 .showdownViewport {
   position: relative;
+  isolation: isolate;
   margin-top: 1rem;
   min-height: 37rem;
   overflow: hidden;
@@ -3480,11 +3481,14 @@ details[open] > summary.btn,
   place-items: center;
   padding: 1rem;
   background: rgba(8, 24, 40, 0.48);
-  z-index: 3;
+  z-index: 12;
 }
 
 .showdownModalCard {
+  position: relative;
+  z-index: 13;
   width: min(27rem, 100%);
+  max-height: calc(100% - 1rem);
   display: grid;
   gap: 0.8rem;
   padding: 1rem 1.1rem;
@@ -3493,6 +3497,7 @@ details[open] > summary.btn,
   background: linear-gradient(180deg, #ffffff 0%, #eef5f9 100%);
   box-shadow: 0 10px 0 rgba(0, 0, 0, 0.16);
   text-align: center;
+  overflow: auto;
 }
 
 .showdownModalCard.tutorial {
