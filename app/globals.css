@@ -2689,6 +2689,416 @@ details[open] > summary.btn,
   }
 }
 
+.doubleBoardShell {
+  background:
+    radial-gradient(circle at top, rgba(255, 236, 179, 0.45), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+}
+
+.doubleBoardTopRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.doubleBoardEyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #55779f;
+  font-weight: 700;
+}
+
+.doubleBoardIntro {
+  margin-bottom: 0;
+}
+
+.doubleBoardFlash {
+  margin-top: 1rem;
+  border: 2px solid #0b3d69;
+  border-radius: 18px;
+  padding: 0.85rem 1rem;
+  background: #f4f9ff;
+  font-weight: 700;
+}
+
+.doubleBoardArena {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+.doubleBoardPanel {
+  min-height: 100%;
+}
+
+.doubleBoardPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.doubleBoardPanelHeader p,
+.doubleBoardPanelHeader h2 {
+  margin: 0;
+}
+
+.doubleBoardLegendStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.doubleBoardLegendPill {
+  border: 2px solid rgba(11, 61, 105, 0.18);
+  border-radius: 16px;
+  padding: 0.6rem;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.doubleBoardLegendPill strong,
+.doubleBoardLegendPill span {
+  display: block;
+}
+
+.doubleBoardLegendPill span {
+  font-size: 0.9rem;
+}
+
+.doubleBoardGrid {
+  display: grid;
+  grid-template-columns: minmax(4.75rem, 6rem) repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.doubleBoardGridRow {
+  display: contents;
+}
+
+.doubleBoardGridCorner,
+.doubleBoardAxisCell,
+.doubleBoardTile {
+  min-height: 5.75rem;
+}
+
+.doubleBoardGridCorner {
+  border-radius: 18px;
+  background: rgba(11, 61, 105, 0.06);
+}
+
+.doubleBoardAxisCell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  border: 2px dashed rgba(11, 61, 105, 0.25);
+  border-radius: 18px;
+  padding: 0.55rem;
+  background: rgba(255, 255, 255, 0.72);
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.doubleBoardAxisCell.column {
+  font-weight: 800;
+}
+
+.doubleBoardTile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  border: 3px solid #0b3d69;
+  border-radius: 20px;
+  padding: 0.7rem;
+  background: #ffffff;
+  color: #0b3d69;
+  text-align: center;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+
+.doubleBoardTile:hover:not(:disabled),
+.doubleBoardTile:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(11, 61, 105, 0.16);
+}
+
+.doubleBoardTile:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.doubleBoardTileValue {
+  font-size: 1.65rem;
+  font-weight: 900;
+  min-height: 2rem;
+}
+
+.doubleBoardTileMeta {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.doubleBoardTile.state-unanswered {
+  background: linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
+}
+
+.doubleBoardTile.state-missed {
+  background: linear-gradient(180deg, #fff5f5 0%, #ffe0e0 100%);
+  border-color: #be2d2d;
+  color: #8f2121;
+}
+
+.doubleBoardTile.state-solved,
+.doubleBoardTile.state-solved-after-miss {
+  background: linear-gradient(180deg, #effaf0 0%, #cfe9d1 100%);
+  border-color: #2c7a3d;
+  color: #134b24;
+}
+
+.doubleBoardTile.state-solved-after-miss {
+  background: linear-gradient(180deg, #f6fbef 0%, #d8eac5 100%);
+}
+
+.doubleBoardTile.selected {
+  outline: 4px solid rgba(243, 177, 44, 0.55);
+  outline-offset: 2px;
+}
+
+.doubleBoardTile.highValue {
+  box-shadow: inset 0 0 0 2px rgba(243, 177, 44, 0.7);
+}
+
+.doubleBoardTile.empty {
+  visibility: hidden;
+}
+
+.doubleBoardCenterCard {
+  position: sticky;
+  top: 1rem;
+}
+
+.doubleBoardStatusBanner {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem 0.9rem;
+  border-radius: 18px;
+  margin-bottom: 1rem;
+  background: #edf4ff;
+  border: 2px solid rgba(11, 61, 105, 0.14);
+}
+
+.doubleBoardCenterCard.tone-live .doubleBoardStatusBanner {
+  background: #ecfff0;
+}
+
+.doubleBoardCenterCard.tone-ended .doubleBoardStatusBanner {
+  background: #fff5eb;
+}
+
+.doubleBoardHostControls {
+  margin-bottom: 1rem;
+}
+
+.doubleBoardHostControls label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.doubleBoardScoreStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.doubleBoardStatCard {
+  border: 2px solid rgba(11, 61, 105, 0.12);
+  border-radius: 18px;
+  padding: 0.8rem;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.doubleBoardStatCard span,
+.doubleBoardStatCard strong {
+  display: block;
+}
+
+.doubleBoardStatCard strong {
+  font-size: 1.4rem;
+}
+
+.doubleBoardJoinButton {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.doubleBoardWaitingCard,
+.doubleBoardEmptyState {
+  border: 2px dashed rgba(11, 61, 105, 0.24);
+  border-radius: 20px;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.78);
+  margin-bottom: 1rem;
+}
+
+.doubleBoardWaitingCard h3,
+.doubleBoardEmptyState h3 {
+  margin-top: 0;
+}
+
+.doubleBoardLeaderboardWrap h3 {
+  margin-bottom: 0.6rem;
+}
+
+.doubleBoardLeaderboard {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.doubleBoardLeaderboardRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  border: 2px solid rgba(11, 61, 105, 0.12);
+  border-radius: 16px;
+  padding: 0.65rem 0.8rem;
+  background: #ffffff;
+}
+
+.doubleBoardLeaderboardRow.you {
+  background: #edf4ff;
+  border-color: rgba(11, 61, 105, 0.3);
+}
+
+.doubleBoardEmptyNote {
+  margin: 0;
+  color: #55779f;
+}
+
+.doubleBoardPatternHelp {
+  margin-top: 1rem;
+}
+
+.doubleBoardPatternHelp summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.doubleBoardPatternHelpGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+.doubleBoardPatternHelpGrid h4 {
+  margin-bottom: 0.4rem;
+}
+
+.doubleBoardReviewCard h2 {
+  margin-bottom: 0.4rem;
+}
+
+.doubleBoardReviewList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.doubleBoardReviewItem {
+  border: 2px solid rgba(11, 61, 105, 0.14);
+  border-radius: 18px;
+  padding: 0.95rem;
+  background: #ffffff;
+}
+
+.doubleBoardReviewItem strong,
+.doubleBoardReviewItem span {
+  display: block;
+}
+
+.doubleBoardModalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 29, 52, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 80;
+}
+
+.doubleBoardModal {
+  width: min(100%, 32rem);
+  border: 3px solid #0b3d69;
+  border-radius: 24px;
+  padding: 1.2rem;
+  background: #ffffff;
+  box-shadow: 0 28px 50px rgba(11, 29, 52, 0.22);
+}
+
+.doubleBoardModal h3 {
+  margin-top: 0;
+}
+
+.doubleBoardAnswerForm {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+  .doubleBoardArena {
+    grid-template-columns: 1fr;
+  }
+
+  .doubleBoardCenterCard {
+    order: -1;
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .doubleBoardLegendStrip,
+  .doubleBoardScoreStats,
+  .doubleBoardPatternHelpGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .doubleBoardGrid {
+    grid-template-columns: minmax(3.25rem, 4rem) repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .doubleBoardGridCorner,
+  .doubleBoardAxisCell,
+  .doubleBoardTile {
+    min-height: 4.75rem;
+  }
+
+  .doubleBoardTile {
+    padding: 0.5rem;
+  }
+
+  .doubleBoardTileValue {
+    font-size: 1.3rem;
+  }
+}
+
 .dataWallGrid {
   display: grid;
   gap: 1rem;
