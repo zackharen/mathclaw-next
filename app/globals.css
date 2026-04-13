@@ -2744,39 +2744,15 @@ details[open] > summary.btn,
   align-items: flex-start;
 }
 
-.doubleBoardPanelHeader p,
 .doubleBoardPanelHeader h2 {
   margin: 0;
-}
-
-.doubleBoardLegendStrip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin-top: 0.9rem;
-}
-
-.doubleBoardLegendPill {
-  border: 2px solid rgba(11, 61, 105, 0.18);
-  border-radius: 16px;
-  padding: 0.6rem;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.doubleBoardLegendPill strong,
-.doubleBoardLegendPill span {
-  display: block;
-}
-
-.doubleBoardLegendPill span {
-  font-size: 0.9rem;
 }
 
 .doubleBoardGrid {
   display: grid;
   grid-template-columns: minmax(4.75rem, 6rem) repeat(3, minmax(0, 1fr));
   gap: 0.55rem;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 
 .doubleBoardGridRow {
@@ -2812,6 +2788,7 @@ details[open] > summary.btn,
 }
 
 .doubleBoardTile {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2840,14 +2817,25 @@ details[open] > summary.btn,
 }
 
 .doubleBoardTileValue {
-  font-size: 1.65rem;
-  font-weight: 900;
-  min-height: 2rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.25;
+  min-height: 2.8rem;
+  white-space: normal;
 }
 
 .doubleBoardTileMeta {
   font-size: 0.82rem;
   line-height: 1.2;
+}
+
+.doubleBoardTileBadge {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.5rem;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #be2d2d;
 }
 
 .doubleBoardTile.state-unanswered {
@@ -3061,6 +3049,15 @@ details[open] > summary.btn,
   gap: 0.85rem;
 }
 
+.doubleBoardChoiceGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.doubleBoardChoiceGrid .btn {
+  width: 100%;
+}
+
 @media (max-width: 1100px) {
   .doubleBoardArena {
     grid-template-columns: 1fr;
@@ -3073,7 +3070,6 @@ details[open] > summary.btn,
 }
 
 @media (max-width: 720px) {
-  .doubleBoardLegendStrip,
   .doubleBoardScoreStats,
   .doubleBoardPatternHelpGrid {
     grid-template-columns: 1fr;
@@ -3095,7 +3091,8 @@ details[open] > summary.btn,
   }
 
   .doubleBoardTileValue {
-    font-size: 1.3rem;
+    font-size: 0.92rem;
+    min-height: 2.3rem;
   }
 }
 

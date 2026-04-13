@@ -37,6 +37,33 @@ function tileTooltip(question) {
   return parts.join(" ");
 }
 
+function buildMultipleChoiceOptions(question) {
+  if (!question) return [];
+
+  const absOne = Math.abs(Number(question.operand1 || 0));
+  const absTwo = Math.abs(Number(question.operand2 || 0));
+  const absoluteSum = absOne + absTwo;
+  const absoluteDifference = Math.abs(absOne - absTwo);
+  const ordered = [absoluteSum, -absoluteSum, absoluteDifference, -absoluteDifference];
+  const values = [];
+
+  for (const value of ordered) {
+    if (!values.includes(value)) {
+      values.push(value);
+    }
+  }
+
+  // Keep four choices even when the absolute difference is 0.
+  while (values.length < 4) {
+    const fallback = values.length % 2 === 0 ? absoluteSum + values.length : -(absoluteSum + values.length);
+    if (!values.includes(fallback)) {
+      values.push(fallback);
+    }
+  }
+
+  return values.slice(0, 4);
+}
+
 function Leaderboard({ leaderboard, viewerId }) {
   if (!leaderboard.length) {
     return <p className="doubleBoardEmptyNote">No players have joined this game yet.</p>;
@@ -72,18 +99,7 @@ function BoardPanel({
   return (
     <section className="card doubleBoardPanel">
       <div className="doubleBoardPanelHeader">
-        <div>
-          <h2>Board {boardKey}</h2>
-          <p>4 rows by 3 columns. Addition first, then the two subtraction comparison columns.</p>
-        </div>
-      </div>
-      <div className="doubleBoardLegendStrip">
-        {DOUBLE_BOARD_COLUMN_PATTERNS.map((column) => (
-          <div key={column.colIndex} className="doubleBoardLegendPill">
-            <strong>Col {column.colIndex + 1}</strong>
-            <span>{column.label}</span>
-          </div>
-        ))}
+        <h2>Board {boardKey}</h2>
       </div>
       <div className="doubleBoardGrid">
         <div className="doubleBoardGridCorner" />
@@ -123,7 +139,12 @@ function BoardPanel({
                     question.colIndex
                   )}. ${question.expressionText}`}
                 >
-                  <span className="doubleBoardTileValue">{question.displayValue || " "}</span>
+                  <span className="doubleBoardTileValue">
+                    {question.solved ? question.displayValue || " " : question.expressionText}
+                  </span>
+                  {!question.solved && question.everMissed ? (
+                    <span className="doubleBoardTileBadge">X</span>
+                  ) : null}
                   <span className="doubleBoardTileMeta">
                     {question.solved
                       ? "Solved"
@@ -147,6 +168,7 @@ function BoardPanel({
 function AnswerModal({
   open,
   question,
+  answerMode,
   answerValue,
   onAnswerChange,
   onCancel,
@@ -154,6 +176,10 @@ function AnswerModal({
   busy,
 }) {
   if (!open || !question) return null;
+
+  const multipleChoiceOptions = answerMode === "multiple_choice"
+    ? buildMultipleChoiceOptions(question)
+    : [];
 
   return (
     <div className="doubleBoardModalBackdrop" role="presentation" onClick={onCancel}>
@@ -168,33 +194,58 @@ function AnswerModal({
           {formatBoardLocation(question.boardKey, question.rowIndex, question.colIndex)}
         </p>
         <h3 id="double-board-answer-title">{question.expressionText}</h3>
-        <p>Enter one whole-number answer. Wrong answers do not reveal the solution.</p>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit();
-          }}
-          className="doubleBoardAnswerForm"
-        >
-          <input
-            className="input"
-            inputMode="numeric"
-            pattern="-?[0-9]*"
-            autoFocus
-            value={answerValue}
-            onChange={(event) => onAnswerChange(event.target.value)}
-            placeholder="Type an integer"
-            aria-label="Answer"
-          />
-          <div className="ctaRow">
-            <button className="btn primary" type="submit" disabled={busy || !String(answerValue).trim()}>
-              Submit Answer
-            </button>
-            <button className="btn" type="button" onClick={onCancel} disabled={busy}>
-              Back to board
-            </button>
+        <p>
+          {answerMode === "multiple_choice"
+            ? "Pick one of the four answer choices."
+            : "Enter one whole-number answer. Wrong answers do not reveal the solution."}
+        </p>
+        {answerMode === "multiple_choice" ? (
+          <div className="doubleBoardChoiceGrid">
+            {multipleChoiceOptions.map((choice) => (
+              <button
+                key={`${question.id}-${choice}`}
+                className="btn"
+                type="button"
+                disabled={busy}
+                onClick={() => onSubmit(String(choice))}
+              >
+                {choice}
+              </button>
+            ))}
+            <div className="ctaRow">
+              <button className="btn" type="button" onClick={onCancel} disabled={busy}>
+                Back to board
+              </button>
+            </div>
           </div>
-        </form>
+        ) : (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmit(answerValue);
+            }}
+            className="doubleBoardAnswerForm"
+          >
+            <input
+              className="input"
+              inputMode="numeric"
+              pattern="-?[0-9]*"
+              autoFocus
+              value={answerValue}
+              onChange={(event) => onAnswerChange(event.target.value)}
+              placeholder="Type an integer"
+              aria-label="Answer"
+            />
+            <div className="ctaRow">
+              <button className="btn primary" type="submit" disabled={busy || !String(answerValue).trim()}>
+                Submit Answer
+              </button>
+              <button className="btn" type="button" onClick={onCancel} disabled={busy}>
+                Back to board
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
@@ -239,6 +290,7 @@ export default function DoubleBoardClient({
   const canHost = viewerAccountType !== "student";
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [numberMode, setNumberMode] = useState("single_digit");
+  const [answerMode, setAnswerMode] = useState("typed");
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -260,7 +312,9 @@ export default function DoubleBoardClient({
   }, [canHost, courses]);
 
   const loadSession = useCallback(async (nextCourseId = courseId, options = {}) => {
-    setLoading(true);
+    if (!options.quiet) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (nextCourseId) params.set("courseId", nextCourseId);
@@ -277,7 +331,9 @@ export default function DoubleBoardClient({
     } catch (error) {
       setFlashMessage(error.message || "Could not load Double Board.");
     } finally {
-      setLoading(false);
+      if (!options.quiet) {
+        setLoading(false);
+      }
     }
   }, [canHost, courseId]);
 
@@ -291,6 +347,7 @@ export default function DoubleBoardClient({
           action,
           courseId: courseId || null,
           numberMode,
+          answerMode,
           sessionId: session?.id || null,
           ...extra,
         }),
@@ -301,6 +358,7 @@ export default function DoubleBoardClient({
       }
       if (payload.session) {
         setSession(payload.session);
+        setAnswerMode(payload.session.answerMode || "typed");
       }
       if (payload.result?.message) {
         setFlashMessage(payload.result.message);
@@ -338,6 +396,12 @@ export default function DoubleBoardClient({
     }
   }, [session?.status]);
 
+  useEffect(() => {
+    if (session?.answerMode) {
+      setAnswerMode(session.answerMode);
+    }
+  }, [session?.answerMode]);
+
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
   const canAnswer = Boolean(session?.status === "live" && session?.isJoined);
@@ -357,11 +421,11 @@ export default function DoubleBoardClient({
     setAnswerValue("");
   }
 
-  async function handleSubmitAnswer() {
+  async function handleSubmitAnswer(nextAnswer = answerValue) {
     if (!selectedQuestion) return;
     const payload = await postAction("answer", {
       questionId: selectedQuestion.id,
-      answer: answerValue,
+      answer: nextAnswer,
     });
     if (payload) {
       setSelectedQuestion(null);
@@ -479,6 +543,18 @@ export default function DoubleBoardClient({
                     ))}
                   </select>
                 </label>
+                <label>
+                  Answer mode
+                  <select
+                    className="input"
+                    value={answerMode}
+                    onChange={(event) => setAnswerMode(event.target.value)}
+                    disabled={busy || session?.status === "live"}
+                  >
+                    <option value="typed">Typed answer</option>
+                    <option value="multiple_choice">Multiple choice</option>
+                  </select>
+                </label>
                 <div className="ctaRow">
                   <button
                     className="btn primary"
@@ -555,7 +631,7 @@ export default function DoubleBoardClient({
                 </div>
 
                 <details className="doubleBoardPatternHelp">
-                  <summary>Board pattern help</summary>
+                  <summary>Quick pattern help</summary>
                   <div className="doubleBoardPatternHelpGrid">
                     <div>
                       <h4>Rows</h4>
@@ -596,6 +672,7 @@ export default function DoubleBoardClient({
       <AnswerModal
         open={Boolean(selectedQuestion)}
         question={selectedQuestion}
+        answerMode={session?.answerMode || answerMode}
         answerValue={answerValue}
         onAnswerChange={setAnswerValue}
         onCancel={() => setSelectedQuestion(null)}

@@ -33,6 +33,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizeAnswerMode(value) {
+  return value === "multiple_choice" ? "multiple_choice" : "typed";
+}
+
 function isTeacherRelationship(relationship) {
   return relationship === "owner" || relationship === "co_teacher";
 }
@@ -178,6 +182,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     endedAt: session.ended_at,
     updatedAt: session.updated_at,
     resultsRecordedAt: session.results_recorded_at,
+    answerMode: normalizeAnswerMode(session.metadata?.answerMode),
+    multipleChoiceEnabled: normalizeAnswerMode(session.metadata?.answerMode) === "multiple_choice",
     canManage,
     isJoined: Boolean(viewerPlayer),
     viewerPlayerId: viewerPlayer?.id || null,
@@ -334,7 +340,15 @@ async function recordSessionResultsIfNeeded(admin, sessionId) {
   if (updateError) throw new Error(updateError.message);
 }
 
-async function createFreshSession(admin, viewer, user, courseId, numberMode, displayName) {
+async function createFreshSession(
+  admin,
+  viewer,
+  user,
+  courseId,
+  numberMode,
+  displayName,
+  answerMode
+) {
   if (!canManageCourse(viewer.courses, courseId, viewer.accountType)) {
     return NextResponse.json(
       { error: "Only a teacher can host Double Board for that class." },
@@ -360,6 +374,7 @@ async function createFreshSession(admin, viewer, user, courseId, numberMode, dis
       total_solved_count: 0,
       metadata: {
         mockMode: !courseId,
+        answerMode,
       },
       updated_at: nowIso(),
     })
@@ -451,6 +466,7 @@ export async function POST(request) {
     if (action === "create" || action === "reset") {
       const courseId = normalizeId(body.courseId);
       const numberMode = normalizeDoubleBoardMode(body.numberMode);
+      const answerMode = normalizeAnswerMode(body.answerMode);
 
       if (courseId && !canAccessCourse(viewer.courses, courseId)) {
         return NextResponse.json(
@@ -474,7 +490,15 @@ export async function POST(request) {
         await staleSessionUpdate.eq("host_teacher_id", user.id).is("course_id", null);
       }
 
-      return createFreshSession(admin, viewer, user, courseId, numberMode, displayName);
+      return createFreshSession(
+        admin,
+        viewer,
+        user,
+        courseId,
+        numberMode,
+        displayName,
+        answerMode
+      );
     }
 
     const sessionId = normalizeId(body.sessionId);
