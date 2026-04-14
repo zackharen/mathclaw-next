@@ -133,7 +133,7 @@ function serializeQuestion(row, canManage, sessionStatus) {
     operand1: row.operand1,
     operator: row.operator,
     operand2: row.operand2,
-    expressionText: revealExpression ? expressionText : "Hidden until start",
+    expressionText: revealExpression ? expressionText : "Hidden",
     correctAnswer: revealAnswer ? row.correct_answer : null,
     solved,
     everMissed,
