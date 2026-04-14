@@ -54,6 +54,32 @@ function parseIntegerInput(value) {
   return Number(trimmed);
 }
 
+function buildPinnedPoints(round, pinned) {
+  if (!round || !pinned) return [];
+
+  const points = [];
+
+  if (pinned.intercept) {
+    points.push({
+      id: "y-intercept-point",
+      latex: `(0,${round.intercept})`,
+      label: "y-intercept",
+    });
+  }
+
+  if (pinned.helper) {
+    const helperX = round.slope === 0 ? 2 : 1;
+    const helperY = round.slope * helperX + round.intercept;
+    points.push({
+      id: "helper-point",
+      latex: `(${helperX},${helperY})`,
+      label: "pinned point",
+    });
+  }
+
+  return points;
+}
+
 function loadDesmosApi() {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Desmos only loads in the browser."));
@@ -87,7 +113,7 @@ function loadDesmosApi() {
   return window.__mathclawDesmosPromise;
 }
 
-function updateGraph(calculator, round) {
+function updateGraph(calculator, round, pinned) {
   if (!calculator || !round) return;
 
   calculator.setBlank();
@@ -97,6 +123,17 @@ function updateGraph(calculator, round) {
     latex: `y=${round.slope}x${round.intercept < 0 ? round.intercept : `+${round.intercept}`}`,
     color: "#00325a",
   });
+
+  for (const point of buildPinnedPoints(round, pinned)) {
+    calculator.setExpression({
+      id: point.id,
+      latex: point.latex,
+      color: "#cd3b3b",
+      showLabel: true,
+      label: point.label,
+      pointSize: 12,
+    });
+  }
 }
 
 export default function SlopeInterceptClient({
@@ -120,6 +157,7 @@ export default function SlopeInterceptClient({
   const [graphError, setGraphError] = useState("");
   const [scientificReady, setScientificReady] = useState(false);
   const [scientificFallback, setScientificFallback] = useState(false);
+  const [pinnedPoints, setPinnedPoints] = useState({ intercept: false, helper: false });
   const [lastRoundSummary, setLastRoundSummary] = useState(null);
   const [runComplete, setRunComplete] = useState(false);
   const graphHostRef = useRef(null);
@@ -279,8 +317,8 @@ export default function SlopeInterceptClient({
 
   useEffect(() => {
     if (!graphReady || !calculatorRef.current) return;
-    updateGraph(calculatorRef.current, round);
-  }, [graphReady, round]);
+    updateGraph(calculatorRef.current, round, pinnedPoints);
+  }, [graphReady, pinnedPoints, round]);
 
   useEffect(() => {
     sessionRef.current = {
@@ -336,6 +374,7 @@ export default function SlopeInterceptClient({
     setFeedback("");
     setSlopeAnswer("");
     setInterceptAnswer("");
+    setPinnedPoints({ intercept: false, helper: false });
     setLastRoundSummary(null);
     setRunComplete(false);
     setRound((current) => buildRound(current.key));
@@ -366,6 +405,7 @@ export default function SlopeInterceptClient({
     setFeedback("");
     setSlopeAnswer("");
     setInterceptAnswer("");
+    setPinnedPoints({ intercept: false, helper: false });
     setLastRoundSummary(null);
     setRunComplete(false);
     setRound((current) => buildRound(current.key));
@@ -434,6 +474,7 @@ export default function SlopeInterceptClient({
     setRoundIndex((current) => current + 1);
     setSlopeAnswer("");
     setInterceptAnswer("");
+    setPinnedPoints({ intercept: false, helper: false });
     setRound((current) => buildRound(current.key));
   }
 
@@ -475,13 +516,38 @@ export default function SlopeInterceptClient({
         </div>
 
         <div className="slopeInterceptGraphShell">
-          <div className="slopeInterceptGraphFrame">
-            <div ref={graphHostRef} className="slopeInterceptGraph" />
-            {graphStatusMessage ? (
-              <div className="slopeInterceptGraphOverlay">
-                <p>{graphStatusMessage}</p>
-              </div>
-            ) : null}
+          <div>
+            <div className="slopeInterceptGraphTools">
+              <button
+                className={`btn ${pinnedPoints.intercept ? "primary" : ""}`}
+                type="button"
+                onClick={() =>
+                  setPinnedPoints((current) => ({ ...current, intercept: !current.intercept }))
+                }
+                disabled={!graphReady}
+              >
+                {pinnedPoints.intercept ? "Unpin Y-Intercept" : "Pin Y-Intercept"}
+              </button>
+              <button
+                className={`btn ${pinnedPoints.helper ? "primary" : ""}`}
+                type="button"
+                onClick={() =>
+                  setPinnedPoints((current) => ({ ...current, helper: !current.helper }))
+                }
+                disabled={!graphReady}
+              >
+                {pinnedPoints.helper ? "Unpin Extra Point" : "Pin Extra Point"}
+              </button>
+            </div>
+
+            <div className="slopeInterceptGraphFrame">
+              <div ref={graphHostRef} className="slopeInterceptGraph" />
+              {graphStatusMessage ? (
+                <div className="slopeInterceptGraphOverlay">
+                  <p>{graphStatusMessage}</p>
+                </div>
+              ) : null}
+            </div>
           </div>
           <aside className="slopeInterceptPromptCard">
             <p className="slopeInterceptEyebrow">Round {Math.min(roundIndex, TOTAL_ROUNDS)}</p>

@@ -2405,6 +2405,13 @@ details[open] > summary.btn,
   align-items: stretch;
 }
 
+.slopeInterceptGraphTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.6rem;
+}
+
 .slopeInterceptGraphFrame {
   position: relative;
   min-height: 31rem;
