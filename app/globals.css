@@ -2801,10 +2801,17 @@ details[open] > summary.btn,
   white-space: nowrap;
 }
 
+.doubleBoardTileSolution {
+  font-size: 0.82rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: inherit;
+}
+
 .doubleBoardTileMeta {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 44%;
   transform: translate(-50%, -50%);
   font-size: 1.5rem;
   line-height: 1;
@@ -2830,7 +2837,7 @@ details[open] > summary.btn,
 .doubleBoardTileBadge {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 44%;
   transform: translate(-50%, -50%);
   font-size: 1.6rem;
   font-weight: 900;
@@ -2957,6 +2964,8 @@ details[open] > summary.btn,
 }
 
 .doubleBoardLeaderboardRow {
+  width: 100%;
+  appearance: none;
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
@@ -2965,11 +2974,19 @@ details[open] > summary.btn,
   border-radius: 16px;
   padding: 0.65rem 0.8rem;
   background: #ffffff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .doubleBoardLeaderboardRow.you {
   background: #edf4ff;
   border-color: rgba(11, 61, 105, 0.3);
+}
+
+.doubleBoardLeaderboardRow.selected {
+  border-color: rgba(243, 177, 44, 0.85);
+  box-shadow: 0 0 0 3px rgba(243, 177, 44, 0.2);
 }
 
 .doubleBoardEmptyNote {

@@ -120,7 +120,7 @@ function serializeQuestion(row, canManage, sessionStatus) {
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
   const revealAnswer = solved || sessionStatus === "ended" || canManage;
-  const revealExpression = canManage || sessionStatus !== "waiting";
+  const revealExpression = sessionStatus !== "waiting";
   const expressionText =
     row.expression_text ||
     formatDoubleBoardExpression(row.operand1, row.operator, row.operand2);
@@ -141,7 +141,7 @@ function serializeQuestion(row, canManage, sessionStatus) {
     retryValue: 2 ** attemptCount,
     isHidden: !revealExpression,
     state: solved ? (everMissed ? "solved-after-miss" : "solved") : everMissed ? "missed" : "unanswered",
-    displayValue: solved ? String(row.correct_answer) : everMissed ? "X" : " ",
+    displayValue: solved ? `${expressionText} = ${row.correct_answer}` : everMissed ? "X" : " ",
   };
 }
 
@@ -172,7 +172,7 @@ function getActiveTurnPlayer(players, session) {
 }
 
 async function loadSessionBundle(admin, sessionId, viewer) {
-  const [{ data: session }, { data: players }, { data: questions }] = await Promise.all([
+  const [{ data: session }, { data: players }, { data: questions }, { data: attempts }] = await Promise.all([
     admin.from("double_board_sessions").select("*").eq("id", sessionId).maybeSingle(),
     admin
       .from("double_board_players")
@@ -182,6 +182,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       .from("double_board_questions")
       .select("*")
       .eq("session_id", sessionId),
+    admin
+      .from("double_board_attempts")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!session) return null;
@@ -202,16 +207,58 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     }))
   );
   const solvedCount = serializedQuestions.filter((question) => question.solved).length;
-  const leaderboard = sortPlayers(players).map((player, index) => ({
-    id: player.id,
-    userId: player.user_id,
-    displayName: player.display_name,
-    role: player.role,
-    score: Number(player.score || 0),
-    joinedAt: player.joined_at,
-    rank: index + 1,
-  }));
-  const viewerPlayer = leaderboard.find((player) => player.userId === viewer.user.id) || null;
+  const allPlayers = sortPlayers(players);
+  const playerMap = new Map((players || []).map((player) => [player.user_id, player]));
+  const questionMap = new Map((questions || []).map((question) => [question.id, question]));
+  const visibleLeaderboard = allPlayers
+    .filter((player) => player.role === "student")
+    .map((player, index) => ({
+      id: player.id,
+      userId: player.user_id,
+      displayName: player.display_name,
+      role: player.role,
+      score: Number(player.score || 0),
+      joinedAt: player.joined_at,
+      rank: index + 1,
+    }));
+  const leaderboard = visibleLeaderboard;
+  const viewerPlayer = allPlayers.find((player) => player.user_id === viewer.user.id) || null;
+  const answerHistoryByUser = {};
+
+  for (const attempt of attempts || []) {
+    const playerRecord = playerMap.get(attempt.player_id);
+    const questionRecord = questionMap.get(attempt.question_id);
+    if (!playerRecord || !questionRecord) continue;
+
+    if (!viewerCanManageSession(session, viewer.courses, viewer.user, viewer.accountType) && attempt.player_id !== viewer.user.id) {
+      continue;
+    }
+
+    if (!answerHistoryByUser[attempt.player_id]) {
+      answerHistoryByUser[attempt.player_id] = [];
+    }
+
+    answerHistoryByUser[attempt.player_id].push({
+      id: attempt.id,
+      questionId: attempt.question_id,
+      playerId: attempt.player_id,
+      playerDisplayName: playerRecord.display_name,
+      expressionText:
+        questionRecord.expression_text ||
+        formatDoubleBoardExpression(
+          questionRecord.operand1,
+          questionRecord.operator,
+          questionRecord.operand2
+        ),
+      submittedAnswer: attempt.submitted_answer,
+      isCorrect: Boolean(attempt.is_correct),
+      boardKey: questionRecord.board_key,
+      rowIndex: questionRecord.row_index,
+      colIndex: questionRecord.col_index,
+      createdAt: attempt.created_at,
+    });
+  }
+
   const activeTurnPlayer = getActiveTurnPlayer(players || [], session);
   const reviewItems =
     session.status === "ended"
@@ -248,6 +295,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     viewerPlayerId: viewerPlayer?.id || null,
     viewerScore: Number(viewerPlayer?.score || 0),
     leaderboard,
+    answerHistoryByUser,
     boards,
     reviewItems,
   };

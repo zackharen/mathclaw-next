@@ -35,6 +35,10 @@ function normalizeSessionPayload(session) {
     },
     leaderboard: Array.isArray(session.leaderboard) ? session.leaderboard : [],
     reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
+    answerHistoryByUser:
+      session.answerHistoryByUser && typeof session.answerHistoryByUser === "object"
+        ? session.answerHistoryByUser
+        : {},
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
@@ -123,7 +127,7 @@ function buildMultipleChoiceOptions(question) {
   return values.slice(0, 4);
 }
 
-function Leaderboard({ leaderboard, viewerId }) {
+function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
   if (!leaderboard.length) {
     return <p className="doubleBoardEmptyNote">No players have joined this game yet.</p>;
   }
@@ -131,18 +135,48 @@ function Leaderboard({ leaderboard, viewerId }) {
   return (
     <div className="doubleBoardLeaderboard">
       {leaderboard.map((player) => (
-        <div
+        <button
           key={player.id}
-          className={`doubleBoardLeaderboardRow ${player.userId === viewerId ? "you" : ""}`}
+          type="button"
+          className={`doubleBoardLeaderboardRow ${player.userId === viewerId ? "you" : ""} ${
+            selectedUserId === player.userId ? "selected" : ""
+          }`}
+          onClick={() => onSelect?.(player.userId)}
         >
           <span>
             {player.rank}. {player.displayName}
-            {player.role === "teacher" ? " (Host)" : ""}
           </span>
           <strong>{player.score}</strong>
-        </div>
+        </button>
       ))}
     </div>
+  );
+}
+
+function AnswerHistoryPanel({ title, items }) {
+  if (!items?.length) {
+    return (
+      <div className="doubleBoardWaitingCard">
+        <h3>{title}</h3>
+        <p>No submitted answers yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="card doubleBoardReviewCard">
+      <h3>{title}</h3>
+      <div className="doubleBoardReviewList">
+        {items.map((item) => (
+          <div key={item.id} className="doubleBoardReviewItem">
+            <strong>{item.expressionText}</strong>
+            <span>{`Answer given: ${item.submittedAnswer}`}</span>
+            <span>{item.isCorrect ? "Correct" : "Incorrect"}</span>
+            <span>{formatBoardLocation(item.boardKey, item.rowIndex, item.colIndex)}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -187,7 +221,7 @@ function BoardPanel({
                 sessionStatus === "waiting" && !canManage
                   ? "Waiting"
                   : question.solved
-                    ? question.displayValue || " "
+                    ? question.expressionText
                     : question.expressionText;
               const ariaDescription =
                 sessionStatus === "waiting" && !canManage
@@ -220,6 +254,9 @@ function BoardPanel({
                   ) : null}
                   {question.solved ? (
                     <span className="doubleBoardTileMeta" aria-hidden="true">✓</span>
+                  ) : null}
+                  {question.solved ? (
+                    <span className="doubleBoardTileSolution">{`= ${question.correctAnswer}`}</span>
                   ) : null}
                   <span className="doubleBoardTileValueBadge">{question.retryValue}</span>
                 </button>
@@ -366,6 +403,7 @@ export default function DoubleBoardClient({
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [answerValue, setAnswerValue] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -430,6 +468,15 @@ export default function DoubleBoardClient({
         setSession(normalizedSession);
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
+        setSelectedHistoryUserId((current) => {
+          if (current && normalizedSession?.answerHistoryByUser?.[current]) {
+            return current;
+          }
+          if (normalizedSession?.answerHistoryByUser?.[userId]) {
+            return userId;
+          }
+          return normalizedSession?.leaderboard?.[0]?.userId || null;
+        });
       }
       if (payload.result?.message) {
         setFlashMessage(payload.result.message);
@@ -453,13 +500,33 @@ export default function DoubleBoardClient({
   useEffect(() => {
     if (!courseId && !canHost) return undefined;
 
-    const delay = session?.status === "live" ? 2000 : 4500;
+    const delay = session?.status === "live" ? 1200 : 2200;
     const interval = window.setInterval(() => {
       loadSession(courseId, { quiet: true });
     }, delay);
 
     return () => window.clearInterval(interval);
   }, [canHost, courseId, loadSession, session?.status]);
+
+  useEffect(() => {
+    function refreshOnFocus() {
+      loadSession(courseId, { quiet: true });
+    }
+
+    function refreshOnVisible() {
+      if (document.visibilityState === "visible") {
+        loadSession(courseId, { quiet: true });
+      }
+    }
+
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
+  }, [courseId, loadSession]);
 
   useEffect(() => {
     if (session?.status === "ended") {
@@ -481,18 +548,35 @@ export default function DoubleBoardClient({
 
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
+  const boards = session?.boards || {};
   const canAnswer = Boolean(
     session?.status === "live" &&
       session?.isJoined &&
       (session?.playMode !== "one_at_a_time" || session?.isViewerTurn)
   );
-  const boards = session?.boards || {};
+
+  useEffect(() => {
+    if (!selectedQuestion) return;
+
+    const allQuestions = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()].filter(Boolean);
+    const freshQuestion = allQuestions.find((question) => question.id === selectedQuestion.id);
+
+    if (!freshQuestion || freshQuestion.solved || !canAnswer) {
+      setSelectedQuestion(null);
+      setAnswerValue("");
+    }
+  }, [boards.A, boards.B, canAnswer, selectedQuestion]);
+  const selectedHistoryItems =
+    session?.answerHistoryByUser?.[
+      canHost ? selectedHistoryUserId : userId
+    ] || [];
 
   function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
     setSelectedQuestion(null);
     setAnswerValue("");
     setReviewOpen(false);
+    setSelectedHistoryUserId(null);
     loadSession(nextCourseId);
   }
 
@@ -616,45 +700,49 @@ export default function DoubleBoardClient({
 
             {canHost ? (
               <div className="doubleBoardHostControls">
-                <label>
-                  Number mode
-                  <select
-                    className="input"
-                    value={numberMode}
-                    onChange={(event) => setNumberMode(event.target.value)}
-                    disabled={busy || session?.status === "live"}
-                  >
-                    {Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => (
-                      <option key={mode.slug} value={mode.slug}>
-                        {mode.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Answer mode
-                  <select
-                    className="input"
-                    value={answerMode}
-                    onChange={(event) => setAnswerMode(event.target.value)}
-                    disabled={busy || session?.status === "live"}
-                  >
-                    <option value="typed">Typed answer</option>
-                    <option value="multiple_choice">Multiple choice</option>
-                  </select>
-                </label>
-                <label>
-                  Play mode
-                  <select
-                    className="input"
-                    value={playMode}
-                    onChange={(event) => setPlayMode(event.target.value)}
-                    disabled={busy || session?.status === "live"}
-                  >
-                    <option value="free_for_all">Free for all</option>
-                    <option value="one_at_a_time">One at a time</option>
-                  </select>
-                </label>
+                {session?.status !== "live" ? (
+                  <>
+                    <label>
+                      Number mode
+                      <select
+                        className="input"
+                        value={numberMode}
+                        onChange={(event) => setNumberMode(event.target.value)}
+                        disabled={busy || session?.status === "live"}
+                      >
+                        {Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => (
+                          <option key={mode.slug} value={mode.slug}>
+                            {mode.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Answer mode
+                      <select
+                        className="input"
+                        value={answerMode}
+                        onChange={(event) => setAnswerMode(event.target.value)}
+                        disabled={busy || session?.status === "live"}
+                      >
+                        <option value="typed">Typed answer</option>
+                        <option value="multiple_choice">Multiple choice</option>
+                      </select>
+                    </label>
+                    <label>
+                      Play mode
+                      <select
+                        className="input"
+                        value={playMode}
+                        onChange={(event) => setPlayMode(event.target.value)}
+                        disabled={busy || session?.status === "live"}
+                      >
+                        <option value="free_for_all">Free for all</option>
+                        <option value="one_at_a_time">One at a time</option>
+                      </select>
+                    </label>
+                  </>
+                ) : null}
                 <div className="ctaRow">
                   <button
                     className="btn primary"
@@ -741,8 +829,13 @@ export default function DoubleBoardClient({
                 ) : null}
 
                 <div className="doubleBoardLeaderboardWrap">
-                  <h3>Live Leaderboard</h3>
-                  <Leaderboard leaderboard={session.leaderboard} viewerId={userId} />
+                  <h3>{canHost ? "Live Leaderboard" : "Class Leaderboard"}</h3>
+                  <Leaderboard
+                    leaderboard={session.leaderboard}
+                    viewerId={userId}
+                    selectedUserId={canHost ? selectedHistoryUserId : userId}
+                    onSelect={setSelectedHistoryUserId}
+                  />
                 </div>
 
                 <details className="doubleBoardPatternHelp">
@@ -786,6 +879,19 @@ export default function DoubleBoardClient({
 
         {reviewOpen && session?.status === "ended" ? (
           <ReviewPanel reviewItems={session.reviewItems || []} />
+        ) : null}
+
+        {session ? (
+          <AnswerHistoryPanel
+            title={
+              canHost
+                ? selectedHistoryUserId
+                  ? `${session.leaderboard.find((player) => player.userId === selectedHistoryUserId)?.displayName || "Student"} Answer History`
+                  : "Student Answer History"
+                : "Your Answer History"
+            }
+            items={selectedHistoryItems}
+          />
         ) : null}
 
         <AnswerModal
