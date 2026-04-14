@@ -404,6 +404,7 @@ export default function DoubleBoardClient({
   const [answerValue, setAnswerValue] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
+  const [hostSetupOpen, setHostSetupOpen] = useState(true);
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -545,6 +546,11 @@ export default function DoubleBoardClient({
       setPlayMode(session.playMode);
     }
   }, [session?.playMode]);
+
+  useEffect(() => {
+    if (!canHost) return;
+    setHostSetupOpen(!session || session.status !== "live");
+  }, [canHost, session]);
 
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
@@ -701,49 +707,69 @@ export default function DoubleBoardClient({
             {canHost ? (
               <div className="doubleBoardHostControls">
                 {session?.status !== "live" ? (
-                  <>
-                    <label>
-                      Number mode
-                      <select
-                        className="input"
-                        value={numberMode}
-                        onChange={(event) => setNumberMode(event.target.value)}
-                        disabled={busy || session?.status === "live"}
-                      >
-                        {Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => (
-                          <option key={mode.slug} value={mode.slug}>
-                            {mode.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Answer mode
-                      <select
-                        className="input"
-                        value={answerMode}
-                        onChange={(event) => setAnswerMode(event.target.value)}
-                        disabled={busy || session?.status === "live"}
-                      >
-                        <option value="typed">Typed answer</option>
-                        <option value="multiple_choice">Multiple choice</option>
-                      </select>
-                    </label>
-                    <label>
-                      Play mode
-                      <select
-                        className="input"
-                        value={playMode}
-                        onChange={(event) => setPlayMode(event.target.value)}
-                        disabled={busy || session?.status === "live"}
-                      >
-                        <option value="free_for_all">Free for all</option>
-                        <option value="one_at_a_time">One at a time</option>
-                      </select>
-                    </label>
-                  </>
+                  <div className="doubleBoardHostSetupCard">
+                    <button
+                      className="doubleBoardHostSetupToggle"
+                      type="button"
+                      onClick={() => setHostSetupOpen((current) => !current)}
+                      aria-expanded={hostSetupOpen}
+                    >
+                      <span>
+                        <strong>Game setup</strong>
+                        <small>Choose how the next board set should play.</small>
+                      </span>
+                      <span className={`doubleBoardHostSetupChevron ${hostSetupOpen ? "open" : ""}`} aria-hidden="true">
+                        ▾
+                      </span>
+                    </button>
+
+                    {hostSetupOpen ? (
+                      <div className="doubleBoardHostSetupFields">
+                        <label>
+                          Number mode
+                          <select
+                            className="input"
+                            value={numberMode}
+                            onChange={(event) => setNumberMode(event.target.value)}
+                            disabled={busy || session?.status === "live"}
+                          >
+                            {Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => (
+                              <option key={mode.slug} value={mode.slug}>
+                                {mode.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Answer mode
+                          <select
+                            className="input"
+                            value={answerMode}
+                            onChange={(event) => setAnswerMode(event.target.value)}
+                            disabled={busy || session?.status === "live"}
+                          >
+                            <option value="typed">Typed answer</option>
+                            <option value="multiple_choice">Multiple choice</option>
+                          </select>
+                        </label>
+                        <label>
+                          Play mode
+                          <select
+                            className="input"
+                            value={playMode}
+                            onChange={(event) => setPlayMode(event.target.value)}
+                            disabled={busy || session?.status === "live"}
+                          >
+                            <option value="free_for_all">Free for all</option>
+                            <option value="one_at_a_time">One at a time</option>
+                          </select>
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
-                <div className="ctaRow">
+
+                <div className="ctaRow doubleBoardHostActionRow">
                   <button
                     className="btn primary"
                     type="button"
