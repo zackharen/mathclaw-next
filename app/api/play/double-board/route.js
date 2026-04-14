@@ -153,6 +153,24 @@ function sortPlayers(players) {
   });
 }
 
+function sortPlayersByJoinOrder(players) {
+  return [...(players || [])].sort(
+    (a, b) => new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime()
+  );
+}
+
+function getStudentTurnOrder(players) {
+  return sortPlayersByJoinOrder(players).filter((player) => player.role === "student");
+}
+
+function getActiveTurnPlayer(players, session) {
+  const students = getStudentTurnOrder(players);
+  if (!students.length) return null;
+
+  const turnIndex = Number(session?.metadata?.turnIndex || 0);
+  return students[((turnIndex % students.length) + students.length) % students.length] || null;
+}
+
 async function loadSessionBundle(admin, sessionId, viewer) {
   const [{ data: session }, { data: players }, { data: questions }] = await Promise.all([
     admin.from("double_board_sessions").select("*").eq("id", sessionId).maybeSingle(),
@@ -173,7 +191,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     serializeQuestion(row, canManage, session.status)
   );
   const playMode = normalizePlayMode(session.metadata?.playMode);
-  const activeQuestionId = getActiveQuestionId(serializedQuestions, playMode, session.status);
+  const activeQuestionId =
+    playMode === "one_at_a_time" ? null : getActiveQuestionId(serializedQuestions, playMode, session.status);
   const boards = buildDoubleBoardMatrix(
     serializedQuestions.map((question) => ({
       ...question,
@@ -193,6 +212,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     rank: index + 1,
   }));
   const viewerPlayer = leaderboard.find((player) => player.userId === viewer.user.id) || null;
+  const activeTurnPlayer = getActiveTurnPlayer(players || [], session);
   const reviewItems =
     session.status === "ended"
       ? buildDoubleBoardReviewItems(questions || [])
@@ -218,6 +238,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     multipleChoiceEnabled: normalizeAnswerMode(session.metadata?.answerMode) === "multiple_choice",
     playMode,
     activeQuestionId,
+    turnIndex: Number(session.metadata?.turnIndex || 0),
+    activeTurnPlayerId: activeTurnPlayer?.id || null,
+    activeTurnUserId: activeTurnPlayer?.user_id || null,
+    activeTurnDisplayName: activeTurnPlayer?.display_name || null,
+    isViewerTurn: Boolean(activeTurnPlayer?.user_id && activeTurnPlayer.user_id === viewer.user.id),
     canManage,
     isJoined: Boolean(viewerPlayer),
     viewerPlayerId: viewerPlayer?.id || null,
@@ -247,7 +272,7 @@ async function fetchSessionByLocator(admin, locator, viewer) {
   }
 
   if (locator.allowWaiting) {
-    query = query.in("status", ["waiting", "live"]);
+    query = query.in("status", ["waiting", "live", "ended"]);
   } else {
     query = query.eq("status", "live");
   }
@@ -276,6 +301,23 @@ async function ensurePlayer(admin, sessionId, user, displayName, role = "student
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+async function bumpTurnIndex(admin, session) {
+  const nextMetadata = {
+    ...(session.metadata || {}),
+    turnIndex: Number(session?.metadata?.turnIndex || 0) + 1,
+  };
+
+  const { error } = await admin
+    .from("double_board_sessions")
+    .update({
+      metadata: nextMetadata,
+      updated_at: nowIso(),
+    })
+    .eq("id", session.id);
+
+  if (error) throw new Error(error.message);
 }
 
 async function syncSolvedCount(admin, sessionId, options = {}) {
@@ -411,6 +453,7 @@ async function createFreshSession(
         mockMode: !courseId,
         answerMode,
         playMode,
+        turnIndex: 0,
       },
       updated_at: nowIso(),
     })
@@ -682,20 +725,21 @@ export async function POST(request) {
       }
 
       if (playMode === "one_at_a_time") {
-        const { data: allQuestions } = await admin
-          .from("double_board_questions")
-          .select("id, board_key, row_index, col_index, solved")
+        const { data: sessionPlayers } = await admin
+          .from("double_board_players")
+          .select("*")
           .eq("session_id", session.id);
 
-        const activeQuestionId = getActiveQuestionId(allQuestions || [], playMode, session.status);
-        if (activeQuestionId && activeQuestionId !== question.id) {
+        const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], session);
+
+        if (activeTurnPlayer?.user_id && activeTurnPlayer.user_id !== user.id) {
           const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
           return NextResponse.json({
             session: bundle,
             result: {
               correct: false,
               stale: true,
-              message: "That is not the active question right now.",
+              message: `It is ${activeTurnPlayer.display_name}'s turn.`,
             },
           });
         }
@@ -748,6 +792,10 @@ export async function POST(request) {
 
         if (attemptError) {
           return NextResponse.json({ error: attemptError.message }, { status: 400 });
+        }
+
+        if (playMode === "one_at_a_time") {
+          await bumpTurnIndex(admin, session);
         }
 
         const syncedSession = await syncSolvedCount(admin, session.id);
@@ -822,6 +870,10 @@ export async function POST(request) {
         .from("double_board_sessions")
         .update({ updated_at: nowIso() })
         .eq("id", session.id);
+
+      if (playMode === "one_at_a_time") {
+        await bumpTurnIndex(admin, session);
+      }
 
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
       return NextResponse.json({

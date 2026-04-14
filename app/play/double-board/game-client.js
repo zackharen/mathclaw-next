@@ -38,6 +38,10 @@ function normalizeSessionPayload(session) {
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
+    activeTurnDisplayName:
+      typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
+    activeTurnUserId: typeof session.activeTurnUserId === "string" ? session.activeTurnUserId : null,
+    isViewerTurn: Boolean(session.isViewerTurn),
   };
 }
 
@@ -175,7 +179,7 @@ function BoardPanel({
 
               const isSelected = selectedQuestionId === question.id;
               const isPlayableQuestion =
-                playMode !== "one_at_a_time" || question.id === activeQuestionId;
+                playMode !== "one_at_a_time" || !activeQuestionId || question.id === activeQuestionId;
               const disabled =
                 !canAnswer || question.solved || (sessionStatus === "live" && !isPlayableQuestion);
               const highValue = question.attemptCount >= 2;
@@ -215,7 +219,7 @@ function BoardPanel({
                     <span className="doubleBoardTileBadge">X</span>
                   ) : null}
                   {question.solved ? (
-                    <span className="doubleBoardTileMeta">Solved</span>
+                    <span className="doubleBoardTileMeta" aria-hidden="true">✓</span>
                   ) : null}
                   <span className="doubleBoardTileValueBadge">{question.retryValue}</span>
                 </button>
@@ -477,7 +481,11 @@ export default function DoubleBoardClient({
 
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
-  const canAnswer = Boolean(session?.status === "live" && session?.isJoined);
+  const canAnswer = Boolean(
+    session?.status === "live" &&
+      session?.isJoined &&
+      (session?.playMode !== "one_at_a_time" || session?.isViewerTurn)
+  );
   const boards = session?.boards || {};
 
   function handleCourseChange(nextCourseId) {
@@ -592,7 +600,9 @@ export default function DoubleBoardClient({
               <div className="doubleBoardStatusBanner">
                 <strong>
                   {session?.status === "live"
-                    ? "Live Game"
+                    ? session?.playMode === "one_at_a_time" && session?.activeTurnDisplayName
+                      ? `${session.activeTurnDisplayName}'s Turn`
+                      : "Live Game"
                     : session?.status === "ended"
                       ? "Game Ended"
                       : "Waiting"}
@@ -721,10 +731,11 @@ export default function DoubleBoardClient({
 
                 {session?.playMode === "one_at_a_time" && session?.status === "live" ? (
                   <div className="doubleBoardWaitingCard">
-                    <h3>One Question At A Time</h3>
+                    <h3>{session?.activeTurnDisplayName ? `${session.activeTurnDisplayName}'s Turn` : "Waiting For A Turn"}</h3>
                     <p>
-                      The class is working through one shared tile at a time. When the current tile is solved,
-                      the next one unlocks automatically.
+                      {session?.activeTurnDisplayName
+                        ? "That student can choose any open question, submit one answer, and then the turn moves to the next student in join order."
+                        : "Students will rotate in the order they joined once at least one student is in the game."}
                     </p>
                   </div>
                 ) : null}
