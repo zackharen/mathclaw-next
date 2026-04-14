@@ -2483,6 +2483,34 @@ details[open] > summary.btn,
   background: #f9fbfc;
 }
 
+.slopeScientificShell {
+  min-height: 22rem;
+}
+
+.slopeScientificCalculator {
+  min-height: 22rem;
+  border: 2px solid rgba(11, 61, 105, 0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.slopeScientificCalculator.isHidden {
+  display: none;
+}
+
+.slopeScientificFallback {
+  display: grid;
+  gap: 0.85rem;
+  min-height: 22rem;
+  align-content: center;
+  justify-items: start;
+  padding: 1rem;
+  border: 2px dashed rgba(11, 61, 105, 0.22);
+  border-radius: 18px;
+  background: #f9fbfc;
+}
+
 @media (max-width: 980px) {
   .slopeInterceptHeader,
   .slopeInterceptGraphShell {
