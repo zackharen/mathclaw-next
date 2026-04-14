@@ -19,6 +19,7 @@ function formatGameLabel(slug) {
     spiral_review: "Spiral Review",
     question_kind_review: "What Kind Of Question Is This?",
     telling_time: "Telling Time",
+    slope_intercept: "Slope & Y-Intercept",
     sudoku: "Sudoku",
     comet_typing: "Comet Typing",
     student_created_questions: "Student-Created Questions",
@@ -85,6 +86,18 @@ const WORD_WALL_TERMS = [
     label: "Hour Hand",
     gameSlug: "telling_time",
     description: "The shorter clock hand that shows the hour.",
+  },
+  {
+    key: "slope",
+    label: "Slope",
+    gameSlug: "slope_intercept",
+    description: "How steep a line is, measured by rise over run.",
+  },
+  {
+    key: "y-intercept",
+    label: "Y-Intercept",
+    gameSlug: "slope_intercept",
+    description: "The point where a line crosses the y-axis.",
   },
   {
     key: "row",

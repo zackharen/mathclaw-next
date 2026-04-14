@@ -182,6 +182,7 @@ function formatGameLabel(slug) {
     spiral_review: "Spiral Review",
     question_kind_review: "What Kind Of Question Is This?",
     telling_time: "Telling Time",
+    slope_intercept: "Slope & Y-Intercept",
     sudoku: "Sudoku",
     comet_typing: "Comet Typing",
     showdown_framework: "Showdown Framework",

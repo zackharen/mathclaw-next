@@ -43,6 +43,11 @@ const LESSON_SKILL_RULES = [
     why: "Support clock reading and time-setting with visual repetition.",
   },
   {
+    slug: "slope_intercept",
+    match: ["slope", "y-intercept", "linear", "graph", "coordinate plane", "rate of change"],
+    why: "Give students graph-reading reps with lines and intercepts.",
+  },
+  {
     slug: "spiral_review",
     match: ["review", "mixed practice", "spiral", "warm-up", "do now", "check for understanding"],
     why: "Mix prior skills together when the lesson needs cumulative review.",
@@ -74,6 +79,7 @@ const GAME_LABELS = {
   spiral_review: "Spiral Review",
   question_kind_review: "What Kind Of Question Is This?",
   telling_time: "Telling Time",
+  slope_intercept: "Slope & Y-Intercept",
   sudoku: "Sudoku",
   comet_typing: "Comet Typing",
 };
@@ -119,6 +125,7 @@ function gameHref(slug, courseId) {
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
+  if (slug === "slope_intercept") return `/play/slope-intercept${query}`;
   if (slug === "comet_typing") return `/play/comet-typing${query}`;
   return `/play/${slug}${query}`;
 }

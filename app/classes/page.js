@@ -64,6 +64,7 @@ function formatGameControlNotice(status, gameSlug) {
         spiral_review: "Spiral Review",
         question_kind_review: "What Kind Of Question Is This?",
         telling_time: "Telling Time",
+        slope_intercept: "Slope & Y-Intercept",
         sudoku: "Sudoku",
         comet_typing: "Comet Typing",
       }[gameSlug] || gameSlug
@@ -90,6 +91,7 @@ function getGameSupportCopy(game) {
   if (game.slug === "spiral_review") return "Students cycle through mixed review questions pulled from multiple skill types.";
   if (game.slug === "question_kind_review") return "Students identify the kind of math question they are seeing before they solve it.";
   if (game.slug === "telling_time") return "Students read clocks and set times to the nearest five minutes.";
+  if (game.slug === "slope_intercept") return "Students read a graphed line and identify its slope and y-intercept.";
   if (game.slug === "sudoku") return "Students fill the grid by keeping every row, column, and 3x3 box valid.";
   if (game.slug === "comet_typing") return "Students guide Nova the courier by typing words accurately and building streaks.";
   return game.description || "Students can launch this game from the Student Arcade when it is enabled.";

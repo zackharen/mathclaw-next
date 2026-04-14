@@ -18,6 +18,7 @@ function gameHref(slug, courseId) {
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "double_board_review") return `/play/double-board${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
+  if (slug === "slope_intercept") return `/play/slope-intercept${query}`;
   if (slug === "comet_typing") return `/play/comet-typing${query}`;
   return `/play/${slug}${query}`;
 }
