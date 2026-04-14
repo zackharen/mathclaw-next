@@ -155,15 +155,11 @@ export default function SlopeInterceptClient({
   const [isSaving, setIsSaving] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [graphError, setGraphError] = useState("");
-  const [scientificReady, setScientificReady] = useState(false);
-  const [scientificFallback, setScientificFallback] = useState(false);
   const [pinnedPoints, setPinnedPoints] = useState({ intercept: false, helper: false });
   const [lastRoundSummary, setLastRoundSummary] = useState(null);
   const [runComplete, setRunComplete] = useState(false);
   const graphHostRef = useRef(null);
-  const scientificHostRef = useRef(null);
   const calculatorRef = useRef(null);
-  const scientificCalculatorRef = useRef(null);
   const savedRunRef = useRef(false);
   const sessionRef = useRef({
     score: 0,
@@ -297,34 +293,17 @@ export default function SlopeInterceptClient({
         });
         setGraphReady(true);
 
-        if (
-          scientificHostRef.current &&
-          Desmos.enabledFeatures?.ScientificCalculator &&
-          typeof Desmos.ScientificCalculator === "function"
-        ) {
-          scientificCalculatorRef.current = Desmos.ScientificCalculator(scientificHostRef.current, {
-            qwertyKeyboard: true,
-            degreeMode: false,
-          });
-          setScientificReady(true);
-          setScientificFallback(false);
-        } else {
-          setScientificFallback(true);
-        }
       })
       .catch((error) => {
         if (!cancelled) {
           setGraphError(error.message || "Could not load Desmos.");
-          setScientificFallback(true);
         }
       });
 
     return () => {
       cancelled = true;
       calculatorRef.current?.destroy();
-      scientificCalculatorRef.current?.destroy();
       calculatorRef.current = null;
-      scientificCalculatorRef.current = null;
     };
   }, []);
 
@@ -651,24 +630,11 @@ export default function SlopeInterceptClient({
         <section className="card" style={{ background: "#fff" }}>
           <h2>Scientific Calculator</h2>
           <div className="slopeScientificShell">
-            {scientificFallback ? (
-              <div className="slopeScientificFallback">
-                <p>The embedded Desmos scientific calculator is not enabled for this API key.</p>
-                <a
-                  className="btn"
-                  href="https://www.desmos.com/scientific"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open Desmos Calculator
-                </a>
-              </div>
-            ) : null}
-            <div
-              ref={scientificHostRef}
-              className={`slopeScientificCalculator ${scientificReady ? "isReady" : ""} ${
-                scientificFallback ? "isHidden" : ""
-              }`}
+            <iframe
+              title="Desmos Scientific Calculator"
+              src="https://www.desmos.com/scientific"
+              className="slopeScientificCalculator"
+              loading="lazy"
             />
           </div>
         </section>
