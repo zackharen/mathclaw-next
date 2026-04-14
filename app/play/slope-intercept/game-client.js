@@ -116,22 +116,24 @@ function loadDesmosApi() {
 function updateGraph(calculator, round, pinned) {
   if (!calculator || !round) return;
 
+  calculator.setBlank();
   calculator.setMathBounds(buildBounds(round.slope, round.intercept));
-  calculator.setExpressions([
-    {
-      id: "line",
-      latex: `y=${round.slope}x${round.intercept < 0 ? round.intercept : `+${round.intercept}`}`,
-      color: "#00325a",
-    },
-    ...buildPinnedPoints(round, pinned).map((point) => ({
+  calculator.setExpression({
+    id: "line",
+    latex: `y=${round.slope}x${round.intercept < 0 ? round.intercept : `+${round.intercept}`}`,
+    color: "#00325a",
+  });
+
+  for (const point of buildPinnedPoints(round, pinned)) {
+    calculator.setExpression({
       id: point.id,
       latex: point.latex,
       color: "#cd3b3b",
       showLabel: true,
       label: point.label,
       pointSize: 12,
-    })),
-  ]);
+    });
+  }
 }
 
 export default function SlopeInterceptClient({
@@ -280,6 +282,16 @@ export default function SlopeInterceptClient({
         });
 
         calculatorRef.current = calculator;
+        window.requestAnimationFrame(() => {
+          updateGraph(calculator, round, pinnedPoints);
+          calculator.resize();
+          window.setTimeout(() => {
+            if (calculatorRef.current === calculator) {
+              updateGraph(calculator, round, pinnedPoints);
+              calculator.resize();
+            }
+          }, 180);
+        });
         window.requestAnimationFrame(() => {
           calculator.resize();
         });
