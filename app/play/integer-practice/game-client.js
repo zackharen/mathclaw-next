@@ -41,23 +41,64 @@ function profileStorageKey(userId, courseId) {
   return `mathclaw:integer-practice:profile:${userId}:${courseId || "none"}`;
 }
 
+function normalizeSavedProfileEnvelope(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw.profile && typeof raw.profile === "object" ? raw.profile : raw;
+  const profile = {
+    ...createEmptyIntegerProfile(),
+    ...candidate,
+  };
+
+  if (!Number.isInteger(Number(profile.currentLevelId || 0)) || Number(profile.currentLevelId || 0) < 1) {
+    return null;
+  }
+
+  return {
+    profile,
+    updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : "",
+  };
+}
+
 function loadLocalProfile(userId, courseId) {
   if (typeof window === "undefined") return createEmptyIntegerProfile();
   try {
     const raw = window.localStorage.getItem(profileStorageKey(userId, courseId));
-    if (!raw) return createEmptyIntegerProfile();
-    return {
-      ...createEmptyIntegerProfile(),
-      ...JSON.parse(raw),
-    };
+    if (!raw) return null;
+    return normalizeSavedProfileEnvelope(JSON.parse(raw));
   } catch {
-    return createEmptyIntegerProfile();
+    return null;
   }
 }
 
 function saveLocalProfile(userId, courseId, profile) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(profileStorageKey(userId, courseId), JSON.stringify(profile));
+  window.localStorage.setItem(
+    profileStorageKey(userId, courseId),
+    JSON.stringify({
+      profile,
+      updatedAt: new Date().toISOString(),
+    })
+  );
+}
+
+function readServerProfileForCourse(savedProfileState, courseId) {
+  const profilesByCourse =
+    savedProfileState?.profilesByCourse && typeof savedProfileState.profilesByCourse === "object"
+      ? savedProfileState.profilesByCourse
+      : null;
+  if (!profilesByCourse) return null;
+
+  const courseKey = courseId || "none";
+  return normalizeSavedProfileEnvelope(profilesByCourse[courseKey] || null);
+}
+
+function chooseNewestProfile(localEnvelope, serverEnvelope) {
+  if (localEnvelope && serverEnvelope) {
+    const localTime = new Date(localEnvelope.updatedAt || 0).getTime();
+    const serverTime = new Date(serverEnvelope.updatedAt || 0).getTime();
+    return localTime >= serverTime ? localEnvelope.profile : serverEnvelope.profile;
+  }
+  return localEnvelope?.profile || serverEnvelope?.profile || createEmptyIntegerProfile();
 }
 
 function buildDefaultAssignmentFromProfile(profile) {
@@ -255,6 +296,7 @@ export default function IntegerPracticeClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  savedProfileState,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("adaptive");
@@ -278,6 +320,8 @@ export default function IntegerPracticeClient({
   const profileRef = useRef(profile);
   const sessionRef = useRef(session);
   const runCompleteRef = useRef(false);
+  const saveTimeoutRef = useRef(null);
+  const hasHydratedProfileRef = useRef(false);
 
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
   const profileSummary = useMemo(() => summarizeProfile(profile), [profile]);
@@ -296,6 +340,7 @@ export default function IntegerPracticeClient({
 
   useEffect(() => {
     profileRef.current = profile;
+    if (!hasHydratedProfileRef.current) return;
     saveLocalProfile(userId, courseId, profile);
   }, [courseId, profile, userId]);
 
@@ -328,11 +373,9 @@ export default function IntegerPracticeClient({
   }, []);
 
   useEffect(() => {
-    const nextProfile = loadLocalProfile(userId, courseId);
-    const normalizedProfile = {
-      ...createEmptyIntegerProfile(),
-      ...nextProfile,
-    };
+    const localEnvelope = loadLocalProfile(userId, courseId);
+    const serverEnvelope = readServerProfileForCourse(savedProfileState, courseId);
+    const normalizedProfile = chooseNewestProfile(localEnvelope, serverEnvelope);
     setProfile(normalizedProfile);
     setCurrentLevelId(normalizedProfile.currentLevelId || 1);
     setAssignmentPlan(buildDefaultAssignmentFromProfile(normalizedProfile));
@@ -342,10 +385,46 @@ export default function IntegerPracticeClient({
     setSessionSummary(null);
     setHintOpen(false);
     questionStartRef.current = Date.now();
+    hasHydratedProfileRef.current = true;
     if (courseId && !(courseId === initialCourseId && initialLeaderboard.length > 0)) {
       loadLeaderboard(courseId);
     }
-  }, [courseId, initialCourseId, initialLeaderboard.length, loadLeaderboard, userId]);
+  }, [courseId, initialCourseId, initialLeaderboard.length, loadLeaderboard, savedProfileState, userId]);
+
+  const saveProfileToServer = useCallback(async (profileToSave, nextCourseId) => {
+    const response = await fetch("/api/play/save-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        gameSlug: "integer_practice",
+        courseId: nextCourseId || null,
+        state: {
+          profile: profileToSave,
+        },
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not save integer practice progress.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedProfileRef.current) return undefined;
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      void saveProfileToServer(profileRef.current, courseId).catch(() => {});
+    }, 900);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [courseId, profile, saveProfileToServer]);
 
   const saveSession = useCallback(async (summary) => {
     if (!summary || summary.questionsAnswered <= 0) return null;
@@ -594,7 +673,23 @@ export default function IntegerPracticeClient({
 
   useEffect(() => {
     function handlePageHide() {
+      if (!hasHydratedProfileRef.current) return;
       saveLocalProfile(userId, courseId, profileRef.current);
+      navigator.sendBeacon?.(
+        "/api/play/save-state",
+        new Blob(
+          [
+            JSON.stringify({
+              gameSlug: "integer_practice",
+              courseId: courseId || null,
+              state: {
+                profile: profileRef.current,
+              },
+            }),
+          ],
+          { type: "application/json" }
+        )
+      );
     }
 
     window.addEventListener("pagehide", handlePageHide);

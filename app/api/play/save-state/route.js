@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
 
-const ALLOWED_SAVE_GAMES = new Set(["2048"]);
+const ALLOWED_SAVE_GAMES = new Set(["2048", "integer_practice"]);
 
 function isValid2048Board(board) {
   return (
@@ -15,6 +15,21 @@ function isValid2048Board(board) {
         row.length === 4 &&
         row.every((cell) => Number.isInteger(cell) && cell >= 0)
     )
+  );
+}
+
+function isValidIntegerProfileState(state) {
+  if (!state || typeof state !== "object") return false;
+  const currentLevelId = Number(state.currentLevelId || 0);
+  const highestLevelReached = Number(state.highestLevelReached || 0);
+  const rollingHistory = Array.isArray(state.rollingHistory) ? state.rollingHistory : null;
+
+  return (
+    Number.isInteger(currentLevelId) &&
+    currentLevelId >= 1 &&
+    Number.isInteger(highestLevelReached) &&
+    highestLevelReached >= 1 &&
+    rollingHistory !== null
   );
 }
 
@@ -42,8 +57,14 @@ export async function POST(request) {
     return NextResponse.json({ error: "Unsupported saved game" }, { status: 400 });
   }
 
-  if (!state || !isValid2048Board(state.board) || !Number.isFinite(Number(state.score || 0))) {
-    return NextResponse.json({ error: "Invalid 2048 save state." }, { status: 400 });
+  if (gameSlug === "2048") {
+    if (!state || !isValid2048Board(state.board) || !Number.isFinite(Number(state.score || 0))) {
+      return NextResponse.json({ error: "Invalid 2048 save state." }, { status: 400 });
+    }
+  } else if (gameSlug === "integer_practice") {
+    if (!state || !isValidIntegerProfileState(state.profile)) {
+      return NextResponse.json({ error: "Invalid integer practice save state." }, { status: 400 });
+    }
   }
 
   if (courseId) {
@@ -58,11 +79,37 @@ export async function POST(request) {
 
   const admin = createAdminClient();
   const savedGames = buildSavedGamesMetadata(user);
-  savedGames[gameSlug] = {
-    courseId,
-    state,
-    updatedAt: new Date().toISOString(),
-  };
+  if (gameSlug === "integer_practice") {
+    const currentIntegerSave =
+      savedGames.integer_practice && typeof savedGames.integer_practice === "object"
+        ? { ...savedGames.integer_practice }
+        : { profilesByCourse: {} };
+    const profilesByCourse =
+      currentIntegerSave.profilesByCourse && typeof currentIntegerSave.profilesByCourse === "object"
+        ? { ...currentIntegerSave.profilesByCourse }
+        : {};
+    const courseKey = courseId || "none";
+    const updatedAt = new Date().toISOString();
+
+    profilesByCourse[courseKey] = {
+      courseId,
+      profile: state.profile,
+      updatedAt,
+    };
+
+    savedGames[gameSlug] = {
+      ...currentIntegerSave,
+      profilesByCourse,
+      lastCourseId: courseId,
+      updatedAt,
+    };
+  } else {
+    savedGames[gameSlug] = {
+      courseId,
+      state,
+      updatedAt: new Date().toISOString(),
+    };
+  }
 
   const { error } = await admin.auth.admin.updateUserById(user.id, {
     user_metadata: {

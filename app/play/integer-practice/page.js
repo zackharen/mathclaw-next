@@ -12,6 +12,11 @@ export default async function IntegerPracticePage({ searchParams }) {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/integer-practice");
   const accountType = await getAccountTypeForUser(supabase, user);
+  const savedIntegerPractice =
+    user.user_metadata?.saved_games &&
+    typeof user.user_metadata.saved_games === "object"
+      ? user.user_metadata.saved_games.integer_practice || null
+      : null;
   const [allCourses, courses, personalResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "integer_practice" }),
@@ -53,6 +58,7 @@ export default async function IntegerPracticePage({ searchParams }) {
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        savedProfileState={savedIntegerPractice}
       />
     </div>
   );
