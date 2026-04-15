@@ -268,11 +268,22 @@ export default function SlopeInterceptClient({
         if (cancelled || !graphHostRef.current) return;
 
         const calculator = Desmos.GraphingCalculator(graphHostRef.current, {
+          graphpaper: true,
           expressions: false,
           settingsMenu: false,
           zoomButtons: false,
           keypad: false,
           border: false,
+          invertedColors: false,
+          projectorMode: false,
+          xAxisNumbers: true,
+          yAxisNumbers: true,
+        });
+
+        calculator.updateSettings?.({
+          graphpaper: true,
+          invertedColors: false,
+          projectorMode: false,
           xAxisNumbers: true,
           yAxisNumbers: true,
         });
