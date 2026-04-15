@@ -117,8 +117,13 @@ function NumberLine({ model }) {
     <div className="integerNumberLine" aria-label="Number line support">
       <div className="integerNumberLineTrack">
         {ticks.map((tick) => {
-          const status =
-            tick === model.start ? "start" : tick === model.end ? "end" : tick === 0 ? "zero" : "";
+          const status = [
+            tick === model.start ? "start" : "",
+            tick === model.end ? "end" : "",
+            tick === 0 ? "zero" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
           return (
             <div key={tick} className={`integerNumberTick ${status}`}>
               <span className="integerNumberTickMark" />
@@ -135,22 +140,49 @@ function NumberLine({ model }) {
 }
 
 function CounterSupport({ counters }) {
+  const renderGroup = (prefix, count, className) =>
+    Array.from({ length: count }).map((_, index) => (
+      <span key={`${prefix}-${index}`} className={`integerCounter ${className}`} />
+    ));
+
   return (
     <div className="integerCounterWrap">
       <div>
         <p className="integerSupportLabel">Positive counters</p>
         <div className="integerCounterRow">
-          {Array.from({ length: counters.startPositive + counters.incomingPositive }).map((_, index) => (
-            <span key={`p-${index}`} className={`integerCounter positive ${index >= counters.startPositive ? "incoming" : ""}`} />
-          ))}
+          {counters.startPositive > 0 ? (
+            <div className="integerCounterGroup">
+              <span className="integerCounterGroupLabel">Start</span>
+              <div className="integerCounterTokens">{renderGroup("p-start", counters.startPositive, "positive")}</div>
+            </div>
+          ) : null}
+          {counters.incomingPositive > 0 ? (
+            <div className="integerCounterGroup incomingGroup">
+              <span className="integerCounterGroupLabel">Change</span>
+              <div className="integerCounterTokens">
+                {renderGroup("p-incoming", counters.incomingPositive, "positive incoming")}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
       <div>
         <p className="integerSupportLabel">Negative counters</p>
         <div className="integerCounterRow">
-          {Array.from({ length: counters.startNegative + counters.incomingNegative }).map((_, index) => (
-            <span key={`n-${index}`} className={`integerCounter negative ${index >= counters.startNegative ? "incoming" : ""}`} />
-          ))}
+          {counters.startNegative > 0 ? (
+            <div className="integerCounterGroup">
+              <span className="integerCounterGroupLabel">Start</span>
+              <div className="integerCounterTokens">{renderGroup("n-start", counters.startNegative, "negative")}</div>
+            </div>
+          ) : null}
+          {counters.incomingNegative > 0 ? (
+            <div className="integerCounterGroup incomingGroup">
+              <span className="integerCounterGroupLabel">Change</span>
+              <div className="integerCounterTokens">
+                {renderGroup("n-incoming", counters.incomingNegative, "negative incoming")}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
       {counters.zeroPairs > 0 ? (
@@ -252,6 +284,7 @@ export default function IntegerPracticeClient({
   const activeLevel = useMemo(() => getLevelById(currentLevelId), [currentLevelId]);
   const activeScaffolds = overrideScaffolds || activeLevel.scaffolds;
   const effectiveQuestionTarget = mode === "assignment" ? assignmentPlan.questionCount : mode === "challenge" ? 16 : 12;
+  const hasFiniteRunTarget = mode === "assignment";
   const progressPercent = Math.min(100, Math.round((session.answers.length / effectiveQuestionTarget) * 100));
   const recentLevels = useMemo(() => listNearbyLevels(currentLevelId, 3), [currentLevelId]);
   const visibleBadges = useMemo(
@@ -495,9 +528,19 @@ export default function IntegerPracticeClient({
     }
 
     const sessionReachedTarget = nextSession.answers.length >= effectiveQuestionTarget;
-    if (sessionReachedTarget) {
+    if (sessionReachedTarget && hasFiniteRunTarget) {
       await finishRun(finalProfile, nextLevelId, levelDelta);
       return;
+    }
+
+    if (!hasFiniteRunTarget && (nextSession.answers.length % 12 === 0 || levelDelta > 0)) {
+      const checkpointSummary = buildSessionSummary({
+        session: nextSession,
+        profileSummary: summarizeProfile(finalProfile),
+        level: getLevelById(nextLevelId),
+        levelChange: levelDelta,
+      });
+      void saveSession(checkpointSummary).catch(() => {});
     }
 
     resetQuestion(nextLevelId, levelPlan.supportScaffolds);
@@ -510,11 +553,13 @@ export default function IntegerPracticeClient({
     currentLevelId,
     effectiveQuestionTarget,
     finishRun,
+    hasFiniteRunTarget,
     hintOpen,
     mode,
     problem,
     registerBadgeUpdates,
     resetQuestion,
+    saveSession,
   ]);
 
   useEffect(() => {
@@ -558,7 +603,9 @@ export default function IntegerPracticeClient({
 
   const teacherPreviewLevel = getLevelById(assignmentPlan.startLevelId);
   const runIsComplete = Boolean(sessionSummary);
-  const displayProgressCount = Math.min(session.answers.length, effectiveQuestionTarget);
+  const displayProgressCount = hasFiniteRunTarget
+    ? Math.min(session.answers.length, effectiveQuestionTarget)
+    : session.answers.length;
 
   return (
     <div className="featureGrid">
@@ -724,7 +771,9 @@ export default function IntegerPracticeClient({
         <h2>Practice Coach</h2>
         <div className="pillRow">
           <span className="pill">Level: {currentLevelId}</span>
-          <span className="pill">Run Progress: {displayProgressCount}/{effectiveQuestionTarget}</span>
+          <span className="pill">
+            {hasFiniteRunTarget ? `Run Progress: ${displayProgressCount}/${effectiveQuestionTarget}` : `Questions: ${displayProgressCount}`}
+          </span>
           <span className="pill">Streak: {session.streak}</span>
           {timeLeftMs !== null ? <span className="pill">Timer: {formatMs(timeLeftMs)}</span> : null}
           <ProficiencyStatePill state={profileSummary.fluencyState} />
