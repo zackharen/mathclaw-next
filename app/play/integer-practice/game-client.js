@@ -245,6 +245,7 @@ export default function IntegerPracticeClient({
   const inputAttemptsRef = useRef(0);
   const profileRef = useRef(profile);
   const sessionRef = useRef(session);
+  const runCompleteRef = useRef(false);
 
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
   const profileSummary = useMemo(() => summarizeProfile(profile), [profile]);
@@ -268,6 +269,10 @@ export default function IntegerPracticeClient({
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    runCompleteRef.current = Boolean(sessionSummary);
+  }, [sessionSummary]);
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -394,6 +399,11 @@ export default function IntegerPracticeClient({
       levelChange,
     });
     setSessionSummary(summary);
+    setFeedback(
+      summary.leveledUp
+        ? "Run complete. Nice work leveling up. Start a new run when you're ready."
+        : "Run complete. Review your summary and start a new run when you're ready."
+    );
     try {
       await saveSession(summary);
     } catch (error) {
@@ -410,6 +420,7 @@ export default function IntegerPracticeClient({
   }, []);
 
   const applyAnswer = useCallback(async (guess, meta = {}) => {
+    if (runCompleteRef.current) return;
     inputAttemptsRef.current += 1;
     const responseMs = Date.now() - questionStartRef.current;
     const correct = Number(guess) === problem.answer;
@@ -546,6 +557,8 @@ export default function IntegerPracticeClient({
   }, [courseId, userId]);
 
   const teacherPreviewLevel = getLevelById(assignmentPlan.startLevelId);
+  const runIsComplete = Boolean(sessionSummary);
+  const displayProgressCount = Math.min(session.answers.length, effectiveQuestionTarget);
 
   return (
     <div className="featureGrid">
@@ -711,7 +724,7 @@ export default function IntegerPracticeClient({
         <h2>Practice Coach</h2>
         <div className="pillRow">
           <span className="pill">Level: {currentLevelId}</span>
-          <span className="pill">Run Progress: {session.answers.length}/{effectiveQuestionTarget}</span>
+          <span className="pill">Run Progress: {displayProgressCount}/{effectiveQuestionTarget}</span>
           <span className="pill">Streak: {session.streak}</span>
           {timeLeftMs !== null ? <span className="pill">Timer: {formatMs(timeLeftMs)}</span> : null}
           <ProficiencyStatePill state={profileSummary.fluencyState} />
@@ -770,7 +783,13 @@ export default function IntegerPracticeClient({
         {activeScaffolds.answerMode === "multiple_choice" ? (
           <div className="choiceGrid">
             {problem.choices.map((choice) => (
-              <button key={choice} className="btn bigChoice" type="button" onClick={() => applyAnswer(choice)}>
+              <button
+                key={choice}
+                className="btn bigChoice"
+                type="button"
+                disabled={runIsComplete}
+                onClick={() => applyAnswer(choice)}
+              >
                 <MathText node={buildIntegerNode(choice)} className="mathChoiceContent" />
               </button>
             ))}
@@ -783,15 +802,28 @@ export default function IntegerPracticeClient({
               pattern="-?[0-9]*"
               placeholder="Type your integer"
               value={answerText}
+              disabled={runIsComplete}
               onChange={(event) => setAnswerText(event.target.value)}
             />
-            <button className="btn primary" type="button" disabled={!String(answerText).trim()} onClick={() => applyAnswer(Number(answerText), { typed: true })}>
+            <button
+              className="btn primary"
+              type="button"
+              disabled={runIsComplete || !String(answerText).trim()}
+              onClick={() => applyAnswer(Number(answerText), { typed: true })}
+            >
               Submit
             </button>
           </div>
         )}
 
         {feedback ? <p className="integerFeedback"><MathInlineText text={feedback} /></p> : null}
+        {runIsComplete ? (
+          <div className="ctaRow">
+            <button className="btn primary" type="button" onClick={() => startRun(mode, currentLevelId, assignmentPlan)}>
+              Start Next Run
+            </button>
+          </div>
+        ) : null}
         <SessionSummaryCard summary={sessionSummary} />
       </section>
 
