@@ -12,6 +12,51 @@ function formatInteger(value) {
   return value < 0 ? `(${value})` : String(value);
 }
 
+function MathInteger({ value }) {
+  if (value < 0) {
+    return (
+      <span className="mathInteger" aria-label={formatInteger(value)}>
+        <span className="mathParen">(</span>
+        <span className="mathMinus">−</span>
+        <span>{Math.abs(value)}</span>
+        <span className="mathParen">)</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="mathInteger" aria-label={String(value)}>
+      <span>{value}</span>
+    </span>
+  );
+}
+
+function MathSymbol({ children }) {
+  return <span className="mathSymbol">{children}</span>;
+}
+
+function MathPromptDisplay({ a, op, b }) {
+  const operator = op === "-" ? "−" : op;
+
+  return (
+    <div className="mathPrompt" aria-label={`${formatInteger(a)} ${op} ${formatInteger(b)} equals what`}>
+      <MathInteger value={a} />
+      <MathSymbol>{operator}</MathSymbol>
+      <MathInteger value={b} />
+      <MathSymbol>=</MathSymbol>
+      <span className="mathUnknown">?</span>
+    </div>
+  );
+}
+
+function MathChoice({ value }) {
+  return (
+    <span className="mathChoiceContent">
+      <MathInteger value={value} />
+    </span>
+  );
+}
+
 export default function IntegerPracticeClient({
   courses,
   initialCourseId,
@@ -24,7 +69,7 @@ export default function IntegerPracticeClient({
   const [twoDigit, setTwoDigit] = useState(false);
   const [choiceCount, setChoiceCount] = useState(4);
   const [courseId, setCourseId] = useState(initialCourseId || "");
-  const [feedback, setFeedback] = useState("");
+  const [feedback, setFeedback] = useState(null);
   const [answerText, setAnswerText] = useState("");
   const [problem, setProblem] = useState(() =>
     integerPracticeEngine.buildQuestion({ level: 1, twoDigit: false })
@@ -70,7 +115,7 @@ export default function IntegerPracticeClient({
         }
         setLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []);
       } catch (error) {
-        setFeedback(error.message || "Could not load class leaderboard.");
+        setFeedback({ type: "error", message: error.message || "Could not load class leaderboard." });
       } finally {
         setLeaderboardLoading(false);
       }
@@ -172,7 +217,7 @@ export default function IntegerPracticeClient({
       try {
         await saveSession(previousSnapshot);
       } catch (error) {
-        setFeedback(error.message || "Could not save score.");
+        setFeedback({ type: "error", message: error.message || "Could not save score." });
         return;
       }
     }
@@ -189,7 +234,7 @@ export default function IntegerPracticeClient({
     setScore(0);
     setLevel(1);
     setStreak(0);
-    setFeedback("");
+    setFeedback(null);
     setCourseId(nextCourseId);
     setProblem(integerPracticeEngine.buildQuestion({ level: 1, twoDigit }));
   }
@@ -200,7 +245,7 @@ export default function IntegerPracticeClient({
       try {
         await saveSession(previousSnapshot);
       } catch (error) {
-        setFeedback(error.message || "Could not save score.");
+        setFeedback({ type: "error", message: error.message || "Could not save score." });
         return;
       }
     }
@@ -220,7 +265,7 @@ export default function IntegerPracticeClient({
     setScore(0);
     setLevel(1);
     setStreak(0);
-    setFeedback("");
+    setFeedback(null);
     setAnswerText("");
     setProblem(integerPracticeEngine.buildQuestion({ level: 1, twoDigit }));
   }
@@ -237,7 +282,11 @@ export default function IntegerPracticeClient({
       streak: nextStreak,
       riseAfterStreak: 3,
     });
-    setFeedback(correct ? "Correct!" : `Not quite. The answer was ${formatInteger(problem.answer)}.`);
+    setFeedback(
+      correct
+        ? { type: "correct", message: "Correct!" }
+        : { type: "incorrect", message: "Not quite. The answer was", answer: problem.answer }
+    );
     setStreak(nextStreak);
     setLevel(nextLevel);
     if (correct) setScore((current) => current + 1);
@@ -263,13 +312,13 @@ export default function IntegerPracticeClient({
 
   function handleTwoDigitChange(nextTwoDigit) {
     setTwoDigit(nextTwoDigit);
-    setFeedback("");
+    setFeedback(null);
     setProblem(integerPracticeEngine.buildQuestion({ level, twoDigit: nextTwoDigit }));
   }
 
   function handleChoiceCountChange(nextChoiceCount) {
     setChoiceCount(nextChoiceCount);
-    setFeedback("");
+    setFeedback(null);
     setAnswerText("");
   }
 
@@ -347,14 +396,12 @@ export default function IntegerPracticeClient({
         <p style={{ marginTop: "0.75rem" }}>
           Keep a streak going to raise the level. Missed questions lower the level a bit so the practice keeps matching you.
         </p>
-        <div className="mathPrompt">
-          {formatInteger(problem.a)} {problem.op} {formatInteger(problem.b)} = ?
-        </div>
+        <MathPromptDisplay a={problem.a} op={problem.op} b={problem.b} />
         {multipleChoice ? (
           <div className="choiceGrid">
             {options.map((option) => (
-              <button key={option} className="btn" type="button" onClick={() => submitAnswer(option)}>
-                {formatInteger(option)}
+              <button key={option} className="btn bigChoice" type="button" onClick={() => submitAnswer(option)}>
+                <MathChoice value={option} />
               </button>
             ))}
           </div>
@@ -366,7 +413,18 @@ export default function IntegerPracticeClient({
             </button>
           </div>
         )}
-        {feedback ? <p style={{ marginTop: "0.75rem" }}>{feedback}</p> : null}
+        {feedback ? (
+          <p className="mathFeedback">
+            <span>{feedback.message}</span>
+            {feedback.answer !== undefined ? (
+              <>
+                {" "}
+                <MathChoice value={feedback.answer} />
+                .
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </section>
       <section className="card" style={{ background: "#fff" }}>
         <h2>Your Stats</h2>

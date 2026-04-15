@@ -774,7 +774,47 @@ details[open] > summary.gameControlsSummary .hideLabel {
   font-size: clamp(2rem, 4vw, 3rem);
   font-weight: 800;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3em;
+  line-height: 1.15;
+}
+
+.mathInteger,
+.mathChoiceContent {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.02em;
+}
+
+.mathSymbol,
+.mathUnknown {
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+  font-weight: 700;
+}
+
+.mathMinus,
+.mathParen {
+  font-weight: 700;
+}
+
+.mathUnknown {
+  min-width: 0.6em;
+}
+
+.mathFeedback {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mathFeedback .mathChoiceContent {
+  font-size: 1.15em;
 }
 
 .choiceGrid {
@@ -787,6 +827,10 @@ details[open] > summary.gameControlsSummary .hideLabel {
 .bigChoice {
   min-height: 4.5rem;
   font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
 }
 
 .game2048Board {
