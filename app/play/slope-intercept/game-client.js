@@ -54,32 +54,6 @@ function parseIntegerInput(value) {
   return Number(trimmed);
 }
 
-function buildPinnedPoints(round, pinned) {
-  if (!round || !pinned) return [];
-
-  const points = [];
-
-  if (pinned.intercept) {
-    points.push({
-      id: "y-intercept-point",
-      latex: `(0,${round.intercept})`,
-      label: "y-intercept",
-    });
-  }
-
-  if (pinned.helper) {
-    const helperX = round.slope === 0 ? 2 : 1;
-    const helperY = round.slope * helperX + round.intercept;
-    points.push({
-      id: "helper-point",
-      latex: `(${helperX},${helperY})`,
-      label: "pinned point",
-    });
-  }
-
-  return points;
-}
-
 function loadDesmosApi() {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Desmos only loads in the browser."));
@@ -113,7 +87,7 @@ function loadDesmosApi() {
   return window.__mathclawDesmosPromise;
 }
 
-function updateGraph(calculator, round, pinned) {
+function updateGraph(calculator, round) {
   if (!calculator || !round) return;
 
   calculator.setBlank();
@@ -123,17 +97,6 @@ function updateGraph(calculator, round, pinned) {
     latex: `y=${round.slope}x${round.intercept < 0 ? round.intercept : `+${round.intercept}`}`,
     color: "#00325a",
   });
-
-  for (const point of buildPinnedPoints(round, pinned)) {
-    calculator.setExpression({
-      id: point.id,
-      latex: point.latex,
-      color: "#cd3b3b",
-      showLabel: true,
-      label: point.label,
-      pointSize: 12,
-    });
-  }
 }
 
 export default function SlopeInterceptClient({
@@ -155,11 +118,14 @@ export default function SlopeInterceptClient({
   const [isSaving, setIsSaving] = useState(false);
   const [graphReady, setGraphReady] = useState(false);
   const [graphError, setGraphError] = useState("");
-  const [pinnedPoints, setPinnedPoints] = useState({ intercept: false, helper: false });
+  const [scientificReady, setScientificReady] = useState(false);
+  const [scientificFallback, setScientificFallback] = useState(false);
   const [lastRoundSummary, setLastRoundSummary] = useState(null);
   const [runComplete, setRunComplete] = useState(false);
   const graphHostRef = useRef(null);
+  const scientificHostRef = useRef(null);
   const calculatorRef = useRef(null);
+  const scientificCalculatorRef = useRef(null);
   const savedRunRef = useRef(false);
   const sessionRef = useRef({
     score: 0,
@@ -268,60 +234,53 @@ export default function SlopeInterceptClient({
         if (cancelled || !graphHostRef.current) return;
 
         const calculator = Desmos.GraphingCalculator(graphHostRef.current, {
-          graphpaper: true,
           expressions: false,
           settingsMenu: false,
           zoomButtons: false,
           keypad: false,
           border: false,
-          invertedColors: false,
-          projectorMode: false,
-          xAxisNumbers: true,
-          yAxisNumbers: true,
-        });
-
-        calculator.updateSettings?.({
-          graphpaper: true,
-          invertedColors: false,
-          projectorMode: false,
           xAxisNumbers: true,
           yAxisNumbers: true,
         });
 
         calculatorRef.current = calculator;
-        window.requestAnimationFrame(() => {
-          updateGraph(calculator, round, pinnedPoints);
-          calculator.resize();
-          window.setTimeout(() => {
-            if (calculatorRef.current === calculator) {
-              updateGraph(calculator, round, pinnedPoints);
-              calculator.resize();
-            }
-          }, 180);
-        });
-        window.requestAnimationFrame(() => {
-          calculator.resize();
-        });
         setGraphReady(true);
 
+        if (
+          scientificHostRef.current &&
+          Desmos.enabledFeatures?.ScientificCalculator &&
+          typeof Desmos.ScientificCalculator === "function"
+        ) {
+          scientificCalculatorRef.current = Desmos.ScientificCalculator(scientificHostRef.current, {
+            qwertyKeyboard: true,
+            degreeMode: false,
+          });
+          setScientificReady(true);
+          setScientificFallback(false);
+        } else {
+          setScientificFallback(true);
+        }
       })
       .catch((error) => {
         if (!cancelled) {
           setGraphError(error.message || "Could not load Desmos.");
+          setScientificFallback(true);
         }
       });
 
     return () => {
       cancelled = true;
       calculatorRef.current?.destroy();
+      scientificCalculatorRef.current?.destroy();
       calculatorRef.current = null;
+      scientificCalculatorRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     if (!graphReady || !calculatorRef.current) return;
-    updateGraph(calculatorRef.current, round, pinnedPoints);
-  }, [graphReady, pinnedPoints, round]);
+    updateGraph(calculatorRef.current, round);
+  }, [graphReady, round]);
 
   useEffect(() => {
     sessionRef.current = {
@@ -377,7 +336,6 @@ export default function SlopeInterceptClient({
     setFeedback("");
     setSlopeAnswer("");
     setInterceptAnswer("");
-    setPinnedPoints({ intercept: false, helper: false });
     setLastRoundSummary(null);
     setRunComplete(false);
     setRound((current) => buildRound(current.key));
@@ -408,7 +366,6 @@ export default function SlopeInterceptClient({
     setFeedback("");
     setSlopeAnswer("");
     setInterceptAnswer("");
-    setPinnedPoints({ intercept: false, helper: false });
     setLastRoundSummary(null);
     setRunComplete(false);
     setRound((current) => buildRound(current.key));
@@ -477,7 +434,6 @@ export default function SlopeInterceptClient({
     setRoundIndex((current) => current + 1);
     setSlopeAnswer("");
     setInterceptAnswer("");
-    setPinnedPoints({ intercept: false, helper: false });
     setRound((current) => buildRound(current.key));
   }
 
@@ -519,38 +475,13 @@ export default function SlopeInterceptClient({
         </div>
 
         <div className="slopeInterceptGraphShell">
-          <div>
-            <div className="slopeInterceptGraphTools">
-              <button
-                className={`btn ${pinnedPoints.intercept ? "primary" : ""}`}
-                type="button"
-                onClick={() =>
-                  setPinnedPoints((current) => ({ ...current, intercept: !current.intercept }))
-                }
-                disabled={!graphReady}
-              >
-                {pinnedPoints.intercept ? "Unpin Y-Intercept" : "Pin Y-Intercept"}
-              </button>
-              <button
-                className={`btn ${pinnedPoints.helper ? "primary" : ""}`}
-                type="button"
-                onClick={() =>
-                  setPinnedPoints((current) => ({ ...current, helper: !current.helper }))
-                }
-                disabled={!graphReady}
-              >
-                {pinnedPoints.helper ? "Unpin Extra Point" : "Pin Extra Point"}
-              </button>
-            </div>
-
-            <div className="slopeInterceptGraphFrame">
-              <div ref={graphHostRef} className="slopeInterceptGraph" />
-              {graphStatusMessage ? (
-                <div className="slopeInterceptGraphOverlay">
-                  <p>{graphStatusMessage}</p>
-                </div>
-              ) : null}
-            </div>
+          <div className="slopeInterceptGraphFrame">
+            <div ref={graphHostRef} className="slopeInterceptGraph" />
+            {graphStatusMessage ? (
+              <div className="slopeInterceptGraphOverlay">
+                <p>{graphStatusMessage}</p>
+              </div>
+            ) : null}
           </div>
           <aside className="slopeInterceptPromptCard">
             <p className="slopeInterceptEyebrow">Round {Math.min(roundIndex, TOTAL_ROUNDS)}</p>
@@ -641,11 +572,24 @@ export default function SlopeInterceptClient({
         <section className="card" style={{ background: "#fff" }}>
           <h2>Scientific Calculator</h2>
           <div className="slopeScientificShell">
-            <iframe
-              title="Desmos Scientific Calculator"
-              src="https://www.desmos.com/scientific"
-              className="slopeScientificCalculator"
-              loading="lazy"
+            {scientificFallback ? (
+              <div className="slopeScientificFallback">
+                <p>The embedded Desmos scientific calculator is not enabled for this API key.</p>
+                <a
+                  className="btn"
+                  href="https://www.desmos.com/scientific"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open Desmos Calculator
+                </a>
+              </div>
+            ) : null}
+            <div
+              ref={scientificHostRef}
+              className={`slopeScientificCalculator ${scientificReady ? "isReady" : ""} ${
+                scientificFallback ? "isHidden" : ""
+              }`}
             />
           </div>
         </section>
