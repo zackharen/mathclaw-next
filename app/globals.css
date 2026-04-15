@@ -3562,6 +3562,255 @@ details[open] > summary.btn,
   margin-top: 1rem;
 }
 
+.integerMainPlayCard,
+.integerWideCard {
+  grid-column: span 2;
+}
+
+.integerMasteryMeter {
+  margin-top: 0.9rem;
+  width: 100%;
+  height: 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #edf3f7;
+}
+
+.integerMasteryMeterFill {
+  height: 100%;
+  background: linear-gradient(90deg, #f4b23b 0%, #ef8a39 40%, #0c7e4d 100%);
+  transition: width 180ms ease;
+}
+
+.integerCoachLine,
+.integerFeedback,
+.integerMiniCopy,
+.integerSupportNote,
+.integerHintRewrite {
+  margin-top: 0.65rem;
+}
+
+.integerPromptCard,
+.integerAssignmentGrid,
+.integerTeacherGrid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.integerPromptCard {
+  margin-top: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  padding: 1rem 1.1rem;
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffdf8 0%, #f9fbfc 100%);
+}
+
+.integerPromptCard h3 {
+  margin-top: 0.45rem;
+  font-size: clamp(2.2rem, 5vw, 3.5rem);
+  line-height: 1.1;
+}
+
+.integerRemediationBanner {
+  margin-top: 0.9rem;
+  padding: 0.8rem 1rem;
+  border: 2px dashed #6c879b;
+  border-radius: 16px;
+  background: #f5f9fc;
+  font-weight: 700;
+}
+
+.integerNumberLine,
+.integerCounterWrap,
+.integerConfidenceRow {
+  margin-top: 1rem;
+  padding: 0.95rem 1rem;
+  border: 2px solid #d6e0e8;
+  border-radius: 16px;
+  background: #f9fbfc;
+}
+
+.integerNumberLineTrack {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18px, 1fr));
+  gap: 0.15rem;
+  align-items: end;
+}
+
+.integerNumberTick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #64748b;
+}
+
+.integerNumberTick.start,
+.integerNumberTick.end,
+.integerNumberTick.zero {
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.integerNumberTickMark {
+  width: 2px;
+  height: 16px;
+  background: currentColor;
+}
+
+.integerNumberTickLabel {
+  font-size: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.integerCounterWrap {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.integerSupportLabel {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.integerCounterRow {
+  margin-top: 0.45rem;
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.integerCounter {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+}
+
+.integerCounter.positive {
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.integerCounter.negative {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
+.integerCounter.incoming {
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
+}
+
+.integerHintCard {
+  margin-top: 1rem;
+}
+
+.integerHintSteps {
+  margin-top: 0.7rem;
+  padding-left: 1.2rem;
+}
+
+.integerConfidenceRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.integerInsightCard {
+  border-radius: 18px;
+}
+
+.integerLevelLadder {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.integerLevelCard {
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+  background: #f9fbfc;
+}
+
+.integerLevelCard.active {
+  background: #fff6e8;
+}
+
+.integerLevelCard.mastered {
+  background: #effaf2;
+}
+
+.integerLevelCardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.integerTeacherGrid,
+.integerAssignmentGrid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.integerBadgeRow {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.integerBadge {
+  display: inline-flex;
+  align-items: center;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: #fff7e8;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 700;
+}
+
+.integerStatePill.state-struggling {
+  background: #fef2f2;
+}
+
+.integerStatePill.state-learning {
+  background: #fff7ed;
+}
+
+.integerStatePill.state-developing {
+  background: #fffbea;
+}
+
+.integerStatePill.state-proficient {
+  background: #eff6ff;
+}
+
+.integerStatePill.state-fluent,
+.integerStatePill.state-automatic {
+  background: #ecfdf3;
+}
+
+@media (max-width: 980px) {
+  .integerMainPlayCard,
+  .integerWideCard {
+    grid-column: span 1;
+  }
+
+  .integerPromptCard {
+    grid-template-columns: 1fr;
+  }
+}
+
 .teacherBadgeRow {
   display: flex;
   gap: 0.5rem;

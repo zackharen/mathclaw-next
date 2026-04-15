@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import IntegerPracticeClient from "./game-client";
 
@@ -10,6 +11,7 @@ export default async function IntegerPracticePage({ searchParams }) {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/sign-in?redirect=/play/integer-practice");
+  const accountType = await getAccountTypeForUser(supabase, user);
   const [allCourses, courses, personalResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "integer_practice" }),
@@ -45,6 +47,8 @@ export default async function IntegerPracticePage({ searchParams }) {
         <p>Adaptive fluency practice with options for bigger numbers and multiple choice.</p>
       </section>
       <IntegerPracticeClient
+        userId={user.id}
+        accountType={accountType}
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
