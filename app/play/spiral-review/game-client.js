@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MathInlineText, MathText } from "@/components/math-display";
 import { buildSpiralReviewQuestion, listSpiralReviewSkills } from "@/lib/question-engine/spiral-review";
 
 const TOTAL_ROUNDS = 12;
@@ -41,7 +42,7 @@ export default function SpiralReviewClient({
     const attempts = sessionRef.current.attempts || 0;
     if (!attempts) return 0;
     return Math.round((score / attempts) * 100);
-  }, [score, roundIndex]);
+  }, [score]);
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -281,12 +282,12 @@ export default function SpiralReviewClient({
           <p className="spiralReviewLabel">{question.prompt}</p>
           {question.leftLabel && question.rightLabel ? (
             <div className="spiralReviewCompareRow">
-              <div className="spiralReviewValueCard">{question.leftLabel}</div>
+              <div className="spiralReviewValueCard"><MathText node={question.leftNode} /></div>
               <div className="spiralReviewVs">vs</div>
-              <div className="spiralReviewValueCard">{question.rightLabel}</div>
+              <div className="spiralReviewValueCard"><MathText node={question.rightNode} /></div>
             </div>
           ) : (
-            <div className="spiralReviewEquation">{question.prompt} = ?</div>
+            <div className="spiralReviewEquation"><MathText node={question.promptNode} /></div>
           )}
         </div>
 
@@ -299,12 +300,16 @@ export default function SpiralReviewClient({
               onClick={() => answerQuestion(choice)}
               disabled={runComplete}
             >
-              {question.formatChoice(choice)}
+              <MathText node={question.formatChoiceNode ? question.formatChoiceNode(choice) : null} className="mathChoiceContent" />
             </button>
           ))}
         </div>
 
-        {feedback ? <div className="minesweeperStatusBanner active" style={{ marginTop: "0.9rem" }}><strong>{feedback}</strong></div> : null}
+        {feedback ? (
+          <div className="minesweeperStatusBanner active" style={{ marginTop: "0.9rem" }}>
+            <strong><MathInlineText text={feedback} /></strong>
+          </div>
+        ) : null}
       </section>
 
       <section className="card" style={{ background: "#fff" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MathText, buildEquationNode, buildIntegerNode } from "@/components/math-display";
 import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import { integerPracticeEngine } from "@/lib/question-engine/generators";
 
@@ -10,51 +11,6 @@ function formatScore(value) {
 
 function formatInteger(value) {
   return value < 0 ? `(${value})` : String(value);
-}
-
-function MathInteger({ value }) {
-  if (value < 0) {
-    return (
-      <span className="mathInteger" aria-label={formatInteger(value)}>
-        <span className="mathParen">(</span>
-        <span className="mathMinus">−</span>
-        <span>{Math.abs(value)}</span>
-        <span className="mathParen">)</span>
-      </span>
-    );
-  }
-
-  return (
-    <span className="mathInteger" aria-label={String(value)}>
-      <span>{value}</span>
-    </span>
-  );
-}
-
-function MathSymbol({ children }) {
-  return <span className="mathSymbol">{children}</span>;
-}
-
-function MathPromptDisplay({ a, op, b }) {
-  const operator = op === "-" ? "−" : op;
-
-  return (
-    <div className="mathPrompt" aria-label={`${formatInteger(a)} ${op} ${formatInteger(b)} equals what`}>
-      <MathInteger value={a} />
-      <MathSymbol>{operator}</MathSymbol>
-      <MathInteger value={b} />
-      <MathSymbol>=</MathSymbol>
-      <span className="mathUnknown">?</span>
-    </div>
-  );
-}
-
-function MathChoice({ value }) {
-  return (
-    <span className="mathChoiceContent">
-      <MathInteger value={value} />
-    </span>
-  );
 }
 
 export default function IntegerPracticeClient({
@@ -396,12 +352,14 @@ export default function IntegerPracticeClient({
         <p style={{ marginTop: "0.75rem" }}>
           Keep a streak going to raise the level. Missed questions lower the level a bit so the practice keeps matching you.
         </p>
-        <MathPromptDisplay a={problem.a} op={problem.op} b={problem.b} />
+        <div className="mathPrompt" aria-label={`${formatInteger(problem.a)} ${problem.op} ${formatInteger(problem.b)} equals what`}>
+          <MathText node={buildEquationNode(problem.a, problem.op, problem.b, { includeEquals: true, includeUnknown: true })} />
+        </div>
         {multipleChoice ? (
           <div className="choiceGrid">
             {options.map((option) => (
               <button key={option} className="btn bigChoice" type="button" onClick={() => submitAnswer(option)}>
-                <MathChoice value={option} />
+                <MathText node={buildIntegerNode(option)} className="mathChoiceContent" />
               </button>
             ))}
           </div>
@@ -419,7 +377,7 @@ export default function IntegerPracticeClient({
             {feedback.answer !== undefined ? (
               <>
                 {" "}
-                <MathChoice value={feedback.answer} />
+                <MathText node={buildIntegerNode(feedback.answer)} className="mathChoiceContent" />
                 .
               </>
             ) : null}

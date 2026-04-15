@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MathText, buildLabelNode } from "@/components/math-display";
 import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import { numberCompareEngine } from "@/lib/question-engine/generators";
 
@@ -312,7 +313,7 @@ export default function NumberCompareClient({
         <div className="choiceGrid" style={{ marginTop: "1rem" }}>
           {pair.map((entry, index) => (
             <button key={`${entry.label}-${index}`} className="btn bigChoice" type="button" onClick={() => answer(index)}>
-              {entry.label}
+              <MathText node={buildLabelNode(entry.label)} className="mathChoiceContent" />
             </button>
           ))}
         </div>

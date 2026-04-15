@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MathInlineText, MathText } from "@/components/math-display";
 import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import {
   buildSkillBuilderQuestion,
@@ -335,12 +336,14 @@ export default function SkillBuilderClient({
 
         <div className="card skillBuilderPromptCard" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
           <span className="skillBuilderPromptLabel">{targetSummary.label}</span>
-          <h3 style={{ marginTop: "0.6rem" }}>{question.prompt}</h3>
+          <h3 style={{ marginTop: "0.6rem" }}>
+            {question.promptNode ? <MathText node={question.promptNode} /> : <MathInlineText text={question.prompt} />}
+          </h3>
           {question.leftLabel && question.rightLabel ? (
             <div className="spiralReviewCompareRow">
-              <div className="spiralReviewValueCard">{question.leftLabel}</div>
+              <div className="spiralReviewValueCard"><MathText node={question.leftNode} /></div>
               <div className="spiralReviewVs">vs</div>
-              <div className="spiralReviewValueCard">{question.rightLabel}</div>
+              <div className="spiralReviewValueCard"><MathText node={question.rightNode} /></div>
             </div>
           ) : null}
         </div>
@@ -354,12 +357,18 @@ export default function SkillBuilderClient({
               onClick={() => answerQuestion(choice)}
               disabled={runComplete}
             >
-              {question.formatChoice ? question.formatChoice(choice) : String(choice)}
+              {question.formatChoiceNode ? (
+                <MathText node={question.formatChoiceNode(choice)} className="mathChoiceContent" />
+              ) : question.formatChoice ? (
+                question.formatChoice(choice)
+              ) : (
+                String(choice)
+              )}
             </button>
           ))}
         </div>
 
-        <p style={{ marginTop: "1rem", minHeight: "1.5rem" }}>{feedback}</p>
+        <p style={{ marginTop: "1rem", minHeight: "1.5rem" }}><MathInlineText text={feedback} /></p>
 
         {runComplete ? (
           <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>

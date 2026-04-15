@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MathInlineText } from "@/components/math-display";
 import { buildQuestionKindReviewQuestion, listQuestionKinds } from "@/lib/question-engine/question-kind-review";
 
 const TOTAL_ROUNDS = 10;
@@ -41,7 +42,7 @@ export default function QuestionKindReviewClient({
     const attempts = sessionRef.current.attempts || 0;
     if (!attempts) return 0;
     return Math.round((score / attempts) * 100);
-  }, [score, roundIndex]);
+  }, [score]);
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -278,7 +279,7 @@ export default function QuestionKindReviewClient({
 
         <div className="spiralReviewCard">
           <p className="spiralReviewLabel">Identify the question type</p>
-          <div className="spiralReviewPrompt">{question.prompt}</div>
+          <div className="spiralReviewPrompt"><MathInlineText text={question.prompt} /></div>
         </div>
 
         <div className="choiceGrid" style={{ marginTop: "1rem" }}>
@@ -297,7 +298,7 @@ export default function QuestionKindReviewClient({
 
         {feedback ? (
           <div className="minesweeperStatusBanner active" style={{ marginTop: "0.9rem" }}>
-            <strong>{feedback}</strong>
+            <strong><MathInlineText text={feedback} /></strong>
           </div>
         ) : null}
       </section>

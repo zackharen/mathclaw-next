@@ -782,7 +782,23 @@ details[open] > summary.gameControlsSummary .hideLabel {
   line-height: 1.15;
 }
 
+.mathInlineText,
+.mathEquation,
+.mathAtom,
+.mathChoiceContent {
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+}
+
+.mathInlineText,
+.mathEquation {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.16em;
+}
+
 .mathInteger,
+.mathDecimal,
 .mathChoiceContent {
   display: inline-flex;
   align-items: baseline;
@@ -803,6 +819,44 @@ details[open] > summary.gameControlsSummary .hideLabel {
 
 .mathUnknown {
   min-width: 0.6em;
+}
+
+.mathFractionWrap,
+.mathRadicalWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.08em;
+}
+
+.mathFraction {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-size: 0.9em;
+  min-width: 1.4em;
+}
+
+.mathFractionTop {
+  display: block;
+  padding: 0 0.14em 0.08em;
+  border-bottom: 2px solid currentColor;
+}
+
+.mathFractionBottom {
+  display: block;
+  padding: 0.08em 0.14em 0;
+}
+
+.mathRadicalSign {
+  font-size: 1.08em;
+  line-height: 1;
+}
+
+.mathRadicalValue {
+  border-top: 2px solid currentColor;
+  padding: 0 0.1em 0 0.14em;
+  line-height: 1.05;
 }
 
 .mathFeedback {
@@ -2681,9 +2735,9 @@ details[open] > summary.btn,
 
 .spiralReviewEquation {
   margin-top: 0.6rem;
-  font-family: "Courier New", Courier, monospace;
   font-size: clamp(1.7rem, 5vw, 2.4rem);
   font-weight: 800;
+  line-height: 1.2;
 }
 
 .spiralReviewPrompt {
@@ -2707,9 +2761,9 @@ details[open] > summary.btn,
   padding: 1rem;
   background: #fff;
   text-align: center;
-  font-family: "Courier New", Courier, monospace;
   font-size: clamp(1.2rem, 4vw, 1.7rem);
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .spiralReviewVs {
@@ -3006,7 +3060,6 @@ details[open] > summary.btn,
   font-weight: 800;
   line-height: 1.15;
   min-height: 1.25rem;
-  white-space: nowrap;
 }
 
 .doubleBoardTileSolution {

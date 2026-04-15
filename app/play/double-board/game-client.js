@@ -1,6 +1,8 @@
 "use client";
 
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
+import { MathInlineText, MathText } from "@/components/math-display";
+import { buildIntegerNode } from "@/lib/math-display";
 import {
   DOUBLE_BOARD_COLUMN_PATTERNS,
   DOUBLE_BOARD_NUMBER_MODES,
@@ -169,8 +171,10 @@ function AnswerHistoryPanel({ title, items }) {
       <div className="doubleBoardReviewList">
         {items.map((item) => (
           <div key={item.id} className="doubleBoardReviewItem">
-            <strong>{item.expressionText}</strong>
-            <span>{`Answer given: ${item.submittedAnswer}`}</span>
+            <strong><MathInlineText text={item.expressionText} /></strong>
+            <span>
+              Answer given: <MathText node={buildIntegerNode(item.submittedAnswer)} />
+            </span>
             <span>{item.isCorrect ? "Correct" : "Incorrect"}</span>
             <span>{formatBoardLocation(item.boardKey, item.rowIndex, item.colIndex)}</span>
           </div>
@@ -248,7 +252,7 @@ function BoardPanel({
                   title={tileTooltip(question)}
                   aria-label={ariaDescription}
                 >
-                  <span className="doubleBoardTileValue">{tileLabel}</span>
+                  <span className="doubleBoardTileValue"><MathInlineText text={tileLabel} /></span>
                   {!question.solved && question.everMissed ? (
                     <span className="doubleBoardTileBadge">X</span>
                   ) : null}
@@ -256,7 +260,9 @@ function BoardPanel({
                     <span className="doubleBoardTileMeta" aria-hidden="true">✓</span>
                   ) : null}
                   {question.solved ? (
-                    <span className="doubleBoardTileSolution">{`= ${question.correctAnswer}`}</span>
+                    <span className="doubleBoardTileSolution">
+                      <MathText node={{ kind: "equation", segments: [{ kind: "symbol", value: "=" }, buildIntegerNode(question.correctAnswer)] }} />
+                    </span>
                   ) : null}
                   <span className="doubleBoardTileValueBadge">{question.retryValue}</span>
                 </button>
@@ -297,7 +303,7 @@ function AnswerModal({
         <p className="doubleBoardEyebrow">
           {formatBoardLocation(question.boardKey, question.rowIndex, question.colIndex)}
         </p>
-        <h3 id="double-board-answer-title">{question.expressionText}</h3>
+        <h3 id="double-board-answer-title"><MathInlineText text={question.expressionText} /></h3>
         <p>
           {answerMode === "multiple_choice"
             ? "Pick one of the four answer choices."
@@ -313,7 +319,7 @@ function AnswerModal({
                 disabled={busy}
                 onClick={() => onSubmit(String(choice))}
               >
-                {choice}
+                <MathText node={buildIntegerNode(choice)} className="mathChoiceContent" />
               </button>
             ))}
             <div className="ctaRow">
