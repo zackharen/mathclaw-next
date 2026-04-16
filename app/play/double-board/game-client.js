@@ -171,12 +171,16 @@ function AnswerHistoryPanel({ title, items }) {
       <div className="doubleBoardReviewList">
         {items.map((item) => (
           <div key={item.id} className="doubleBoardReviewItem">
-            <strong><MathInlineText text={item.expressionText} /></strong>
-            <span>
+            <strong className="doubleBoardReviewExpression">
+              <MathInlineText text={item.expressionText} />
+            </strong>
+            <span className="doubleBoardReviewAnswer">
               Answer given: <MathText node={buildIntegerNode(item.submittedAnswer)} />
             </span>
-            <span>{item.isCorrect ? "Correct" : "Incorrect"}</span>
-            <span>{formatBoardLocation(item.boardKey, item.rowIndex, item.colIndex)}</span>
+            <span className="doubleBoardReviewMeta">{item.isCorrect ? "Correct" : "Incorrect"}</span>
+            <span className="doubleBoardReviewMeta">
+              {formatBoardLocation(item.boardKey, item.rowIndex, item.colIndex)}
+            </span>
           </div>
         ))}
       </div>
@@ -252,18 +256,28 @@ function BoardPanel({
                   title={tileTooltip(question)}
                   aria-label={ariaDescription}
                 >
-                  <span className="doubleBoardTileValue"><MathInlineText text={tileLabel} /></span>
-                  {!question.solved && question.everMissed ? (
-                    <span className="doubleBoardTileBadge">X</span>
-                  ) : null}
-                  {question.solved ? (
-                    <span className="doubleBoardTileMeta" aria-hidden="true">✓</span>
-                  ) : null}
-                  {question.solved ? (
-                    <span className="doubleBoardTileSolution">
-                      <MathText node={{ kind: "equation", segments: [{ kind: "symbol", value: "=" }, buildIntegerNode(question.correctAnswer)] }} />
-                    </span>
-                  ) : null}
+                  <span className="doubleBoardTileBody">
+                    <span className="doubleBoardTileValue"><MathInlineText text={tileLabel} /></span>
+                    {!question.solved && question.everMissed ? (
+                      <span className="doubleBoardTileBadge">X</span>
+                    ) : null}
+                    {question.solved ? (
+                      <span className="doubleBoardTileSolvedState">
+                        <span className="doubleBoardTileSolution">
+                          <MathText
+                            node={{
+                              kind: "equation",
+                              segments: [
+                                { kind: "symbol", value: "=" },
+                                buildIntegerNode(question.correctAnswer),
+                              ],
+                            }}
+                          />
+                        </span>
+                        <span className="doubleBoardTileMeta" aria-hidden="true">✓</span>
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="doubleBoardTileValueBadge">{question.retryValue}</span>
                 </button>
               );
@@ -378,10 +392,14 @@ function ReviewPanel({ reviewItems }) {
       <div className="doubleBoardReviewList">
         {reviewItems.map((item) => (
           <div key={item.id} className="doubleBoardReviewItem">
-            <strong>{item.expressionText}</strong>
-            <span>{`Answer: ${item.correctAnswer}`}</span>
-            <span>{`Board ${item.boardKey}`}</span>
-            <span>{`${item.wrongAttemptCount} wrong attempt${
+            <strong className="doubleBoardReviewExpression">
+              <MathInlineText text={item.expressionText} />
+            </strong>
+            <span className="doubleBoardReviewAnswer">
+              Answer: <MathText node={buildIntegerNode(item.correctAnswer)} />
+            </span>
+            <span className="doubleBoardReviewMeta">{`Board ${item.boardKey}`}</span>
+            <span className="doubleBoardReviewMeta">{`${item.wrongAttemptCount} wrong attempt${
               item.wrongAttemptCount === 1 ? "" : "s"
             } before solve`}</span>
           </div>
@@ -442,7 +460,15 @@ export default function DoubleBoardClient({
         setFlashMessage("");
       }
     } catch (error) {
-      setFlashMessage(error.message || "Could not load Double Board.");
+      if (!options.quiet) {
+        setFlashMessage(
+          error?.message === "Failed to fetch"
+            ? "The page lost contact with Double Board for a moment. Try Refresh."
+            : error?.message || "Could not load Double Board."
+        );
+      } else {
+        console.warn("Double Board background refresh failed", error);
+      }
     } finally {
       if (!options.quiet) {
         setLoading(false);

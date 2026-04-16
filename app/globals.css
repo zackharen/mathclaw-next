@@ -2989,8 +2989,8 @@ details[open] > summary.btn,
 
 .doubleBoardArena {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem) minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.22fr) minmax(13.5rem, 18rem) minmax(0, 1.22fr);
+  gap: 0.8rem;
   margin-top: 1rem;
   align-items: start;
 }
@@ -3013,7 +3013,7 @@ details[open] > summary.btn,
 .doubleBoardGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.7rem;
+  gap: 0.6rem;
   margin-top: 0.75rem;
 }
 
@@ -3022,19 +3022,19 @@ details[open] > summary.btn,
 }
 
 .doubleBoardTile {
-  min-height: 7.25rem;
+  min-height: 9.25rem;
 }
 
 .doubleBoardTile {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.55rem;
   border: 3px solid #0b3d69;
   border-radius: 20px;
-  padding: 0.75rem 0.5rem 0.9rem;
+  padding: 0.75rem 0.45rem 0.85rem;
   background: #ffffff;
   color: #0b3d69;
   text-align: center;
@@ -3056,10 +3056,38 @@ details[open] > summary.btn,
 }
 
 .doubleBoardTileValue {
-  font-size: 1rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  font-size: 0.94rem;
   font-weight: 800;
   line-height: 1.15;
-  min-height: 1.25rem;
+  min-height: 1.75rem;
+  white-space: nowrap;
+}
+
+.doubleBoardTileValue .mathInlineText {
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+
+.doubleBoardTileBody {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+}
+
+.doubleBoardTileSolvedState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
 }
 
 .doubleBoardTileSolution {
@@ -3067,13 +3095,10 @@ details[open] > summary.btn,
   line-height: 1.15;
   font-weight: 800;
   color: inherit;
+  white-space: nowrap;
 }
 
 .doubleBoardTileMeta {
-  position: absolute;
-  left: 50%;
-  top: 44%;
-  transform: translate(-50%, -50%);
   font-size: 1.5rem;
   line-height: 1;
   color: #2c7a3d;
@@ -3093,16 +3118,14 @@ details[open] > summary.btn,
   border: 2px solid #d0ab17;
   font-weight: 900;
   font-size: 0.95rem;
+  margin-top: auto;
 }
 
 .doubleBoardTileBadge {
-  position: absolute;
-  left: 50%;
-  top: 44%;
-  transform: translate(-50%, -50%);
   font-size: 1.6rem;
   font-weight: 900;
   color: #be2d2d;
+  line-height: 1;
 }
 
 .doubleBoardTile.state-unanswered {
@@ -3341,11 +3364,38 @@ details[open] > summary.btn,
   border-radius: 18px;
   padding: 0.95rem;
   background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.24rem;
 }
 
-.doubleBoardReviewItem strong,
-.doubleBoardReviewItem span {
+.doubleBoardReviewExpression,
+.doubleBoardReviewAnswer,
+.doubleBoardReviewMeta {
   display: block;
+}
+
+.doubleBoardReviewExpression {
+  width: 100%;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.doubleBoardReviewExpression .mathInlineText {
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.doubleBoardReviewAnswer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem;
+}
+
+.doubleBoardReviewMeta {
+  line-height: 1.2;
 }
 
 .doubleBoardErrorCard {
@@ -3417,7 +3467,7 @@ details[open] > summary.btn,
   }
 
   .doubleBoardTile {
-    min-height: 6.2rem;
+    min-height: 7.8rem;
   }
 
   .doubleBoardTile {
@@ -3425,8 +3475,9 @@ details[open] > summary.btn,
   }
 
   .doubleBoardTileValue {
-    font-size: 0.76rem;
-    min-height: 1rem;
+    font-size: 0.68rem;
+    min-height: 1.5rem;
+    white-space: nowrap;
   }
 
   .doubleBoardTileValueBadge {
