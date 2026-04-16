@@ -37,6 +37,10 @@ function formatMs(ms) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function answerLabel(value) {
+  return value < 0 ? `-${Math.abs(value)}` : String(value);
+}
+
 function profileStorageKey(userId, courseId) {
   return `mathclaw:integer-practice:profile:${userId}:${courseId || "none"}`;
 }
@@ -665,7 +669,7 @@ export default function IntegerPracticeClient({
       );
     } else {
       setFeedback(
-        `${meta.timedOut ? "Time ran out." : `The answer was ${signedLabel(problem.answer)}.`} ${problem.strategy.headline} ${levelPlan.supportScaffolds ? "I turned support back on for the next few reps." : ""}`.trim()
+        `${meta.timedOut ? "Time ran out." : `The answer was ${answerLabel(problem.answer)}.`} ${problem.strategy.headline} ${levelPlan.supportScaffolds ? "I turned support back on for the next few reps." : ""}`.trim()
       );
     }
 
@@ -997,7 +1001,10 @@ export default function IntegerPracticeClient({
                 disabled={runIsComplete}
                 onClick={() => applyAnswer(choice)}
               >
-                <MathText node={buildIntegerNode(choice)} className="mathChoiceContent" />
+                <MathText
+                  node={buildIntegerNode(choice, { parenthesizeNegative: false })}
+                  className="mathChoiceContent"
+                />
               </button>
             ))}
           </div>
@@ -1169,8 +1176,4 @@ export default function IntegerPracticeClient({
       </section>
     </div>
   );
-}
-
-function signedLabel(value) {
-  return value < 0 ? `(${value})` : String(value);
 }
