@@ -21,6 +21,7 @@ Update this file at the end of each work session.
 - Restructured Double Board solved-tile markup/CSS so answers, checkmarks, and value badges stack cleanly without overlap
 - Widened the Double Board board columns again and tightened the center column so more expressions stay on one line
 - Updated Double Board review and answer-history cards to render expressions/answers through the shared math display components with layout that preserves readable equations
+- Updated the MathClaw brain instructions so future “fix/change/build this” requests default to completing the production/live-site path unless the user explicitly says otherwise
 
 ## Current State Of The Project
 - Teacher workspace and student arcade are both active, real surfaces in production-oriented code
@@ -76,3 +77,4 @@ Update this file at the end of each work session.
 - Production schema may be older than the repo in places, so keep fallback logic intact
 - Owner access is controlled by `MATHCLAW_OWNER_EMAILS`
 - Keep edits modular and load only the feature files needed for the task
+- Default assumption: if the user asks for a fix or feature and does not say otherwise, they want it made live on the site, not left as local-only or branch-only work
