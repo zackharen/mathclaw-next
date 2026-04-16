@@ -22,6 +22,7 @@ Update this file at the end of each work session.
 - Widened the Double Board board columns again and tightened the center column so more expressions stay on one line
 - Updated Double Board review and answer-history cards to render expressions/answers through the shared math display components with layout that preserves readable equations
 - Updated the MathClaw brain instructions so future “fix/change/build this” requests default to completing the production/live-site path unless the user explicitly says otherwise
+- Updated Double Board and Integer Practice so negative answers render without parentheses while expressions still keep parentheses where they clarify signed operations
 
 ## Current State Of The Project
 - Teacher workspace and student arcade are both active, real surfaces in production-oriented code
@@ -30,6 +31,7 @@ Update this file at the end of each work session.
 - Saved-state and auth/session behavior have required recent fixes
 - Temporary admin repair tooling exists for the Integer Practice auth-metadata issue
 - Double Board has another round of layout/readability fixes applied; a browser check would still be useful for projector/fullscreen confirmation
+- Integer answer formatting is now split more intentionally between expression display and answer display
 
 ## Active Tasks
 - None in progress inside this session after the `/brain` setup
@@ -62,6 +64,10 @@ Update this file at the end of each work session.
   - `/Users/zackarenstein/mathclaw-next/app/globals.css`
   - `/Users/zackarenstein/mathclaw-next/app/play/double-board/game-client.js`
   - `/Users/zackarenstein/mathclaw-next/app/api/play/double-board/route.js`
+- For negative-answer formatting:
+  - `/Users/zackarenstein/mathclaw-next/app/play/double-board/game-client.js`
+  - `/Users/zackarenstein/mathclaw-next/app/play/integer-practice/game-client.js`
+  - `/Users/zackarenstein/mathclaw-next/lib/integer-practice/engine.js`
 
 ## Known Issues / Bugs
 - Middleware file convention should likely move from `middleware.js` to `proxy` eventually

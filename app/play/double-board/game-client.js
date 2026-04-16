@@ -129,6 +129,10 @@ function buildMultipleChoiceOptions(question) {
   return values.slice(0, 4);
 }
 
+function buildAnswerNode(value) {
+  return buildIntegerNode(value, { parenthesizeNegative: false });
+}
+
 function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
   if (!leaderboard.length) {
     return <p className="doubleBoardEmptyNote">No players have joined this game yet.</p>;
@@ -175,7 +179,7 @@ function AnswerHistoryPanel({ title, items }) {
               <MathInlineText text={item.expressionText} />
             </strong>
             <span className="doubleBoardReviewAnswer">
-              Answer given: <MathText node={buildIntegerNode(item.submittedAnswer)} />
+              Answer given: <MathText node={buildAnswerNode(item.submittedAnswer)} />
             </span>
             <span className="doubleBoardReviewMeta">{item.isCorrect ? "Correct" : "Incorrect"}</span>
             <span className="doubleBoardReviewMeta">
@@ -269,7 +273,7 @@ function BoardPanel({
                               kind: "equation",
                               segments: [
                                 { kind: "symbol", value: "=" },
-                                buildIntegerNode(question.correctAnswer),
+                                buildAnswerNode(question.correctAnswer),
                               ],
                             }}
                           />
@@ -333,7 +337,7 @@ function AnswerModal({
                 disabled={busy}
                 onClick={() => onSubmit(String(choice))}
               >
-                <MathText node={buildIntegerNode(choice)} className="mathChoiceContent" />
+                <MathText node={buildAnswerNode(choice)} className="mathChoiceContent" />
               </button>
             ))}
             <div className="ctaRow">
@@ -396,7 +400,7 @@ function ReviewPanel({ reviewItems }) {
               <MathInlineText text={item.expressionText} />
             </strong>
             <span className="doubleBoardReviewAnswer">
-              Answer: <MathText node={buildIntegerNode(item.correctAnswer)} />
+              Answer: <MathText node={buildAnswerNode(item.correctAnswer)} />
             </span>
             <span className="doubleBoardReviewMeta">{`Board ${item.boardKey}`}</span>
             <span className="doubleBoardReviewMeta">{`${item.wrongAttemptCount} wrong attempt${
