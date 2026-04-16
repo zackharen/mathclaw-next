@@ -81,6 +81,69 @@ function saveLocalProfile(userId, courseId, profile) {
   );
 }
 
+function buildCompactSkillMap(skillMap) {
+  return Object.fromEntries(
+    Object.entries(skillMap || {}).slice(0, 12).map(([tag, value]) => [
+      tag,
+      {
+        attempts: Number(value?.attempts || 0),
+        accuracy: Number(value?.accuracy || 0),
+        medianResponseMs: Number(value?.medianResponseMs || 0),
+        hintRate: Number(value?.hintRate || 0),
+      },
+    ])
+  );
+}
+
+function buildCompactHistoryEntry(entry) {
+  return {
+    levelId: Number(entry?.levelId || 1),
+    correct: entry?.correct === true,
+    responseMs: Number(entry?.responseMs || 0),
+    skillTags: Array.isArray(entry?.skillTags) ? entry.skillTags.slice(0, 3) : [],
+    primarySkillTag: typeof entry?.primarySkillTag === "string" ? entry.primarySkillTag : null,
+    hintUsed: entry?.hintUsed === true,
+    attemptsUsed: Number(entry?.attemptsUsed || 1),
+    errorType: typeof entry?.errorType === "string" ? entry.errorType : null,
+    confidence: typeof entry?.confidence === "string" ? entry.confidence : null,
+    mode: typeof entry?.mode === "string" ? entry.mode : null,
+    answerMode: typeof entry?.answerMode === "string" ? entry.answerMode : null,
+  };
+}
+
+function buildServerProfileSnapshot(profile) {
+  const summary = summarizeProfile(profile);
+  return {
+    currentLevelId: Number(profile?.currentLevelId || 1),
+    highestLevelReached: Number(profile?.highestLevelReached || 1),
+    masteredSkillTags: Array.isArray(profile?.masteredSkillTags) ? profile.masteredSkillTags.slice(0, 8) : [],
+    strugglingSkillTags: Array.isArray(profile?.strugglingSkillTags) ? profile.strugglingSkillTags.slice(0, 6) : [],
+    accuracyBySkill: buildCompactSkillMap(profile?.accuracyBySkill || summary.accuracyBySkill),
+    hintDependence: Number(profile?.hintDependence || summary.hintRate || 0),
+    badges: Array.isArray(profile?.badges) ? profile.badges.slice(0, 8) : [],
+    fluencyState: typeof profile?.fluencyState === "string" ? profile.fluencyState : summary.fluencyState,
+    dropOffPoint: Number(profile?.dropOffPoint || summary.dropOffPoint || 0) || null,
+    rollingHistory: Array.isArray(profile?.rollingHistory)
+      ? profile.rollingHistory.slice(0, 18).map(buildCompactHistoryEntry)
+      : [],
+    currentScaffolds:
+      profile?.currentScaffolds && typeof profile.currentScaffolds === "object"
+        ? {
+            answerMode: profile.currentScaffolds.answerMode,
+            choiceCount: Number(profile.currentScaffolds.choiceCount || 0) || undefined,
+            showNumberLine: profile.currentScaffolds.showNumberLine === true,
+            showCounters: profile.currentScaffolds.showCounters === true,
+            showHintButton: profile.currentScaffolds.showHintButton === true,
+            stepByStep: profile.currentScaffolds.stepByStep === true,
+            remediationSkillTag:
+              typeof profile.currentScaffolds.remediationSkillTag === "string"
+                ? profile.currentScaffolds.remediationSkillTag
+                : undefined,
+          }
+        : null,
+  };
+}
+
 function readServerProfileForCourse(savedProfileState, courseId) {
   const profilesByCourse =
     savedProfileState?.profilesByCourse && typeof savedProfileState.profilesByCourse === "object"
@@ -399,7 +462,7 @@ export default function IntegerPracticeClient({
         gameSlug: "integer_practice",
         courseId: nextCourseId || null,
         state: {
-          profile: profileToSave,
+          profile: buildServerProfileSnapshot(profileToSave),
         },
       }),
     });
@@ -683,7 +746,7 @@ export default function IntegerPracticeClient({
               gameSlug: "integer_practice",
               courseId: courseId || null,
               state: {
-                profile: profileRef.current,
+                profile: buildServerProfileSnapshot(profileRef.current),
               },
             }),
           ],
