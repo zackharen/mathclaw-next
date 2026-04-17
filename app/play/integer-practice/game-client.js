@@ -6,6 +6,7 @@ import { buildIntegerNode } from "@/lib/math-display";
 import {
   applyAnswerToProfile,
   buildAssignmentPlan,
+  applyScaffoldsToProblem,
   buildBadges,
   buildSessionSummary,
   computeLevelChange,
@@ -15,6 +16,7 @@ import {
   detectErrorType,
   summarizeProfile,
 } from "@/lib/integer-practice/engine";
+import { evaluateLevelProgression } from "@/lib/integer-practice/progression";
 import {
   DEFAULT_ASSIGNMENT,
   INTEGER_LEVELS,
@@ -30,6 +32,10 @@ function formatScore(value) {
 
 function formatPercent(value) {
   return `${Math.round(Number(value || 0) * 100)}%`;
+}
+
+function formatPoints(value) {
+  return `${Math.round(Number(value || 0))}`;
 }
 
 function formatMs(ms) {
@@ -198,17 +204,7 @@ function scaffoldLabel(scaffolds) {
 }
 
 function masteryPercent(summary, levelId) {
-  return Math.max(
-    8,
-    Math.min(
-      100,
-      Math.round(
-        (summary.overallAccuracy || 0) * 55 +
-          Math.min(20, (summary.longestStreak || 0) * 4) +
-          Math.min(20, ((levelId || 1) / INTEGER_LEVELS.length) * 20)
-      )
-    )
-  );
+  return Math.max(2.5, Math.min(100, ((Math.max(1, Number(levelId) || 1)) / INTEGER_LEVELS.length) * 100));
 }
 
 function ProficiencyStatePill({ state }) {
@@ -234,6 +230,7 @@ function NumberLine({ model }) {
             .join(" ");
           return (
             <div key={tick} className={`integerNumberTick ${status}`}>
+              <span className="integerNumberTickGuide" aria-hidden="true" />
               <span className="integerNumberTickMark" />
               <span className="integerNumberTickLabel">{tick}</span>
             </div>
@@ -352,7 +349,59 @@ function SessionSummaryCard({ summary }) {
             ? `Recommended next focus: ${summary.needsSupportOn.replaceAll("_", " ")}.`
             : `Recommended next focus: ${summary.recommendedNextFocus?.replaceAll("_", " ") || "keep practicing"}.`}
       </p>
+      {summary.totalScore !== null && summary.threshold !== null ? (
+        <p>
+          Readiness: <strong>{summary.readinessState?.replaceAll("_", " ") || "not ready"}</strong> ·
+          Score <strong>{formatPoints(summary.totalScore)}/{formatPoints(summary.threshold)}</strong>
+        </p>
+      ) : null}
+      {summary.primaryFeedback ? <p>{summary.primaryFeedback}</p> : null}
     </section>
+  );
+}
+
+function LevelReadinessCard({ readiness }) {
+  if (!readiness) return null;
+
+  return (
+    <div className="card integerReadinessCard" style={{ background: "#f9fbfc" }}>
+      <div className="integerReadinessHeader">
+        <div>
+          <p className="integerSupportLabel">Level Readiness</p>
+          <h3>
+            {readiness.canLevelUp
+              ? "Ready for the next level"
+              : readiness.readinessState === "close"
+                ? "Close to leveling up"
+                : readiness.readinessState === "building_evidence"
+                  ? "Building evidence"
+                  : readiness.readinessState === "struggling"
+                    ? "Targeted practice first"
+                    : "Keep strengthening this level"}
+          </h3>
+        </div>
+        <strong>{formatPoints(readiness.totalScore)}/{formatPoints(readiness.threshold)}</strong>
+      </div>
+      <p className="integerCoachLine">{readiness.primaryFeedback}</p>
+      <div className="integerReadinessBreakdown">
+        <span className="integerReadinessPill">Accuracy {formatPoints(readiness.scoreBreakdown.accuracy.score)}</span>
+        <span className="integerReadinessPill">Speed {formatPoints(readiness.scoreBreakdown.speed.score)}</span>
+        <span className="integerReadinessPill">Streak {formatPoints(readiness.scoreBreakdown.streak.score)}</span>
+        <span className="integerReadinessPill">Hints {formatPoints(readiness.scoreBreakdown.hints.score)}</span>
+        <span className="integerReadinessPill">Focus {formatPoints(readiness.scoreBreakdown.focus.score)}</span>
+      </div>
+      <p className="integerMiniCopy">
+        {readiness.evidence.attempts}/{readiness.evidence.minAttempts} attempts checked · {readiness.tierLabel.replaceAll("_", " ")}
+        {readiness.usedFocusFallback ? " · Focus score is using general accuracy for now." : ""}
+      </p>
+      {readiness.blockedReasons.length ? (
+        <ul className="integerBlockedList">
+          {readiness.blockedReasons.slice(0, 2).map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -383,6 +432,7 @@ export default function IntegerPracticeClient({
   const [confidence, setConfidence] = useState("sure");
   const [timeLeftMs, setTimeLeftMs] = useState(null);
   const questionStartRef = useRef(Date.now());
+  const timeoutResponseMsRef = useRef(null);
   const inputAttemptsRef = useRef(0);
   const profileRef = useRef(profile);
   const sessionRef = useRef(session);
@@ -394,6 +444,15 @@ export default function IntegerPracticeClient({
   const profileSummary = useMemo(() => summarizeProfile(profile), [profile]);
   const activeLevel = useMemo(() => getLevelById(currentLevelId), [currentLevelId]);
   const activeScaffolds = overrideScaffolds || activeLevel.scaffolds;
+  const levelReadiness = useMemo(
+    () => evaluateLevelProgression({ level: activeLevel, profile, profileSummary }),
+    [activeLevel, profile, profileSummary]
+  );
+  const visibleChoices = useMemo(() => {
+    if (activeScaffolds.answerMode !== "multiple_choice") return [];
+    if (Array.isArray(problem.choices) && problem.choices.length > 0) return problem.choices;
+    return applyScaffoldsToProblem(problem, activeLevel, activeScaffolds).choices || [];
+  }, [activeLevel, activeScaffolds, problem]);
   const effectiveQuestionTarget = mode === "assignment" ? assignmentPlan.questionCount : mode === "challenge" ? 16 : 12;
   const hasFiniteRunTarget = mode === "assignment";
   const progressPercent = Math.min(100, Math.round((session.answers.length / effectiveQuestionTarget) * 100));
@@ -452,6 +511,7 @@ export default function IntegerPracticeClient({
     setSessionSummary(null);
     setHintOpen(false);
     questionStartRef.current = Date.now();
+    timeoutResponseMsRef.current = null;
     hasHydratedProfileRef.current = true;
     if (courseId && !(courseId === initialCourseId && initialLeaderboard.length > 0)) {
       loadLeaderboard(courseId);
@@ -519,6 +579,11 @@ export default function IntegerPracticeClient({
           recommendedNextFocus: summary.recommendedNextFocus,
           levelChange: summary.levelChange,
           skillTypesPracticed: summary.skillTypesPracticed,
+          readinessState: summary.readinessState,
+          progressionScore: summary.totalScore,
+          progressionThreshold: summary.threshold,
+          blockedReasons: summary.blockedReasons,
+          recommendedPracticeTags: summary.recommendedPracticeTags,
         },
       }),
     });
@@ -540,13 +605,16 @@ export default function IntegerPracticeClient({
         mode === "assignment" && assignmentPlan.focusSkillTag !== "mixed_integer_operations"
           ? assignmentPlan.focusSkillTag
           : nextScaffolds?.remediationSkillTag || null,
+      answerMode: nextScaffolds?.answerMode || level.scaffolds.answerMode,
+      choiceCount: nextScaffolds?.choiceCount || level.scaffolds.choiceCount,
     });
     setProblem(nextProblem);
     setAnswerText("");
-    setHintOpen(Boolean(nextScaffolds?.showStrategyPrompt && nextScaffolds?.remediationSkillTag));
+    setHintOpen(false);
     setConfidence("sure");
     inputAttemptsRef.current = 0;
     questionStartRef.current = Date.now();
+    timeoutResponseMsRef.current = null;
   }, [assignmentPlan.focusSkillTag, mode, overrideScaffolds]);
 
   function startRun(nextMode = mode, nextLevelId = currentLevelId, nextAssignment = assignmentPlan) {
@@ -567,15 +635,17 @@ export default function IntegerPracticeClient({
     if (nextMode === "assignment") {
       setAssignmentPlan(nextAssignment);
     }
+    timeoutResponseMsRef.current = null;
     resetQuestion(nextLevelId, nextMode === "assignment" && nextAssignment.forceScaffolds ? getLevelById(nextAssignment.startLevelId).scaffolds : null);
   }
 
-  const finishRun = useCallback(async (nextProfile, nextLevelId, levelChange) => {
+  const finishRun = useCallback(async (nextProfile, nextLevelId, levelChange, mastery = null) => {
     const summary = buildSessionSummary({
       session: sessionRef.current,
       profileSummary: summarizeProfile(nextProfile),
       level: getLevelById(nextLevelId),
       levelChange,
+      mastery,
     });
     setSessionSummary(summary);
     setFeedback(
@@ -601,7 +671,9 @@ export default function IntegerPracticeClient({
   const applyAnswer = useCallback(async (guess, meta = {}) => {
     if (runCompleteRef.current) return;
     inputAttemptsRef.current += 1;
-    const responseMs = Date.now() - questionStartRef.current;
+    const responseMs = Number.isFinite(timeoutResponseMsRef.current)
+      ? timeoutResponseMsRef.current
+      : Date.now() - questionStartRef.current;
     const correct = Number(guess) === problem.answer;
     const errorType = detectErrorType(problem, Number(guess), responseMs);
     const answerEntry = {
@@ -640,6 +712,7 @@ export default function IntegerPracticeClient({
     const levelPlan = computeLevelChange({
       mode,
       currentLevelId,
+      profile: nextProfileBase,
       profileSummary: summary,
       assignment: assignmentPlan,
     });
@@ -663,9 +736,11 @@ export default function IntegerPracticeClient({
       setFeedback(
         levelDelta > 0
           ? `Nice. You’ve mastered ${activeLevel.skillTags[0].replaceAll("_", " ")} and moved to ${getLevelById(nextLevelId).name}.`
-          : summary.fluencyState === "fluent" || summary.fluencyState === "automatic"
-            ? "Fast and clean. Your fluency is building."
-            : "Nice. Keep the streak going."
+          : levelPlan.mastery?.primaryFeedback || (
+            summary.fluencyState === "fluent" || summary.fluencyState === "automatic"
+              ? "Fast and clean. Your fluency is building."
+              : "Nice. Keep the streak going."
+          )
       );
     } else {
       setFeedback(
@@ -675,7 +750,7 @@ export default function IntegerPracticeClient({
 
     const sessionReachedTarget = nextSession.answers.length >= effectiveQuestionTarget;
     if (sessionReachedTarget && hasFiniteRunTarget) {
-      await finishRun(finalProfile, nextLevelId, levelDelta);
+      await finishRun(finalProfile, nextLevelId, levelDelta, levelPlan.mastery);
       return;
     }
 
@@ -685,6 +760,7 @@ export default function IntegerPracticeClient({
         profileSummary: summarizeProfile(finalProfile),
         level: getLevelById(nextLevelId),
         levelChange: levelDelta,
+        mastery: levelPlan.mastery,
       });
       void saveSession(checkpointSummary).catch(() => {});
     }
@@ -709,13 +785,15 @@ export default function IntegerPracticeClient({
   ]);
 
   useEffect(() => {
-    if (!activeScaffolds.timerSeconds && !(mode === "assignment" && assignmentPlan.timed)) {
+    if (activeScaffolds.untimed || (!activeScaffolds.timerSeconds && !(mode === "assignment" && assignmentPlan.timed))) {
       setTimeLeftMs(null);
+      timeoutResponseMsRef.current = null;
       return;
     }
 
     const totalMs = (activeScaffolds.timerSeconds || activeLevel.timeTargetSeconds || 10) * 1000;
     setTimeLeftMs(totalMs);
+    timeoutResponseMsRef.current = null;
 
     const intervalId = window.setInterval(() => {
       setTimeLeftMs((current) => {
@@ -723,7 +801,8 @@ export default function IntegerPracticeClient({
         const next = current - 100;
         if (next <= 0) {
           window.clearInterval(intervalId);
-          void applyAnswer(Number.NaN, { timedOut: true });
+          timeoutResponseMsRef.current = totalMs;
+          setFeedback("Time ran out for this question. You can still answer it, and the timer will restart on the next one.");
           return 0;
         }
         return next;
@@ -731,7 +810,19 @@ export default function IntegerPracticeClient({
     }, 100);
 
     return () => window.clearInterval(intervalId);
-  }, [activeLevel.timeTargetSeconds, activeScaffolds.timerSeconds, applyAnswer, assignmentPlan.timed, mode, problem.id]);
+  }, [activeLevel.timeTargetSeconds, activeScaffolds.timerSeconds, activeScaffolds.untimed, assignmentPlan.timed, mode, problem.id]);
+
+  useEffect(() => {
+    if (activeScaffolds.answerMode !== "multiple_choice") return;
+    if (Array.isArray(problem.choices) && problem.choices.length > 0) return;
+
+    setProblem((current) => {
+      if (!current || current.id !== problem.id) return current;
+      const repaired = applyScaffoldsToProblem(current, activeLevel, activeScaffolds);
+      if (!Array.isArray(repaired.choices) || repaired.choices.length === 0) return current;
+      return repaired;
+    });
+  }, [activeLevel, activeScaffolds, problem.id, problem.choices]);
 
   async function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
@@ -765,6 +856,7 @@ export default function IntegerPracticeClient({
 
   const teacherPreviewLevel = getLevelById(assignmentPlan.startLevelId);
   const runIsComplete = Boolean(sessionSummary);
+  const showMultipleChoice = visibleChoices.length > 0;
   const displayProgressCount = hasFiniteRunTarget
     ? Math.min(session.answers.length, effectiveQuestionTarget)
     : session.answers.length;
@@ -946,6 +1038,7 @@ export default function IntegerPracticeClient({
         <p className="integerCoachLine">
           {INTEGER_MODE_PRESETS[mode].description} Current supports: {scaffoldLabel(activeScaffolds)}.
         </p>
+        <LevelReadinessCard readiness={levelReadiness} />
         {overrideScaffolds?.remediationSkillTag ? (
           <div className="integerRemediationBanner">
             Targeted support is on for {overrideScaffolds.remediationSkillTag.replaceAll("_", " ")}.
@@ -991,9 +1084,9 @@ export default function IntegerPracticeClient({
           </div>
         ) : null}
 
-        {activeScaffolds.answerMode === "multiple_choice" ? (
+        {showMultipleChoice ? (
           <div className="choiceGrid">
-            {problem.choices.map((choice) => (
+            {visibleChoices.map((choice) => (
               <button
                 key={choice}
                 className="btn bigChoice"
@@ -1066,6 +1159,8 @@ export default function IntegerPracticeClient({
           <p>State: <strong>{profileSummary.fluencyState}</strong></p>
           <p>Current level: <strong>{currentLevelId}</strong></p>
           <p>Highest level reached: <strong>{profile.highestLevelReached || 1}</strong></p>
+          <p>Readiness: <strong>{levelReadiness.readinessState.replaceAll("_", " ")}</strong></p>
+          <p>Level score: <strong>{formatPoints(levelReadiness.totalScore)}/{formatPoints(levelReadiness.threshold)}</strong></p>
           <p>Last 10 accuracy: <strong>{formatPercent(profileSummary.last10Accuracy)}</strong></p>
           <p>Median response: <strong>{formatMs(profileSummary.medianResponseMs)}</strong></p>
           <p>Hint dependence: <strong>{formatPercent(profileSummary.hintRate)}</strong></p>
@@ -1145,12 +1240,14 @@ export default function IntegerPracticeClient({
           <div className="card integerInsightCard" style={{ background: "#f9fbfc" }}>
             <h3>Recommended Next Move</h3>
             <p>
-              {profileSummary.strugglingSkillTags?.[0]
-                ? `Give more work on ${profileSummary.strugglingSkillTags[0].replaceAll("_", " ")} with a number line or hint prompt.`
+              {levelReadiness.recommendedPracticeTags?.[0]
+                ? `Give more work on ${levelReadiness.recommendedPracticeTags[0].replaceAll("_", " ")} with a number line or hint prompt.`
                 : "Keep stretching the next level with fewer supports."}
             </p>
             <p>
-              {profileSummary.fluencyState === "automatic" || profileSummary.fluencyState === "fluent"
+              {levelReadiness.canLevelUp
+                ? "This student is ready for the next level."
+                : profileSummary.fluencyState === "automatic" || profileSummary.fluencyState === "fluent"
                 ? "This student is ready for Challenge / Fluency mode."
                 : "This student still benefits from adaptive support."}
             </p>

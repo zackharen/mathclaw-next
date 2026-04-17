@@ -19,6 +19,7 @@ import {
   updateSchoolNameAction,
   toggleAdminAccessAction,
   addUserToClassAction,
+  clearSavedGameProgressAction,
   bulkAccountAction,
   restoreDeletedAccountAction,
   resetPasswordAction,
@@ -49,6 +50,7 @@ function Notice({ searchParams }) {
   const membership = searchParams?.membership;
   const adminAccess = searchParams?.adminAccess;
   const passwordReset = searchParams?.passwordReset === "1";
+  const gameProgressCleared = searchParams?.gameProgressCleared;
   const classDeleted = searchParams?.classDeleted === "1";
   const bugReport = searchParams?.bugReport;
   const schoolUpdated = searchParams?.schoolUpdated;
@@ -61,7 +63,7 @@ function Notice({ searchParams }) {
   const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !gameProgressCleared && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !error) {
     return null;
   }
 
@@ -78,6 +80,7 @@ function Notice({ searchParams }) {
       {adminAccess === "granted" ? <p>Admin access granted.</p> : null}
       {adminAccess === "revoked" ? <p>Admin access revoked.</p> : null}
       {passwordReset ? <p>Password updated.</p> : null}
+      {gameProgressCleared ? <p>Saved game progress cleared for {formatGameLabel(gameProgressCleared)}.</p> : null}
       {bugReport === "resolved" ? <p>Bug report marked resolved.</p> : null}
       {bugReport === "open" ? <p>Bug report reopened.</p> : null}
       {schoolUpdated === "set" ? <p>School assignment updated.</p> : null}
@@ -431,6 +434,11 @@ export default async function AdminPage({ searchParams }) {
           isAdmin,
           providerLabel,
           canResetPassword,
+          savedGameSlugs: Object.keys(
+            authUser?.user_metadata?.saved_games && typeof authUser.user_metadata.saved_games === "object"
+              ? authUser.user_metadata.saved_games
+              : {}
+          ),
           ownedClassCount: ownedClassesById.get(authUser.id) || 0,
           ownedClasses,
           joinedClassCount: joinedClassesById.get(authUser.id) || 0,
@@ -1190,7 +1198,35 @@ export default async function AdminPage({ searchParams }) {
                     ) : (
                       <p className="adminEmptyAssignments"><strong>Password:</strong> Managed by Google sign-in.</p>
                     )}
+                    <div className="adminGameTools">
+                      <p className="adminGameToolsHeading">Game progress</p>
+                      <p className="adminEmptyAssignments" style={{ marginTop: 0 }}>
+                        {item.savedGameSlugs.length
+                          ? `Saved profiles: ${item.savedGameSlugs.map((slug) => formatGameLabel(slug)).join(" · ")}`
+                          : "Saved profiles: none found on this account."}
+                      </p>
+                      <form action={clearSavedGameProgressAction} className="adminRenameForm">
+                        <input type="hidden" name="user_id" value={item.id} />
+                        <div className="adminSchoolEditGrid">
+                          <label className="stack">
+                            <span>Clear saved game progress</span>
+                            <select className="input" name="game_slug" defaultValue="integer_practice">
+                              <option value="integer_practice">Adding &amp; Subtracting Integers</option>
+                              <option value="2048">2048</option>
+                            </select>
+                          </label>
+                          <div className="ctaRow adminInlineEditorRow adminSingleAction">
+                            <button className="btn ghost" type="submit">Clear Game Progress</button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
                     <AccountActionsToggle>
+                      <form action={clearSavedGameProgressAction} className="adminInlineForm">
+                        <input type="hidden" name="user_id" value={item.id} />
+                        <input type="hidden" name="game_slug" value="integer_practice" />
+                        <button className="btn ghost" type="submit">Reset Integer Progress</button>
+                      </form>
                       <form action={updateAccountTypeAction} className="adminInlineForm">
                         <input type="hidden" name="user_id" value={item.id} />
                         <input type="hidden" name="account_type" value={item.accountType === "student" ? "teacher" : "student"} />

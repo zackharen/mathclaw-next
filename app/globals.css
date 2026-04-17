@@ -1806,6 +1806,19 @@ details[open] > summary.btn,
   margin: 0 0 0.5rem;
 }
 
+.adminGameTools {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed #8ea3b3;
+  border-radius: 12px;
+  background: #fdfefe;
+}
+
+.adminGameToolsHeading {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+}
+
 .adminAssignmentList {
   display: grid;
   gap: 0.5rem;
@@ -3674,6 +3687,50 @@ details[open] > summary.btn,
   font-weight: 700;
 }
 
+.integerReadinessCard {
+  margin-top: 0.9rem;
+  border: 2px solid #d6e0e8;
+  border-radius: 18px;
+}
+
+.integerReadinessHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.integerReadinessHeader h3 {
+  margin-top: 0.3rem;
+  font-size: 1.2rem;
+}
+
+.integerReadinessBreakdown {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.integerReadinessPill {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #c9d6df;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #35536e;
+}
+
+.integerBlockedList {
+  margin: 0.75rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.integerBlockedList li + li {
+  margin-top: 0.35rem;
+}
+
 .integerNumberLine,
 .integerCounterWrap,
 .integerConfidenceRow {
@@ -3685,17 +3742,46 @@ details[open] > summary.btn,
 }
 
 .integerNumberLineTrack {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18px, 1fr));
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
   gap: 0.15rem;
-  align-items: end;
+  min-width: max-content;
+  padding: 0.1rem 0.25rem 0;
+  overflow-x: auto;
+}
+
+.integerNumberLineTrack::before {
+  content: "";
+  position: absolute;
+  top: 2.2rem;
+  left: 0.25rem;
+  right: 0.25rem;
+  height: 4px;
+  border-radius: 999px;
+  background: #1f3349;
 }
 
 .integerNumberTick {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  min-width: 1.8rem;
+  padding-top: 0.1rem;
   color: #64748b;
+}
+
+.integerNumberTickGuide {
+  position: absolute;
+  top: 0;
+  bottom: 1.7rem;
+  width: 2px;
+  background: rgba(148, 163, 184, 0.28);
+  z-index: 0;
 }
 
 .integerNumberTick.start,
@@ -3709,14 +3795,21 @@ details[open] > summary.btn,
 }
 
 .integerNumberTickMark {
-  width: 2px;
-  height: 16px;
+  position: relative;
+  z-index: 1;
+  width: 4px;
+  height: 32px;
   background: currentColor;
+  margin-top: 0.65rem;
 }
 
 .integerNumberTickLabel {
   font-size: 0.75rem;
-  margin-top: 0.2rem;
+  margin-top: 0.55rem;
+  position: relative;
+  z-index: 1;
+  background: #f9fbfc;
+  padding: 0 0.08rem;
 }
 
 .integerCounterWrap {

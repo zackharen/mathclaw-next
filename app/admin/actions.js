@@ -565,6 +565,50 @@ export async function toggleDiscoverableAction(formData) {
   redirect(`/admin?discoverability=${nextValue ? "shown" : "hidden"}`);
 }
 
+export async function clearSavedGameProgressAction(formData) {
+  const { admin, context } = await requireAdminActor();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const gameSlug = String(formData.get("game_slug") || "").trim();
+
+  if (!userId || !gameSlug) {
+    redirect("/admin?error=missing-user");
+  }
+
+  const authUser = await getManagedAuthUser(admin, userId);
+  await assertUserIsInScope(admin, context, authUser);
+
+  const currentMetadata = authUser?.user_metadata || {};
+  const savedGames =
+    currentMetadata.saved_games && typeof currentMetadata.saved_games === "object"
+      ? { ...currentMetadata.saved_games }
+      : {};
+
+  delete savedGames[gameSlug];
+
+  const nextMetadata = {
+    ...currentMetadata,
+  };
+
+  if (Object.keys(savedGames).length > 0) {
+    nextMetadata.saved_games = savedGames;
+  } else {
+    delete nextMetadata.saved_games;
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: nextMetadata,
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  redirect(`/admin?gameProgressCleared=${encodeURIComponent(gameSlug)}`);
+}
+
 export async function addUserToClassAction(formData) {
   const { admin, context } = await requireAdminActor();
 
