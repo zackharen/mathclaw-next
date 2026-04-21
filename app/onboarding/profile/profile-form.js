@@ -13,7 +13,7 @@ export default function ProfileForm({
   initialDiscoverable = true,
   accountType = "teacher",
 }) {
-  const isTeacher = accountType !== "student";
+  const isTeacher = accountType === "teacher";
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const initialKnownSchool = schoolOptions.includes(initialSchoolName) ? initialSchoolName : "";
   const [selectedSchoolName, setSelectedSchoolName] = useState(initialKnownSchool);
@@ -109,7 +109,13 @@ export default function ProfileForm({
           required
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder={isTeacher ? "Zack Arenstein" : "Student name"}
+          placeholder={
+            accountType === "teacher"
+              ? "Zack Arenstein"
+              : accountType === "student"
+                ? "Student name"
+                : "Player name"
+          }
         />
       </label>
 

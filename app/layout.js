@@ -2,7 +2,10 @@ import "./globals.css";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/app/auth/actions";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import {
+  getAccountTypeForUser,
+  isTeacherAccountType,
+} from "@/lib/auth/account-type";
 import { canAccessAdminArea } from "@/lib/auth/owner";
 import AppNav from "./app-nav";
 
@@ -18,9 +21,14 @@ export default async function RootLayout({ children }) {
   } = await supabase.auth.getUser();
 
   const accountType = user ? await getAccountTypeForUser(supabase, user) : null;
-  const isTeacher = Boolean(user && accountType !== "student");
+  const isTeacher = Boolean(user && isTeacherAccountType(accountType));
   const canAccessAdmin = Boolean(user && canAccessAdminArea(user));
-  const roleLabel = accountType === "student" ? "Student Arcade" : user ? "Teacher Workspace" : null;
+  const roleLabel =
+    accountType === "teacher"
+      ? "Teacher Workspace"
+      : user
+        ? "Arcade"
+        : null;
 
   let navItems = [];
 
@@ -31,7 +39,7 @@ export default async function RootLayout({ children }) {
       { href: "/auth/sign-in", label: "Log In" },
       { href: "/auth/sign-up", label: "Create Account" },
     ];
-  } else if (accountType === "student") {
+  } else if (!isTeacher) {
     navItems = [
       { href: "/play", label: "Arcade" },
       { href: "/about", label: "About" },
@@ -61,7 +69,7 @@ export default async function RootLayout({ children }) {
           <div className="shell">
             <header className="topbar">
               <div className="topbarBrand">
-                <Link className="brand" href={accountType === "student" ? "/play" : user ? "/classes" : "/"}>
+                <Link className="brand" href={isTeacher ? "/classes" : user ? "/play" : "/"}>
                   MathClaw
                 </Link>
                 {roleLabel ? <span className="roleBadge">{roleLabel}</span> : null}

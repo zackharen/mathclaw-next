@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import {
+  getAccountTypeForUser,
+  isTeacherAccountType,
+  normalizeAccountType,
+} from "@/lib/auth/account-type";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import NewClassForm from "./new-class-form";
@@ -23,7 +27,7 @@ export default async function NewClassPage() {
 
   const accountType = await getAccountTypeForUser(supabase, user);
 
-  if (accountType === "student") {
+  if (!isTeacherAccountType(accountType)) {
     redirect("/play");
   }
 
@@ -84,7 +88,7 @@ export default async function NewClassPage() {
       : { data: { users: [] } };
     const schoolTeacherProfiles = (schoolProfiles || []).filter((profile) => {
       const authUser = (teacherUsers?.users || []).find((entry) => entry.id === profile.id);
-      return authUser?.user_metadata?.account_type !== "student";
+      return normalizeAccountType(authUser?.user_metadata?.account_type) === "teacher";
     });
     const teacherIds = schoolTeacherProfiles.map((profile) => profile.id);
     const authUsersById = new Map(
@@ -128,7 +132,7 @@ export default async function NewClassPage() {
     <div className="stack">
       <section className="card">
         <h1>Create Class</h1>
-        <p>Select curriculum, schedule model, and school year. You can also create no-curriculum or friends/family debug classes.</p>
+        <p>Pick a class title, schedule model, and school year. Curriculum is optional, so you can also create arcade-only, club, or friends-and-family classes.</p>
         {librariesError ? (
           <p style={{ marginTop: "0.75rem", color: "var(--red)" }}>
             Curriculum libraries could not load right now. You can still create no-curriculum or debug classes.

@@ -7,7 +7,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
-import { ensureProfileForUser, getAccountTypeForUser, normalizeAccountType } from "@/lib/auth/account-type";
+import {
+  ensureProfileForUser,
+  getAccountTypeForUser,
+  isTeacherAccountType,
+  normalizeAccountType,
+} from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
 
 function normalizeReturnTo(value) {
@@ -252,12 +257,12 @@ export async function addCoTeacherAction(formData) {
   }
 
   const managedAccountType = normalizeAccountType(managedUser.user_metadata?.account_type);
-  if (managedAccountType === "student") {
+  if (!isTeacherAccountType(managedAccountType)) {
     redirect(
       buildRedirectPath({
         returnTo,
         courseId: course.id,
-        params: { coTeacherError: "students-cannot-be-co-teachers" },
+        params: { coTeacherError: "invalid-account-type" },
       })
     );
   }

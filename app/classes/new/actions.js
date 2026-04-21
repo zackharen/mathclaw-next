@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeAccountType } from "@/lib/auth/account-type";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
@@ -70,7 +71,7 @@ export async function createClassAction(formData) {
     if (
       !targetProfile ||
       targetProfile.school_name !== adminContext.schoolName ||
-      targetAccountType === "student"
+      normalizeAccountType(targetAccountType) !== "teacher"
     ) {
       redirect("/classes/new?error=invalid_owner");
     }

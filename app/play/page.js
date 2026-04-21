@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { getAccountTypeForUser, isStudentAccountType } from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
@@ -133,6 +133,7 @@ export default async function PlayPage({ searchParams }) {
   }
 
   const accountType = await getAccountTypeForUser(supabase, user);
+  const isStudent = isStudentAccountType(accountType);
 
   const [courses, statsResult, awardsResult, studentQuestionsResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
@@ -204,15 +205,16 @@ export default async function PlayPage({ searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>Student Arcade</h1>
+        <h1>{isStudent ? "Student Arcade" : "Arcade"}</h1>
         <p>
-          Welcome, {profile.display_name}. Join a class with a teacher code, play games,
-          and save your progress over time.
+          {isStudent
+            ? `Welcome, ${profile.display_name}. Join a class with a teacher code, play games, and save your progress over time.`
+            : `Welcome, ${profile.display_name}. Play games anytime, and join a class later if you want class leaderboards and teacher tracking.`}
         </p>
         <div className="featureGrid" style={{ marginTop: "1rem" }}>
           <form action={joinClassByCodeAction} className="card" style={{ background: "#fff" }}>
             <h2>Join A Math Class</h2>
-            <p>Paste the code your teacher gives you and we’ll connect your account right away.</p>
+            <p>Paste a teacher code any time you want to connect this account to a class.</p>
             <div className="ctaRow">
               <input
                 className="input"
@@ -258,7 +260,7 @@ export default async function PlayPage({ searchParams }) {
           <article className="card" style={{ background: "#fff" }}>
             <h2>Your Math Classes</h2>
             {courses.length === 0 ? (
-              <p>No joined classes yet. Once you add a class code, your teacher’s class will show up here.</p>
+              <p>No joined classes yet. That’s okay. Add a class code any time and it’ll show up here.</p>
             ) : (
               <div className="list">
                 {courses.map((course) => (
