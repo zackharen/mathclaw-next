@@ -7,6 +7,7 @@ Update this file at the end of each work session.
 2026-04-21 America/New_York
 
 ## What Was Built
+- Added an emergency host-based Supabase public-config fallback so `www.mathclaw.com` and `mathclaw.com` use the production public Supabase project when a bad Vercel deployment is accidentally pointed at the staging public URL
 - Added a modular `/brain` knowledge system for MathClaw
 - Documented product overview, architecture, conventions, features, current priorities, and file map
 - Added per-feature context files for major teacher systems and student games
@@ -41,6 +42,8 @@ Update this file at the end of each work session.
 - Kept the existing Double Board database schema intact by storing multiplier answers as scaled hundredths plus metadata, so the new version runs locally without a schema migration first
 
 ## Current State Of The Project
+- Vercel dashboard was showing an active incident for elevated dashboard errors while the live site was simultaneously serving a build configured with the staging public Supabase project on the production domain
+- `lib/supabase/client.js`, `lib/supabase/server.js`, and `lib/supabase/middleware.js` now route production-domain public auth traffic back to the production Supabase project even if `NEXT_PUBLIC_SUPABASE_URL` in the deployment is mistakenly set to staging
 - Teacher workspace and student arcade are both active, real surfaces in production-oriented code
 - Student arcade includes many standalone game routes plus live classroom play
 - Integer Practice recently grew into a large adaptive system
@@ -61,6 +64,7 @@ Update this file at the end of each work session.
 - Double Board answer parsing/display now supports decimal multipliers like `1.08` and `0.92`, including answer history, review cards, and solved-tile rendering
 
 ## Active Tasks
+- Emergency production auth workaround prepared on `main`; needs commit/push so Vercel can redeploy once GitHub push is done
 - None in progress inside this session after the `/brain` setup
 - None in progress after the Integer Practice timer/progress/number-line fixes
 - None in progress after the Integer Practice progression/readiness refactor
