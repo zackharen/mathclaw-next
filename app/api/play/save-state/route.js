@@ -33,11 +33,6 @@ function isValidIntegerProfileState(state) {
   );
 }
 
-function buildSavedGamesMetadata(user) {
-  const current = user?.user_metadata?.saved_games;
-  return current && typeof current === "object" ? { ...current } : {};
-}
-
 export async function POST(request) {
   const supabase = await createClient();
   const {
@@ -78,45 +73,44 @@ export async function POST(request) {
   }
 
   const admin = createAdminClient();
-  const savedGames = buildSavedGamesMetadata(user);
+  const updatedAt = new Date().toISOString();
+
+  let newState;
   if (gameSlug === "integer_practice") {
-    const currentIntegerSave =
-      savedGames.integer_practice && typeof savedGames.integer_practice === "object"
-        ? { ...savedGames.integer_practice }
-        : { profilesByCourse: {} };
+    // Fetch existing row to merge profilesByCourse across different courses.
+    const { data: existing } = await admin
+      .from("saved_game_progress")
+      .select("state")
+      .eq("user_id", user.id)
+      .eq("game_slug", "integer_practice")
+      .maybeSingle();
+
+    const currentSave =
+      existing?.state && typeof existing.state === "object" ? existing.state : { profilesByCourse: {} };
     const profilesByCourse =
-      currentIntegerSave.profilesByCourse && typeof currentIntegerSave.profilesByCourse === "object"
-        ? { ...currentIntegerSave.profilesByCourse }
+      currentSave.profilesByCourse && typeof currentSave.profilesByCourse === "object"
+        ? { ...currentSave.profilesByCourse }
         : {};
+
     const courseKey = courseId || "none";
-    const updatedAt = new Date().toISOString();
+    profilesByCourse[courseKey] = { courseId, profile: state.profile, updatedAt };
 
-    profilesByCourse[courseKey] = {
-      courseId,
-      profile: state.profile,
-      updatedAt,
-    };
-
-    savedGames[gameSlug] = {
-      ...currentIntegerSave,
+    newState = {
+      ...currentSave,
       profilesByCourse,
       lastCourseId: courseId,
       updatedAt,
     };
   } else {
-    savedGames[gameSlug] = {
-      courseId,
-      state,
-      updatedAt: new Date().toISOString(),
-    };
+    newState = { courseId, state, updatedAt };
   }
 
-  const { error } = await admin.auth.admin.updateUserById(user.id, {
-    user_metadata: {
-      ...(user.user_metadata || {}),
-      saved_games: savedGames,
-    },
-  });
+  const { error } = await admin
+    .from("saved_game_progress")
+    .upsert(
+      { user_id: user.id, game_slug: gameSlug, state: newState, updated_at: updatedAt },
+      { onConflict: "user_id,game_slug" }
+    );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
@@ -143,15 +137,11 @@ export async function DELETE(request) {
   }
 
   const admin = createAdminClient();
-  const savedGames = buildSavedGamesMetadata(user);
-  delete savedGames[gameSlug];
-
-  const { error } = await admin.auth.admin.updateUserById(user.id, {
-    user_metadata: {
-      ...(user.user_metadata || {}),
-      saved_games: savedGames,
-    },
-  });
+  const { error } = await admin
+    .from("saved_game_progress")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("game_slug", gameSlug);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

@@ -578,30 +578,33 @@ export async function clearSavedGameProgressAction(formData) {
   const authUser = await getManagedAuthUser(admin, userId);
   await assertUserIsInScope(admin, context, authUser);
 
+  // Delete from DB table (primary store).
+  const { error: dbError } = await admin
+    .from("saved_game_progress")
+    .delete()
+    .eq("user_id", userId)
+    .eq("game_slug", gameSlug);
+
+  if (dbError) {
+    redirect(`/admin?error=${encodeURIComponent(dbError.message)}`);
+  }
+
+  // Also clear from auth metadata to clean up legacy data.
   const currentMetadata = authUser?.user_metadata || {};
   const savedGames =
     currentMetadata.saved_games && typeof currentMetadata.saved_games === "object"
       ? { ...currentMetadata.saved_games }
       : {};
 
-  delete savedGames[gameSlug];
-
-  const nextMetadata = {
-    ...currentMetadata,
-  };
-
-  if (Object.keys(savedGames).length > 0) {
-    nextMetadata.saved_games = savedGames;
-  } else {
-    delete nextMetadata.saved_games;
-  }
-
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: nextMetadata,
-  });
-
-  if (error) {
-    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  if (gameSlug in savedGames) {
+    delete savedGames[gameSlug];
+    const nextMetadata = { ...currentMetadata };
+    if (Object.keys(savedGames).length > 0) {
+      nextMetadata.saved_games = savedGames;
+    } else {
+      delete nextMetadata.saved_games;
+    }
+    await admin.auth.admin.updateUserById(userId, { user_metadata: nextMetadata });
   }
 
   revalidatePath("/admin");

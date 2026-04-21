@@ -12,12 +12,7 @@ export default async function IntegerPracticePage({ searchParams }) {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/integer-practice");
   const accountType = await getAccountTypeForUser(supabase, user);
-  const savedIntegerPractice =
-    user.user_metadata?.saved_games &&
-    typeof user.user_metadata.saved_games === "object"
-      ? user.user_metadata.saved_games.integer_practice || null
-      : null;
-  const [allCourses, courses, personalResult] = await Promise.all([
+  const [allCourses, courses, personalResult, savedProgressResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "integer_practice" }),
     supabase
@@ -26,7 +21,21 @@ export default async function IntegerPracticePage({ searchParams }) {
       .eq("player_id", user.id)
       .eq("game_slug", "integer_practice")
       .maybeSingle(),
+    supabase
+      .from("saved_game_progress")
+      .select("state")
+      .eq("user_id", user.id)
+      .eq("game_slug", "integer_practice")
+      .maybeSingle(),
   ]);
+
+  // Fall back to auth metadata for users who haven't saved since the DB migration.
+  const savedIntegerPractice =
+    savedProgressResult.data?.state ||
+    (user.user_metadata?.saved_games &&
+    typeof user.user_metadata.saved_games === "object"
+      ? user.user_metadata.saved_games.integer_practice || null
+      : null);
 
   if (allCourses.length > 0 && courses.length === 0) {
     redirect("/play?game_disabled=integer_practice");
