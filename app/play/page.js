@@ -159,6 +159,12 @@ export default async function PlayPage({ searchParams }) {
 
   const statsByGame = new Map((statsResult.data || []).map((row) => [row.game_slug, row]));
   const params = await searchParams;
+  const hasJoinFeedback =
+    params?.join_error === "missing" ||
+    params?.join_error === "not_found" ||
+    params?.join_error === "server" ||
+    params?.join_success === "1" ||
+    typeof params?.game_disabled === "string";
   const joinedCourseId = typeof params?.course === "string" ? params.course : "";
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
   const activeCourse = joinedCourse || courses[0] || null;
@@ -211,80 +217,109 @@ export default async function PlayPage({ searchParams }) {
             ? `Welcome, ${profile.display_name}. Join a class with a teacher code, play games, and save your progress over time.`
             : `Welcome, ${profile.display_name}. Play games anytime, and join a class later if you want class leaderboards and teacher tracking.`}
         </p>
-        <div className="featureGrid" style={{ marginTop: "1rem" }}>
-          <form action={joinClassByCodeAction} className="card" style={{ background: "#fff" }}>
-            <h2>Join A Math Class</h2>
-            <p>Paste a teacher code any time you want to connect this account to a class.</p>
-            <div className="ctaRow">
-              <input
-                className="input"
-                style={{ maxWidth: "16rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
-                name="join_code"
-                placeholder="e.g. 04084F46F9"
-                autoComplete="off"
-                spellCheck="false"
-              />
-              <button className="btn primary" type="submit">
-                Join Class
-              </button>
-            </div>
-            <p style={{ marginTop: "0.75rem", opacity: 0.8 }}>Codes are not case-sensitive. You can paste them in exactly as your teacher shares them.</p>
-            {params?.join_error === "missing" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>Please enter a class code.</p> : null}
-            {params?.join_error === "not_found" ? <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>That class code was not found. Double-check the letters and numbers with your teacher.</p> : null}
-            {params?.join_error === "server" ? (
-              <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
-                Something went wrong while joining that class. Please try again or report the bug.
-              </p>
-            ) : null}
-            {typeof params?.game_disabled === "string" ? (
-              <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
-                That game is not enabled for any of your current classes.
-              </p>
-            ) : null}
-            {params?.join_success === "1" && joinedCourse ? (
-              <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
-                <h3 style={{ marginBottom: "0.4rem" }}>You’re in.</h3>
-                <p>
-                  <strong>{joinedCourse.title}</strong>
-                  <br />
-                  {joinedCourse.class_name} · {describeCourseRelationship(joinedCourse.relationship)}
-                </p>
-                <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-                      <Link className="btn" href={gameHref("2048", joinedCourse.id)}>Play 2048</Link>
-                      <Link className="btn" href={gameHref("integer_practice", joinedCourse.id)}>Practice Integers</Link>
-                </div>
-              </div>
-            ) : null}
-          </form>
+      </section>
 
-          <article className="card" style={{ background: "#fff" }}>
-            <h2>Your Math Classes</h2>
-            {courses.length === 0 ? (
-              <p>No joined classes yet. That’s okay. Add a class code any time and it’ll show up here.</p>
-            ) : (
-              <div className="list">
-                {courses.map((course) => (
-                  <Link
-                    key={course.id}
-                    href={`/play?course=${course.id}`}
-                    className="card"
-                    style={{
-                      background: activeCourse?.id === course.id ? "#e8f1f8" : "#f9fbfc",
-                      display: "block",
-                      color: "inherit",
-                      textDecoration: "none",
-                    }}
-                  >
-                    <strong>{course.title}</strong>
+      <section className="card">
+        <details className="arcadeClassesDetails" open={hasJoinFeedback}>
+          <summary className="arcadeClassesSummary">
+            <div>
+              <h2>Classes</h2>
+              <p>Join a class or switch between the ones already connected to this account.</p>
+            </div>
+            <span className="arcadeClassesToggle">
+              <span className="showLabel">Show</span>
+              <span className="hideLabel">Hide</span>
+            </span>
+          </summary>
+          <div className="arcadeClassesBody">
+            <div className="featureGrid arcadeClassesGrid">
+              <form action={joinClassByCodeAction} className="card" style={{ background: "#fff" }}>
+                <h2>Join A Math Class</h2>
+                <p>Paste a teacher code any time you want to connect this account to a class.</p>
+                <div className="ctaRow">
+                  <input
+                    className="input"
+                    style={{ maxWidth: "16rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
+                    name="join_code"
+                    placeholder="e.g. 04084F46F9"
+                    autoComplete="off"
+                    spellCheck="false"
+                  />
+                  <button className="btn primary" type="submit">
+                    Join Class
+                  </button>
+                </div>
+                <p style={{ marginTop: "0.75rem", opacity: 0.8 }}>
+                  Codes are not case-sensitive. You can paste them in exactly as your teacher shares them.
+                </p>
+                {params?.join_error === "missing" ? (
+                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>Please enter a class code.</p>
+                ) : null}
+                {params?.join_error === "not_found" ? (
+                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                    That class code was not found. Double-check the letters and numbers with your teacher.
+                  </p>
+                ) : null}
+                {params?.join_error === "server" ? (
+                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                    Something went wrong while joining that class. Please try again or report the bug.
+                  </p>
+                ) : null}
+                {typeof params?.game_disabled === "string" ? (
+                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                    That game is not enabled for any of your current classes.
+                  </p>
+                ) : null}
+                {params?.join_success === "1" && joinedCourse ? (
+                  <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
+                    <h3 style={{ marginBottom: "0.4rem" }}>You’re in.</h3>
                     <p>
-                      {course.class_name} · {describeCourseRelationship(course.relationship)}
+                      <strong>{joinedCourse.title}</strong>
+                      <br />
+                      {joinedCourse.class_name} · {describeCourseRelationship(joinedCourse.relationship)}
                     </p>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </article>
-        </div>
+                    <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+                      <Link className="btn" href={gameHref("2048", joinedCourse.id)}>
+                        Play 2048
+                      </Link>
+                      <Link className="btn" href={gameHref("integer_practice", joinedCourse.id)}>
+                        Practice Integers
+                      </Link>
+                    </div>
+                  </div>
+                ) : null}
+              </form>
+
+              <article className="card" style={{ background: "#fff" }}>
+                <h2>Your Math Classes</h2>
+                {courses.length === 0 ? (
+                  <p>No joined classes yet. That’s okay. Add a class code any time and it’ll show up here.</p>
+                ) : (
+                  <div className="list">
+                    {courses.map((course) => (
+                      <Link
+                        key={course.id}
+                        href={`/play?course=${course.id}`}
+                        className="card"
+                        style={{
+                          background: activeCourse?.id === course.id ? "#e8f1f8" : "#f9fbfc",
+                          display: "block",
+                          color: "inherit",
+                          textDecoration: "none",
+                        }}
+                      >
+                        <strong>{course.title}</strong>
+                        <p>
+                          {course.class_name} · {describeCourseRelationship(course.relationship)}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </article>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section className="card">

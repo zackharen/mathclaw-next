@@ -7,6 +7,7 @@ Update this file at the end of each work session.
 2026-04-21 America/New_York
 
 ## What Was Built
+- Updated `/play` so the top class area is a separate collapsible `Classes` section, with the join panel auto-opening on join feedback and the join card shrinking to its own content instead of stretching to match the class list column
 - Added an emergency host-based Supabase public-config fallback so `www.mathclaw.com` and `mathclaw.com` use the production public Supabase project when a bad Vercel deployment is accidentally pointed at the staging public URL
 - Added a third account type, `player`, surfaced in the UI as “Arcade Player,” for adults/independent users who should land in `/play` and use the arcade without teacher-workspace access or a required class
 - Tightened role handling so teacher-only navigation and pages now require an explicit teacher account instead of treating every non-student account as a teacher
