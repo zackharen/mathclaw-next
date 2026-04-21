@@ -34,9 +34,9 @@ a {
 }
 
 main {
-  width: min(1180px, 94vw);
+  width: 100%;
   margin: 0 auto;
-  padding: 1.25rem 0 2.5rem;
+  padding: 1.25rem clamp(0.75rem, 2vw, 1.5rem) 2.5rem;
 }
 
 .shell {
