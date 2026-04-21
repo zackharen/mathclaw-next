@@ -280,7 +280,7 @@ export default async function AdminPage({ searchParams }) {
     const ids = authUsers.map((item) => item.id);
 
     if (ids.length) {
-      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult, eventResult, recentSessionResult] = await Promise.all([
+      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult, eventResult, recentSessionResult, { data: dbSavedProgress }] = await Promise.all([
         admin
           .from("profiles")
           .select("id, display_name, school_name, account_type, discoverable, timezone")
@@ -308,6 +308,10 @@ export default async function AdminPage({ searchParams }) {
           .select("id, game_slug, player_id, course_id, created_at")
           .order("created_at", { ascending: false })
           .limit(500),
+        admin
+          .from("saved_game_progress")
+          .select("user_id, game_slug")
+          .in("user_id", ids),
       ]);
 
       bugReports = bugReportResult.data || [];
@@ -316,6 +320,14 @@ export default async function AdminPage({ searchParams }) {
       internalEventError = eventResult.error || null;
       recentSessions = recentSessionResult.data || [];
       recentSessionsError = recentSessionResult.error || null;
+
+      // Build a map of user_id → Set<game_slug> from the DB table.
+      const dbSavedSlugsByUser = new Map();
+      for (const row of dbSavedProgress || []) {
+        const existing = dbSavedSlugsByUser.get(row.user_id) || new Set();
+        existing.add(row.game_slug);
+        dbSavedSlugsByUser.set(row.user_id, existing);
+      }
 
       const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
       const visibleAuthUsers = adminContext.isOwner
@@ -434,11 +446,17 @@ export default async function AdminPage({ searchParams }) {
           isAdmin,
           providerLabel,
           canResetPassword,
-          savedGameSlugs: Object.keys(
-            authUser?.user_metadata?.saved_games && typeof authUser.user_metadata.saved_games === "object"
-              ? authUser.user_metadata.saved_games
-              : {}
-          ),
+          savedGameSlugs: [
+            ...new Set([
+              ...Object.keys(
+                authUser?.user_metadata?.saved_games &&
+                typeof authUser.user_metadata.saved_games === "object"
+                  ? authUser.user_metadata.saved_games
+                  : {}
+              ),
+              ...(dbSavedSlugsByUser.get(authUser.id) || []),
+            ]),
+          ],
           ownedClassCount: ownedClassesById.get(authUser.id) || 0,
           ownedClasses,
           joinedClassCount: joinedClassesById.get(authUser.id) || 0,

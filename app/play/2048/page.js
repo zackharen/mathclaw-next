@@ -21,13 +21,7 @@ export default async function Game2048Page({ searchParams }) {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/2048");
 
-  const savedGame =
-    user.user_metadata?.saved_games &&
-    typeof user.user_metadata.saved_games === "object"
-      ? user.user_metadata.saved_games["2048"] || null
-      : null;
-
-  const [allCourses, courses, personalResult] = await Promise.all([
+  const [allCourses, courses, personalResult, savedProgressResult] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "2048" }),
     supabase
@@ -36,7 +30,21 @@ export default async function Game2048Page({ searchParams }) {
       .eq("player_id", user.id)
       .eq("game_slug", "2048")
       .maybeSingle(),
+    supabase
+      .from("saved_game_progress")
+      .select("state")
+      .eq("user_id", user.id)
+      .eq("game_slug", "2048")
+      .maybeSingle(),
   ]);
+
+  // Fall back to auth metadata for users who haven't saved since the DB migration.
+  const savedGame =
+    savedProgressResult.data?.state ||
+    (user.user_metadata?.saved_games &&
+    typeof user.user_metadata.saved_games === "object"
+      ? user.user_metadata.saved_games["2048"] || null
+      : null);
 
   if (allCourses.length > 0 && courses.length === 0) {
     redirect("/play?game_disabled=2048");
