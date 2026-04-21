@@ -3096,6 +3096,32 @@ details[open] > summary.btn,
   gap: 0.35rem;
 }
 
+.doubleBoardTileClaim {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.08rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.28rem 0.35rem;
+  border-radius: 14px;
+  background: rgba(11, 61, 105, 0.08);
+  color: inherit;
+}
+
+.doubleBoardTileClaim strong {
+  font-size: 0.9rem;
+  line-height: 1.05;
+}
+
+.doubleBoardTileClaim small {
+  font-size: 0.72rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .doubleBoardTileSolvedState {
   display: flex;
   flex-direction: column;
@@ -3257,6 +3283,7 @@ details[open] > summary.btn,
 
 .doubleBoardHostActionRow {
   margin-bottom: 1rem;
+  justify-content: center;
 }
 
 .doubleBoardScoreStats {
@@ -3276,6 +3303,13 @@ details[open] > summary.btn,
 .doubleBoardStatCard span,
 .doubleBoardStatCard strong {
   display: block;
+  text-align: center;
+}
+
+.doubleBoardStatCard span {
+  font-size: 0.88rem;
+  line-height: 1.15;
+  text-transform: capitalize;
 }
 
 .doubleBoardStatCard strong {
@@ -3383,6 +3417,16 @@ details[open] > summary.btn,
   gap: 0.24rem;
 }
 
+.doubleBoardReviewItem.is-correct {
+  background: linear-gradient(180deg, #f0fbf2 0%, #dbf2df 100%);
+  border-color: rgba(44, 122, 61, 0.35);
+}
+
+.doubleBoardReviewItem.is-incorrect {
+  background: linear-gradient(180deg, #fff4f4 0%, #ffe0e0 100%);
+  border-color: rgba(190, 45, 45, 0.35);
+}
+
 .doubleBoardReviewExpression,
 .doubleBoardReviewAnswer,
 .doubleBoardReviewMeta {
@@ -3409,6 +3453,16 @@ details[open] > summary.btn,
 
 .doubleBoardReviewMeta {
   line-height: 1.2;
+}
+
+.doubleBoardReviewMeta.is-correct {
+  color: #1f7a37;
+  font-weight: 800;
+}
+
+.doubleBoardReviewMeta.is-incorrect {
+  color: #b32727;
+  font-weight: 800;
 }
 
 .doubleBoardErrorCard {
@@ -3455,6 +3509,33 @@ details[open] > summary.btn,
 
 .doubleBoardChoiceGrid .btn {
   width: 100%;
+}
+
+.doubleBoardCountdownOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 29, 52, 0.42);
+  pointer-events: none;
+}
+
+.doubleBoardCountdownValue {
+  min-width: 6rem;
+  min-height: 6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 1.4rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 4px solid #0b3d69;
+  color: #0b3d69;
+  box-shadow: 0 28px 60px rgba(11, 29, 52, 0.26);
+  font-size: clamp(3.4rem, 10vw, 6rem);
+  font-weight: 900;
+  line-height: 1;
 }
 
 @media (max-width: 1100px) {

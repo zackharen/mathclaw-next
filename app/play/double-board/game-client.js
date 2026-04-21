@@ -24,6 +24,17 @@ function normalizeBoardRows(board) {
   return board.map((row) => (Array.isArray(row) ? row : []));
 }
 
+function futureTimestampOrNull(value) {
+  const time = Date.parse(String(value || ""));
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
+function secondsRemaining(endTime, nowMs = Date.now()) {
+  const endMs = Date.parse(String(endTime || ""));
+  if (!Number.isFinite(endMs)) return 0;
+  return Math.max(0, Math.ceil((endMs - nowMs) / 1000));
+}
+
 function normalizeSessionPayload(session) {
   if (!session || typeof session !== "object") return null;
 
@@ -43,6 +54,8 @@ function normalizeSessionPayload(session) {
         : {},
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
+    freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
+    startCountdownEndsAt: futureTimestampOrNull(session.startCountdownEndsAt),
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
     activeTurnDisplayName:
       typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
@@ -186,14 +199,19 @@ function AnswerHistoryPanel({ title, items }) {
       <h3>{title}</h3>
       <div className="doubleBoardReviewList">
         {items.map((item) => (
-          <div key={item.id} className="doubleBoardReviewItem">
+          <div
+            key={item.id}
+            className={`doubleBoardReviewItem ${item.isCorrect ? "is-correct" : "is-incorrect"}`}
+          >
             <strong className="doubleBoardReviewExpression">
               <MathInlineText text={item.expressionText} />
             </strong>
             <span className="doubleBoardReviewAnswer">
               Answer given: <MathText node={buildAnswerNode(item.submittedAnswerDisplay)} />
             </span>
-            <span className="doubleBoardReviewMeta">{item.isCorrect ? "Correct" : "Incorrect"}</span>
+            <span className={`doubleBoardReviewMeta ${item.isCorrect ? "is-correct" : "is-incorrect"}`}>
+              {item.isCorrect ? "Correct" : "Incorrect"}
+            </span>
             <span className="doubleBoardReviewMeta">
               {formatBoardLocation(item.boardKey, item.rowIndex, item.colIndex)}
             </span>
@@ -213,6 +231,8 @@ function BoardPanel({
   sessionStatus,
   playMode,
   activeQuestionId,
+  viewerId,
+  currentTimeMs,
   onSelect,
 }) {
   const rows = boardQuestions(board);
@@ -238,8 +258,17 @@ function BoardPanel({
               const isSelected = selectedQuestionId === question.id;
               const isPlayableQuestion =
                 playMode !== "one_at_a_time" || !activeQuestionId || question.id === activeQuestionId;
+              const claimSecondsLeft = secondsRemaining(question.claim?.expiresAt, currentTimeMs);
+              const isClaimedByOther =
+                playMode === "free_for_all" &&
+                claimSecondsLeft > 0 &&
+                question.claim?.userId &&
+                question.claim.userId !== viewerId;
               const disabled =
-                !canAnswer || question.solved || (sessionStatus === "live" && !isPlayableQuestion);
+                !canAnswer ||
+                question.solved ||
+                (sessionStatus === "live" && !isPlayableQuestion) ||
+                isClaimedByOther;
               const highValue = question.attemptCount >= 2;
               const tileLabel =
                 sessionStatus === "waiting" && !canManage
@@ -274,6 +303,12 @@ function BoardPanel({
                 >
                   <span className="doubleBoardTileBody">
                     <span className="doubleBoardTileValue"><MathInlineText text={tileLabel} /></span>
+                    {!question.solved && question.claim && claimSecondsLeft > 0 ? (
+                      <span className="doubleBoardTileClaim">
+                        <strong>{question.claim.firstName}</strong>
+                        <small>{claimSecondsLeft}s left</small>
+                      </span>
+                    ) : null}
                     {!question.solved && question.everMissed ? (
                       <span className="doubleBoardTileBadge">X</span>
                     ) : null}
@@ -294,7 +329,7 @@ function BoardPanel({
                       </span>
                     ) : null}
                   </span>
-                  <span className="doubleBoardTileValueBadge">{question.retryValue}</span>
+                  <span className="doubleBoardTileValueBadge">{question.pointValue}</span>
                 </button>
               );
             })}
@@ -302,6 +337,16 @@ function BoardPanel({
         ))}
       </div>
     </section>
+  );
+}
+
+function StartCountdownOverlay({ countdownValue }) {
+  if (!countdownValue) return null;
+
+  return (
+    <div className="doubleBoardCountdownOverlay" aria-live="assertive">
+      <div className="doubleBoardCountdownValue">{countdownValue}</div>
+    </div>
   );
 }
 
@@ -450,6 +495,7 @@ export default function DoubleBoardClient({
   const [numberMode, setNumberMode] = useState("single_digit");
   const [answerMode, setAnswerMode] = useState("typed");
   const [playMode, setPlayMode] = useState("free_for_all");
+  const [freeForAllTimerSeconds, setFreeForAllTimerSeconds] = useState(10);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -459,6 +505,7 @@ export default function DoubleBoardClient({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
+  const [clockNow, setClockNow] = useState(Date.now());
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -518,6 +565,7 @@ export default function DoubleBoardClient({
           numberMode,
           answerMode,
           playMode,
+          freeForAllTimerSeconds,
           sessionId: session?.id || null,
           ...extra,
         }),
@@ -614,11 +662,37 @@ export default function DoubleBoardClient({
     setHostSetupOpen(!session || session.status !== "live");
   }, [canHost, session]);
 
+  useEffect(() => {
+    if (session?.freeForAllTimerSeconds) {
+      setFreeForAllTimerSeconds(session.freeForAllTimerSeconds);
+    }
+  }, [session?.freeForAllTimerSeconds]);
+
+  const boards = session?.boards || {};
+
+  useEffect(() => {
+    const now = Date.now();
+    const hasCountdown = secondsRemaining(session?.startCountdownEndsAt, now) > 0;
+    const hasClaims = [boards.A, boards.B]
+      .flatMap((board) => boardQuestions(board).flat())
+      .some((question) => question?.claim && secondsRemaining(question.claim.expiresAt, now) > 0);
+
+    if (!hasCountdown && !hasClaims) return undefined;
+
+    const interval = window.setInterval(() => {
+      setClockNow(Date.now());
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [boards.A, boards.B, session?.startCountdownEndsAt]);
+
+  const countdownValue = secondsRemaining(session?.startCountdownEndsAt, clockNow);
+  const countdownActive = countdownValue > 0;
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
-  const boards = session?.boards || {};
   const canAnswer = Boolean(
     session?.status === "live" &&
+      !countdownActive &&
       session?.isJoined &&
       (session?.playMode !== "one_at_a_time" || session?.isViewerTurn)
   );
@@ -628,12 +702,19 @@ export default function DoubleBoardClient({
 
     const allQuestions = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()].filter(Boolean);
     const freshQuestion = allQuestions.find((question) => question.id === selectedQuestion.id);
+    const claimSecondsLeft = secondsRemaining(freshQuestion?.claim?.expiresAt, clockNow);
 
-    if (!freshQuestion || freshQuestion.solved || !canAnswer) {
+    if (
+      !freshQuestion ||
+      freshQuestion.solved ||
+      !canAnswer ||
+      ((session?.playMode || playMode) === "free_for_all" &&
+        (!freshQuestion.claim || freshQuestion.claim.userId !== userId || claimSecondsLeft <= 0))
+    ) {
       setSelectedQuestion(null);
       setAnswerValue("");
     }
-  }, [boards.A, boards.B, canAnswer, selectedQuestion]);
+  }, [boards.A, boards.B, canAnswer, clockNow, playMode, selectedQuestion, session?.playMode, userId]);
   const selectedHistoryItems =
     session?.answerHistoryByUser?.[
       canHost ? selectedHistoryUserId : userId
@@ -648,8 +729,19 @@ export default function DoubleBoardClient({
     loadSession(nextCourseId);
   }
 
-  function handleSelect(question) {
+  async function handleSelect(question) {
     if (!canAnswer || !question || question.solved) return;
+
+    if ((session?.playMode || playMode) === "free_for_all") {
+      const payload = await postAction("claim_question", {
+        questionId: question.id,
+      });
+
+      if (!payload?.result?.claimed) {
+        return;
+      }
+    }
+
     setSelectedQuestion(question);
     setAnswerValue("");
   }
@@ -682,6 +774,7 @@ export default function DoubleBoardClient({
     <DoubleBoardErrorBoundary>
       <div className="stack">
         <section className="card doubleBoardShell">
+          <StartCountdownOverlay countdownValue={countdownActive ? countdownValue : 0} />
           <div className="doubleBoardTopRow">
           <div>
             <p className="doubleBoardEyebrow">Live classroom review game</p>
@@ -748,6 +841,8 @@ export default function DoubleBoardClient({
               sessionStatus={session?.status}
               playMode={session?.playMode || playMode}
               activeQuestionId={session?.activeQuestionId}
+              viewerId={userId}
+              currentTimeMs={clockNow}
               onSelect={handleSelect}
             />
 
@@ -829,6 +924,18 @@ export default function DoubleBoardClient({
                             <option value="one_at_a_time">One at a time</option>
                           </select>
                         </label>
+                        <label>
+                          Question timer (seconds)
+                          <input
+                            className="input"
+                            type="number"
+                            min="1"
+                            max="120"
+                            value={freeForAllTimerSeconds}
+                            onChange={(event) => setFreeForAllTimerSeconds(event.target.value)}
+                            disabled={busy || session?.status === "live" || playMode !== "free_for_all"}
+                          />
+                        </label>
                       </div>
                     ) : null}
                   </div>
@@ -878,15 +985,15 @@ export default function DoubleBoardClient({
               <>
                 <div className="doubleBoardScoreStats">
                   <div className="doubleBoardStatCard">
-                    <span>Joined students</span>
+                    <span>Joined Students</span>
                     <strong>{session.joinedCount}</strong>
                   </div>
                   <div className="doubleBoardStatCard">
-                    <span>Missed but open</span>
+                    <span>Missed But Open</span>
                     <strong>{session.missedCount}</strong>
                   </div>
                   <div className="doubleBoardStatCard">
-                    <span>Your score</span>
+                    <span>Your Score</span>
                     <strong>{session.viewerScore}</strong>
                   </div>
                 </div>
@@ -904,6 +1011,16 @@ export default function DoubleBoardClient({
                       {session.isJoined
                         ? "You are in the room. The questions will appear once your teacher starts the game."
                         : "Your teacher has generated the boards. Join now, and the questions will appear once the game starts."}
+                    </p>
+                  </div>
+                ) : null}
+
+                {session?.playMode === "free_for_all" ? (
+                  <div className="doubleBoardWaitingCard">
+                    <h3>Question Timer</h3>
+                    <p>
+                      Each tile stays claimed for {session.freeForAllTimerSeconds} second
+                      {session.freeForAllTimerSeconds === 1 ? "" : "s"} once a player clicks in.
                     </p>
                   </div>
                 ) : null}
@@ -963,6 +1080,8 @@ export default function DoubleBoardClient({
               sessionStatus={session?.status}
               playMode={session?.playMode || playMode}
               activeQuestionId={session?.activeQuestionId}
+              viewerId={userId}
+              currentTimeMs={clockNow}
               onSelect={handleSelect}
             />
           </div>
