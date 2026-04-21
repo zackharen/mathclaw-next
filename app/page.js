@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, sortCoursesAlphabetically } from "@/lib/student-games/courses";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import {
+  getAccountTypeForUser,
+  isStudentAccountType,
+  isTeacherAccountType,
+} from "@/lib/auth/account-type";
 import { getSiteCopy } from "@/lib/site-config";
 
 function describeCourseRelationship(relationship) {
@@ -23,7 +27,7 @@ export default async function HomePage() {
 
   if (user) {
     accountType = await getAccountTypeForUser(supabase, user);
-    if (accountType !== "student") {
+    if (isTeacherAccountType(accountType)) {
       const { data } = await supabase
         .from("courses")
         .select("id, title, class_name, schedule_model, ab_meeting_day")
@@ -34,7 +38,8 @@ export default async function HomePage() {
     playCourses = await listAccessibleCourses(supabase, user.id);
   }
 
-  const isStudent = accountType === "student";
+  const isStudent = isStudentAccountType(accountType);
+  const isTeacher = isTeacherAccountType(accountType);
 
   return (
     <div className="stack">
@@ -48,7 +53,7 @@ export default async function HomePage() {
         <h1>MathClaw</h1>
         <p>{siteCopy.homeIntro}</p>
         <div className="featureGrid" style={{ marginTop: "1rem" }}>
-          {!isStudent ? (
+          {isTeacher ? (
             <article className="card" style={{ background: "#fff" }}>
               <h2>Teacher Site</h2>
               <p>{siteCopy.teacherCardCopy}</p>
@@ -71,7 +76,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {user && !isStudent ? (
+      {user && isTeacher ? (
         <>
           <section className="card">
             <h2>Your Teaching Classes</h2>
@@ -118,11 +123,13 @@ export default async function HomePage() {
         </>
       ) : null}
 
-      {user && isStudent ? (
+      {user && !isTeacher ? (
         <section className="card">
-          <h2>Your Student Arcade</h2>
+          <h2>{isStudent ? "Your Student Arcade" : "Your Arcade"}</h2>
           <p>
-            Student accounts focus on games, class join codes, and progress tracking. Use the arcade to join a class and start playing.
+            {isStudent
+              ? "Student accounts focus on games, class join codes, and progress tracking. Use the arcade to join a class and start playing."
+              : "Arcade player accounts can jump straight into the games without a class. If you ever join one later, your class leaderboards and progress will show up here too."}
           </p>
           {playCourses.length > 0 ? (
             <ul className="list" style={{ marginTop: "0.75rem" }}>
@@ -133,7 +140,11 @@ export default async function HomePage() {
               ))}
             </ul>
           ) : (
-            <p style={{ marginTop: "0.75rem" }}>You have not joined a class yet. Use a teacher join code in the Student Arcade.</p>
+            <p style={{ marginTop: "0.75rem" }}>
+              {isStudent
+                ? "You have not joined a class yet. Use a teacher join code in the Student Arcade."
+                : "You have not joined a class yet, which is totally fine. You can keep playing on your own or use a class code later."}
+            </p>
           )}
         </section>
       ) : null}

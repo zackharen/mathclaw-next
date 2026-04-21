@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
 import {
@@ -98,7 +98,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const defaults = defaultSchoolYearDates();
   const accountType = await getAccountTypeForUser(supabase, user);
-  const isTeacher = accountType !== "student";
+  const isTeacher = isTeacherAccountType(accountType);
   let schoolOptions = [];
 
   try {
@@ -250,7 +250,13 @@ Standards: {standards}`;
     <div className="stack">
       <section className="card">
         <h1>Profile</h1>
-        <p>{isTeacher ? "Update your teacher profile details." : "Update your student profile details."}</p>
+        <p>
+          {accountType === "teacher"
+            ? "Update your teacher profile details."
+            : accountType === "student"
+              ? "Update your student profile details."
+              : "Update your arcade player profile details."}
+        </p>
         <ProfileForm
           userId={user.id}
           initialDisplayName={profile?.display_name || ""}

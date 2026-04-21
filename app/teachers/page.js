@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import {
   acceptTeacherRequestAction,
   declineTeacherRequestAction,
@@ -29,7 +29,7 @@ export default async function TeachersPage({ searchParams }) {
 
   const accountType = await getAccountTypeForUser(supabase, user);
 
-  if (accountType === "student") {
+  if (!isTeacherAccountType(accountType)) {
     redirect("/play");
   }
 
@@ -83,7 +83,7 @@ export default async function TeachersPage({ searchParams }) {
           const metadata = authUser?.user_metadata || {};
           const accountType = metadata.account_type || "teacher";
           const discoverable = metadata.discoverable === true;
-          return accountType !== "student" && discoverable;
+          return isTeacherAccountType(accountType) && discoverable;
         }),
       };
     } else {

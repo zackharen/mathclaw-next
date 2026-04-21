@@ -24,11 +24,9 @@ export default function NewClassForm({
 
   const [title, setTitle] = useState("");
   const [classMode, setClassMode] = useState(
-    libraryOptions.length > 0 ? "curriculum" : "no_curriculum"
+    "no_curriculum"
   );
-  const [selectedLibraryId, setSelectedLibraryId] = useState(
-    libraryOptions[0]?.id || ""
-  );
+  const [selectedLibraryId, setSelectedLibraryId] = useState(libraryOptions[0]?.id || "");
   const [scheduleModel, setScheduleModel] = useState("every_day");
   const [abMeetingDay, setAbMeetingDay] = useState("A");
   const [abStartDate, setAbStartDate] = useState(defaultStart);
@@ -66,8 +64,8 @@ export default function NewClassForm({
           value={classMode}
           onChange={(e) => setClassMode(e.target.value)}
         >
+          <option value="no_curriculum">Arcade / General Class</option>
           {libraryOptions.length > 0 ? <option value="curriculum">Curriculum Class</option> : null}
-          <option value="no_curriculum">No-Curriculum Class</option>
           <option value="friends_family_debug">Friends/Family Debug Class</option>
         </select>
       </label>
@@ -84,7 +82,7 @@ export default function NewClassForm({
             classMode === "friends_family_debug"
               ? "e.g., MathClaw Friends & Family"
               : classMode === "no_curriculum"
-                ? "e.g., Saturday Practice Club"
+                ? "e.g., Period 4 Homeroom"
                 : "e.g., Algebra I - Period 2"
           }
         />
@@ -116,7 +114,7 @@ export default function NewClassForm({
           </strong>
           <p style={{ marginTop: "0.5rem" }}>
             This class will skip curriculum lesson planning. You can still use join codes, student progress,
-            arcade games, awards, and teacher tools.
+            arcade games, awards, student-vs-student competition, and teacher tools.
           </p>
           <input type="hidden" name="selected_library_id" value="" />
         </div>

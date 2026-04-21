@@ -43,6 +43,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
   const roleLabel = useMemo(() => {
     if (accountType === "teacher") return "Teacher";
     if (accountType === "student") return "Student";
+    if (accountType === "player") return "Arcade Player";
     return "";
   }, [accountType]);
 
@@ -51,6 +52,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
     [newSchoolName, selectedSchoolName]
   );
   const isBusy = activeMethod !== "";
+  const requiresSchool = accountType === "teacher" || accountType === "student";
 
   async function onSignUp(event) {
     event.preventDefault();
@@ -58,7 +60,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
       setError("Choose whether you're creating a teacher or student account first.");
       return;
     }
-    if (!resolvedSchoolName) {
+    if (requiresSchool && !resolvedSchoolName) {
       setError("Choose an existing school or type a new one.");
       return;
     }
@@ -69,7 +71,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
 
     const origin = window.location.origin;
     const supabase = createClient();
-    const next = accountType === "student" ? "/play" : "/classes";
+    const next = accountType === "teacher" ? "/classes" : "/play";
     const callbackUrl = buildCallbackUrl(origin, {
       next,
       accountType,
@@ -104,7 +106,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
       setError("Choose whether you're creating a teacher or student account first.");
       return;
     }
-    if (!resolvedSchoolName) {
+    if (requiresSchool && !resolvedSchoolName) {
       setError("Choose an existing school or type a new one.");
       return;
     }
@@ -115,7 +117,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
 
     const origin = window.location.origin;
     const supabase = createClient();
-    const next = accountType === "student" ? "/play" : "/classes";
+    const next = accountType === "teacher" ? "/classes" : "/play";
     const callbackUrl = buildCallbackUrl(origin, {
       next,
       accountType,
@@ -144,7 +146,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
         {showRoleChooser ? (
           <>
             <p className="authEyebrow">Create Account</p>
-            <h1>Are you a teacher or a student?</h1>
+            <h1>What kind of account do you want?</h1>
             <p className="authIntroCopy">
               Pick the path that fits you best. We&apos;ll keep the next step simple.
             </p>
@@ -162,6 +164,20 @@ export default function SignUpForm({ schoolOptions = [] }) {
                 <span className="accountChoiceEyebrow">Student</span>
                 <strong>I want to play games</strong>
                 <span>Join a class, save progress, and jump into the Student Arcade.</span>
+              </button>
+
+              <button
+                className="accountChoiceCard accountChoiceCardLarge"
+                type="button"
+                onClick={() => {
+                  setAccountType("player");
+                  setError("");
+                  setMessage("");
+                }}
+              >
+                <span className="accountChoiceEyebrow">Arcade Player</span>
+                <strong>I want to play on my own</strong>
+                <span>Play the arcade without needing a class. You can still join one later if you want.</span>
               </button>
 
               <button
@@ -197,11 +213,19 @@ export default function SignUpForm({ schoolOptions = [] }) {
               <span className="authBackLabel">{roleLabel} account</span>
             </div>
 
-            <h1>{accountType === "student" ? "Create your student account" : "Create your teacher account"}</h1>
+            <h1>
+              {accountType === "teacher"
+                ? "Create your teacher account"
+                : accountType === "student"
+                  ? "Create your student account"
+                  : "Create your arcade player account"}
+            </h1>
             <p className="authIntroCopy">
-              {accountType === "student"
-                ? "Students should use Google first whenever possible. Email and password are still available as a backup."
-                : "Teachers can sign up with Google or with email and password."}
+              {accountType === "teacher"
+                ? "Teachers can sign up with Google or with email and password."
+                : accountType === "student"
+                  ? "Students should use Google first whenever possible. Email and password are still available as a backup."
+                  : "Arcade players can sign up with Google or with email and password, then jump straight into the games."}
             </p>
 
             <section className="authFollowupCard authFollowupCardClean">
@@ -229,7 +253,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
                     type="text"
                     value={newSchoolName}
                     onChange={(event) => setNewSchoolName(event.target.value)}
-                    placeholder="Type a new school name"
+                    placeholder={requiresSchool ? "Type a new school name" : "Optional"}
                   />
                 </label>
 

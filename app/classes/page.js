@@ -2,7 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import {
+  getAccountTypeForUser,
+  isTeacherAccountType,
+  normalizeAccountType,
+} from "@/lib/auth/account-type";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
 import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
@@ -43,7 +47,7 @@ function formatCoTeacherNotice(status) {
   if (status === "cannot-add-yourself") return "You are already the owner of this class.";
   if (status === "lookup-failed") return "Could not look up that teacher account right now.";
   if (status === "user-not-found") return "That teacher account could not be found.";
-  if (status === "students-cannot-be-co-teachers") return "Student accounts cannot be added as co-teachers.";
+  if (status === "invalid-account-type") return "Only teacher accounts can be added as co-teachers.";
   if (status === "save-failed") return "Could not add that co-teacher. Please try again.";
   if (status === "remove-failed") return "Could not remove that co-teacher. Please try again.";
   if (status === "cannot-remove-owner") return "The class owner cannot be removed from the class.";
@@ -106,7 +110,7 @@ export default async function ClassesPage({ searchParams }) {
 
   const accountType = await getAccountTypeForUser(supabase, user);
 
-  if (accountType === "student") {
+  if (!isTeacherAccountType(accountType)) {
     redirect("/play");
   }
 
@@ -196,7 +200,7 @@ export default async function ClassesPage({ searchParams }) {
       const teacherCandidates = authUsers
         .filter((authUser) => {
           const metadataType = authUser?.user_metadata?.account_type;
-          return metadataType !== "student";
+          return normalizeAccountType(metadataType) === "teacher";
         })
         .map((authUser) => {
           const profile = profilesById.get(authUser.id);
