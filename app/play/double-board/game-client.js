@@ -2,7 +2,7 @@
 
 import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
-import { buildIntegerNode } from "@/lib/math-display";
+import { buildLabelNode } from "@/lib/math-display";
 import {
   DOUBLE_BOARD_COLUMN_PATTERNS,
   DOUBLE_BOARD_NUMBER_MODES,
@@ -92,7 +92,7 @@ function tileTooltip(question) {
   const parts = [formatBoardLocation(question.boardKey, question.rowIndex, question.colIndex)];
 
   if (question.solved) {
-    parts.push(`Solved with answer ${question.displayValue}.`);
+    parts.push(`Solved with answer ${question.answerDisplay}.`);
   } else if (question.everMissed) {
     parts.push(`Missed ${question.attemptCount} time${question.attemptCount === 1 ? "" : "s"} so far.`);
   } else {
@@ -105,32 +105,44 @@ function tileTooltip(question) {
 function buildMultipleChoiceOptions(question) {
   if (!question) return [];
 
-  const absOne = Math.abs(Number(question.operand1 || 0));
-  const absTwo = Math.abs(Number(question.operand2 || 0));
-  const absoluteSum = absOne + absTwo;
-  const absoluteDifference = Math.abs(absOne - absTwo);
-  const ordered = [absoluteSum, -absoluteSum, absoluteDifference, -absoluteDifference];
-  const values = [];
+  const metadata = question.metadata || {};
 
-  for (const value of ordered) {
-    if (!values.includes(value)) {
-      values.push(value);
+  if (metadata.answerFormat === "multiplier_hundredths") {
+    const percentValue = Number(metadata.percentValue || 0);
+    const correct = Number(question.correctAnswer || 0);
+    const oppositeDirection =
+      metadata.direction === "decrease" ? 100 + percentValue : 100 - percentValue;
+    const rawDecimal = percentValue;
+    const reversedDigits = percentValue < 10 ? 100 + percentValue * 10 : 100 + (percentValue % 10);
+    const ordered = [correct, oppositeDirection, rawDecimal, reversedDigits];
+    const values = [];
+
+    for (const value of ordered) {
+      if (Number.isFinite(value) && value > 0 && !values.includes(value)) {
+        values.push(value);
+      }
     }
+
+    while (values.length < 4) {
+      const fallback = Math.max(1, 100 + percentValue + values.length);
+      if (!values.includes(fallback)) {
+        values.push(fallback);
+      }
+    }
+
+    return values.slice(0, 4);
   }
 
-  // Keep four choices even when the absolute difference is 0.
-  while (values.length < 4) {
-    const fallback = values.length % 2 === 0 ? absoluteSum + values.length : -(absoluteSum + values.length);
-    if (!values.includes(fallback)) {
-      values.push(fallback);
-    }
+  const numericAnswer = Number(question.correctAnswer);
+  if (!Number.isFinite(numericAnswer)) {
+    return [];
   }
 
-  return values.slice(0, 4);
+  return [numericAnswer];
 }
 
 function buildAnswerNode(value) {
-  return buildIntegerNode(value, { parenthesizeNegative: false });
+  return buildLabelNode(String(value ?? ""));
 }
 
 function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
@@ -179,7 +191,7 @@ function AnswerHistoryPanel({ title, items }) {
               <MathInlineText text={item.expressionText} />
             </strong>
             <span className="doubleBoardReviewAnswer">
-              Answer given: <MathText node={buildAnswerNode(item.submittedAnswer)} />
+              Answer given: <MathText node={buildAnswerNode(item.submittedAnswerDisplay)} />
             </span>
             <span className="doubleBoardReviewMeta">{item.isCorrect ? "Correct" : "Incorrect"}</span>
             <span className="doubleBoardReviewMeta">
@@ -273,7 +285,7 @@ function BoardPanel({
                               kind: "equation",
                               segments: [
                                 { kind: "symbol", value: "=" },
-                                buildAnswerNode(question.correctAnswer),
+                                buildAnswerNode(question.answerDisplay),
                               ],
                             }}
                           />
@@ -308,6 +320,11 @@ function AnswerModal({
   const multipleChoiceOptions = answerMode === "multiple_choice"
     ? buildMultipleChoiceOptions(question)
     : [];
+  const isMultiplierQuestion = question.metadata?.answerFormat === "multiplier_hundredths";
+  const answerPrompt = isMultiplierQuestion
+    ? "Enter the decimal multiplier for that percent change."
+    : "Enter one whole-number answer. Wrong answers do not reveal the solution.";
+  const answerPlaceholder = question.metadata?.answerPlaceholder || "Type your answer";
 
   return (
     <div className="doubleBoardModalBackdrop" role="presentation" onClick={onCancel}>
@@ -325,7 +342,7 @@ function AnswerModal({
         <p>
           {answerMode === "multiple_choice"
             ? "Pick one of the four answer choices."
-            : "Enter one whole-number answer. Wrong answers do not reveal the solution."}
+            : answerPrompt}
         </p>
         {answerMode === "multiple_choice" ? (
           <div className="doubleBoardChoiceGrid">
@@ -335,9 +352,18 @@ function AnswerModal({
                 className="btn"
                 type="button"
                 disabled={busy}
-                onClick={() => onSubmit(String(choice))}
+                onClick={() =>
+                  onSubmit(
+                    isMultiplierQuestion ? (Number(choice) / 100).toFixed(2) : String(choice)
+                  )
+                }
               >
-                <MathText node={buildAnswerNode(choice)} className="mathChoiceContent" />
+                <MathText
+                  node={buildAnswerNode(
+                    isMultiplierQuestion ? (Number(choice) / 100).toFixed(2) : String(choice)
+                  )}
+                  className="mathChoiceContent"
+                />
               </button>
             ))}
             <div className="ctaRow">
@@ -356,12 +382,12 @@ function AnswerModal({
           >
             <input
               className="input"
-              inputMode="numeric"
-              pattern="-?[0-9]*"
+              inputMode={isMultiplierQuestion ? "decimal" : "numeric"}
+              pattern={isMultiplierQuestion ? "^(?:\\d+|\\d*\\.\\d{1,2})$" : "-?[0-9]*"}
               autoFocus
               value={answerValue}
               onChange={(event) => onAnswerChange(event.target.value)}
-              placeholder="Type an integer"
+              placeholder={answerPlaceholder}
               aria-label="Answer"
             />
             <div className="ctaRow">
@@ -392,15 +418,15 @@ function ReviewPanel({ reviewItems }) {
   return (
     <section className="card doubleBoardReviewCard">
       <h2>End-of-Game Review</h2>
-      <p>These were the questions that were missed at least once before the game ended.</p>
-      <div className="doubleBoardReviewList">
-        {reviewItems.map((item) => (
+        <p>These were the questions that were missed at least once before the game ended.</p>
+        <div className="doubleBoardReviewList">
+          {reviewItems.map((item) => (
           <div key={item.id} className="doubleBoardReviewItem">
             <strong className="doubleBoardReviewExpression">
               <MathInlineText text={item.expressionText} />
             </strong>
             <span className="doubleBoardReviewAnswer">
-              Answer: <MathText node={buildAnswerNode(item.correctAnswer)} />
+              Answer: <MathText node={buildAnswerNode(item.correctAnswerDisplay)} />
             </span>
             <span className="doubleBoardReviewMeta">{`Board ${item.boardKey}`}</span>
             <span className="doubleBoardReviewMeta">{`${item.wrongAttemptCount} wrong attempt${
@@ -670,6 +696,9 @@ export default function DoubleBoardClient({
                   }`
                 : `${currentCourseLabel} · No active game right now.`}
             </p>
+            <p className="doubleBoardIntro">
+              Choose between the original integer-operation board and the new percent-change multiplier board.
+            </p>
           </div>
           <div className="ctaRow">
             {canHost ? (
@@ -762,7 +791,7 @@ export default function DoubleBoardClient({
                     {hostSetupOpen ? (
                       <div className="doubleBoardHostSetupFields">
                         <label>
-                          Number mode
+                          Board type
                           <select
                             className="input"
                             value={numberMode}

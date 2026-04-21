@@ -11,8 +11,9 @@ import {
   buildDoubleBoardReviewItems,
   createDoubleBoardQuestionRecords,
   DOUBLE_BOARD_TOTAL_QUESTIONS,
-  formatDoubleBoardExpression,
+  formatDoubleBoardAnswer,
   normalizeDoubleBoardMode,
+  normalizeDoubleBoardAnswer,
   scoreSolvedDoubleBoardQuestion,
 } from "@/lib/question-engine/double-board";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
@@ -22,11 +23,6 @@ const GAME_SLUG = "double_board_review";
 
 function normalizeId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeAnswer(value) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
 }
 
 function nowIso() {
@@ -121,9 +117,9 @@ function serializeQuestion(row, canManage, sessionStatus) {
   const attemptCount = Number(row.attempt_count || 0);
   const revealAnswer = solved || sessionStatus === "ended" || canManage;
   const revealExpression = sessionStatus !== "waiting";
-  const expressionText =
-    row.expression_text ||
-    formatDoubleBoardExpression(row.operand1, row.operator, row.operand2);
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  const expressionText = row.expression_text || "Hidden";
+  const answerDisplay = formatDoubleBoardAnswer(row.correct_answer, metadata);
 
   return {
     id: row.id,
@@ -135,13 +131,15 @@ function serializeQuestion(row, canManage, sessionStatus) {
     operand2: row.operand2,
     expressionText: revealExpression ? expressionText : "Hidden",
     correctAnswer: revealAnswer ? row.correct_answer : null,
+    answerDisplay: revealAnswer ? answerDisplay : null,
     solved,
     everMissed,
     attemptCount,
     retryValue: 2 ** attemptCount,
     isHidden: !revealExpression,
+    metadata,
     state: solved ? (everMissed ? "solved-after-miss" : "solved") : everMissed ? "missed" : "unanswered",
-    displayValue: solved ? `${expressionText} = ${row.correct_answer}` : everMissed ? "X" : " ",
+    displayValue: solved ? `${expressionText} = ${answerDisplay}` : everMissed ? "X" : " ",
   };
 }
 
@@ -244,18 +242,22 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       playerId: attempt.player_id,
       playerDisplayName: playerRecord.display_name,
       expressionText:
-        questionRecord.expression_text ||
-        formatDoubleBoardExpression(
-          questionRecord.operand1,
-          questionRecord.operator,
-          questionRecord.operand2
-        ),
+        questionRecord.expression_text || "Hidden",
       submittedAnswer: attempt.submitted_answer,
+      submittedAnswerDisplay: formatDoubleBoardAnswer(
+        attempt.submitted_answer,
+        questionRecord.metadata || {}
+      ),
+      correctAnswerDisplay: formatDoubleBoardAnswer(
+        questionRecord.correct_answer,
+        questionRecord.metadata || {}
+      ),
       isCorrect: Boolean(attempt.is_correct),
       boardKey: questionRecord.board_key,
       rowIndex: questionRecord.row_index,
       colIndex: questionRecord.col_index,
       createdAt: attempt.created_at,
+      metadata: questionRecord.metadata || {},
     });
   }
 
@@ -731,12 +733,6 @@ export async function POST(request) {
       }
 
       const questionId = normalizeId(body.questionId);
-      const submittedAnswer = normalizeAnswer(body.answer);
-
-      if (!questionId || submittedAnswer === null) {
-        return NextResponse.json({ error: "A whole-number answer is required." }, { status: 400 });
-      }
-
       const player = await ensurePlayer(
         admin,
         session.id,
@@ -754,6 +750,15 @@ export async function POST(request) {
 
       if (!question) {
         return NextResponse.json({ error: "Question not found." }, { status: 404 });
+      }
+
+      const submittedAnswer = normalizeDoubleBoardAnswer(body.answer, question.metadata || {});
+
+      if (!questionId || submittedAnswer === null) {
+        return NextResponse.json(
+          { error: "Enter a valid multiplier like 1.08." },
+          { status: 400 }
+        );
       }
 
       if (question.solved) {

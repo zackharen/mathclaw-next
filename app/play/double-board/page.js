@@ -30,8 +30,9 @@ export default async function DoubleBoardPage({ searchParams }) {
       <section className="card">
         <h1>Double Board</h1>
         <p>
-          Run two side-by-side integer boards for whole-class review. Missed questions stay in play,
-          rise in value, and turn the board into a strategic race instead of a one-and-done worksheet.
+          Run two side-by-side boards for whole-class review. You can choose the original integer
+          operations version or the new percent-change multiplier version. Missed questions stay in
+          play, rise in value, and turn the board into a strategic race instead of a one-and-done worksheet.
         </p>
       </section>
       <DoubleBoardClient
