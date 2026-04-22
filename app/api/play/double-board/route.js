@@ -24,6 +24,7 @@ const GAME_SLUG = "double_board_review";
 const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
 const START_COUNTDOWN_SECONDS = 3;
+const PLAYER_PRESENCE_WINDOW_MS = 8000;
 
 function normalizeId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -31,6 +32,12 @@ function normalizeId(value) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function isPlayerPresent(player, nowMs = Date.now()) {
+  const updatedAtMs = Date.parse(String(player?.updated_at || ""));
+  if (!Number.isFinite(updatedAtMs)) return false;
+  return nowMs - updatedAtMs <= PLAYER_PRESENCE_WINDOW_MS;
 }
 
 function normalizeAnswerMode(value) {
@@ -179,7 +186,7 @@ function getActiveQuestionId(questions, playMode, sessionStatus) {
   );
 }
 
-function serializeQuestion(row, canManage, sessionStatus, claim = null) {
+function serializeQuestion(row, canManage, sessionStatus, claim = null, solvedCount = 0) {
   const solved = Boolean(row.solved);
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
@@ -191,6 +198,7 @@ function serializeQuestion(row, canManage, sessionStatus, claim = null) {
   const pointValue = getDoubleBoardPointValue({
     previousAttemptCount: attemptCount,
     question: row,
+    solvedCount,
   });
 
   return {
@@ -231,7 +239,9 @@ function sortPlayersByJoinOrder(players) {
 }
 
 function getStudentTurnOrder(players) {
-  return sortPlayersByJoinOrder(players).filter((player) => player.role === "student");
+  return sortPlayersByJoinOrder(players).filter(
+    (player) => player.role === "student" && isPlayerPresent(player)
+  );
 }
 
 function getActiveTurnPlayer(players, session) {
@@ -264,8 +274,15 @@ async function loadSessionBundle(admin, sessionId, viewer) {
 
   const sessionMetadata = buildSessionMetadata(session.metadata, questions || []);
   const canManage = viewerCanManageSession(session, viewer.courses, viewer.user, viewer.accountType);
+  const solvedCount = (questions || []).filter((question) => question?.solved).length;
   const serializedQuestions = (questions || []).map((row) =>
-    serializeQuestion(row, canManage, session.status, sessionMetadata.activeClaims?.[row.id] || null)
+    serializeQuestion(
+      row,
+      canManage,
+      session.status,
+      sessionMetadata.activeClaims?.[row.id] || null,
+      solvedCount
+    )
   );
   const playMode = sessionMetadata.playMode;
   const activeQuestionId =
@@ -278,11 +295,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       col_index: question.colIndex,
     }))
   );
-  const solvedCount = serializedQuestions.filter((question) => question.solved).length;
   const allPlayers = sortPlayers(players);
+  const presentPlayers = allPlayers.filter((player) => isPlayerPresent(player));
   const playerMap = new Map((players || []).map((player) => [player.user_id, player]));
   const questionMap = new Map((questions || []).map((question) => [question.id, question]));
-  const visibleLeaderboard = allPlayers
+  const visibleLeaderboard = presentPlayers
     .filter((player) => player.role === "student")
     .map((player, index) => ({
       id: player.id,
@@ -427,6 +444,18 @@ async function ensurePlayer(admin, sessionId, user, displayName, role = "student
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+async function touchPlayerPresence(admin, sessionId, userId) {
+  if (!sessionId || !userId) return;
+
+  await admin
+    .from("double_board_players")
+    .update({
+      updated_at: nowIso(),
+    })
+    .eq("session_id", sessionId)
+    .eq("user_id", userId);
 }
 
 async function bumpTurnIndex(admin, session) {
@@ -698,6 +727,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "You do not have access to this Double Board session." }, { status: 403 });
   }
 
+  await touchPlayerPresence(admin, session.id, user.id);
   const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
   return NextResponse.json({ session: bundle });
 }
@@ -809,6 +839,7 @@ export async function POST(request) {
       );
     }
 
+    await touchPlayerPresence(admin, session.id, user.id);
     const canManage = viewerCanManageSession(session, viewer.courses, user, viewer.accountType);
 
     if (action === "start") {
@@ -1148,6 +1179,7 @@ export async function POST(request) {
         const pointsEarned = scoreSolvedDoubleBoardQuestion({
           previousAttemptCount: question.attempt_count,
           question,
+          solvedCount: Number(session.total_solved_count || 0) + 1,
         });
 
         const { error: scoreError } = await admin
