@@ -195,11 +195,15 @@ function serializeQuestion(row, canManage, sessionStatus, claim = null, solvedCo
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
   const expressionText = row.expression_text || "Hidden";
   const answerDisplay = formatDoubleBoardAnswer(row.correct_answer, metadata);
-  const pointValue = getDoubleBoardPointValue({
-    previousAttemptCount: attemptCount,
-    question: row,
-    solvedCount,
-  });
+  const frozenSolvedPointValue = Number(metadata.solvedPointValue);
+  const pointValue =
+    solved && Number.isFinite(frozenSolvedPointValue)
+      ? frozenSolvedPointValue
+      : getDoubleBoardPointValue({
+          previousAttemptCount: attemptCount,
+          question: row,
+          solvedCount,
+        });
 
   return {
     id: row.id,
@@ -374,6 +378,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     endedAt: session.ended_at,
     updatedAt: session.updated_at,
     resultsRecordedAt: session.results_recorded_at,
+    serverNow: nowIso(),
     answerMode: sessionMetadata.answerMode,
     multipleChoiceEnabled: sessionMetadata.answerMode === "multiple_choice",
     playMode,
@@ -1114,12 +1119,22 @@ export async function POST(request) {
         };
         delete nextClaims[question.id];
 
+        const pointsEarned = scoreSolvedDoubleBoardQuestion({
+          previousAttemptCount: question.attempt_count,
+          question,
+          solvedCount: Number(session.total_solved_count || 0),
+        });
+
         const { data: solvedQuestion, error: solveError } = await admin
           .from("double_board_questions")
           .update({
             solved: true,
             solved_by_player_id: user.id,
             solved_at: nowIso(),
+            metadata: {
+              ...(question.metadata && typeof question.metadata === "object" ? question.metadata : {}),
+              solvedPointValue: pointsEarned,
+            },
             updated_at: nowIso(),
           })
           .eq("id", question.id)
@@ -1176,11 +1191,6 @@ export async function POST(request) {
           .eq("id", session.id);
 
         const syncedSession = await syncSolvedCount(admin, session.id);
-        const pointsEarned = scoreSolvedDoubleBoardQuestion({
-          previousAttemptCount: question.attempt_count,
-          question,
-          solvedCount: Number(session.total_solved_count || 0) + 1,
-        });
 
         const { error: scoreError } = await admin
           .from("double_board_players")

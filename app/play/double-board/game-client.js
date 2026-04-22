@@ -55,6 +55,9 @@ function normalizeSessionPayload(session) {
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
     freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
+    serverNowMs: Number.isFinite(Date.parse(String(session.serverNow || "")))
+      ? Date.parse(String(session.serverNow || ""))
+      : null,
     startCountdownEndsAt: futureTimestampOrNull(session.startCountdownEndsAt),
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
     activeTurnDisplayName:
@@ -518,6 +521,7 @@ export default function DoubleBoardClient({
   const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
   const [clockNow, setClockNow] = useState(Date.now());
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -544,8 +548,15 @@ export default function DoubleBoardClient({
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Double Board.");
       }
-      setSession(normalizeSessionPayload(payload.session));
-      setClockNow(Date.now());
+      const normalizedSession = normalizeSessionPayload(payload.session);
+      setSession(normalizedSession);
+      if (Number.isFinite(normalizedSession?.serverNowMs)) {
+        const nextOffsetMs = normalizedSession.serverNowMs - Date.now();
+        setClockOffsetMs(nextOffsetMs);
+        setClockNow(Date.now() + nextOffsetMs);
+      } else {
+        setClockNow(Date.now());
+      }
       if (!options.quiet) {
         setFlashMessage("");
       }
@@ -590,7 +601,13 @@ export default function DoubleBoardClient({
       if (payload.session) {
         const normalizedSession = normalizeSessionPayload(payload.session);
         setSession(normalizedSession);
-        setClockNow(Date.now());
+        if (Number.isFinite(normalizedSession?.serverNowMs)) {
+          const nextOffsetMs = normalizedSession.serverNowMs - Date.now();
+          setClockOffsetMs(nextOffsetMs);
+          setClockNow(Date.now() + nextOffsetMs);
+        } else {
+          setClockNow(Date.now());
+        }
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
         setSelectedHistoryUserId((current) => {
@@ -685,7 +702,7 @@ export default function DoubleBoardClient({
   const boards = session?.boards || {};
 
   useEffect(() => {
-    const now = Date.now();
+    const now = Date.now() + clockOffsetMs;
     const hasCountdown = secondsRemaining(session?.startCountdownEndsAt, now) > 0;
     const hasClaims = [boards.A, boards.B]
       .flatMap((board) => boardQuestions(board).flat())
@@ -695,11 +712,11 @@ export default function DoubleBoardClient({
 
     setClockNow(now);
     const interval = window.setInterval(() => {
-      setClockNow(Date.now());
+      setClockNow(Date.now() + clockOffsetMs);
     }, 250);
 
     return () => window.clearInterval(interval);
-  }, [boards.A, boards.B, session?.startCountdownEndsAt]);
+  }, [boards.A, boards.B, clockOffsetMs, session?.startCountdownEndsAt]);
 
   const countdownValue = secondsRemaining(session?.startCountdownEndsAt, clockNow);
   const countdownActive = countdownValue > 0;
