@@ -47,6 +47,7 @@ function normalizeSessionPayload(session) {
       B: normalizeBoardRows(boards.B),
     },
     leaderboard: Array.isArray(session.leaderboard) ? session.leaderboard : [],
+    turnOrder: Array.isArray(session.turnOrder) ? session.turnOrder : [],
     reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
     answerHistoryByUser:
       session.answerHistoryByUser && typeof session.answerHistoryByUser === "object"
@@ -54,6 +55,7 @@ function normalizeSessionPayload(session) {
         : {},
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
+    turnAdvanceMode: session.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
     startCountdownEndsAt: futureTimestampOrNull(session.startCountdownEndsAt),
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
@@ -160,7 +162,7 @@ function buildAnswerNode(value) {
 
 function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
   if (!leaderboard.length) {
-    return <p className="doubleBoardEmptyNote">No players have joined this game yet.</p>;
+    return <p className="doubleBoardEmptyNote">No students are currently in the room.</p>;
   }
 
   return (
@@ -180,6 +182,80 @@ function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
           <strong>{player.score}</strong>
         </button>
       ))}
+    </div>
+  );
+}
+
+function TurnOrderPanel({
+  items,
+  canManage,
+  busy,
+  selectedUserId,
+  onSelect,
+  onReorder,
+}) {
+  const [draggingUserId, setDraggingUserId] = useState(null);
+
+  if (!items?.length) {
+    return (
+      <div className="doubleBoardWaitingCard">
+        <h3>Turn Order</h3>
+        <p>Students will appear here after they join.</p>
+      </div>
+    );
+  }
+
+  function moveUser(targetUserId) {
+    if (!draggingUserId || draggingUserId === targetUserId) return;
+    const draggedIndex = items.findIndex((item) => item.userId === draggingUserId);
+    const targetIndex = items.findIndex((item) => item.userId === targetUserId);
+    if (draggedIndex < 0 || targetIndex < 0) return;
+
+    const nextItems = [...items];
+    const [draggedItem] = nextItems.splice(draggedIndex, 1);
+    nextItems.splice(targetIndex, 0, draggedItem);
+    onReorder(nextItems.map((item) => item.userId));
+  }
+
+  return (
+    <div className="doubleBoardWaitingCard">
+      <h3>Turn Order</h3>
+      <p>Drag students to change who goes next after the current turn finishes.</p>
+      <div className="doubleBoardTurnOrderList">
+        {items.map((item, index) => (
+          <button
+            key={item.userId}
+            type="button"
+            className={`doubleBoardTurnOrderRow ${item.isActiveTurn ? "isActive" : ""} ${
+              selectedUserId === item.userId ? "selected" : ""
+            } ${draggingUserId === item.userId ? "isDragging" : ""}`}
+            draggable={canManage && !busy}
+            onClick={() => onSelect?.(item.userId)}
+            onDragStart={() => setDraggingUserId(item.userId)}
+            onDragEnd={() => setDraggingUserId(null)}
+            onDragOver={(event) => {
+              if (!canManage || busy) return;
+              event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              moveUser(item.userId);
+              setDraggingUserId(null);
+            }}
+          >
+            <span className="doubleBoardTurnOrderNumber">{index + 1}</span>
+            <span className="doubleBoardTurnOrderName">
+              {item.displayName}
+              {item.isActiveTurn ? <small>Current turn</small> : null}
+              {!item.isPresent ? <small>Not in room</small> : null}
+            </span>
+            <span className="doubleBoardTurnOrderMeta">
+              <strong>{item.score}</strong>
+              {canManage ? <small>Drag</small> : null}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -230,7 +306,6 @@ function BoardPanel({
   canManage,
   sessionStatus,
   playMode,
-  activeQuestionId,
   viewerId,
   currentTimeMs,
   onSelect,
@@ -256,8 +331,6 @@ function BoardPanel({
               }
 
               const isSelected = selectedQuestionId === question.id;
-              const isPlayableQuestion =
-                playMode !== "one_at_a_time" || !activeQuestionId || question.id === activeQuestionId;
               const claimSecondsLeft = secondsRemaining(question.claim?.expiresAt, currentTimeMs);
               const isClaimedByOther =
                 playMode === "free_for_all" &&
@@ -267,7 +340,6 @@ function BoardPanel({
               const disabled =
                 !canAnswer ||
                 question.solved ||
-                (sessionStatus === "live" && !isPlayableQuestion) ||
                 isClaimedByOther;
               const highValue = question.attemptCount >= 2;
               const tileLabel =
@@ -295,7 +367,7 @@ function BoardPanel({
                   type="button"
                   className={`doubleBoardTile state-${question.state} ${isSelected ? "selected" : ""} ${
                     highValue ? "highValue" : ""
-                  }`}
+                  } ${!question.solved && question.claim && claimSecondsLeft > 0 ? "engaged" : ""}`}
                   onClick={() => onSelect(question)}
                   disabled={disabled}
                   title={tileTooltip(question)}
@@ -353,6 +425,7 @@ function StartCountdownOverlay({ countdownValue }) {
 function AnswerModal({
   open,
   question,
+  claimSecondsLeft,
   answerMode,
   answerValue,
   onAnswerChange,
@@ -370,20 +443,35 @@ function AnswerModal({
     ? "Enter the decimal multiplier for that percent change."
     : "Enter one whole-number answer. Wrong answers do not reveal the solution.";
   const answerPlaceholder = question.metadata?.answerPlaceholder || "Type your answer";
+  const hasClaimTimer = claimSecondsLeft > 0;
 
   return (
-    <div className="doubleBoardModalBackdrop" role="presentation" onClick={onCancel}>
+    <div className="doubleBoardModalBackdrop" role="presentation">
       <div
         className="doubleBoardModal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="double-board-answer-title"
-        onClick={(event) => event.stopPropagation()}
       >
+        <button
+          type="button"
+          className="doubleBoardModalClose"
+          onClick={onCancel}
+          disabled={busy}
+          aria-label="Exit question"
+        >
+          X
+        </button>
         <p className="doubleBoardEyebrow">
           {formatBoardLocation(question.boardKey, question.rowIndex, question.colIndex)}
         </p>
         <h3 id="double-board-answer-title"><MathInlineText text={question.expressionText} /></h3>
+        {hasClaimTimer ? (
+          <div className="doubleBoardModalTimer" aria-live="polite">
+            <span>Time left</span>
+            <strong>{claimSecondsLeft}s</strong>
+          </div>
+        ) : null}
         <p>
           {answerMode === "multiple_choice"
             ? "Pick one of the four answer choices."
@@ -495,6 +583,7 @@ export default function DoubleBoardClient({
   const [numberMode, setNumberMode] = useState("single_digit");
   const [answerMode, setAnswerMode] = useState("typed");
   const [playMode, setPlayMode] = useState("free_for_all");
+  const [turnAdvanceMode, setTurnAdvanceMode] = useState("until_wrong");
   const [freeForAllTimerSeconds, setFreeForAllTimerSeconds] = useState(10);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -506,6 +595,7 @@ export default function DoubleBoardClient({
   const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
   const [clockNow, setClockNow] = useState(Date.now());
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -533,6 +623,7 @@ export default function DoubleBoardClient({
         throw new Error(payload.error || "Could not load Double Board.");
       }
       setSession(normalizeSessionPayload(payload.session));
+      setClockNow(Date.now());
       if (!options.quiet) {
         setFlashMessage("");
       }
@@ -565,6 +656,7 @@ export default function DoubleBoardClient({
           numberMode,
           answerMode,
           playMode,
+          turnAdvanceMode,
           freeForAllTimerSeconds,
           sessionId: session?.id || null,
           ...extra,
@@ -577,8 +669,10 @@ export default function DoubleBoardClient({
       if (payload.session) {
         const normalizedSession = normalizeSessionPayload(payload.session);
         setSession(normalizedSession);
+        setClockNow(Date.now());
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
+        setTurnAdvanceMode(normalizedSession?.turnAdvanceMode || "until_wrong");
         setSelectedHistoryUserId((current) => {
           if (current && normalizedSession?.answerHistoryByUser?.[current]) {
             return current;
@@ -611,7 +705,7 @@ export default function DoubleBoardClient({
   useEffect(() => {
     if (!courseId && !canHost) return undefined;
 
-    const delay = session?.status === "live" ? 1200 : 2200;
+    const delay = session?.status === "live" ? 700 : 2200;
     const interval = window.setInterval(() => {
       loadSession(courseId, { quiet: true });
     }, delay);
@@ -658,9 +752,27 @@ export default function DoubleBoardClient({
   }, [session?.playMode]);
 
   useEffect(() => {
-    if (!canHost) return;
-    setHostSetupOpen(!session || session.status !== "live");
-  }, [canHost, session]);
+    if (session?.turnAdvanceMode) {
+      setTurnAdvanceMode(session.turnAdvanceMode);
+    }
+  }, [session?.turnAdvanceMode]);
+
+  useEffect(() => {
+    if (!canHost || session?.status !== "live") return;
+    setHostSetupOpen(false);
+  }, [canHost, session?.status]);
+
+  useEffect(() => {
+    function syncFullscreenState() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, []);
 
   useEffect(() => {
     if (session?.freeForAllTimerSeconds) {
@@ -679,6 +791,7 @@ export default function DoubleBoardClient({
 
     if (!hasCountdown && !hasClaims) return undefined;
 
+    setClockNow(now);
     const interval = window.setInterval(() => {
       setClockNow(Date.now());
     }, 250);
@@ -715,10 +828,20 @@ export default function DoubleBoardClient({
       setAnswerValue("");
     }
   }, [boards.A, boards.B, canAnswer, clockNow, playMode, selectedQuestion, session?.playMode, userId]);
+  const activeSelectedQuestion = selectedQuestion
+    ? [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
+        .filter(Boolean)
+        .find((question) => question.id === selectedQuestion.id) || selectedQuestion
+    : null;
+  const selectedQuestionClaimSecondsLeft = secondsRemaining(
+    activeSelectedQuestion?.claim?.expiresAt,
+    clockNow
+  );
   const selectedHistoryItems =
     session?.answerHistoryByUser?.[
       canHost ? selectedHistoryUserId : userId
     ] || [];
+  const turnOrderItems = session?.turnOrder || [];
 
   function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
@@ -758,6 +881,13 @@ export default function DoubleBoardClient({
     }
   }
 
+  async function handleTurnOrderReorder(orderedUserIds) {
+    if (!session || !canHost || session.playMode !== "one_at_a_time") return;
+    await postAction("reorder_turns", {
+      orderedUserIds,
+    });
+  }
+
   async function handleFullscreen() {
     try {
       if (!document.fullscreenElement) {
@@ -773,61 +903,69 @@ export default function DoubleBoardClient({
   return (
     <DoubleBoardErrorBoundary>
       <div className="stack">
-        <section className="card doubleBoardShell">
+        <section className={`card doubleBoardShell ${isFullscreen ? "isFullscreen" : ""}`}>
           <StartCountdownOverlay countdownValue={countdownActive ? countdownValue : 0} />
-          <div className="doubleBoardTopRow">
-          <div>
-            <p className="doubleBoardEyebrow">Live classroom review game</p>
-            <h2>Double Board Arena</h2>
-            <p className="doubleBoardIntro">
-              {session
-                ? `${currentCourseLabel} · ${session.status === "waiting"
-                    ? "Boards generated and waiting for start."
-                    : session.status === "live"
-                      ? "Game is live."
-                      : "Game is finished."
-                  }`
-                : `${currentCourseLabel} · No active game right now.`}
-            </p>
-            <p className="doubleBoardIntro">
-              Choose between the original integer-operation board and the new percent-change multiplier board.
-            </p>
-          </div>
-          <div className="ctaRow">
-            {canHost ? (
-              <select
-                className="input"
-                value={courseId}
-                onChange={(event) => handleCourseChange(event.target.value)}
-              >
-                {courseOptions.map((course) => (
-                  <option key={course.id || "practice-room"} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <select
-                className="input"
-                value={courseId}
-                onChange={(event) => handleCourseChange(event.target.value)}
-              >
-                <option value="">Select a class</option>
-                {courseOptions.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button className="btn" type="button" onClick={handleFullscreen}>
-              Project / Fullscreen
-            </button>
-            <button className="btn" type="button" onClick={() => loadSession(courseId)}>
-              Refresh
-            </button>
-          </div>
-        </div>
+          {!isFullscreen ? (
+            <div className="doubleBoardTopRow">
+              <div>
+                <p className="doubleBoardEyebrow">Live classroom review game</p>
+                <h2>Double Board Arena</h2>
+                <p className="doubleBoardIntro">
+                  {session
+                    ? `${currentCourseLabel} · ${session.status === "waiting"
+                        ? "Boards generated and waiting for start."
+                        : session.status === "live"
+                          ? "Game is live."
+                          : "Game is finished."
+                      }`
+                    : `${currentCourseLabel} · No active game right now.`}
+                </p>
+                <p className="doubleBoardIntro">
+                  Choose between the original integer-operation board and the new percent-change multiplier board.
+                </p>
+              </div>
+              <div className="ctaRow">
+                {canHost ? (
+                  <select
+                    className="input"
+                    value={courseId}
+                    onChange={(event) => handleCourseChange(event.target.value)}
+                  >
+                    {courseOptions.map((course) => (
+                      <option key={course.id || "practice-room"} value={course.id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    className="input"
+                    value={courseId}
+                    onChange={(event) => handleCourseChange(event.target.value)}
+                  >
+                    <option value="">Select a class</option>
+                    {courseOptions.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button className="btn" type="button" onClick={handleFullscreen}>
+                  Project / Fullscreen
+                </button>
+                <button className="btn" type="button" onClick={() => loadSession(courseId)}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="doubleBoardFullscreenBar">
+              <button className="btn" type="button" onClick={handleFullscreen}>
+                Exit Fullscreen
+              </button>
+            </div>
+          )}
 
           {flashMessage ? <div className="doubleBoardFlash">{flashMessage}</div> : null}
 
@@ -840,7 +978,6 @@ export default function DoubleBoardClient({
               canManage={Boolean(session?.canManage)}
               sessionStatus={session?.status}
               playMode={session?.playMode || playMode}
-              activeQuestionId={session?.activeQuestionId}
               viewerId={userId}
               currentTimeMs={clockNow}
               onSelect={handleSelect}
@@ -924,6 +1061,20 @@ export default function DoubleBoardClient({
                             <option value="one_at_a_time">One at a time</option>
                           </select>
                         </label>
+                        {playMode === "one_at_a_time" ? (
+                          <label>
+                            Turn advances
+                            <select
+                              className="input"
+                              value={turnAdvanceMode}
+                              onChange={(event) => setTurnAdvanceMode(event.target.value)}
+                              disabled={busy || session?.status === "live"}
+                            >
+                              <option value="until_wrong">Keep going until wrong</option>
+                              <option value="one_per_turn">One question per turn</option>
+                            </select>
+                          </label>
+                        ) : null}
                         <label>
                           Question timer (seconds)
                           <input
@@ -985,7 +1136,7 @@ export default function DoubleBoardClient({
               <>
                 <div className="doubleBoardScoreStats">
                   <div className="doubleBoardStatCard">
-                    <span>Joined Students</span>
+                    <span>Students In Room</span>
                     <strong>{session.joinedCount}</strong>
                   </div>
                   <div className="doubleBoardStatCard">
@@ -1030,10 +1181,23 @@ export default function DoubleBoardClient({
                     <h3>{session?.activeTurnDisplayName ? `${session.activeTurnDisplayName}'s Turn` : "Waiting For A Turn"}</h3>
                     <p>
                       {session?.activeTurnDisplayName
-                        ? "That student can choose any open question, submit one answer, and then the turn moves to the next student in join order."
+                        ? session?.turnAdvanceMode === "one_per_turn"
+                          ? "That student can choose any open question, submit one answer, and then the turn moves to the next student in join order."
+                          : "That student keeps choosing questions until they get one wrong, then the turn moves to the next student in join order."
                         : "Students will rotate in the order they joined once at least one student is in the game."}
                     </p>
                   </div>
+                ) : null}
+
+                {canHost && session?.playMode === "one_at_a_time" ? (
+                  <TurnOrderPanel
+                    items={turnOrderItems}
+                    canManage={Boolean(session?.canManage)}
+                    busy={busy}
+                    selectedUserId={selectedHistoryUserId}
+                    onSelect={setSelectedHistoryUserId}
+                    onReorder={handleTurnOrderReorder}
+                  />
                 ) : null}
 
                 <div className="doubleBoardLeaderboardWrap">
@@ -1079,7 +1243,6 @@ export default function DoubleBoardClient({
               canManage={Boolean(session?.canManage)}
               sessionStatus={session?.status}
               playMode={session?.playMode || playMode}
-              activeQuestionId={session?.activeQuestionId}
               viewerId={userId}
               currentTimeMs={clockNow}
               onSelect={handleSelect}
@@ -1106,7 +1269,8 @@ export default function DoubleBoardClient({
 
         <AnswerModal
           open={Boolean(selectedQuestion)}
-          question={selectedQuestion}
+          question={activeSelectedQuestion}
+          claimSecondsLeft={selectedQuestionClaimSecondsLeft}
           answerMode={session?.answerMode || answerMode}
           answerValue={answerValue}
           onAnswerChange={setAnswerValue}

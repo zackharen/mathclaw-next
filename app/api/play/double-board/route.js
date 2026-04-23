@@ -24,6 +24,7 @@ const GAME_SLUG = "double_board_review";
 const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
 const START_COUNTDOWN_SECONDS = 3;
+const PLAYER_PRESENCE_WINDOW_MS = 8000;
 
 function normalizeId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -31,6 +32,12 @@ function normalizeId(value) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function isPlayerPresent(player, nowMs = Date.now()) {
+  const updatedAtMs = Date.parse(String(player?.updated_at || ""));
+  if (!Number.isFinite(updatedAtMs)) return false;
+  return nowMs - updatedAtMs <= PLAYER_PRESENCE_WINDOW_MS;
 }
 
 function normalizeAnswerMode(value) {
@@ -86,7 +93,12 @@ function buildSessionMetadata(metadata = {}, questions = []) {
     ...safeMetadata,
     answerMode: normalizeAnswerMode(safeMetadata.answerMode),
     playMode: normalizePlayMode(safeMetadata.playMode),
+    turnAdvanceMode: safeMetadata.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     turnIndex: Math.max(0, Number(safeMetadata.turnIndex || 0)),
+    activeTurnUserId: normalizeId(safeMetadata.activeTurnUserId),
+    turnOrderUserIds: Array.isArray(safeMetadata.turnOrderUserIds)
+      ? safeMetadata.turnOrderUserIds.map((value) => normalizeId(value)).filter(Boolean)
+      : [],
     freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(safeMetadata.freeForAllTimerSeconds),
     startCountdownEndsAt: parseFutureTime(safeMetadata.startCountdownEndsAt),
     activeClaims,
@@ -179,7 +191,7 @@ function getActiveQuestionId(questions, playMode, sessionStatus) {
   );
 }
 
-function serializeQuestion(row, canManage, sessionStatus, claim = null) {
+function serializeQuestion(row, canManage, sessionStatus, claim = null, solvedCount = 0) {
   const solved = Boolean(row.solved);
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
@@ -191,6 +203,7 @@ function serializeQuestion(row, canManage, sessionStatus, claim = null) {
   const pointValue = getDoubleBoardPointValue({
     previousAttemptCount: attemptCount,
     question: row,
+    solvedCount,
   });
 
   return {
@@ -234,12 +247,79 @@ function getStudentTurnOrder(players) {
   return sortPlayersByJoinOrder(players).filter((player) => player.role === "student");
 }
 
+function orderStudentsBySessionMetadata(players, sessionMetadata, options = {}) {
+  const presentOnly = options.presentOnly !== false;
+  const students = getStudentTurnOrder(players).filter((player) =>
+    presentOnly ? isPlayerPresent(player) : true
+  );
+  const studentMap = new Map(students.map((player) => [player.user_id, player]));
+  const ordered = [];
+
+  for (const userId of sessionMetadata?.turnOrderUserIds || []) {
+    const player = studentMap.get(userId);
+    if (!player) continue;
+    ordered.push(player);
+    studentMap.delete(userId);
+  }
+
+  for (const player of students) {
+    if (studentMap.has(player.user_id)) {
+      ordered.push(player);
+      studentMap.delete(player.user_id);
+    }
+  }
+
+  return ordered;
+}
+
 function getActiveTurnPlayer(players, session) {
-  const students = getStudentTurnOrder(players);
+  const sessionMetadata = buildSessionMetadata(session?.metadata);
+  const students = orderStudentsBySessionMetadata(players, sessionMetadata);
   if (!students.length) return null;
 
-  const turnIndex = Number(session?.metadata?.turnIndex || 0);
+  if (sessionMetadata.activeTurnUserId) {
+    const activePlayer = students.find((player) => player.user_id === sessionMetadata.activeTurnUserId);
+    if (activePlayer) return activePlayer;
+  }
+
+  const turnIndex = Number(sessionMetadata.turnIndex || 0);
   return students[((turnIndex % students.length) + students.length) % students.length] || null;
+}
+
+function buildTurnOrderPayload(players, sessionMetadata, activeTurnUserId) {
+  return orderStudentsBySessionMetadata(players, sessionMetadata, { presentOnly: false }).map((player, index) => ({
+    id: player.id,
+    userId: player.user_id,
+    displayName: player.display_name,
+    score: Number(player.score || 0),
+    joinedAt: player.joined_at,
+    isPresent: isPlayerPresent(player),
+    isActiveTurn: Boolean(activeTurnUserId && activeTurnUserId === player.user_id),
+    orderIndex: index,
+  }));
+}
+
+function sanitizeTurnOrderUserIds(orderedUserIds, players) {
+  const studentIds = new Set(
+    getStudentTurnOrder(players)
+      .map((player) => player.user_id)
+      .filter(Boolean)
+  );
+  const sanitized = [];
+
+  for (const userId of orderedUserIds || []) {
+    const normalized = normalizeId(userId);
+    if (!normalized || !studentIds.has(normalized) || sanitized.includes(normalized)) continue;
+    sanitized.push(normalized);
+  }
+
+  for (const player of getStudentTurnOrder(players)) {
+    if (player.user_id && !sanitized.includes(player.user_id)) {
+      sanitized.push(player.user_id);
+    }
+  }
+
+  return sanitized;
 }
 
 async function loadSessionBundle(admin, sessionId, viewer) {
@@ -264,8 +344,15 @@ async function loadSessionBundle(admin, sessionId, viewer) {
 
   const sessionMetadata = buildSessionMetadata(session.metadata, questions || []);
   const canManage = viewerCanManageSession(session, viewer.courses, viewer.user, viewer.accountType);
+  const solvedCount = (questions || []).filter((question) => question?.solved).length;
   const serializedQuestions = (questions || []).map((row) =>
-    serializeQuestion(row, canManage, session.status, sessionMetadata.activeClaims?.[row.id] || null)
+    serializeQuestion(
+      row,
+      canManage,
+      session.status,
+      sessionMetadata.activeClaims?.[row.id] || null,
+      solvedCount
+    )
   );
   const playMode = sessionMetadata.playMode;
   const activeQuestionId =
@@ -278,11 +365,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       col_index: question.colIndex,
     }))
   );
-  const solvedCount = serializedQuestions.filter((question) => question.solved).length;
   const allPlayers = sortPlayers(players);
+  const presentPlayers = allPlayers.filter((player) => isPlayerPresent(player));
   const playerMap = new Map((players || []).map((player) => [player.user_id, player]));
   const questionMap = new Map((questions || []).map((question) => [question.id, question]));
-  const visibleLeaderboard = allPlayers
+  const visibleLeaderboard = presentPlayers
     .filter((player) => player.role === "student")
     .map((player, index) => ({
       id: player.id,
@@ -336,6 +423,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
   }
 
   const activeTurnPlayer = getActiveTurnPlayer(players || [], session);
+  const turnOrder = buildTurnOrderPayload(
+    players || [],
+    sessionMetadata,
+    activeTurnPlayer?.user_id || null
+  );
   const reviewItems =
     session.status === "ended"
       ? buildDoubleBoardReviewItems(questions || [])
@@ -360,6 +452,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     answerMode: sessionMetadata.answerMode,
     multipleChoiceEnabled: sessionMetadata.answerMode === "multiple_choice",
     playMode,
+    turnAdvanceMode: sessionMetadata.turnAdvanceMode,
     freeForAllTimerSeconds: sessionMetadata.freeForAllTimerSeconds,
     startCountdownEndsAt: sessionMetadata.startCountdownEndsAt,
     activeQuestionId,
@@ -368,6 +461,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     activeTurnUserId: activeTurnPlayer?.user_id || null,
     activeTurnDisplayName: activeTurnPlayer?.display_name || null,
     isViewerTurn: Boolean(activeTurnPlayer?.user_id && activeTurnPlayer.user_id === viewer.user.id),
+    turnOrder,
     canManage,
     isJoined: Boolean(viewerPlayer),
     viewerPlayerId: viewerPlayer?.id || null,
@@ -429,10 +523,36 @@ async function ensurePlayer(admin, sessionId, user, displayName, role = "student
   return data;
 }
 
-async function bumpTurnIndex(admin, session) {
+async function touchPlayerPresence(admin, sessionId, userId) {
+  if (!sessionId || !userId) return;
+
+  await admin
+    .from("double_board_players")
+    .update({
+      updated_at: nowIso(),
+    })
+    .eq("session_id", sessionId)
+    .eq("user_id", userId);
+}
+
+async function advanceTurn(admin, session, players = []) {
+  const sessionMetadata = buildSessionMetadata(session?.metadata);
+  const orderedStudents = orderStudentsBySessionMetadata(players, sessionMetadata);
+  let activeTurnUserId = null;
+
+  if (orderedStudents.length) {
+    const activeIndex = orderedStudents.findIndex(
+      (player) => player.user_id === sessionMetadata.activeTurnUserId
+    );
+    const nextIndex = activeIndex >= 0 ? (activeIndex + 1) % orderedStudents.length : 0;
+    activeTurnUserId = orderedStudents[nextIndex]?.user_id || null;
+  }
+
   const nextMetadata = {
-    ...(session.metadata || {}),
-    turnIndex: Number(session?.metadata?.turnIndex || 0) + 1,
+    ...sessionMetadata,
+    turnIndex: Number(sessionMetadata.turnIndex || 0) + 1,
+    activeTurnUserId,
+    turnOrderUserIds: sanitizeTurnOrderUserIds(sessionMetadata.turnOrderUserIds, players),
   };
 
   const { error } = await admin
@@ -552,7 +672,9 @@ async function createFreshSession(
   answerMode,
   playMode,
   freeForAllTimerSeconds,
-  existingPlayers = []
+  turnAdvanceMode,
+  existingPlayers = [],
+  existingMetadata = null
 ) {
   if (!canManageCourse(viewer.courses, courseId, viewer.accountType)) {
     return NextResponse.json(
@@ -568,6 +690,10 @@ async function createFreshSession(
     );
   }
 
+  const initialTurnOrderUserIds = sanitizeTurnOrderUserIds(
+    buildSessionMetadata(existingMetadata).turnOrderUserIds,
+    existingPlayers
+  );
   const questionRows = createDoubleBoardQuestionRecords(numberMode);
   const { data: session, error: sessionError } = await admin
     .from("double_board_sessions")
@@ -581,7 +707,10 @@ async function createFreshSession(
         mockMode: !courseId,
         answerMode,
         playMode,
+        turnAdvanceMode,
         turnIndex: 0,
+        activeTurnUserId: null,
+        turnOrderUserIds: initialTurnOrderUserIds,
         freeForAllTimerSeconds,
         startCountdownEndsAt: null,
         activeClaims: {},
@@ -698,6 +827,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "You do not have access to this Double Board session." }, { status: 403 });
   }
 
+  await touchPlayerPresence(admin, session.id, user.id);
   const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
   return NextResponse.json({ session: bundle });
 }
@@ -723,7 +853,9 @@ export async function POST(request) {
       const answerMode = normalizeAnswerMode(body.answerMode);
       const playMode = normalizePlayMode(body.playMode);
       const freeForAllTimerSeconds = normalizeFreeForAllTimerSeconds(body.freeForAllTimerSeconds);
+      const turnAdvanceMode = body.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong";
       let existingPlayers = [];
+      let existingMetadata = null;
 
       if (courseId && !canAccessCourse(viewer.courses, courseId)) {
         return NextResponse.json(
@@ -755,6 +887,7 @@ export async function POST(request) {
             .eq("session_id", priorSession.id);
 
           existingPlayers = priorPlayers || [];
+          existingMetadata = priorSession.metadata || null;
         }
       }
 
@@ -783,7 +916,9 @@ export async function POST(request) {
         answerMode,
         playMode,
         freeForAllTimerSeconds,
-        existingPlayers
+        turnAdvanceMode,
+        existingPlayers,
+        existingMetadata
       );
     }
 
@@ -809,6 +944,7 @@ export async function POST(request) {
       );
     }
 
+    await touchPlayerPresence(admin, session.id, user.id);
     const canManage = viewerCanManageSession(session, viewer.courses, user, viewer.accountType);
 
     if (action === "start") {
@@ -816,8 +952,17 @@ export async function POST(request) {
         return NextResponse.json({ error: "Only the host can start this game." }, { status: 403 });
       }
 
+      const { data: sessionPlayers } = await admin
+        .from("double_board_players")
+        .select("*")
+        .eq("session_id", session.id);
+      const startMetadata = buildSessionMetadata(session.metadata);
       const nextMetadata = {
-        ...buildSessionMetadata(session.metadata),
+        ...startMetadata,
+        activeTurnUserId:
+          startMetadata.activeTurnUserId ||
+          getActiveTurnPlayer(sessionPlayers || [], session)?.user_id ||
+          null,
         startCountdownEndsAt: new Date(
           Date.now() + START_COUNTDOWN_SECONDS * 1000
         ).toISOString(),
@@ -849,6 +994,40 @@ export async function POST(request) {
       await recordSessionResultsIfNeeded(admin, session.id);
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
+    }
+
+    if (action === "reorder_turns") {
+      if (!canManage) {
+        return NextResponse.json({ error: "Only the host can reorder turns." }, { status: 403 });
+      }
+
+      const sessionMetadata = buildSessionMetadata(session.metadata);
+      if (sessionMetadata.playMode !== "one_at_a_time") {
+        return NextResponse.json({ error: "Turn order only applies in one-at-a-time mode." }, { status: 400 });
+      }
+
+      const { data: sessionPlayers } = await admin
+        .from("double_board_players")
+        .select("*")
+        .eq("session_id", session.id);
+      const nextTurnOrderUserIds = sanitizeTurnOrderUserIds(body.orderedUserIds, sessionPlayers || []);
+      const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], session);
+      const { error } = await admin
+        .from("double_board_sessions")
+        .update({
+          metadata: {
+            ...sessionMetadata,
+            turnOrderUserIds: nextTurnOrderUserIds,
+            activeTurnUserId: activeTurnPlayer?.user_id || sessionMetadata.activeTurnUserId || null,
+          },
+          updated_at: nowIso(),
+        })
+        .eq("id", session.id);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      return NextResponse.json({ session: bundle, result: { message: "Turn order updated." } });
     }
 
     if (action === "join") {
@@ -1129,8 +1308,12 @@ export async function POST(request) {
           return NextResponse.json({ error: attemptError.message }, { status: 400 });
         }
 
-        if (playMode === "one_at_a_time") {
-          await bumpTurnIndex(admin, session);
+        if (playMode === "one_at_a_time" && sessionMetadata.turnAdvanceMode === "one_per_turn") {
+          const { data: sessionPlayers } = await admin
+            .from("double_board_players")
+            .select("*")
+            .eq("session_id", session.id);
+          await advanceTurn(admin, session, sessionPlayers || []);
         }
 
         await admin
@@ -1148,6 +1331,7 @@ export async function POST(request) {
         const pointsEarned = scoreSolvedDoubleBoardQuestion({
           previousAttemptCount: question.attempt_count,
           question,
+          solvedCount: Number(session.total_solved_count || 0) + 1,
         });
 
         const { error: scoreError } = await admin
@@ -1224,7 +1408,11 @@ export async function POST(request) {
         .eq("id", session.id);
 
       if (playMode === "one_at_a_time") {
-        await bumpTurnIndex(admin, session);
+        const { data: sessionPlayers } = await admin
+          .from("double_board_players")
+          .select("*")
+          .eq("session_id", session.id);
+        await advanceTurn(admin, session, sessionPlayers || []);
       }
 
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
