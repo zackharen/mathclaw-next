@@ -154,6 +154,32 @@ main {
   padding: 1rem;
 }
 
+.gameReadyBanner {
+  display: block;
+  padding: 0.9rem 1rem;
+  border-bottom: 2px solid var(--line);
+  background: #0b4da0;
+  color: #ffffff;
+  text-align: center;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  animation: gameReadyBannerFlash 1s steps(1, end) infinite;
+}
+
+@keyframes gameReadyBannerFlash {
+  0%,
+  49.999% {
+    background: #0b4da0;
+  }
+
+  50%,
+  100% {
+    background: #c63232;
+  }
+}
+
 @media (max-width: 1120px) {
   .topbar {
     align-items: flex-start;
@@ -3077,6 +3103,31 @@ details[open] > summary.btn,
   font-weight: 700;
 }
 
+.doubleBoardStatusRow {
+  margin-top: 1rem;
+  padding: 0.95rem 1.1rem;
+  border-radius: 20px;
+  border: 3px solid #0b3d69;
+  background: linear-gradient(180deg, #edf4ff 0%, #dbe9fb 100%);
+  color: #0b3d69;
+  text-align: center;
+  font-weight: 900;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  box-shadow: 0 14px 30px rgba(11, 61, 105, 0.12);
+}
+
+.doubleBoardStatusRow.tone-live {
+  background: linear-gradient(180deg, #effbef 0%, #d7f0dc 100%);
+  border-color: #2c7a3d;
+  color: #134b24;
+}
+
+.doubleBoardStatusRow.tone-ended {
+  background: linear-gradient(180deg, #fff3e5 0%, #ffe0b8 100%);
+  border-color: #c97a17;
+  color: #733d00;
+}
+
 .doubleBoardFullscreenBar {
   display: flex;
   justify-content: flex-end;
@@ -3216,6 +3267,13 @@ details[open] > summary.btn,
   background: rgba(255, 255, 255, 0.72);
 }
 
+.doubleBoardTile.lockedOut {
+  background: linear-gradient(180deg, #efe3ff 0%, #cfb4ff 100%);
+  border-color: #6f43b4;
+  color: #43206f;
+  box-shadow: inset 0 0 0 2px rgba(111, 67, 180, 0.35);
+}
+
 .doubleBoardTileSolvedState {
   display: flex;
   flex-direction: column;
@@ -3300,6 +3358,31 @@ details[open] > summary.btn,
   top: 1rem;
 }
 
+.doubleBoardPhaseCard {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  border: 2px solid #d4a017;
+  background: linear-gradient(180deg, #fff8d7 0%, #ffe78b 100%);
+  color: #7a4a00;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.doubleBoardPhaseCard span {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.doubleBoardPhaseCard strong {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
 .doubleBoardStatusBanner {
   display: flex;
   justify-content: space-between;
@@ -3375,6 +3458,18 @@ details[open] > summary.btn,
   display: block;
 }
 
+.doubleBoardCheckboxRow {
+  display: flex !important;
+  align-items: center;
+  gap: 0.7rem;
+  font-weight: 700;
+}
+
+.doubleBoardCheckboxRow input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
 .doubleBoardHostActionRow {
   margin-bottom: 1rem;
   justify-content: center;
@@ -3433,6 +3528,84 @@ details[open] > summary.btn,
   margin-bottom: 0.6rem;
 }
 
+.doubleBoardTurnOrderList {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.doubleBoardTurnOrderRow {
+  width: 100%;
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  border: 2px solid rgba(11, 61, 105, 0.12);
+  border-radius: 16px;
+  padding: 0.7rem 0.8rem;
+  background: #ffffff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doubleBoardTurnOrderRow.isActive {
+  border-color: rgba(11, 61, 105, 0.34);
+  background: #edf4ff;
+}
+
+.doubleBoardTurnOrderRow.selected {
+  border-color: rgba(243, 177, 44, 0.85);
+  box-shadow: 0 0 0 3px rgba(243, 177, 44, 0.2);
+}
+
+.doubleBoardTurnOrderRow.isDragging {
+  opacity: 0.6;
+}
+
+.doubleBoardTurnOrderNumber {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 2px solid rgba(11, 61, 105, 0.16);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.doubleBoardTurnOrderName,
+.doubleBoardTurnOrderMeta {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.doubleBoardTurnOrderName small,
+.doubleBoardTurnOrderMeta small {
+  color: #587593;
+}
+
+.doubleBoardTurnOrderMeta {
+  justify-items: end;
+}
+
+.doubleBoardVoteSummaryList {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.doubleBoardVoteSummaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(11, 61, 105, 0.12);
+}
+
 .doubleBoardLeaderboard {
   display: grid;
   gap: 0.45rem;
@@ -3452,6 +3625,34 @@ details[open] > summary.btn,
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.doubleBoardLeaderboardRow.roster.status-never_joined i,
+.doubleBoardLeaderboardRow.roster.status-present i,
+.doubleBoardLeaderboardRow.roster.status-absent i {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  display: inline-block;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+.doubleBoardLeaderboardRow.roster.status-never_joined i {
+  background: #f5c94b;
+}
+
+.doubleBoardLeaderboardRow.roster.status-present i {
+  background: #3db35f;
+}
+
+.doubleBoardLeaderboardRow.roster.status-absent i {
+  background: #d44b4b;
+}
+
+.doubleBoardRosterName {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
 }
 
 .doubleBoardLeaderboardRow.you {
@@ -3578,6 +3779,90 @@ details[open] > summary.btn,
   z-index: 80;
 }
 
+.doubleBoardVoteOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 81;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 20, 40, 0.7);
+}
+
+.doubleBoardVoteCard {
+  width: min(100%, 34rem);
+  border: 3px solid #0b3d69;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+  padding: 1.2rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
+}
+
+.doubleBoardTeacherPopup {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 79;
+  width: min(100%, 24rem);
+  border: 3px solid #0b3d69;
+  border-radius: 24px;
+  padding: 1.1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+  box-shadow: 0 28px 60px rgba(11, 29, 52, 0.24);
+}
+
+.doubleBoardTeacherPopup h3 {
+  margin-top: 0;
+  padding-right: 2.5rem;
+}
+
+.doubleBoardVoteForm {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.doubleBoardPodiumCard {
+  position: relative;
+}
+
+.doubleBoardPodium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+  margin-top: 1.25rem;
+}
+
+.doubleBoardPodiumStep {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  text-align: center;
+}
+
+.doubleBoardPodiumBlock {
+  width: 100%;
+  border: 2px solid var(--line);
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(180deg, #f7d678 0%, #d9aa2f 100%);
+  font-size: 2rem;
+  font-weight: 900;
+  padding-top: 0.75rem;
+}
+
+.doubleBoardPodiumStep.place-1 .doubleBoardPodiumBlock {
+  min-height: 11rem;
+}
+
+.doubleBoardPodiumStep.place-2 .doubleBoardPodiumBlock {
+  min-height: 8.5rem;
+}
+
+.doubleBoardPodiumStep.place-3 .doubleBoardPodiumBlock {
+  min-height: 6.5rem;
+}
+
 .doubleBoardModal {
   position: relative;
   width: min(100%, 32rem);
@@ -3647,6 +3932,20 @@ details[open] > summary.btn,
 .doubleBoardChoiceGrid {
   display: grid;
   gap: 0.75rem;
+}
+
+.doubleBoardTeacherChoiceList {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.doubleBoardTeacherChoice {
+  border: 2px solid rgba(11, 61, 105, 0.12);
+  border-radius: 16px;
+  padding: 0.8rem 0.9rem;
+  background: rgba(255, 255, 255, 0.9);
+  font-weight: 800;
 }
 
 .doubleBoardChoiceGrid .btn {
@@ -3720,6 +4019,13 @@ details[open] > summary.btn,
     min-width: 1.7rem;
     height: 1.7rem;
     font-size: 0.8rem;
+  }
+
+  .doubleBoardTeacherPopup {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
   }
 }
 

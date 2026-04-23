@@ -4,9 +4,11 @@ import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
 import { buildLabelNode } from "@/lib/math-display";
 import {
+  buildDoubleBoardMultipleChoiceOptions,
   DOUBLE_BOARD_COLUMN_PATTERNS,
   DOUBLE_BOARD_NUMBER_MODES,
   DOUBLE_BOARD_ROW_PATTERNS,
+  formatDoubleBoardAnswer,
   formatBoardLocation,
 } from "@/lib/question-engine/double-board";
 
@@ -35,6 +37,16 @@ function secondsRemaining(endTime, nowMs = Date.now()) {
   return Math.max(0, Math.ceil((endMs - nowMs) / 1000));
 }
 
+function normalizeTurnPhase(value) {
+  if (value === "select_tile") return "select_tile";
+  if (value === "answer_question") return "answer_question";
+  return null;
+}
+
+function formatChoiceValue(question, choice) {
+  return formatDoubleBoardAnswer(choice, question?.metadata || {});
+}
+
 function normalizeSessionPayload(session) {
   if (!session || typeof session !== "object") return null;
 
@@ -47,6 +59,8 @@ function normalizeSessionPayload(session) {
       B: normalizeBoardRows(boards.B),
     },
     leaderboard: Array.isArray(session.leaderboard) ? session.leaderboard : [],
+    classRoster: Array.isArray(session.classRoster) ? session.classRoster : [],
+    turnOrder: Array.isArray(session.turnOrder) ? session.turnOrder : [],
     reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
     answerHistoryByUser:
       session.answerHistoryByUser && typeof session.answerHistoryByUser === "object"
@@ -56,14 +70,24 @@ function normalizeSessionPayload(session) {
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
     turnAdvanceMode: session.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
-    serverNowMs: Number.isFinite(Date.parse(String(session.serverNow || "")))
-      ? Date.parse(String(session.serverNow || ""))
-      : null,
     startCountdownEndsAt: futureTimestampOrNull(session.startCountdownEndsAt),
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
+    turnPhase: normalizeTurnPhase(session.turnPhase),
+    turnPhaseEndsAt: futureTimestampOrNull(session.turnPhaseEndsAt),
     activeTurnDisplayName:
       typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
     activeTurnUserId: typeof session.activeTurnUserId === "string" ? session.activeTurnUserId : null,
+    studentSettingsEnabled: Boolean(session.studentSettingsEnabled),
+    settingsVotePhase: Math.max(1, Number(session.settingsVotePhase || 1)),
+    viewerVote: session.viewerVote && typeof session.viewerVote === "object" ? session.viewerVote : null,
+    resolvedStudentSettings:
+      session.resolvedStudentSettings && typeof session.resolvedStudentSettings === "object"
+        ? session.resolvedStudentSettings
+        : null,
+    resolvedStudentVoteSummary:
+      session.resolvedStudentVoteSummary && typeof session.resolvedStudentVoteSummary === "object"
+        ? session.resolvedStudentVoteSummary
+        : null,
     isViewerTurn: Boolean(session.isViewerTurn),
   };
 }
@@ -119,45 +143,6 @@ function tileTooltip(question) {
   return parts.join(" ");
 }
 
-function buildMultipleChoiceOptions(question) {
-  if (!question) return [];
-
-  const metadata = question.metadata || {};
-
-  if (metadata.answerFormat === "multiplier_hundredths") {
-    const percentValue = Number(metadata.percentValue || 0);
-    const correct = Number(question.correctAnswer || 0);
-    const oppositeDirection =
-      metadata.direction === "decrease" ? 100 + percentValue : 100 - percentValue;
-    const rawDecimal = percentValue;
-    const reversedDigits = percentValue < 10 ? 100 + percentValue * 10 : 100 + (percentValue % 10);
-    const ordered = [correct, oppositeDirection, rawDecimal, reversedDigits];
-    const values = [];
-
-    for (const value of ordered) {
-      if (Number.isFinite(value) && value > 0 && !values.includes(value)) {
-        values.push(value);
-      }
-    }
-
-    while (values.length < 4) {
-      const fallback = Math.max(1, 100 + percentValue + values.length);
-      if (!values.includes(fallback)) {
-        values.push(fallback);
-      }
-    }
-
-    return values.slice(0, 4);
-  }
-
-  const numericAnswer = Number(question.correctAnswer);
-  if (!Number.isFinite(numericAnswer)) {
-    return [];
-  }
-
-  return [numericAnswer];
-}
-
 function buildAnswerNode(value) {
   return buildLabelNode(String(value ?? ""));
 }
@@ -184,6 +169,336 @@ function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
           <strong>{player.score}</strong>
         </button>
       ))}
+    </div>
+  );
+}
+
+function RosterPanel({ roster, selectedUserId, onSelect }) {
+  if (!roster?.length) {
+    return <p className="doubleBoardEmptyNote">No class roster is available for this room.</p>;
+  }
+
+  return (
+    <div className="doubleBoardLeaderboard">
+      {roster.map((student) => (
+        <button
+          key={student.userId}
+          type="button"
+          className={`doubleBoardLeaderboardRow roster status-${student.status} ${
+            selectedUserId === student.userId ? "selected" : ""
+          }`}
+          onClick={() => onSelect?.(student.userId)}
+        >
+          <span className="doubleBoardRosterName">
+            <i aria-hidden="true" />
+            <span>{student.displayName}</span>
+          </span>
+          <strong>{student.score}</strong>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TurnOrderPanel({
+  items,
+  canManage,
+  busy,
+  selectedUserId,
+  onSelect,
+  onReorder,
+}) {
+  const [draggingUserId, setDraggingUserId] = useState(null);
+
+  if (!items?.length) {
+    return (
+      <div className="doubleBoardWaitingCard">
+        <h3>Turn Order</h3>
+        <p>Students will appear here after they join.</p>
+      </div>
+    );
+  }
+
+  function moveUser(targetUserId) {
+    if (!draggingUserId || draggingUserId === targetUserId) return;
+    const draggedIndex = items.findIndex((item) => item.userId === draggingUserId);
+    const targetIndex = items.findIndex((item) => item.userId === targetUserId);
+    if (draggedIndex < 0 || targetIndex < 0) return;
+
+    const nextItems = [...items];
+    const [draggedItem] = nextItems.splice(draggedIndex, 1);
+    nextItems.splice(targetIndex, 0, draggedItem);
+    onReorder(nextItems.map((item) => item.userId));
+  }
+
+  return (
+    <div className="doubleBoardWaitingCard">
+      <h3>Turn Order</h3>
+      <p>Drag students to change who goes next after the current turn finishes.</p>
+      <div className="doubleBoardTurnOrderList">
+        {items.map((item, index) => (
+          <button
+            key={item.userId}
+            type="button"
+            className={`doubleBoardTurnOrderRow ${item.isActiveTurn ? "isActive" : ""} ${
+              selectedUserId === item.userId ? "selected" : ""
+            } ${draggingUserId === item.userId ? "isDragging" : ""}`}
+            draggable={canManage && !busy}
+            onClick={() => onSelect?.(item.userId)}
+            onDragStart={() => setDraggingUserId(item.userId)}
+            onDragEnd={() => setDraggingUserId(null)}
+            onDragOver={(event) => {
+              if (!canManage || busy) return;
+              event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              moveUser(item.userId);
+              setDraggingUserId(null);
+            }}
+          >
+            <span className="doubleBoardTurnOrderNumber">{index + 1}</span>
+            <span className="doubleBoardTurnOrderName">
+              {item.displayName}
+              {item.isActiveTurn ? <small>Current turn</small> : null}
+              {!item.isPresent ? <small>Not in room</small> : null}
+            </span>
+            <span className="doubleBoardTurnOrderMeta">
+              <strong>{item.score}</strong>
+              {canManage ? <small>Drag</small> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StudentSettingsSummary({ summary }) {
+  if (!summary?.totalVotes) return null;
+
+  const labels = {
+    numberMode: "Board type",
+    answerMode: "Answer mode",
+    playMode: "Play mode",
+    turnAdvanceMode: "Turn advances",
+    freeForAllTimerSeconds: "Question timer",
+  };
+  const valueLabels = {
+    numberMode: Object.fromEntries(
+      Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => [mode.slug, mode.label])
+    ),
+    answerMode: {
+      typed: "Typed answer",
+      multiple_choice: "Multiple choice",
+    },
+    playMode: {
+      free_for_all: "Free for all",
+      one_at_a_time: "One at a time",
+    },
+    turnAdvanceMode: {
+      until_wrong: "Keep going until wrong",
+      one_per_turn: "One question per turn",
+    },
+  };
+
+  return (
+    <div className="doubleBoardWaitingCard">
+      <h3>Student Vote Summary</h3>
+      <p>{summary.totalVotes} student vote{summary.totalVotes === 1 ? "" : "s"} counted.</p>
+      <div className="doubleBoardVoteSummaryList">
+        {Object.entries(labels).map(([key, label]) => {
+          const setting = summary.settings?.[key];
+          if (!setting) return null;
+          const winnerLabel =
+            key === "freeForAllTimerSeconds"
+              ? `${setting.winner} seconds`
+              : valueLabels[key]?.[setting.winner] || String(setting.winner || "");
+
+          return (
+            <div key={key} className="doubleBoardVoteSummaryRow">
+              <span>{label}</span>
+              <strong>{winnerLabel}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StudentVoteOverlay({
+  open,
+  busy,
+  settings,
+  onChange,
+  onSubmit,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="doubleBoardVoteOverlay" role="dialog" aria-modal="true" aria-labelledby="double-board-vote-title">
+      <div className="doubleBoardVoteCard">
+        <p className="doubleBoardEyebrow">Double Board</p>
+        <h2 id="double-board-vote-title">Vote For The Next Settings</h2>
+        <p>Your teacher is letting the class choose how the next round should play.</p>
+        <form
+          className="doubleBoardVoteForm"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <label>
+            Board type
+            <select
+              className="input"
+              value={settings.numberMode}
+              onChange={(event) => onChange("numberMode", event.target.value)}
+              disabled={busy}
+            >
+              {Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => (
+                <option key={mode.slug} value={mode.slug}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Answer mode
+            <select
+              className="input"
+              value={settings.answerMode}
+              onChange={(event) => onChange("answerMode", event.target.value)}
+              disabled={busy}
+            >
+              <option value="typed">Typed answer</option>
+              <option value="multiple_choice">Multiple choice</option>
+            </select>
+          </label>
+          <label>
+            Play mode
+            <select
+              className="input"
+              value={settings.playMode}
+              onChange={(event) => onChange("playMode", event.target.value)}
+              disabled={busy}
+            >
+              <option value="free_for_all">Free for all</option>
+              <option value="one_at_a_time">One at a time</option>
+            </select>
+          </label>
+          <label>
+            Turn advances
+            <select
+              className="input"
+              value={settings.turnAdvanceMode}
+              onChange={(event) => onChange("turnAdvanceMode", event.target.value)}
+              disabled={busy}
+            >
+              <option value="until_wrong">Keep going until wrong</option>
+              <option value="one_per_turn">One question per turn</option>
+            </select>
+          </label>
+          <label>
+            Question timer (seconds)
+            <input
+              className="input"
+              type="number"
+              min="1"
+              max="120"
+              value={settings.freeForAllTimerSeconds}
+              onChange={(event) => onChange("freeForAllTimerSeconds", event.target.value)}
+              disabled={busy}
+            />
+          </label>
+          <button className="btn primary" type="submit" disabled={busy}>
+            Submit Vote
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PodiumModal({ open, leaderboard, onClose }) {
+  if (!open) return null;
+
+  const [first, second, third] = leaderboard || [];
+
+  return (
+    <div className="doubleBoardVoteOverlay" role="dialog" aria-modal="true" aria-labelledby="double-board-podium-title">
+      <div className="doubleBoardVoteCard doubleBoardPodiumCard">
+        <button type="button" className="doubleBoardModalClose" onClick={onClose} aria-label="Close podium">
+          X
+        </button>
+        <p className="doubleBoardEyebrow">Game Ended</p>
+        <h2 id="double-board-podium-title">Top Finishers</h2>
+        <div className="doubleBoardPodium">
+          {[second, first, third].map((player, index) => {
+            const place = index === 0 ? 2 : index === 1 ? 1 : 3;
+            return (
+              <div key={place} className={`doubleBoardPodiumStep place-${place}`}>
+                <strong>{player?.displayName || "--"}</strong>
+                <span>{player ? `${player.score} pts` : ""}</span>
+                <div className="doubleBoardPodiumBlock">{place}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherQuestionPopup({
+  open,
+  question,
+  answerMode,
+  turnPhase,
+  secondsLeft,
+  onClose,
+}) {
+  if (!open || !question) return null;
+
+  const multipleChoiceOptions =
+    answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
+  const phaseLabel =
+    turnPhase === "answer_question" ? "Answer phase" : turnPhase === "select_tile" ? "Select phase" : "Turn";
+
+  return (
+    <div
+      className="doubleBoardTeacherPopup"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="double-board-teacher-popup-title"
+    >
+      <button
+        type="button"
+        className="doubleBoardModalClose"
+        onClick={onClose}
+        aria-label="Close active question popup"
+      >
+        X
+      </button>
+      <p className="doubleBoardEyebrow">Teacher View</p>
+      <h3 id="double-board-teacher-popup-title"><MathInlineText text={question.expressionText} /></h3>
+      <div className="doubleBoardModalTimer">
+        <span>{phaseLabel}</span>
+        <strong>{secondsLeft}s</strong>
+      </div>
+      {answerMode === "multiple_choice" ? (
+        <div className="doubleBoardTeacherChoiceList">
+          {multipleChoiceOptions.map((choice) => (
+            <div key={`${question.id}-${choice}`} className="doubleBoardTeacherChoice">
+              <MathText
+                node={buildAnswerNode(formatChoiceValue(question, choice))}
+                className="mathChoiceContent"
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -230,6 +545,7 @@ function BoardPanel({
   boardKey,
   board,
   selectedQuestionId,
+  activeQuestionId,
   canAnswer,
   canManage,
   sessionStatus,
@@ -265,10 +581,18 @@ function BoardPanel({
                 claimSecondsLeft > 0 &&
                 question.claim?.userId &&
                 question.claim.userId !== viewerId;
+              const isLockedForViewer =
+                playMode === "free_for_all" && question.lockoutUserIds?.includes(viewerId);
+              const isOneAtATimeLocked =
+                playMode === "one_at_a_time" &&
+                activeQuestionId &&
+                activeQuestionId !== question.id;
               const disabled =
                 !canAnswer ||
                 question.solved ||
-                isClaimedByOther;
+                isClaimedByOther ||
+                isLockedForViewer ||
+                isOneAtATimeLocked;
               const highValue = question.attemptCount >= 2;
               const tileLabel =
                 sessionStatus === "waiting" && !canManage
@@ -295,7 +619,9 @@ function BoardPanel({
                   type="button"
                   className={`doubleBoardTile state-${question.state} ${isSelected ? "selected" : ""} ${
                     highValue ? "highValue" : ""
-                  } ${!question.solved && question.claim && claimSecondsLeft > 0 ? "engaged" : ""}`}
+                  } ${!question.solved && question.claim && claimSecondsLeft > 0 ? "engaged" : ""} ${
+                    isLockedForViewer ? "lockedOut" : ""
+                  }`}
                   onClick={() => onSelect(question)}
                   disabled={disabled}
                   title={tileTooltip(question)}
@@ -353,7 +679,7 @@ function StartCountdownOverlay({ countdownValue }) {
 function AnswerModal({
   open,
   question,
-  claimSecondsLeft,
+  secondsLeft,
   answerMode,
   answerValue,
   onAnswerChange,
@@ -363,15 +689,14 @@ function AnswerModal({
 }) {
   if (!open || !question) return null;
 
-  const multipleChoiceOptions = answerMode === "multiple_choice"
-    ? buildMultipleChoiceOptions(question)
-    : [];
+  const multipleChoiceOptions =
+    answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
   const isMultiplierQuestion = question.metadata?.answerFormat === "multiplier_hundredths";
   const answerPrompt = isMultiplierQuestion
     ? "Enter the decimal multiplier for that percent change."
     : "Enter one whole-number answer. Wrong answers do not reveal the solution.";
   const answerPlaceholder = question.metadata?.answerPlaceholder || "Type your answer";
-  const hasClaimTimer = claimSecondsLeft > 0;
+  const hasClaimTimer = secondsLeft > 0;
 
   return (
     <div className="doubleBoardModalBackdrop" role="presentation">
@@ -397,7 +722,7 @@ function AnswerModal({
         {hasClaimTimer ? (
           <div className="doubleBoardModalTimer" aria-live="polite">
             <span>Time left</span>
-            <strong>{claimSecondsLeft}s</strong>
+            <strong>{secondsLeft}s</strong>
           </div>
         ) : null}
         <p>
@@ -413,16 +738,10 @@ function AnswerModal({
                 className="btn"
                 type="button"
                 disabled={busy}
-                onClick={() =>
-                  onSubmit(
-                    isMultiplierQuestion ? (Number(choice) / 100).toFixed(2) : String(choice)
-                  )
-                }
+                onClick={() => onSubmit(formatChoiceValue(question, choice))}
               >
                 <MathText
-                  node={buildAnswerNode(
-                    isMultiplierQuestion ? (Number(choice) / 100).toFixed(2) : String(choice)
-                  )}
+                  node={buildAnswerNode(formatChoiceValue(question, choice))}
                   className="mathChoiceContent"
                 />
               </button>
@@ -523,8 +842,18 @@ export default function DoubleBoardClient({
   const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
   const [clockNow, setClockNow] = useState(Date.now());
-  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [studentSettingsEnabled, setStudentSettingsEnabled] = useState(false);
+  const [voteOverlayOpen, setVoteOverlayOpen] = useState(false);
+  const [podiumOpen, setPodiumOpen] = useState(false);
+  const [dismissedTeacherQuestionId, setDismissedTeacherQuestionId] = useState(null);
+  const [voteSettings, setVoteSettings] = useState({
+    numberMode: "single_digit",
+    answerMode: "typed",
+    playMode: "free_for_all",
+    turnAdvanceMode: "until_wrong",
+    freeForAllTimerSeconds: 10,
+  });
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -551,15 +880,8 @@ export default function DoubleBoardClient({
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Double Board.");
       }
-      const normalizedSession = normalizeSessionPayload(payload.session);
-      setSession(normalizedSession);
-      if (Number.isFinite(normalizedSession?.serverNowMs)) {
-        const nextOffsetMs = normalizedSession.serverNowMs - Date.now();
-        setClockOffsetMs(nextOffsetMs);
-        setClockNow(Date.now() + nextOffsetMs);
-      } else {
-        setClockNow(Date.now());
-      }
+      setSession(normalizeSessionPayload(payload.session));
+      setClockNow(Date.now());
       if (!options.quiet) {
         setFlashMessage("");
       }
@@ -593,6 +915,7 @@ export default function DoubleBoardClient({
           answerMode,
           playMode,
           turnAdvanceMode,
+          studentSettingsEnabled,
           freeForAllTimerSeconds,
           sessionId: session?.id || null,
           ...extra,
@@ -605,13 +928,7 @@ export default function DoubleBoardClient({
       if (payload.session) {
         const normalizedSession = normalizeSessionPayload(payload.session);
         setSession(normalizedSession);
-        if (Number.isFinite(normalizedSession?.serverNowMs)) {
-          const nextOffsetMs = normalizedSession.serverNowMs - Date.now();
-          setClockOffsetMs(nextOffsetMs);
-          setClockNow(Date.now() + nextOffsetMs);
-        } else {
-          setClockNow(Date.now());
-        }
+        setClockNow(Date.now());
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
         setTurnAdvanceMode(normalizedSession?.turnAdvanceMode || "until_wrong");
@@ -622,7 +939,7 @@ export default function DoubleBoardClient({
           if (normalizedSession?.answerHistoryByUser?.[userId]) {
             return userId;
           }
-          return normalizedSession?.leaderboard?.[0]?.userId || null;
+          return normalizedSession?.classRoster?.[0]?.userId || normalizedSession?.leaderboard?.[0]?.userId || null;
         });
       }
       if (payload.result?.message) {
@@ -678,8 +995,15 @@ export default function DoubleBoardClient({
   useEffect(() => {
     if (session?.status === "ended") {
       setReviewOpen(true);
+      setPodiumOpen(true);
     }
   }, [session?.status]);
+
+  useEffect(() => {
+    if (session?.numberMode) {
+      setNumberMode(session.numberMode);
+    }
+  }, [session?.numberMode]);
 
   useEffect(() => {
     if (session?.answerMode) {
@@ -722,29 +1046,90 @@ export default function DoubleBoardClient({
     }
   }, [session?.freeForAllTimerSeconds]);
 
+  useEffect(() => {
+    setStudentSettingsEnabled(Boolean(session?.studentSettingsEnabled));
+  }, [session?.studentSettingsEnabled]);
+
+  useEffect(() => {
+    if (!session) return;
+
+    setVoteSettings({
+      numberMode: session.viewerVote?.numberMode || session.numberMode || "single_digit",
+      answerMode: session.viewerVote?.answerMode || session.answerMode || "typed",
+      playMode: session.viewerVote?.playMode || session.playMode || "free_for_all",
+      turnAdvanceMode: session.viewerVote?.turnAdvanceMode || session.turnAdvanceMode || "until_wrong",
+      freeForAllTimerSeconds:
+        session.viewerVote?.freeForAllTimerSeconds || session.freeForAllTimerSeconds || 10,
+    });
+  }, [
+    session,
+    session?.answerMode,
+    session?.freeForAllTimerSeconds,
+    session?.numberMode,
+    session?.playMode,
+    session?.turnAdvanceMode,
+    session?.viewerVote?.answerMode,
+    session?.viewerVote?.freeForAllTimerSeconds,
+    session?.viewerVote?.numberMode,
+    session?.viewerVote?.playMode,
+    session?.viewerVote?.turnAdvanceMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      !canHost &&
+      session?.isJoined &&
+      session?.studentSettingsEnabled &&
+      (session.status === "waiting" || session.status === "ended") &&
+      session.viewerVote?.phase !== session.settingsVotePhase
+    ) {
+      setVoteOverlayOpen(true);
+    }
+  }, [
+    canHost,
+    session?.isJoined,
+    session?.settingsVotePhase,
+    session?.status,
+    session?.studentSettingsEnabled,
+    session?.viewerVote?.phase,
+  ]);
+
+  useEffect(() => {
+    if (
+      canHost ||
+      !session?.studentSettingsEnabled ||
+      !session?.isJoined ||
+      (session?.status !== "waiting" && session?.status !== "ended")
+    ) {
+      setVoteOverlayOpen(false);
+    }
+  }, [canHost, session?.isJoined, session?.status, session?.studentSettingsEnabled]);
+
   const boards = session?.boards || {};
 
   useEffect(() => {
-    const now = Date.now() + clockOffsetMs;
+    const now = Date.now();
     const hasCountdown = secondsRemaining(session?.startCountdownEndsAt, now) > 0;
+    const hasTurnTimer = secondsRemaining(session?.turnPhaseEndsAt, now) > 0;
     const hasClaims = [boards.A, boards.B]
       .flatMap((board) => boardQuestions(board).flat())
       .some((question) => question?.claim && secondsRemaining(question.claim.expiresAt, now) > 0);
 
-    if (!hasCountdown && !hasClaims) return undefined;
+    if (!hasCountdown && !hasClaims && !hasTurnTimer) return undefined;
 
     setClockNow(now);
     const interval = window.setInterval(() => {
-      setClockNow(Date.now() + clockOffsetMs);
+      setClockNow(Date.now());
     }, 250);
 
     return () => window.clearInterval(interval);
-  }, [boards.A, boards.B, clockOffsetMs, session?.startCountdownEndsAt]);
+  }, [boards.A, boards.B, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
 
   const countdownValue = secondsRemaining(session?.startCountdownEndsAt, clockNow);
   const countdownActive = countdownValue > 0;
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
+  const turnPhaseSecondsLeft = secondsRemaining(session?.turnPhaseEndsAt, clockNow);
   const canAnswer = Boolean(
     session?.status === "live" &&
       !countdownActive &&
@@ -763,26 +1148,97 @@ export default function DoubleBoardClient({
       !freshQuestion ||
       freshQuestion.solved ||
       !canAnswer ||
+      ((session?.playMode || playMode) === "one_at_a_time" &&
+        session?.activeQuestionId !== freshQuestion.id) ||
       ((session?.playMode || playMode) === "free_for_all" &&
         (!freshQuestion.claim || freshQuestion.claim.userId !== userId || claimSecondsLeft <= 0))
     ) {
       setSelectedQuestion(null);
       setAnswerValue("");
     }
-  }, [boards.A, boards.B, canAnswer, clockNow, playMode, selectedQuestion, session?.playMode, userId]);
+  }, [
+    boards.A,
+    boards.B,
+    canAnswer,
+    clockNow,
+    playMode,
+    selectedQuestion,
+    session?.activeQuestionId,
+    session?.playMode,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !session?.activeQuestionId ||
+      session?.playMode !== "one_at_a_time" ||
+      !session?.isViewerTurn ||
+      !canAnswer
+    ) {
+      return;
+    }
+
+    const activeQuestion = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
+      .filter(Boolean)
+      .find((question) => question.id === session.activeQuestionId);
+
+    if (activeQuestion && selectedQuestion?.id !== activeQuestion.id) {
+      setSelectedQuestion(activeQuestion);
+      setAnswerValue("");
+    }
+  }, [
+    boards.A,
+    boards.B,
+    canAnswer,
+    selectedQuestion?.id,
+    session?.activeQuestionId,
+    session?.isViewerTurn,
+    session?.playMode,
+  ]);
   const activeSelectedQuestion = selectedQuestion
     ? [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
         .filter(Boolean)
         .find((question) => question.id === selectedQuestion.id) || selectedQuestion
     : null;
-  const selectedQuestionClaimSecondsLeft = secondsRemaining(
-    activeSelectedQuestion?.claim?.expiresAt,
-    clockNow
-  );
+  const selectedQuestionClaimSecondsLeft =
+    session?.playMode === "one_at_a_time"
+      ? turnPhaseSecondsLeft
+      : secondsRemaining(activeSelectedQuestion?.claim?.expiresAt, clockNow);
   const selectedHistoryItems =
     session?.answerHistoryByUser?.[
       canHost ? selectedHistoryUserId : userId
     ] || [];
+  const turnOrderItems = session?.turnOrder || [];
+  const allQuestions = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()].filter(Boolean);
+  const activeSessionQuestion = session?.activeQuestionId
+    ? allQuestions.find((question) => question.id === session.activeQuestionId) || null
+    : null;
+  const teacherPopupOpen = Boolean(
+    canHost &&
+      session?.status === "live" &&
+      session?.playMode === "one_at_a_time" &&
+      activeSessionQuestion &&
+      dismissedTeacherQuestionId !== activeSessionQuestion.id
+  );
+  const turnStatusLabel =
+    session?.status === "ended"
+      ? `Game Ended - ${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+      : session?.status === "live"
+        ? session?.playMode === "one_at_a_time" && session?.activeTurnDisplayName
+          ? `${session.activeTurnDisplayName}'s Turn - ${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+          : `Live Game - ${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+        : "Waiting for players...";
+
+  useEffect(() => {
+    if (!session?.activeQuestionId) {
+      setDismissedTeacherQuestionId(null);
+      return;
+    }
+
+    if (dismissedTeacherQuestionId && dismissedTeacherQuestionId !== session.activeQuestionId) {
+      setDismissedTeacherQuestionId(null);
+    }
+  }, [dismissedTeacherQuestionId, session?.activeQuestionId]);
 
   function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
@@ -796,7 +1252,10 @@ export default function DoubleBoardClient({
   async function handleSelect(question) {
     if (!canAnswer || !question || question.solved) return;
 
-    if ((session?.playMode || playMode) === "free_for_all") {
+    if (
+      (session?.playMode || playMode) === "free_for_all" ||
+      (session?.playMode || playMode) === "one_at_a_time"
+    ) {
       const payload = await postAction("claim_question", {
         questionId: question.id,
       });
@@ -819,6 +1278,27 @@ export default function DoubleBoardClient({
     if (payload) {
       setSelectedQuestion(null);
       setAnswerValue("");
+    }
+  }
+
+  async function handleTurnOrderReorder(orderedUserIds) {
+    if (!session || !canHost || session.playMode !== "one_at_a_time") return;
+    await postAction("reorder_turns", {
+      orderedUserIds,
+    });
+  }
+
+  function handleVoteSettingChange(key, value) {
+    setVoteSettings((current) => ({
+      ...current,
+      [key]: key === "freeForAllTimerSeconds" ? Math.max(1, Number(value || 1)) : value,
+    }));
+  }
+
+  async function handleVoteSubmit() {
+    const payload = await postAction("submit_vote", voteSettings);
+    if (payload) {
+      setVoteOverlayOpen(false);
     }
   }
 
@@ -903,11 +1383,16 @@ export default function DoubleBoardClient({
 
           {flashMessage ? <div className="doubleBoardFlash">{flashMessage}</div> : null}
 
+          <div className={`doubleBoardStatusRow tone-${liveTone}`}>
+            <strong>{turnStatusLabel}</strong>
+          </div>
+
           <div className="doubleBoardArena">
             <BoardPanel
               boardKey="A"
               board={boards.A}
               selectedQuestionId={selectedQuestion?.id}
+              activeQuestionId={session?.activeQuestionId}
               canAnswer={canAnswer}
               canManage={Boolean(session?.canManage)}
               sessionStatus={session?.status}
@@ -918,23 +1403,6 @@ export default function DoubleBoardClient({
             />
 
             <section className={`card doubleBoardCenterCard tone-${liveTone}`}>
-              <div className="doubleBoardStatusBanner">
-                <strong>
-                  {session?.status === "live"
-                    ? session?.playMode === "one_at_a_time" && session?.activeTurnDisplayName
-                      ? `${session.activeTurnDisplayName}'s Turn`
-                      : "Live Game"
-                    : session?.status === "ended"
-                      ? "Game Ended"
-                      : "Waiting"}
-                </strong>
-                <span>
-                  {session
-                    ? `${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
-                    : "No active session"}
-                </span>
-              </div>
-
             {canHost ? (
               <div className="doubleBoardHostControls">
                 {session?.status !== "live" ? (
@@ -1018,8 +1486,17 @@ export default function DoubleBoardClient({
                             max="120"
                             value={freeForAllTimerSeconds}
                             onChange={(event) => setFreeForAllTimerSeconds(event.target.value)}
-                            disabled={busy || session?.status === "live" || playMode !== "free_for_all"}
+                            disabled={busy || session?.status === "live"}
                           />
+                        </label>
+                        <label className="doubleBoardCheckboxRow">
+                          <input
+                            type="checkbox"
+                            checked={studentSettingsEnabled}
+                            onChange={(event) => setStudentSettingsEnabled(event.target.checked)}
+                            disabled={busy || session?.status === "live"}
+                          />
+                          <span>Let students choose settings</span>
                         </label>
                       </div>
                     ) : null}
@@ -1051,6 +1528,18 @@ export default function DoubleBoardClient({
                   >
                     End Game
                   </button>
+                  {session?.playMode === "one_at_a_time" &&
+                  session?.status === "live" &&
+                  (session?.turnPhase || session?.activeQuestionId) ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => postAction("next_student")}
+                    >
+                      Next Student
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -1120,17 +1609,46 @@ export default function DoubleBoardClient({
                           : "That student keeps choosing questions until they get one wrong, then the turn moves to the next student in join order."
                         : "Students will rotate in the order they joined once at least one student is in the game."}
                     </p>
+                    {session?.turnAdvanceMode === "until_wrong" && session?.turnPhase ? (
+                      <div className="doubleBoardPhaseCard">
+                        <span>{session.turnPhase === "answer_question" ? "Answer phase" : "Select a tile"}</span>
+                        <strong>{turnPhaseSecondsLeft}s</strong>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
-                <div className="doubleBoardLeaderboardWrap">
-                  <h3>{canHost ? "Live Leaderboard" : "Class Leaderboard"}</h3>
-                  <Leaderboard
-                    leaderboard={session.leaderboard}
-                    viewerId={userId}
-                    selectedUserId={canHost ? selectedHistoryUserId : userId}
+                {canHost && session?.playMode === "one_at_a_time" ? (
+                  <TurnOrderPanel
+                    items={turnOrderItems}
+                    canManage={Boolean(session?.canManage)}
+                    busy={busy}
+                    selectedUserId={selectedHistoryUserId}
                     onSelect={setSelectedHistoryUserId}
+                    onReorder={handleTurnOrderReorder}
                   />
+                ) : null}
+
+                {canHost && session?.resolvedStudentVoteSummary ? (
+                  <StudentSettingsSummary summary={session.resolvedStudentVoteSummary} />
+                ) : null}
+
+                <div className="doubleBoardLeaderboardWrap">
+                  <h3>{canHost ? "Class Roster" : "Class Leaderboard"}</h3>
+                  {canHost ? (
+                    <RosterPanel
+                      roster={session.classRoster}
+                      selectedUserId={selectedHistoryUserId}
+                      onSelect={setSelectedHistoryUserId}
+                    />
+                  ) : (
+                    <Leaderboard
+                      leaderboard={session.leaderboard}
+                      viewerId={userId}
+                      selectedUserId={userId}
+                      onSelect={setSelectedHistoryUserId}
+                    />
+                  )}
                 </div>
 
                 <details className="doubleBoardPatternHelp">
@@ -1162,6 +1680,7 @@ export default function DoubleBoardClient({
               boardKey="B"
               board={boards.B}
               selectedQuestionId={selectedQuestion?.id}
+              activeQuestionId={session?.activeQuestionId}
               canAnswer={canAnswer}
               canManage={Boolean(session?.canManage)}
               sessionStatus={session?.status}
@@ -1182,7 +1701,7 @@ export default function DoubleBoardClient({
             title={
               canHost
                 ? selectedHistoryUserId
-                  ? `${session.leaderboard.find((player) => player.userId === selectedHistoryUserId)?.displayName || "Student"} Answer History`
+                  ? `${session.classRoster.find((player) => player.userId === selectedHistoryUserId)?.displayName || "Student"} Answer History`
                   : "Student Answer History"
                 : "Your Answer History"
             }
@@ -1193,13 +1712,33 @@ export default function DoubleBoardClient({
         <AnswerModal
           open={Boolean(selectedQuestion)}
           question={activeSelectedQuestion}
-          claimSecondsLeft={selectedQuestionClaimSecondsLeft}
+          secondsLeft={selectedQuestionClaimSecondsLeft}
           answerMode={session?.answerMode || answerMode}
           answerValue={answerValue}
           onAnswerChange={setAnswerValue}
           onCancel={() => setSelectedQuestion(null)}
           onSubmit={handleSubmitAnswer}
           busy={busy}
+        />
+        <StudentVoteOverlay
+          open={voteOverlayOpen}
+          busy={busy}
+          settings={voteSettings}
+          onChange={handleVoteSettingChange}
+          onSubmit={handleVoteSubmit}
+        />
+        <PodiumModal
+          open={podiumOpen && session?.status === "ended"}
+          leaderboard={session?.leaderboard || []}
+          onClose={() => setPodiumOpen(false)}
+        />
+        <TeacherQuestionPopup
+          open={teacherPopupOpen}
+          question={activeSessionQuestion}
+          answerMode={session?.answerMode || answerMode}
+          turnPhase={session?.turnPhase}
+          secondsLeft={turnPhaseSecondsLeft}
+          onClose={() => setDismissedTeacherQuestionId(activeSessionQuestion?.id || null)}
         />
       </div>
     </DoubleBoardErrorBoundary>

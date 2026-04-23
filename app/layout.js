@@ -23,12 +23,36 @@ export default async function RootLayout({ children }) {
   const accountType = user ? await getAccountTypeForUser(supabase, user) : null;
   const isTeacher = Boolean(user && isTeacherAccountType(accountType));
   const canAccessAdmin = Boolean(user && canAccessAdminArea(user));
+  let gameReadyBannerHref = null;
   const roleLabel =
     accountType === "teacher"
       ? "Teacher Workspace"
       : user
         ? "Arcade"
         : null;
+
+  if (user && accountType === "student") {
+    const { data: memberships } = await supabase
+      .from("student_course_memberships")
+      .select("course_id")
+      .eq("profile_id", user.id);
+    const courseIds = (memberships || []).map((membership) => membership.course_id).filter(Boolean);
+
+    if (courseIds.length) {
+      const { data: readySession } = await supabase
+        .from("double_board_sessions")
+        .select("course_id")
+        .in("course_id", courseIds)
+        .in("status", ["waiting", "live"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (readySession?.course_id) {
+        gameReadyBannerHref = `/play/double-board?course=${readySession.course_id}`;
+      }
+    }
+  }
 
   let navItems = [];
 
@@ -85,6 +109,11 @@ export default async function RootLayout({ children }) {
                 ) : null}
               </div>
             </header>
+            {gameReadyBannerHref ? (
+              <Link className="gameReadyBanner" href={gameReadyBannerHref}>
+                A Double Board game is ready - Join Now
+              </Link>
+            ) : null}
             <section className="content">{children}</section>
           </div>
         </main>
