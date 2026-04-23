@@ -3375,6 +3375,18 @@ details[open] > summary.btn,
   display: block;
 }
 
+.doubleBoardCheckboxRow {
+  display: flex !important;
+  align-items: center;
+  gap: 0.7rem;
+  font-weight: 700;
+}
+
+.doubleBoardCheckboxRow input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
 .doubleBoardHostActionRow {
   margin-bottom: 1rem;
   justify-content: center;
@@ -3493,6 +3505,22 @@ details[open] > summary.btn,
 
 .doubleBoardTurnOrderMeta {
   justify-items: end;
+}
+
+.doubleBoardVoteSummaryList {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.doubleBoardVoteSummaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(11, 61, 105, 0.12);
 }
 
 .doubleBoardLeaderboard {
@@ -3638,6 +3666,31 @@ details[open] > summary.btn,
   place-items: center;
   padding: 1rem;
   z-index: 80;
+}
+
+.doubleBoardVoteOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 81;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 20, 40, 0.7);
+}
+
+.doubleBoardVoteCard {
+  width: min(100%, 34rem);
+  border: 3px solid #0b3d69;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+  padding: 1.2rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
+}
+
+.doubleBoardVoteForm {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
 }
 
 .doubleBoardModal {

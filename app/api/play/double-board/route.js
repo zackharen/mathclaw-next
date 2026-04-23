@@ -58,6 +58,10 @@ function normalizeFreeForAllTimerSeconds(value) {
   return Math.max(1, Math.min(MAX_FREE_FOR_ALL_TIMER_SECONDS, parsed));
 }
 
+function normalizeStudentSettingsEnabled(value) {
+  return Boolean(value);
+}
+
 function firstNameFromDisplayName(displayName) {
   return String(displayName || "").trim().split(/\s+/).filter(Boolean)[0] || "Player";
 }
@@ -65,6 +69,85 @@ function firstNameFromDisplayName(displayName) {
 function parseFutureTime(value) {
   const time = Date.parse(String(value || ""));
   return Number.isFinite(time) && time > Date.now() ? new Date(time).toISOString() : null;
+}
+
+function buildSessionSettingsSnapshot(session, sessionMetadata) {
+  return {
+    numberMode: normalizeDoubleBoardMode(session?.number_mode),
+    answerMode: normalizeAnswerMode(sessionMetadata?.answerMode),
+    playMode: normalizePlayMode(sessionMetadata?.playMode),
+    turnAdvanceMode: sessionMetadata?.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
+    freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(sessionMetadata?.freeForAllTimerSeconds),
+  };
+}
+
+function normalizeStudentSettingVote(vote, fallbackSettings, phase) {
+  const safeVote = vote && typeof vote === "object" ? vote : {};
+  return {
+    phase: Math.max(1, Number(safeVote.phase || phase || 1)),
+    displayName: String(safeVote.displayName || "").trim() || "Student",
+    numberMode: normalizeDoubleBoardMode(safeVote.numberMode || fallbackSettings.numberMode),
+    answerMode: normalizeAnswerMode(safeVote.answerMode || fallbackSettings.answerMode),
+    playMode: normalizePlayMode(safeVote.playMode || fallbackSettings.playMode),
+    turnAdvanceMode: safeVote.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
+    freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(
+      safeVote.freeForAllTimerSeconds || fallbackSettings.freeForAllTimerSeconds
+    ),
+  };
+}
+
+function chooseRandomWinningValue(entries) {
+  if (!entries.length) return null;
+  return entries[Math.floor(Math.random() * entries.length)]?.value || null;
+}
+
+function buildResolvedStudentSettings(session, sessionMetadata) {
+  const currentSettings = buildSessionSettingsSnapshot(session, sessionMetadata);
+  const phase = Math.max(1, Number(sessionMetadata?.settingsVotePhase || 1));
+  const allVotes = Object.entries(sessionMetadata?.studentSettingVotes || {})
+    .map(([userId, vote]) => ({
+      userId,
+      ...normalizeStudentSettingVote(vote, currentSettings, phase),
+    }))
+    .filter((vote) => vote.phase === phase);
+  const summary = {
+    phase,
+    totalVotes: allVotes.length,
+    settings: {},
+  };
+  const resolvedSettings = { ...currentSettings };
+
+  for (const key of [
+    "numberMode",
+    "answerMode",
+    "playMode",
+    "turnAdvanceMode",
+    "freeForAllTimerSeconds",
+  ]) {
+    const counts = new Map();
+
+    for (const vote of allVotes) {
+      const value = vote[key];
+      counts.set(value, Number(counts.get(value) || 0) + 1);
+    }
+
+    const countEntries = [...counts.entries()].map(([value, count]) => ({ value, count }));
+    const highestCount = countEntries.reduce((max, entry) => Math.max(max, entry.count), 0);
+    const winners = countEntries.filter((entry) => entry.count === highestCount);
+    const winningValue =
+      winners.length > 0 ? chooseRandomWinningValue(winners) : currentSettings[key];
+
+    summary.settings[key] = {
+      winner: winningValue,
+      counts: countEntries,
+    };
+    resolvedSettings[key] = winningValue;
+  }
+
+  return {
+    summary,
+    resolvedSettings,
+  };
 }
 
 function buildSessionMetadata(metadata = {}, questions = []) {
@@ -99,6 +182,20 @@ function buildSessionMetadata(metadata = {}, questions = []) {
     turnOrderUserIds: Array.isArray(safeMetadata.turnOrderUserIds)
       ? safeMetadata.turnOrderUserIds.map((value) => normalizeId(value)).filter(Boolean)
       : [],
+    studentSettingsEnabled: normalizeStudentSettingsEnabled(safeMetadata.studentSettingsEnabled),
+    settingsVotePhase: Math.max(1, Number(safeMetadata.settingsVotePhase || 1)),
+    studentSettingVotes:
+      safeMetadata.studentSettingVotes && typeof safeMetadata.studentSettingVotes === "object"
+        ? safeMetadata.studentSettingVotes
+        : {},
+    resolvedStudentSettings:
+      safeMetadata.resolvedStudentSettings && typeof safeMetadata.resolvedStudentSettings === "object"
+        ? safeMetadata.resolvedStudentSettings
+        : null,
+    resolvedStudentVoteSummary:
+      safeMetadata.resolvedStudentVoteSummary && typeof safeMetadata.resolvedStudentVoteSummary === "object"
+        ? safeMetadata.resolvedStudentVoteSummary
+        : null,
     freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(safeMetadata.freeForAllTimerSeconds),
     startCountdownEndsAt: parseFutureTime(safeMetadata.startCountdownEndsAt),
     activeClaims,
@@ -428,6 +525,16 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     sessionMetadata,
     activeTurnPlayer?.user_id || null
   );
+  const currentSettings = buildSessionSettingsSnapshot(session, sessionMetadata);
+  const viewerVote = viewer.user?.id
+    ? sessionMetadata.studentSettingVotes?.[viewer.user.id]
+      ? normalizeStudentSettingVote(
+          sessionMetadata.studentSettingVotes[viewer.user.id],
+          currentSettings,
+          sessionMetadata.settingsVotePhase
+        )
+      : null
+    : null;
   const reviewItems =
     session.status === "ended"
       ? buildDoubleBoardReviewItems(questions || [])
@@ -462,6 +569,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     activeTurnDisplayName: activeTurnPlayer?.display_name || null,
     isViewerTurn: Boolean(activeTurnPlayer?.user_id && activeTurnPlayer.user_id === viewer.user.id),
     turnOrder,
+    studentSettingsEnabled: sessionMetadata.studentSettingsEnabled,
+    settingsVotePhase: sessionMetadata.settingsVotePhase,
+    viewerVote,
+    resolvedStudentSettings: sessionMetadata.resolvedStudentSettings,
+    resolvedStudentVoteSummary: sessionMetadata.resolvedStudentVoteSummary,
     canManage,
     isJoined: Boolean(viewerPlayer),
     viewerPlayerId: viewerPlayer?.id || null,
@@ -564,6 +676,26 @@ async function advanceTurn(admin, session, players = []) {
     .eq("id", session.id);
 
   if (error) throw new Error(error.message);
+}
+
+async function replaceSessionQuestions(admin, session, numberMode) {
+  const { error: deleteError } = await admin
+    .from("double_board_questions")
+    .delete()
+    .eq("session_id", session.id);
+
+  if (deleteError) throw new Error(deleteError.message);
+
+  const questionRows = createDoubleBoardQuestionRecords(numberMode);
+  const { error: insertError } = await admin.from("double_board_questions").insert(
+    questionRows.map((question) => ({
+      session_id: session.id,
+      ...question,
+      updated_at: nowIso(),
+    }))
+  );
+
+  if (insertError) throw new Error(insertError.message);
 }
 
 async function syncSolvedCount(admin, sessionId, options = {}) {
@@ -673,6 +805,7 @@ async function createFreshSession(
   playMode,
   freeForAllTimerSeconds,
   turnAdvanceMode,
+  studentSettingsEnabled,
   existingPlayers = [],
   existingMetadata = null
 ) {
@@ -711,6 +844,11 @@ async function createFreshSession(
         turnIndex: 0,
         activeTurnUserId: null,
         turnOrderUserIds: initialTurnOrderUserIds,
+        studentSettingsEnabled,
+        settingsVotePhase: 1,
+        studentSettingVotes: {},
+        resolvedStudentSettings: null,
+        resolvedStudentVoteSummary: null,
         freeForAllTimerSeconds,
         startCountdownEndsAt: null,
         activeClaims: {},
@@ -854,6 +992,7 @@ export async function POST(request) {
       const playMode = normalizePlayMode(body.playMode);
       const freeForAllTimerSeconds = normalizeFreeForAllTimerSeconds(body.freeForAllTimerSeconds);
       const turnAdvanceMode = body.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong";
+      const studentSettingsEnabled = normalizeStudentSettingsEnabled(body.studentSettingsEnabled);
       let existingPlayers = [];
       let existingMetadata = null;
 
@@ -917,6 +1056,7 @@ export async function POST(request) {
         playMode,
         freeForAllTimerSeconds,
         turnAdvanceMode,
+        studentSettingsEnabled,
         existingPlayers,
         existingMetadata
       );
@@ -990,7 +1130,22 @@ export async function POST(request) {
         return NextResponse.json({ error: "Only the host can end this game." }, { status: 403 });
       }
 
+      const sessionMetadata = buildSessionMetadata(session.metadata);
       await syncSolvedCount(admin, session.id, { forceEnded: true, endedAt: nowIso() });
+      if (sessionMetadata.studentSettingsEnabled) {
+        await admin
+          .from("double_board_sessions")
+          .update({
+            metadata: {
+              ...sessionMetadata,
+              settingsVotePhase: Number(sessionMetadata.settingsVotePhase || 1) + 1,
+              resolvedStudentSettings: null,
+              resolvedStudentVoteSummary: null,
+            },
+            updated_at: nowIso(),
+          })
+          .eq("id", session.id);
+      }
       await recordSessionResultsIfNeeded(admin, session.id);
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
@@ -1028,6 +1183,63 @@ export async function POST(request) {
 
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Turn order updated." } });
+    }
+
+    if (action === "submit_vote") {
+      if (canManage) {
+        return NextResponse.json({ error: "Only students can submit setting votes." }, { status: 403 });
+      }
+
+      const sessionMetadata = buildSessionMetadata(session.metadata);
+      if (!sessionMetadata.studentSettingsEnabled) {
+        return NextResponse.json({ error: "Student voting is not enabled for this game." }, { status: 400 });
+      }
+
+      const currentSettings = buildSessionSettingsSnapshot(session, sessionMetadata);
+      const nextStudentSettingVotes = {
+        ...sessionMetadata.studentSettingVotes,
+        [user.id]: normalizeStudentSettingVote(
+          {
+            ...body,
+            displayName,
+            phase: sessionMetadata.settingsVotePhase,
+          },
+          currentSettings,
+          sessionMetadata.settingsVotePhase
+        ),
+      };
+      const voteMetadata = {
+        ...sessionMetadata,
+        studentSettingVotes: nextStudentSettingVotes,
+      };
+      const { resolvedSettings, summary } = buildResolvedStudentSettings(session, voteMetadata);
+      const nextMetadata = {
+        ...voteMetadata,
+        answerMode: resolvedSettings.answerMode,
+        playMode: resolvedSettings.playMode,
+        turnAdvanceMode: resolvedSettings.turnAdvanceMode,
+        freeForAllTimerSeconds: resolvedSettings.freeForAllTimerSeconds,
+        resolvedStudentSettings: resolvedSettings,
+        resolvedStudentVoteSummary: summary,
+      };
+
+      if (session.status === "waiting" && resolvedSettings.numberMode !== session.number_mode) {
+        await replaceSessionQuestions(admin, session, resolvedSettings.numberMode);
+      }
+
+      const { error } = await admin
+        .from("double_board_sessions")
+        .update({
+          number_mode: resolvedSettings.numberMode,
+          metadata: nextMetadata,
+          updated_at: nowIso(),
+        })
+        .eq("id", session.id);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      return NextResponse.json({ session: bundle, result: { message: "Vote submitted." } });
     }
 
     if (action === "join") {

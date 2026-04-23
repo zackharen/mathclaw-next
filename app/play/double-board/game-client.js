@@ -62,6 +62,17 @@ function normalizeSessionPayload(session) {
     activeTurnDisplayName:
       typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
     activeTurnUserId: typeof session.activeTurnUserId === "string" ? session.activeTurnUserId : null,
+    studentSettingsEnabled: Boolean(session.studentSettingsEnabled),
+    settingsVotePhase: Math.max(1, Number(session.settingsVotePhase || 1)),
+    viewerVote: session.viewerVote && typeof session.viewerVote === "object" ? session.viewerVote : null,
+    resolvedStudentSettings:
+      session.resolvedStudentSettings && typeof session.resolvedStudentSettings === "object"
+        ? session.resolvedStudentSettings
+        : null,
+    resolvedStudentVoteSummary:
+      session.resolvedStudentVoteSummary && typeof session.resolvedStudentVoteSummary === "object"
+        ? session.resolvedStudentVoteSummary
+        : null,
     isViewerTurn: Boolean(session.isViewerTurn),
   };
 }
@@ -255,6 +266,134 @@ function TurnOrderPanel({
             </span>
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function StudentSettingsSummary({ summary }) {
+  if (!summary?.totalVotes) return null;
+
+  const labels = {
+    numberMode: "Board type",
+    answerMode: "Answer mode",
+    playMode: "Play mode",
+    turnAdvanceMode: "Turn advances",
+    freeForAllTimerSeconds: "Question timer",
+  };
+
+  return (
+    <div className="doubleBoardWaitingCard">
+      <h3>Student Vote Summary</h3>
+      <p>{summary.totalVotes} student vote{summary.totalVotes === 1 ? "" : "s"} counted.</p>
+      <div className="doubleBoardVoteSummaryList">
+        {Object.entries(labels).map(([key, label]) => {
+          const setting = summary.settings?.[key];
+          if (!setting) return null;
+          const winnerLabel =
+            key === "freeForAllTimerSeconds" ? `${setting.winner} seconds` : String(setting.winner || "");
+
+          return (
+            <div key={key} className="doubleBoardVoteSummaryRow">
+              <span>{label}</span>
+              <strong>{winnerLabel}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StudentVoteOverlay({
+  open,
+  busy,
+  settings,
+  onChange,
+  onSubmit,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="doubleBoardVoteOverlay" role="dialog" aria-modal="true" aria-labelledby="double-board-vote-title">
+      <div className="doubleBoardVoteCard">
+        <p className="doubleBoardEyebrow">Double Board</p>
+        <h2 id="double-board-vote-title">Vote For The Next Settings</h2>
+        <p>Your teacher is letting the class choose how the next round should play.</p>
+        <form
+          className="doubleBoardVoteForm"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <label>
+            Board type
+            <select
+              className="input"
+              value={settings.numberMode}
+              onChange={(event) => onChange("numberMode", event.target.value)}
+              disabled={busy}
+            >
+              {Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => (
+                <option key={mode.slug} value={mode.slug}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Answer mode
+            <select
+              className="input"
+              value={settings.answerMode}
+              onChange={(event) => onChange("answerMode", event.target.value)}
+              disabled={busy}
+            >
+              <option value="typed">Typed answer</option>
+              <option value="multiple_choice">Multiple choice</option>
+            </select>
+          </label>
+          <label>
+            Play mode
+            <select
+              className="input"
+              value={settings.playMode}
+              onChange={(event) => onChange("playMode", event.target.value)}
+              disabled={busy}
+            >
+              <option value="free_for_all">Free for all</option>
+              <option value="one_at_a_time">One at a time</option>
+            </select>
+          </label>
+          <label>
+            Turn advances
+            <select
+              className="input"
+              value={settings.turnAdvanceMode}
+              onChange={(event) => onChange("turnAdvanceMode", event.target.value)}
+              disabled={busy}
+            >
+              <option value="until_wrong">Keep going until wrong</option>
+              <option value="one_per_turn">One question per turn</option>
+            </select>
+          </label>
+          <label>
+            Question timer (seconds)
+            <input
+              className="input"
+              type="number"
+              min="1"
+              max="120"
+              value={settings.freeForAllTimerSeconds}
+              onChange={(event) => onChange("freeForAllTimerSeconds", event.target.value)}
+              disabled={busy}
+            />
+          </label>
+          <button className="btn primary" type="submit" disabled={busy}>
+            Submit Vote
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -596,6 +735,15 @@ export default function DoubleBoardClient({
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
   const [clockNow, setClockNow] = useState(Date.now());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [studentSettingsEnabled, setStudentSettingsEnabled] = useState(false);
+  const [voteOverlayOpen, setVoteOverlayOpen] = useState(false);
+  const [voteSettings, setVoteSettings] = useState({
+    numberMode: "single_digit",
+    answerMode: "typed",
+    playMode: "free_for_all",
+    turnAdvanceMode: "until_wrong",
+    freeForAllTimerSeconds: 10,
+  });
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -657,6 +805,7 @@ export default function DoubleBoardClient({
           answerMode,
           playMode,
           turnAdvanceMode,
+          studentSettingsEnabled,
           freeForAllTimerSeconds,
           sessionId: session?.id || null,
           ...extra,
@@ -740,6 +889,12 @@ export default function DoubleBoardClient({
   }, [session?.status]);
 
   useEffect(() => {
+    if (session?.numberMode) {
+      setNumberMode(session.numberMode);
+    }
+  }, [session?.numberMode]);
+
+  useEffect(() => {
     if (session?.answerMode) {
       setAnswerMode(session.answerMode);
     }
@@ -779,6 +934,65 @@ export default function DoubleBoardClient({
       setFreeForAllTimerSeconds(session.freeForAllTimerSeconds);
     }
   }, [session?.freeForAllTimerSeconds]);
+
+  useEffect(() => {
+    setStudentSettingsEnabled(Boolean(session?.studentSettingsEnabled));
+  }, [session?.studentSettingsEnabled]);
+
+  useEffect(() => {
+    if (!session) return;
+
+    setVoteSettings({
+      numberMode: session.viewerVote?.numberMode || session.numberMode || "single_digit",
+      answerMode: session.viewerVote?.answerMode || session.answerMode || "typed",
+      playMode: session.viewerVote?.playMode || session.playMode || "free_for_all",
+      turnAdvanceMode: session.viewerVote?.turnAdvanceMode || session.turnAdvanceMode || "until_wrong",
+      freeForAllTimerSeconds:
+        session.viewerVote?.freeForAllTimerSeconds || session.freeForAllTimerSeconds || 10,
+    });
+  }, [
+    session,
+    session?.answerMode,
+    session?.freeForAllTimerSeconds,
+    session?.numberMode,
+    session?.playMode,
+    session?.turnAdvanceMode,
+    session?.viewerVote?.answerMode,
+    session?.viewerVote?.freeForAllTimerSeconds,
+    session?.viewerVote?.numberMode,
+    session?.viewerVote?.playMode,
+    session?.viewerVote?.turnAdvanceMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      !canHost &&
+      session?.isJoined &&
+      session?.studentSettingsEnabled &&
+      (session.status === "waiting" || session.status === "ended") &&
+      session.viewerVote?.phase !== session.settingsVotePhase
+    ) {
+      setVoteOverlayOpen(true);
+    }
+  }, [
+    canHost,
+    session?.isJoined,
+    session?.settingsVotePhase,
+    session?.status,
+    session?.studentSettingsEnabled,
+    session?.viewerVote?.phase,
+  ]);
+
+  useEffect(() => {
+    if (
+      canHost ||
+      !session?.studentSettingsEnabled ||
+      !session?.isJoined ||
+      (session?.status !== "waiting" && session?.status !== "ended")
+    ) {
+      setVoteOverlayOpen(false);
+    }
+  }, [canHost, session?.isJoined, session?.status, session?.studentSettingsEnabled]);
 
   const boards = session?.boards || {};
 
@@ -886,6 +1100,20 @@ export default function DoubleBoardClient({
     await postAction("reorder_turns", {
       orderedUserIds,
     });
+  }
+
+  function handleVoteSettingChange(key, value) {
+    setVoteSettings((current) => ({
+      ...current,
+      [key]: key === "freeForAllTimerSeconds" ? Math.max(1, Number(value || 1)) : value,
+    }));
+  }
+
+  async function handleVoteSubmit() {
+    const payload = await postAction("submit_vote", voteSettings);
+    if (payload) {
+      setVoteOverlayOpen(false);
+    }
   }
 
   async function handleFullscreen() {
@@ -1087,6 +1315,15 @@ export default function DoubleBoardClient({
                             disabled={busy || session?.status === "live" || playMode !== "free_for_all"}
                           />
                         </label>
+                        <label className="doubleBoardCheckboxRow">
+                          <input
+                            type="checkbox"
+                            checked={studentSettingsEnabled}
+                            onChange={(event) => setStudentSettingsEnabled(event.target.checked)}
+                            disabled={busy || session?.status === "live"}
+                          />
+                          <span>Let students choose settings</span>
+                        </label>
                       </div>
                     ) : null}
                   </div>
@@ -1200,6 +1437,10 @@ export default function DoubleBoardClient({
                   />
                 ) : null}
 
+                {canHost && session?.resolvedStudentVoteSummary ? (
+                  <StudentSettingsSummary summary={session.resolvedStudentVoteSummary} />
+                ) : null}
+
                 <div className="doubleBoardLeaderboardWrap">
                   <h3>{canHost ? "Live Leaderboard" : "Class Leaderboard"}</h3>
                   <Leaderboard
@@ -1277,6 +1518,13 @@ export default function DoubleBoardClient({
           onCancel={() => setSelectedQuestion(null)}
           onSubmit={handleSubmitAnswer}
           busy={busy}
+        />
+        <StudentVoteOverlay
+          open={voteOverlayOpen}
+          busy={busy}
+          settings={voteSettings}
+          onChange={handleVoteSettingChange}
+          onSubmit={handleVoteSubmit}
         />
       </div>
     </DoubleBoardErrorBoundary>
