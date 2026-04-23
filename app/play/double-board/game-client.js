@@ -4,9 +4,11 @@ import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
 import { buildLabelNode } from "@/lib/math-display";
 import {
+  buildDoubleBoardMultipleChoiceOptions,
   DOUBLE_BOARD_COLUMN_PATTERNS,
   DOUBLE_BOARD_NUMBER_MODES,
   DOUBLE_BOARD_ROW_PATTERNS,
+  formatDoubleBoardAnswer,
   formatBoardLocation,
 } from "@/lib/question-engine/double-board";
 
@@ -35,6 +37,16 @@ function secondsRemaining(endTime, nowMs = Date.now()) {
   return Math.max(0, Math.ceil((endMs - nowMs) / 1000));
 }
 
+function normalizeTurnPhase(value) {
+  if (value === "select_tile") return "select_tile";
+  if (value === "answer_question") return "answer_question";
+  return null;
+}
+
+function formatChoiceValue(question, choice) {
+  return formatDoubleBoardAnswer(choice, question?.metadata || {});
+}
+
 function normalizeSessionPayload(session) {
   if (!session || typeof session !== "object") return null;
 
@@ -60,6 +72,8 @@ function normalizeSessionPayload(session) {
     freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
     startCountdownEndsAt: futureTimestampOrNull(session.startCountdownEndsAt),
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
+    turnPhase: normalizeTurnPhase(session.turnPhase),
+    turnPhaseEndsAt: futureTimestampOrNull(session.turnPhaseEndsAt),
     activeTurnDisplayName:
       typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
     activeTurnUserId: typeof session.activeTurnUserId === "string" ? session.activeTurnUserId : null,
@@ -127,45 +141,6 @@ function tileTooltip(question) {
   }
 
   return parts.join(" ");
-}
-
-function buildMultipleChoiceOptions(question) {
-  if (!question) return [];
-
-  const metadata = question.metadata || {};
-
-  if (metadata.answerFormat === "multiplier_hundredths") {
-    const percentValue = Number(metadata.percentValue || 0);
-    const correct = Number(question.correctAnswer || 0);
-    const oppositeDirection =
-      metadata.direction === "decrease" ? 100 + percentValue : 100 - percentValue;
-    const rawDecimal = percentValue;
-    const reversedDigits = percentValue < 10 ? 100 + percentValue * 10 : 100 + (percentValue % 10);
-    const ordered = [correct, oppositeDirection, rawDecimal, reversedDigits];
-    const values = [];
-
-    for (const value of ordered) {
-      if (Number.isFinite(value) && value > 0 && !values.includes(value)) {
-        values.push(value);
-      }
-    }
-
-    while (values.length < 4) {
-      const fallback = Math.max(1, 100 + percentValue + values.length);
-      if (!values.includes(fallback)) {
-        values.push(fallback);
-      }
-    }
-
-    return values.slice(0, 4);
-  }
-
-  const numericAnswer = Number(question.correctAnswer);
-  if (!Number.isFinite(numericAnswer)) {
-    return [];
-  }
-
-  return [numericAnswer];
 }
 
 function buildAnswerNode(value) {
@@ -476,6 +451,58 @@ function PodiumModal({ open, leaderboard, onClose }) {
   );
 }
 
+function TeacherQuestionPopup({
+  open,
+  question,
+  answerMode,
+  turnPhase,
+  secondsLeft,
+  onClose,
+}) {
+  if (!open || !question) return null;
+
+  const multipleChoiceOptions =
+    answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
+  const phaseLabel =
+    turnPhase === "answer_question" ? "Answer phase" : turnPhase === "select_tile" ? "Select phase" : "Turn";
+
+  return (
+    <div
+      className="doubleBoardTeacherPopup"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="double-board-teacher-popup-title"
+    >
+      <button
+        type="button"
+        className="doubleBoardModalClose"
+        onClick={onClose}
+        aria-label="Close active question popup"
+      >
+        X
+      </button>
+      <p className="doubleBoardEyebrow">Teacher View</p>
+      <h3 id="double-board-teacher-popup-title"><MathInlineText text={question.expressionText} /></h3>
+      <div className="doubleBoardModalTimer">
+        <span>{phaseLabel}</span>
+        <strong>{secondsLeft}s</strong>
+      </div>
+      {answerMode === "multiple_choice" ? (
+        <div className="doubleBoardTeacherChoiceList">
+          {multipleChoiceOptions.map((choice) => (
+            <div key={`${question.id}-${choice}`} className="doubleBoardTeacherChoice">
+              <MathText
+                node={buildAnswerNode(formatChoiceValue(question, choice))}
+                className="mathChoiceContent"
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AnswerHistoryPanel({ title, items }) {
   if (!items?.length) {
     return (
@@ -518,6 +545,7 @@ function BoardPanel({
   boardKey,
   board,
   selectedQuestionId,
+  activeQuestionId,
   canAnswer,
   canManage,
   sessionStatus,
@@ -555,11 +583,16 @@ function BoardPanel({
                 question.claim.userId !== viewerId;
               const isLockedForViewer =
                 playMode === "free_for_all" && question.lockoutUserIds?.includes(viewerId);
+              const isOneAtATimeLocked =
+                playMode === "one_at_a_time" &&
+                activeQuestionId &&
+                activeQuestionId !== question.id;
               const disabled =
                 !canAnswer ||
                 question.solved ||
                 isClaimedByOther ||
-                isLockedForViewer;
+                isLockedForViewer ||
+                isOneAtATimeLocked;
               const highValue = question.attemptCount >= 2;
               const tileLabel =
                 sessionStatus === "waiting" && !canManage
@@ -646,7 +679,7 @@ function StartCountdownOverlay({ countdownValue }) {
 function AnswerModal({
   open,
   question,
-  claimSecondsLeft,
+  secondsLeft,
   answerMode,
   answerValue,
   onAnswerChange,
@@ -656,15 +689,14 @@ function AnswerModal({
 }) {
   if (!open || !question) return null;
 
-  const multipleChoiceOptions = answerMode === "multiple_choice"
-    ? buildMultipleChoiceOptions(question)
-    : [];
+  const multipleChoiceOptions =
+    answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
   const isMultiplierQuestion = question.metadata?.answerFormat === "multiplier_hundredths";
   const answerPrompt = isMultiplierQuestion
     ? "Enter the decimal multiplier for that percent change."
     : "Enter one whole-number answer. Wrong answers do not reveal the solution.";
   const answerPlaceholder = question.metadata?.answerPlaceholder || "Type your answer";
-  const hasClaimTimer = claimSecondsLeft > 0;
+  const hasClaimTimer = secondsLeft > 0;
 
   return (
     <div className="doubleBoardModalBackdrop" role="presentation">
@@ -690,7 +722,7 @@ function AnswerModal({
         {hasClaimTimer ? (
           <div className="doubleBoardModalTimer" aria-live="polite">
             <span>Time left</span>
-            <strong>{claimSecondsLeft}s</strong>
+            <strong>{secondsLeft}s</strong>
           </div>
         ) : null}
         <p>
@@ -706,16 +738,10 @@ function AnswerModal({
                 className="btn"
                 type="button"
                 disabled={busy}
-                onClick={() =>
-                  onSubmit(
-                    isMultiplierQuestion ? (Number(choice) / 100).toFixed(2) : String(choice)
-                  )
-                }
+                onClick={() => onSubmit(formatChoiceValue(question, choice))}
               >
                 <MathText
-                  node={buildAnswerNode(
-                    isMultiplierQuestion ? (Number(choice) / 100).toFixed(2) : String(choice)
-                  )}
+                  node={buildAnswerNode(formatChoiceValue(question, choice))}
                   className="mathChoiceContent"
                 />
               </button>
@@ -820,6 +846,7 @@ export default function DoubleBoardClient({
   const [studentSettingsEnabled, setStudentSettingsEnabled] = useState(false);
   const [voteOverlayOpen, setVoteOverlayOpen] = useState(false);
   const [podiumOpen, setPodiumOpen] = useState(false);
+  const [dismissedTeacherQuestionId, setDismissedTeacherQuestionId] = useState(null);
   const [voteSettings, setVoteSettings] = useState({
     numberMode: "single_digit",
     answerMode: "typed",
@@ -1083,11 +1110,12 @@ export default function DoubleBoardClient({
   useEffect(() => {
     const now = Date.now();
     const hasCountdown = secondsRemaining(session?.startCountdownEndsAt, now) > 0;
+    const hasTurnTimer = secondsRemaining(session?.turnPhaseEndsAt, now) > 0;
     const hasClaims = [boards.A, boards.B]
       .flatMap((board) => boardQuestions(board).flat())
       .some((question) => question?.claim && secondsRemaining(question.claim.expiresAt, now) > 0);
 
-    if (!hasCountdown && !hasClaims) return undefined;
+    if (!hasCountdown && !hasClaims && !hasTurnTimer) return undefined;
 
     setClockNow(now);
     const interval = window.setInterval(() => {
@@ -1095,12 +1123,13 @@ export default function DoubleBoardClient({
     }, 250);
 
     return () => window.clearInterval(interval);
-  }, [boards.A, boards.B, session?.startCountdownEndsAt]);
+  }, [boards.A, boards.B, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
 
   const countdownValue = secondsRemaining(session?.startCountdownEndsAt, clockNow);
   const countdownActive = countdownValue > 0;
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
+  const turnPhaseSecondsLeft = secondsRemaining(session?.turnPhaseEndsAt, clockNow);
   const canAnswer = Boolean(
     session?.status === "live" &&
       !countdownActive &&
@@ -1119,27 +1148,97 @@ export default function DoubleBoardClient({
       !freshQuestion ||
       freshQuestion.solved ||
       !canAnswer ||
+      ((session?.playMode || playMode) === "one_at_a_time" &&
+        session?.activeQuestionId !== freshQuestion.id) ||
       ((session?.playMode || playMode) === "free_for_all" &&
         (!freshQuestion.claim || freshQuestion.claim.userId !== userId || claimSecondsLeft <= 0))
     ) {
       setSelectedQuestion(null);
       setAnswerValue("");
     }
-  }, [boards.A, boards.B, canAnswer, clockNow, playMode, selectedQuestion, session?.playMode, userId]);
+  }, [
+    boards.A,
+    boards.B,
+    canAnswer,
+    clockNow,
+    playMode,
+    selectedQuestion,
+    session?.activeQuestionId,
+    session?.playMode,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !session?.activeQuestionId ||
+      session?.playMode !== "one_at_a_time" ||
+      !session?.isViewerTurn ||
+      !canAnswer
+    ) {
+      return;
+    }
+
+    const activeQuestion = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
+      .filter(Boolean)
+      .find((question) => question.id === session.activeQuestionId);
+
+    if (activeQuestion && selectedQuestion?.id !== activeQuestion.id) {
+      setSelectedQuestion(activeQuestion);
+      setAnswerValue("");
+    }
+  }, [
+    boards.A,
+    boards.B,
+    canAnswer,
+    selectedQuestion?.id,
+    session?.activeQuestionId,
+    session?.isViewerTurn,
+    session?.playMode,
+  ]);
   const activeSelectedQuestion = selectedQuestion
     ? [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
         .filter(Boolean)
         .find((question) => question.id === selectedQuestion.id) || selectedQuestion
     : null;
-  const selectedQuestionClaimSecondsLeft = secondsRemaining(
-    activeSelectedQuestion?.claim?.expiresAt,
-    clockNow
-  );
+  const selectedQuestionClaimSecondsLeft =
+    session?.playMode === "one_at_a_time"
+      ? turnPhaseSecondsLeft
+      : secondsRemaining(activeSelectedQuestion?.claim?.expiresAt, clockNow);
   const selectedHistoryItems =
     session?.answerHistoryByUser?.[
       canHost ? selectedHistoryUserId : userId
     ] || [];
   const turnOrderItems = session?.turnOrder || [];
+  const allQuestions = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()].filter(Boolean);
+  const activeSessionQuestion = session?.activeQuestionId
+    ? allQuestions.find((question) => question.id === session.activeQuestionId) || null
+    : null;
+  const teacherPopupOpen = Boolean(
+    canHost &&
+      session?.status === "live" &&
+      session?.playMode === "one_at_a_time" &&
+      activeSessionQuestion &&
+      dismissedTeacherQuestionId !== activeSessionQuestion.id
+  );
+  const turnStatusLabel =
+    session?.status === "ended"
+      ? `Game Ended - ${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+      : session?.status === "live"
+        ? session?.playMode === "one_at_a_time" && session?.activeTurnDisplayName
+          ? `${session.activeTurnDisplayName}'s Turn - ${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+          : `Live Game - ${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
+        : "Waiting for players...";
+
+  useEffect(() => {
+    if (!session?.activeQuestionId) {
+      setDismissedTeacherQuestionId(null);
+      return;
+    }
+
+    if (dismissedTeacherQuestionId && dismissedTeacherQuestionId !== session.activeQuestionId) {
+      setDismissedTeacherQuestionId(null);
+    }
+  }, [dismissedTeacherQuestionId, session?.activeQuestionId]);
 
   function handleCourseChange(nextCourseId) {
     setCourseId(nextCourseId);
@@ -1153,7 +1252,10 @@ export default function DoubleBoardClient({
   async function handleSelect(question) {
     if (!canAnswer || !question || question.solved) return;
 
-    if ((session?.playMode || playMode) === "free_for_all") {
+    if (
+      (session?.playMode || playMode) === "free_for_all" ||
+      (session?.playMode || playMode) === "one_at_a_time"
+    ) {
       const payload = await postAction("claim_question", {
         questionId: question.id,
       });
@@ -1281,11 +1383,16 @@ export default function DoubleBoardClient({
 
           {flashMessage ? <div className="doubleBoardFlash">{flashMessage}</div> : null}
 
+          <div className={`doubleBoardStatusRow tone-${liveTone}`}>
+            <strong>{turnStatusLabel}</strong>
+          </div>
+
           <div className="doubleBoardArena">
             <BoardPanel
               boardKey="A"
               board={boards.A}
               selectedQuestionId={selectedQuestion?.id}
+              activeQuestionId={session?.activeQuestionId}
               canAnswer={canAnswer}
               canManage={Boolean(session?.canManage)}
               sessionStatus={session?.status}
@@ -1296,23 +1403,6 @@ export default function DoubleBoardClient({
             />
 
             <section className={`card doubleBoardCenterCard tone-${liveTone}`}>
-              <div className="doubleBoardStatusBanner">
-                <strong>
-                  {session?.status === "live"
-                    ? session?.playMode === "one_at_a_time" && session?.activeTurnDisplayName
-                      ? `${session.activeTurnDisplayName}'s Turn`
-                      : "Live Game"
-                    : session?.status === "ended"
-                      ? "Game Ended"
-                      : "Waiting"}
-                </strong>
-                <span>
-                  {session
-                    ? `${session.totalSolvedCount} solved · ${session.totalRemainingCount} left`
-                    : "No active session"}
-                </span>
-              </div>
-
             {canHost ? (
               <div className="doubleBoardHostControls">
                 {session?.status !== "live" ? (
@@ -1396,7 +1486,7 @@ export default function DoubleBoardClient({
                             max="120"
                             value={freeForAllTimerSeconds}
                             onChange={(event) => setFreeForAllTimerSeconds(event.target.value)}
-                            disabled={busy || session?.status === "live" || playMode !== "free_for_all"}
+                            disabled={busy || session?.status === "live"}
                           />
                         </label>
                         <label className="doubleBoardCheckboxRow">
@@ -1438,6 +1528,18 @@ export default function DoubleBoardClient({
                   >
                     End Game
                   </button>
+                  {session?.playMode === "one_at_a_time" &&
+                  session?.status === "live" &&
+                  (session?.turnPhase || session?.activeQuestionId) ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => postAction("next_student")}
+                    >
+                      Next Student
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -1507,6 +1609,12 @@ export default function DoubleBoardClient({
                           : "That student keeps choosing questions until they get one wrong, then the turn moves to the next student in join order."
                         : "Students will rotate in the order they joined once at least one student is in the game."}
                     </p>
+                    {session?.turnAdvanceMode === "until_wrong" && session?.turnPhase ? (
+                      <div className="doubleBoardPhaseCard">
+                        <span>{session.turnPhase === "answer_question" ? "Answer phase" : "Select a tile"}</span>
+                        <strong>{turnPhaseSecondsLeft}s</strong>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -1572,6 +1680,7 @@ export default function DoubleBoardClient({
               boardKey="B"
               board={boards.B}
               selectedQuestionId={selectedQuestion?.id}
+              activeQuestionId={session?.activeQuestionId}
               canAnswer={canAnswer}
               canManage={Boolean(session?.canManage)}
               sessionStatus={session?.status}
@@ -1603,7 +1712,7 @@ export default function DoubleBoardClient({
         <AnswerModal
           open={Boolean(selectedQuestion)}
           question={activeSelectedQuestion}
-          claimSecondsLeft={selectedQuestionClaimSecondsLeft}
+          secondsLeft={selectedQuestionClaimSecondsLeft}
           answerMode={session?.answerMode || answerMode}
           answerValue={answerValue}
           onAnswerChange={setAnswerValue}
@@ -1622,6 +1731,14 @@ export default function DoubleBoardClient({
           open={podiumOpen && session?.status === "ended"}
           leaderboard={session?.leaderboard || []}
           onClose={() => setPodiumOpen(false)}
+        />
+        <TeacherQuestionPopup
+          open={teacherPopupOpen}
+          question={activeSessionQuestion}
+          answerMode={session?.answerMode || answerMode}
+          turnPhase={session?.turnPhase}
+          secondsLeft={turnPhaseSecondsLeft}
+          onClose={() => setDismissedTeacherQuestionId(activeSessionQuestion?.id || null)}
         />
       </div>
     </DoubleBoardErrorBoundary>

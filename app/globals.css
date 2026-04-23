@@ -3103,6 +3103,31 @@ details[open] > summary.btn,
   font-weight: 700;
 }
 
+.doubleBoardStatusRow {
+  margin-top: 1rem;
+  padding: 0.95rem 1.1rem;
+  border-radius: 20px;
+  border: 3px solid #0b3d69;
+  background: linear-gradient(180deg, #edf4ff 0%, #dbe9fb 100%);
+  color: #0b3d69;
+  text-align: center;
+  font-weight: 900;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  box-shadow: 0 14px 30px rgba(11, 61, 105, 0.12);
+}
+
+.doubleBoardStatusRow.tone-live {
+  background: linear-gradient(180deg, #effbef 0%, #d7f0dc 100%);
+  border-color: #2c7a3d;
+  color: #134b24;
+}
+
+.doubleBoardStatusRow.tone-ended {
+  background: linear-gradient(180deg, #fff3e5 0%, #ffe0b8 100%);
+  border-color: #c97a17;
+  color: #733d00;
+}
+
 .doubleBoardFullscreenBar {
   display: flex;
   justify-content: flex-end;
@@ -3331,6 +3356,31 @@ details[open] > summary.btn,
 .doubleBoardCenterCard {
   position: sticky;
   top: 1rem;
+}
+
+.doubleBoardPhaseCard {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  border: 2px solid #d4a017;
+  background: linear-gradient(180deg, #fff8d7 0%, #ffe78b 100%);
+  color: #7a4a00;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.doubleBoardPhaseCard span {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.doubleBoardPhaseCard strong {
+  font-size: 1.5rem;
+  line-height: 1;
 }
 
 .doubleBoardStatusBanner {
@@ -3748,6 +3798,24 @@ details[open] > summary.btn,
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
 }
 
+.doubleBoardTeacherPopup {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 79;
+  width: min(100%, 24rem);
+  border: 3px solid #0b3d69;
+  border-radius: 24px;
+  padding: 1.1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
+  box-shadow: 0 28px 60px rgba(11, 29, 52, 0.24);
+}
+
+.doubleBoardTeacherPopup h3 {
+  margin-top: 0;
+  padding-right: 2.5rem;
+}
+
 .doubleBoardVoteForm {
   display: grid;
   gap: 0.85rem;
@@ -3866,6 +3934,20 @@ details[open] > summary.btn,
   gap: 0.75rem;
 }
 
+.doubleBoardTeacherChoiceList {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.doubleBoardTeacherChoice {
+  border: 2px solid rgba(11, 61, 105, 0.12);
+  border-radius: 16px;
+  padding: 0.8rem 0.9rem;
+  background: rgba(255, 255, 255, 0.9);
+  font-weight: 800;
+}
+
 .doubleBoardChoiceGrid .btn {
   width: 100%;
 }
@@ -3937,6 +4019,13 @@ details[open] > summary.btn,
     min-width: 1.7rem;
     height: 1.7rem;
     font-size: 0.8rem;
+  }
+
+  .doubleBoardTeacherPopup {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
   }
 }
 

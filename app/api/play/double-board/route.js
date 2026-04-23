@@ -25,6 +25,8 @@ const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
 const START_COUNTDOWN_SECONDS = 3;
 const PLAYER_PRESENCE_WINDOW_MS = 8000;
+const TURN_PHASE_SELECT_TILE = "select_tile";
+const TURN_PHASE_ANSWER_QUESTION = "answer_question";
 
 function normalizeId(value) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -60,6 +62,12 @@ function normalizeFreeForAllTimerSeconds(value) {
 
 function normalizeStudentSettingsEnabled(value) {
   return Boolean(value);
+}
+
+function normalizeTurnPhase(value) {
+  if (value === TURN_PHASE_SELECT_TILE) return TURN_PHASE_SELECT_TILE;
+  if (value === TURN_PHASE_ANSWER_QUESTION) return TURN_PHASE_ANSWER_QUESTION;
+  return null;
 }
 
 function firstNameFromDisplayName(displayName) {
@@ -190,6 +198,9 @@ function buildSessionMetadata(metadata = {}, questions = []) {
     turnAdvanceMode: safeMetadata.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     turnIndex: Math.max(0, Number(safeMetadata.turnIndex || 0)),
     activeTurnUserId: normalizeId(safeMetadata.activeTurnUserId),
+    turnQuestionId: normalizeId(safeMetadata.turnQuestionId),
+    turnPhase: normalizeTurnPhase(safeMetadata.turnPhase),
+    turnPhaseEndsAt: parseFutureTime(safeMetadata.turnPhaseEndsAt),
     turnOrderUserIds: Array.isArray(safeMetadata.turnOrderUserIds)
       ? safeMetadata.turnOrderUserIds.map((value) => normalizeId(value)).filter(Boolean)
       : [],
@@ -295,9 +306,7 @@ function getActiveQuestionId(questions, playMode, sessionStatus) {
     return null;
   }
 
-  return (
-    sortQuestionsInBoardOrder(questions).find((question) => !question.solved)?.id || null
-  );
+  return null;
 }
 
 function serializeQuestion(
@@ -439,6 +448,39 @@ function sanitizeTurnOrderUserIds(orderedUserIds, players) {
   return sanitized;
 }
 
+function usesTimedKeepGoingTurns(session, sessionMetadata) {
+  return (
+    session?.status === "live" &&
+    sessionMetadata?.playMode === "one_at_a_time" &&
+    sessionMetadata?.turnAdvanceMode === "until_wrong"
+  );
+}
+
+function nextTurnPhaseEndIso(sessionMetadata) {
+  return new Date(
+    Date.now() + normalizeFreeForAllTimerSeconds(sessionMetadata?.freeForAllTimerSeconds) * 1000
+  ).toISOString();
+}
+
+function buildSelectPhaseMetadata(sessionMetadata, activeTurnUserId) {
+  return {
+    ...sessionMetadata,
+    activeTurnUserId: activeTurnUserId || null,
+    turnQuestionId: null,
+    turnPhase: activeTurnUserId ? TURN_PHASE_SELECT_TILE : null,
+    turnPhaseEndsAt: activeTurnUserId ? nextTurnPhaseEndIso(sessionMetadata) : null,
+  };
+}
+
+function clearTurnQuestionState(sessionMetadata) {
+  return {
+    ...sessionMetadata,
+    turnQuestionId: null,
+    turnPhase: null,
+    turnPhaseEndsAt: null,
+  };
+}
+
 async function loadSessionBundle(admin, sessionId, viewer) {
   const [{ data: session }, { data: players }, { data: questions }, { data: attempts }] = await Promise.all([
     admin.from("double_board_sessions").select("*").eq("id", sessionId).maybeSingle(),
@@ -485,7 +527,9 @@ async function loadSessionBundle(admin, sessionId, viewer) {
   );
   const playMode = sessionMetadata.playMode;
   const activeQuestionId =
-    playMode === "one_at_a_time" ? getActiveQuestionId(serializedQuestions, playMode, session.status) : null;
+    playMode === "one_at_a_time"
+      ? sessionMetadata.turnQuestionId || getActiveQuestionId(serializedQuestions, playMode, session.status)
+      : null;
   const boards = buildDoubleBoardMatrix(
     serializedQuestions.map((question) => ({
       ...question,
@@ -621,6 +665,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     startCountdownEndsAt: sessionMetadata.startCountdownEndsAt,
     activeQuestionId,
     turnIndex: sessionMetadata.turnIndex,
+    turnPhase: sessionMetadata.turnPhase,
+    turnPhaseEndsAt: sessionMetadata.turnPhaseEndsAt,
     activeTurnPlayerId: activeTurnPlayer?.id || null,
     activeTurnUserId: activeTurnPlayer?.user_id || null,
     activeTurnDisplayName: activeTurnPlayer?.display_name || null,
@@ -728,21 +774,28 @@ async function advanceTurn(admin, session, players = []) {
   }
 
   const nextMetadata = {
-    ...sessionMetadata,
+    ...clearTurnQuestionState(sessionMetadata),
     turnIndex: Number(sessionMetadata.turnIndex || 0) + 1,
     activeTurnUserId,
     turnOrderUserIds: sanitizeTurnOrderUserIds(sessionMetadata.turnOrderUserIds, players),
   };
+  const finalMetadata =
+    sessionMetadata.turnAdvanceMode === "until_wrong" && activeTurnUserId
+      ? buildSelectPhaseMetadata(nextMetadata, activeTurnUserId)
+      : nextMetadata;
 
-  const { error } = await admin
+  const { data, error } = await admin
     .from("double_board_sessions")
     .update({
-      metadata: nextMetadata,
+      metadata: finalMetadata,
       updated_at: nowIso(),
     })
-    .eq("id", session.id);
+    .eq("id", session.id)
+    .select("*")
+    .single();
 
   if (error) throw new Error(error.message);
+  return data;
 }
 
 async function replaceSessionQuestions(admin, session, numberMode) {
@@ -763,6 +816,89 @@ async function replaceSessionQuestions(admin, session, numberMode) {
   );
 
   if (insertError) throw new Error(insertError.message);
+}
+
+async function startCurrentTurnSelection(admin, session) {
+  const sessionMetadata = buildSessionMetadata(session?.metadata);
+  const activeTurnUserId = sessionMetadata.activeTurnUserId || null;
+  const nextMetadata = buildSelectPhaseMetadata(sessionMetadata, activeTurnUserId);
+  const { data, error } = await admin
+    .from("double_board_sessions")
+    .update({
+      metadata: nextMetadata,
+      updated_at: nowIso(),
+    })
+    .eq("id", session.id)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function reconcileOneAtATimeTimerState(admin, session) {
+  let currentSession = session;
+
+  for (let attempts = 0; attempts < 3; attempts += 1) {
+    const sessionMetadata = buildSessionMetadata(currentSession?.metadata);
+
+    if (!usesTimedKeepGoingTurns(currentSession, sessionMetadata)) {
+      return currentSession;
+    }
+
+    if (
+      sessionMetadata.startCountdownEndsAt &&
+      Date.parse(sessionMetadata.startCountdownEndsAt) > Date.now()
+    ) {
+      return currentSession;
+    }
+
+    const { data: sessionPlayers } = await admin
+      .from("double_board_players")
+      .select("*")
+      .eq("session_id", currentSession.id);
+    const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
+
+    if (!activeTurnPlayer?.user_id) {
+      return currentSession;
+    }
+
+    if (!sessionMetadata.activeTurnUserId || sessionMetadata.activeTurnUserId !== activeTurnPlayer.user_id) {
+      const nextMetadata = buildSelectPhaseMetadata(
+        {
+          ...sessionMetadata,
+          activeTurnUserId: activeTurnPlayer.user_id,
+        },
+        activeTurnPlayer.user_id
+      );
+      const { data, error } = await admin
+        .from("double_board_sessions")
+        .update({
+          metadata: nextMetadata,
+          updated_at: nowIso(),
+        })
+        .eq("id", currentSession.id)
+        .select("*")
+        .single();
+
+      if (error) throw new Error(error.message);
+      currentSession = data;
+      continue;
+    }
+
+    if (!sessionMetadata.turnPhase || !sessionMetadata.turnPhaseEndsAt) {
+      currentSession = await startCurrentTurnSelection(admin, currentSession);
+      continue;
+    }
+
+    if (Date.parse(sessionMetadata.turnPhaseEndsAt) > Date.now()) {
+      return currentSession;
+    }
+
+    currentSession = await advanceTurn(admin, currentSession, sessionPlayers || []);
+  }
+
+  return currentSession;
 }
 
 async function syncSolvedCount(admin, sessionId, options = {}) {
@@ -920,6 +1056,9 @@ async function createFreshSession(
         startCountdownEndsAt: null,
         activeClaims: {},
         freeForAllLockouts: {},
+        turnQuestionId: null,
+        turnPhase: null,
+        turnPhaseEndsAt: null,
       },
       updated_at: nowIso(),
     })
@@ -1034,7 +1173,8 @@ export async function GET(request) {
   }
 
   await touchPlayerPresence(admin, session.id, user.id);
-  const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+  const reconciledSession = await reconcileOneAtATimeTimerState(admin, session);
+  const bundle = await loadSessionBundle(admin, reconciledSession.id, { ...viewer, user });
   return NextResponse.json({ session: bundle });
 }
 
@@ -1153,7 +1293,8 @@ export async function POST(request) {
     }
 
     await touchPlayerPresence(admin, session.id, user.id);
-    const canManage = viewerCanManageSession(session, viewer.courses, user, viewer.accountType);
+    let currentSession = await reconcileOneAtATimeTimerState(admin, session);
+    const canManage = viewerCanManageSession(currentSession, viewer.courses, user, viewer.accountType);
 
     if (action === "start") {
       if (!canManage) {
@@ -1163,14 +1304,17 @@ export async function POST(request) {
       const { data: sessionPlayers } = await admin
         .from("double_board_players")
         .select("*")
-        .eq("session_id", session.id);
-      const startMetadata = buildSessionMetadata(session.metadata);
+        .eq("session_id", currentSession.id);
+      const startMetadata = buildSessionMetadata(currentSession.metadata);
       const nextMetadata = {
         ...startMetadata,
         activeTurnUserId:
           startMetadata.activeTurnUserId ||
-          getActiveTurnPlayer(sessionPlayers || [], session)?.user_id ||
+          getActiveTurnPlayer(sessionPlayers || [], currentSession)?.user_id ||
           null,
+        ...(startMetadata.turnAdvanceMode === "until_wrong"
+          ? buildSelectPhaseMetadata(startMetadata, startMetadata.activeTurnUserId || getActiveTurnPlayer(sessionPlayers || [], currentSession)?.user_id || null)
+          : clearTurnQuestionState(startMetadata)),
         startCountdownEndsAt: new Date(
           Date.now() + START_COUNTDOWN_SECONDS * 1000
         ).toISOString(),
@@ -1180,16 +1324,16 @@ export async function POST(request) {
         .from("double_board_sessions")
         .update({
           status: "live",
-          started_at: session.started_at || nowIso(),
+          started_at: currentSession.started_at || nowIso(),
           metadata: nextMetadata,
           updated_at: nowIso(),
         })
-        .eq("id", session.id);
+        .eq("id", currentSession.id);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      await ensurePlayer(admin, session.id, user, displayName, "teacher");
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      await ensurePlayer(admin, currentSession.id, user, displayName, "teacher");
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
 
@@ -1198,8 +1342,8 @@ export async function POST(request) {
         return NextResponse.json({ error: "Only the host can end this game." }, { status: 403 });
       }
 
-      const sessionMetadata = buildSessionMetadata(session.metadata);
-      await syncSolvedCount(admin, session.id, { forceEnded: true, endedAt: nowIso() });
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
+      await syncSolvedCount(admin, currentSession.id, { forceEnded: true, endedAt: nowIso() });
       if (sessionMetadata.studentSettingsEnabled) {
         await admin
           .from("double_board_sessions")
@@ -1212,10 +1356,10 @@ export async function POST(request) {
             },
             updated_at: nowIso(),
           })
-          .eq("id", session.id);
+          .eq("id", currentSession.id);
       }
-      await recordSessionResultsIfNeeded(admin, session.id);
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      await recordSessionResultsIfNeeded(admin, currentSession.id);
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
 
@@ -1224,7 +1368,7 @@ export async function POST(request) {
         return NextResponse.json({ error: "Only the host can reorder turns." }, { status: 403 });
       }
 
-      const sessionMetadata = buildSessionMetadata(session.metadata);
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
       if (sessionMetadata.playMode !== "one_at_a_time") {
         return NextResponse.json({ error: "Turn order only applies in one-at-a-time mode." }, { status: 400 });
       }
@@ -1232,9 +1376,9 @@ export async function POST(request) {
       const { data: sessionPlayers } = await admin
         .from("double_board_players")
         .select("*")
-        .eq("session_id", session.id);
+        .eq("session_id", currentSession.id);
       const nextTurnOrderUserIds = sanitizeTurnOrderUserIds(body.orderedUserIds, sessionPlayers || []);
-      const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], session);
+      const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
       const { error } = await admin
         .from("double_board_sessions")
         .update({
@@ -1245,12 +1389,36 @@ export async function POST(request) {
           },
           updated_at: nowIso(),
         })
-        .eq("id", session.id);
+        .eq("id", currentSession.id);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Turn order updated." } });
+    }
+
+    if (action === "next_student") {
+      if (!canManage) {
+        return NextResponse.json({ error: "Only the host can advance turns." }, { status: 403 });
+      }
+
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
+      if (currentSession.status !== "live" || sessionMetadata.playMode !== "one_at_a_time") {
+        return NextResponse.json({ error: "Next Student is only available during a live one-at-a-time game." }, { status: 400 });
+      }
+
+      const hasActiveTurnState = Boolean(sessionMetadata.turnQuestionId || sessionMetadata.turnPhase);
+      if (!hasActiveTurnState) {
+        return NextResponse.json({ error: "There is no active turn to advance." }, { status: 400 });
+      }
+
+      const { data: sessionPlayers } = await admin
+        .from("double_board_players")
+        .select("*")
+        .eq("session_id", currentSession.id);
+      await advanceTurn(admin, currentSession, sessionPlayers || []);
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      return NextResponse.json({ session: bundle, result: { message: "Moved to the next student." } });
     }
 
     if (action === "submit_vote") {
@@ -1258,12 +1426,12 @@ export async function POST(request) {
         return NextResponse.json({ error: "Only students can submit setting votes." }, { status: 403 });
       }
 
-      const sessionMetadata = buildSessionMetadata(session.metadata);
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
       if (!sessionMetadata.studentSettingsEnabled) {
         return NextResponse.json({ error: "Student voting is not enabled for this game." }, { status: 400 });
       }
 
-      const currentSettings = buildSessionSettingsSnapshot(session, sessionMetadata);
+      const currentSettings = buildSessionSettingsSnapshot(currentSession, sessionMetadata);
       const nextStudentSettingVotes = {
         ...sessionMetadata.studentSettingVotes,
         [user.id]: normalizeStudentSettingVote(
@@ -1280,7 +1448,7 @@ export async function POST(request) {
         ...sessionMetadata,
         studentSettingVotes: nextStudentSettingVotes,
       };
-      const { resolvedSettings, summary } = buildResolvedStudentSettings(session, voteMetadata);
+      const { resolvedSettings, summary } = buildResolvedStudentSettings(currentSession, voteMetadata);
       const nextMetadata = {
         ...voteMetadata,
         answerMode: resolvedSettings.answerMode,
@@ -1291,8 +1459,8 @@ export async function POST(request) {
         resolvedStudentVoteSummary: summary,
       };
 
-      if (session.status === "waiting" && resolvedSettings.numberMode !== session.number_mode) {
-        await replaceSessionQuestions(admin, session, resolvedSettings.numberMode);
+      if (currentSession.status === "waiting" && resolvedSettings.numberMode !== currentSession.number_mode) {
+        await replaceSessionQuestions(admin, currentSession, resolvedSettings.numberMode);
       }
 
       const { error } = await admin
@@ -1302,40 +1470,36 @@ export async function POST(request) {
           metadata: nextMetadata,
           updated_at: nowIso(),
         })
-        .eq("id", session.id);
+        .eq("id", currentSession.id);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Vote submitted." } });
     }
 
     if (action === "join") {
-      if (session.status !== "live" && session.status !== "waiting") {
+      if (currentSession.status !== "live" && currentSession.status !== "waiting") {
         return NextResponse.json({ error: "This game is not accepting joins right now." }, { status: 400 });
       }
 
       await ensurePlayer(
         admin,
-        session.id,
+        currentSession.id,
         user,
         displayName,
         canManage ? "teacher" : "student"
       );
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
 
     if (action === "claim_question") {
-      if (session.status !== "live") {
+      if (currentSession.status !== "live") {
         return NextResponse.json({ error: "This game is not accepting answers right now." }, { status: 400 });
       }
 
-      const sessionMetadata = buildSessionMetadata(session.metadata);
-      if (sessionMetadata.playMode !== "free_for_all") {
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
-        return NextResponse.json({ session: bundle, result: { claimed: true } });
-      }
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
 
       if (
         sessionMetadata.startCountdownEndsAt &&
@@ -1347,7 +1511,7 @@ export async function POST(request) {
       const questionId = normalizeId(body.questionId);
       const player = await ensurePlayer(
         admin,
-        session.id,
+        currentSession.id,
         user,
         displayName,
         canManage ? "teacher" : "student"
@@ -1356,7 +1520,7 @@ export async function POST(request) {
         .from("double_board_questions")
         .select("*")
         .eq("id", questionId)
-        .eq("session_id", session.id)
+        .eq("session_id", currentSession.id)
         .maybeSingle();
 
       if (!question) {
@@ -1364,7 +1528,7 @@ export async function POST(request) {
       }
 
       if (question.solved) {
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1375,13 +1539,92 @@ export async function POST(request) {
       }
 
       const activeClaims = {
-        ...buildSessionMetadata(session.metadata).activeClaims,
+        ...sessionMetadata.activeClaims,
       };
-      const freeForAllLockouts = buildSessionMetadata(session.metadata).freeForAllLockouts;
+      const freeForAllLockouts = sessionMetadata.freeForAllLockouts;
       const existingClaim = activeClaims[question.id];
 
+      if (sessionMetadata.playMode === "one_at_a_time") {
+        const { data: sessionPlayers } = await admin
+          .from("double_board_players")
+          .select("*")
+          .eq("session_id", currentSession.id);
+        const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
+
+        if (activeTurnPlayer?.user_id && activeTurnPlayer.user_id !== user.id) {
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+          return NextResponse.json({
+            session: bundle,
+            result: {
+              claimed: false,
+              message: `It is ${activeTurnPlayer.display_name}'s turn.`,
+            },
+          });
+        }
+
+        if (sessionMetadata.turnQuestionId && sessionMetadata.turnQuestionId !== question.id) {
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+          return NextResponse.json({
+            session: bundle,
+            result: {
+              claimed: false,
+              message: "That turn already has an active question.",
+            },
+          });
+        }
+
+        if (
+          sessionMetadata.turnAdvanceMode === "until_wrong" &&
+          sessionMetadata.turnPhase !== TURN_PHASE_SELECT_TILE
+        ) {
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+          return NextResponse.json({
+            session: bundle,
+            result: {
+              claimed: false,
+              message: "Finish the current question before choosing another tile.",
+            },
+          });
+        }
+
+        const nextMetadata =
+          sessionMetadata.turnAdvanceMode === "until_wrong"
+            ? {
+                ...sessionMetadata,
+                turnQuestionId: question.id,
+                turnPhase: TURN_PHASE_ANSWER_QUESTION,
+                turnPhaseEndsAt: nextTurnPhaseEndIso(sessionMetadata),
+              }
+            : {
+                ...clearTurnQuestionState(sessionMetadata),
+                activeTurnUserId: sessionMetadata.activeTurnUserId,
+                turnQuestionId: question.id,
+              };
+
+        const { error } = await admin
+          .from("double_board_sessions")
+          .update({
+            metadata: nextMetadata,
+            updated_at: nowIso(),
+          })
+          .eq("id", currentSession.id);
+
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+        return NextResponse.json({
+          session: bundle,
+          result: {
+            claimed: true,
+            playerId: player.id,
+          },
+        });
+      }
+
       if (freeForAllLockouts?.[question.id]?.includes(user.id)) {
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1392,7 +1635,7 @@ export async function POST(request) {
       }
 
       if (existingClaim?.userId === user.id) {
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1403,7 +1646,7 @@ export async function POST(request) {
       }
 
       if (existingClaim?.userId && existingClaim.userId !== user.id) {
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1432,13 +1675,13 @@ export async function POST(request) {
           },
           updated_at: nowIso(),
         })
-        .eq("id", session.id);
+        .eq("id", currentSession.id);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({
         session: bundle,
         result: {
@@ -1449,25 +1692,25 @@ export async function POST(request) {
     }
 
     if (action === "answer") {
-      if (session.status !== "live") {
+      if (currentSession.status !== "live") {
         return NextResponse.json({ error: "This game is not accepting answers right now." }, { status: 400 });
       }
 
       const questionId = normalizeId(body.questionId);
       const player = await ensurePlayer(
         admin,
-        session.id,
+        currentSession.id,
         user,
         displayName,
         canManage ? "teacher" : "student"
       );
-      const sessionMetadata = buildSessionMetadata(session.metadata);
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
       const playMode = sessionMetadata.playMode;
       const { data: question } = await admin
         .from("double_board_questions")
         .select("*")
         .eq("id", questionId)
-        .eq("session_id", session.id)
+        .eq("session_id", currentSession.id)
         .maybeSingle();
 
       if (!question) {
@@ -1491,8 +1734,8 @@ export async function POST(request) {
       }
 
       if (question.solved) {
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
-        const solverName = await resolveSolverDisplayName(admin, session.id, question.solved_by_player_id);
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+        const solverName = await resolveSolverDisplayName(admin, currentSession.id, question.solved_by_player_id);
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1510,12 +1753,12 @@ export async function POST(request) {
         const { data: sessionPlayers } = await admin
           .from("double_board_players")
           .select("*")
-          .eq("session_id", session.id);
+          .eq("session_id", currentSession.id);
 
-        const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], session);
+        const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
 
         if (activeTurnPlayer?.user_id && activeTurnPlayer.user_id !== user.id) {
-          const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
           return NextResponse.json({
             session: bundle,
             result: {
@@ -1525,14 +1768,41 @@ export async function POST(request) {
             },
           });
         }
+
+        if (sessionMetadata.turnQuestionId !== question.id) {
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+          return NextResponse.json({
+            session: bundle,
+            result: {
+              correct: false,
+              stale: true,
+              message: "Answer the selected question before moving on.",
+            },
+          });
+        }
+
+        if (
+          sessionMetadata.turnAdvanceMode === "until_wrong" &&
+          sessionMetadata.turnPhase !== TURN_PHASE_ANSWER_QUESTION
+        ) {
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+          return NextResponse.json({
+            session: bundle,
+            result: {
+              correct: false,
+              stale: true,
+              message: "Choose a tile before answering.",
+            },
+          });
+        }
       }
 
       if (playMode === "free_for_all") {
-        const questionScopedMetadata = buildSessionMetadata(session.metadata);
+        const questionScopedMetadata = buildSessionMetadata(currentSession.metadata);
         const activeClaim = questionScopedMetadata.activeClaims[question.id];
 
         if (!activeClaim || activeClaim.userId !== user.id) {
-          const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
           return NextResponse.json({
             session: bundle,
             result: {
@@ -1583,11 +1853,11 @@ export async function POST(request) {
           .maybeSingle();
 
         if (!solvedQuestion || solveError) {
-          const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+          const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
           const latestQuestion = solvedQuestion || question;
           const solverName = await resolveSolverDisplayName(
             admin,
-            session.id,
+            currentSession.id,
             latestQuestion?.solved_by_player_id
           );
           return NextResponse.json({
@@ -1604,7 +1874,7 @@ export async function POST(request) {
         }
 
         const { error: attemptError } = await admin.from("double_board_attempts").insert({
-          session_id: session.id,
+          session_id: currentSession.id,
           question_id: question.id,
           player_id: user.id,
           submitted_answer: submittedAnswer,
@@ -1619,27 +1889,38 @@ export async function POST(request) {
           const { data: sessionPlayers } = await admin
             .from("double_board_players")
             .select("*")
-            .eq("session_id", session.id);
-          await advanceTurn(admin, session, sessionPlayers || []);
+            .eq("session_id", currentSession.id);
+          currentSession = await advanceTurn(admin, currentSession, sessionPlayers || []);
         }
 
-        await admin
-          .from("double_board_sessions")
-          .update({
-            metadata: {
-              ...sessionMetadata,
-              activeClaims: nextClaims,
-              freeForAllLockouts: currentLockouts,
-            },
-            updated_at: nowIso(),
-          })
-          .eq("id", session.id);
+        let nextSessionMetadata = {
+          ...sessionMetadata,
+          activeClaims: nextClaims,
+          freeForAllLockouts: currentLockouts,
+        };
 
-        const syncedSession = await syncSolvedCount(admin, session.id);
+        if (playMode === "one_at_a_time" && sessionMetadata.turnAdvanceMode === "until_wrong") {
+          nextSessionMetadata = buildSelectPhaseMetadata(
+            clearTurnQuestionState(nextSessionMetadata),
+            sessionMetadata.activeTurnUserId
+          );
+        }
+
+        if (!(playMode === "one_at_a_time" && sessionMetadata.turnAdvanceMode === "one_per_turn")) {
+          await admin
+            .from("double_board_sessions")
+            .update({
+              metadata: nextSessionMetadata,
+              updated_at: nowIso(),
+            })
+            .eq("id", currentSession.id);
+        }
+
+        const syncedSession = await syncSolvedCount(admin, currentSession.id);
         const pointsEarned = scoreSolvedDoubleBoardQuestion({
           previousAttemptCount: question.attempt_count,
           question,
-          solvedCount: Number(session.total_solved_count || 0) + 1,
+          solvedCount: Number(currentSession.total_solved_count || 0) + 1,
         });
 
         const { error: scoreError } = await admin
@@ -1655,10 +1936,10 @@ export async function POST(request) {
         }
 
         if (Number(syncedSession.total_solved_count || 0) >= DOUBLE_BOARD_TOTAL_QUESTIONS) {
-          await recordSessionResultsIfNeeded(admin, session.id);
+          await recordSessionResultsIfNeeded(admin, currentSession.id);
         }
 
-        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1670,7 +1951,7 @@ export async function POST(request) {
       }
 
       const { error: wrongAttemptError } = await admin.from("double_board_attempts").insert({
-        session_id: session.id,
+        session_id: currentSession.id,
         question_id: question.id,
         player_id: user.id,
         submitted_answer: submittedAnswer,
@@ -1708,8 +1989,8 @@ export async function POST(request) {
         .from("double_board_sessions")
         .update({
           metadata: {
-            ...sessionMetadata,
-            activeClaims: buildSessionMetadata(session.metadata).activeClaims,
+            ...clearTurnQuestionState(sessionMetadata),
+            activeClaims: buildSessionMetadata(currentSession.metadata).activeClaims,
             freeForAllLockouts:
               playMode === "free_for_all"
                 ? {
@@ -1720,17 +2001,17 @@ export async function POST(request) {
           },
           updated_at: nowIso(),
         })
-        .eq("id", session.id);
+        .eq("id", currentSession.id);
 
       if (playMode === "one_at_a_time") {
         const { data: sessionPlayers } = await admin
           .from("double_board_players")
           .select("*")
-          .eq("session_id", session.id);
-        await advanceTurn(admin, session, sessionPlayers || []);
+          .eq("session_id", currentSession.id);
+        await advanceTurn(admin, currentSession, sessionPlayers || []);
       }
 
-      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({
         session: bundle,
         result: {
