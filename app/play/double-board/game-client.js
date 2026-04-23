@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
 import { buildLabelNode } from "@/lib/math-display";
 import {
@@ -854,6 +854,13 @@ export default function DoubleBoardClient({
     turnAdvanceMode: "until_wrong",
     freeForAllTimerSeconds: 10,
   });
+  // Tracks whether the answer modal is open so background polls don't overwrite
+  // claim state with stale data and close the modal mid-answer.
+  const modalOpenRef = useRef(false);
+
+  useEffect(() => {
+    modalOpenRef.current = Boolean(selectedQuestion);
+  }, [selectedQuestion]);
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -880,8 +887,10 @@ export default function DoubleBoardClient({
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Double Board.");
       }
-      setSession(normalizeSessionPayload(payload.session));
-      setClockNow(Date.now());
+      if (!options.quiet || !modalOpenRef.current) {
+        setSession(normalizeSessionPayload(payload.session));
+        setClockNow(Date.now());
+      }
       if (!options.quiet) {
         setFlashMessage("");
       }
