@@ -446,6 +446,36 @@ function StudentVoteOverlay({
   );
 }
 
+function PodiumModal({ open, leaderboard, onClose }) {
+  if (!open) return null;
+
+  const [first, second, third] = leaderboard || [];
+
+  return (
+    <div className="doubleBoardVoteOverlay" role="dialog" aria-modal="true" aria-labelledby="double-board-podium-title">
+      <div className="doubleBoardVoteCard doubleBoardPodiumCard">
+        <button type="button" className="doubleBoardModalClose" onClick={onClose} aria-label="Close podium">
+          X
+        </button>
+        <p className="doubleBoardEyebrow">Game Ended</p>
+        <h2 id="double-board-podium-title">Top Finishers</h2>
+        <div className="doubleBoardPodium">
+          {[second, first, third].map((player, index) => {
+            const place = index === 0 ? 2 : index === 1 ? 1 : 3;
+            return (
+              <div key={place} className={`doubleBoardPodiumStep place-${place}`}>
+                <strong>{player?.displayName || "--"}</strong>
+                <span>{player ? `${player.score} pts` : ""}</span>
+                <div className="doubleBoardPodiumBlock">{place}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnswerHistoryPanel({ title, items }) {
   if (!items?.length) {
     return (
@@ -789,6 +819,7 @@ export default function DoubleBoardClient({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [studentSettingsEnabled, setStudentSettingsEnabled] = useState(false);
   const [voteOverlayOpen, setVoteOverlayOpen] = useState(false);
+  const [podiumOpen, setPodiumOpen] = useState(false);
   const [voteSettings, setVoteSettings] = useState({
     numberMode: "single_digit",
     answerMode: "typed",
@@ -937,6 +968,7 @@ export default function DoubleBoardClient({
   useEffect(() => {
     if (session?.status === "ended") {
       setReviewOpen(true);
+      setPodiumOpen(true);
     }
   }, [session?.status]);
 
@@ -1585,6 +1617,11 @@ export default function DoubleBoardClient({
           settings={voteSettings}
           onChange={handleVoteSettingChange}
           onSubmit={handleVoteSubmit}
+        />
+        <PodiumModal
+          open={podiumOpen && session?.status === "ended"}
+          leaderboard={session?.leaderboard || []}
+          onClose={() => setPodiumOpen(false)}
         />
       </div>
     </DoubleBoardErrorBoundary>
