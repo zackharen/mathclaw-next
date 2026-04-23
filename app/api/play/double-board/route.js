@@ -459,6 +459,17 @@ async function loadSessionBundle(admin, sessionId, viewer) {
 
   if (!session) return null;
 
+  const { data: classMembers } = session.course_id
+    ? await admin
+        .from("student_course_memberships")
+        .select("profile_id")
+        .eq("course_id", session.course_id)
+    : { data: [] };
+  const classMemberIds = (classMembers || []).map((member) => member.profile_id).filter(Boolean);
+  const { data: classProfiles } = classMemberIds.length
+    ? await admin.from("profiles").select("id, display_name").in("id", classMemberIds)
+    : { data: [] };
+
   const sessionMetadata = buildSessionMetadata(session.metadata, questions || []);
   const canManage = viewerCanManageSession(session, viewer.courses, viewer.user, viewer.accountType);
   const solvedCount = (questions || []).filter((question) => question?.solved).length;
@@ -500,6 +511,31 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     }));
   const leaderboard = visibleLeaderboard;
   const viewerPlayer = allPlayers.find((player) => player.user_id === viewer.user.id) || null;
+  const rosterPlayerMap = new Map(
+    (players || [])
+      .filter((player) => player.role === "student")
+      .map((player) => [player.user_id, player])
+  );
+  const classProfileMap = new Map((classProfiles || []).map((profile) => [profile.id, profile]));
+  const classRoster = (classMembers || [])
+    .map((member) => {
+      const player = rosterPlayerMap.get(member.profile_id);
+      return {
+        userId: member.profile_id,
+        displayName: classProfileMap.get(member.profile_id)?.display_name || "Student",
+        status: player ? (isPlayerPresent(player) ? "present" : "absent") : "never_joined",
+        joinedAt: player?.joined_at || null,
+        score: Number(player?.score || 0),
+      };
+    })
+    .sort((a, b) => {
+      if (a.joinedAt && b.joinedAt) {
+        return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
+      }
+      if (a.joinedAt) return -1;
+      if (b.joinedAt) return 1;
+      return a.displayName.localeCompare(b.displayName);
+    });
   const answerHistoryByUser = {};
 
   for (const attempt of attempts || []) {
@@ -595,6 +631,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     viewerVote,
     resolvedStudentSettings: sessionMetadata.resolvedStudentSettings,
     resolvedStudentVoteSummary: sessionMetadata.resolvedStudentVoteSummary,
+    classRoster,
     canManage,
     isJoined: Boolean(viewerPlayer),
     viewerPlayerId: viewerPlayer?.id || null,
@@ -635,11 +672,20 @@ async function fetchSessionByLocator(admin, locator, viewer) {
 }
 
 async function ensurePlayer(admin, sessionId, user, displayName, role = "student") {
+  const { data: existingPlayer } = await admin
+    .from("double_board_players")
+    .select("*")
+    .eq("session_id", sessionId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const nextJoinedAt =
+    existingPlayer && isPlayerPresent(existingPlayer) ? existingPlayer.joined_at : nowIso();
   const payload = {
     session_id: sessionId,
     user_id: user.id,
     display_name: displayName,
     role,
+    joined_at: nextJoinedAt,
     updated_at: nowIso(),
   };
 

@@ -47,6 +47,7 @@ function normalizeSessionPayload(session) {
       B: normalizeBoardRows(boards.B),
     },
     leaderboard: Array.isArray(session.leaderboard) ? session.leaderboard : [],
+    classRoster: Array.isArray(session.classRoster) ? session.classRoster : [],
     turnOrder: Array.isArray(session.turnOrder) ? session.turnOrder : [],
     reviewItems: Array.isArray(session.reviewItems) ? session.reviewItems : [],
     answerHistoryByUser:
@@ -191,6 +192,33 @@ function Leaderboard({ leaderboard, viewerId, selectedUserId, onSelect }) {
             {player.rank}. {player.displayName}
           </span>
           <strong>{player.score}</strong>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RosterPanel({ roster, selectedUserId, onSelect }) {
+  if (!roster?.length) {
+    return <p className="doubleBoardEmptyNote">No class roster is available for this room.</p>;
+  }
+
+  return (
+    <div className="doubleBoardLeaderboard">
+      {roster.map((student) => (
+        <button
+          key={student.userId}
+          type="button"
+          className={`doubleBoardLeaderboardRow roster status-${student.status} ${
+            selectedUserId === student.userId ? "selected" : ""
+          }`}
+          onClick={() => onSelect?.(student.userId)}
+        >
+          <span className="doubleBoardRosterName">
+            <i aria-hidden="true" />
+            <span>{student.displayName}</span>
+          </span>
+          <strong>{student.score}</strong>
         </button>
       ))}
     </div>
@@ -853,7 +881,7 @@ export default function DoubleBoardClient({
           if (normalizedSession?.answerHistoryByUser?.[userId]) {
             return userId;
           }
-          return normalizedSession?.leaderboard?.[0]?.userId || null;
+          return normalizedSession?.classRoster?.[0]?.userId || normalizedSession?.leaderboard?.[0]?.userId || null;
         });
       }
       if (payload.result?.message) {
@@ -1466,13 +1494,21 @@ export default function DoubleBoardClient({
                 ) : null}
 
                 <div className="doubleBoardLeaderboardWrap">
-                  <h3>{canHost ? "Live Leaderboard" : "Class Leaderboard"}</h3>
-                  <Leaderboard
-                    leaderboard={session.leaderboard}
-                    viewerId={userId}
-                    selectedUserId={canHost ? selectedHistoryUserId : userId}
-                    onSelect={setSelectedHistoryUserId}
-                  />
+                  <h3>{canHost ? "Class Roster" : "Class Leaderboard"}</h3>
+                  {canHost ? (
+                    <RosterPanel
+                      roster={session.classRoster}
+                      selectedUserId={selectedHistoryUserId}
+                      onSelect={setSelectedHistoryUserId}
+                    />
+                  ) : (
+                    <Leaderboard
+                      leaderboard={session.leaderboard}
+                      viewerId={userId}
+                      selectedUserId={userId}
+                      onSelect={setSelectedHistoryUserId}
+                    />
+                  )}
                 </div>
 
                 <details className="doubleBoardPatternHelp">
@@ -1524,7 +1560,7 @@ export default function DoubleBoardClient({
             title={
               canHost
                 ? selectedHistoryUserId
-                  ? `${session.leaderboard.find((player) => player.userId === selectedHistoryUserId)?.displayName || "Student"} Answer History`
+                  ? `${session.classRoster.find((player) => player.userId === selectedHistoryUserId)?.displayName || "Student"} Answer History`
                   : "Student Answer History"
                 : "Your Answer History"
             }

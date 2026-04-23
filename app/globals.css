@@ -3551,6 +3551,34 @@ details[open] > summary.btn,
   cursor: pointer;
 }
 
+.doubleBoardLeaderboardRow.roster.status-never_joined i,
+.doubleBoardLeaderboardRow.roster.status-present i,
+.doubleBoardLeaderboardRow.roster.status-absent i {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  display: inline-block;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+.doubleBoardLeaderboardRow.roster.status-never_joined i {
+  background: #f5c94b;
+}
+
+.doubleBoardLeaderboardRow.roster.status-present i {
+  background: #3db35f;
+}
+
+.doubleBoardLeaderboardRow.roster.status-absent i {
+  background: #d44b4b;
+}
+
+.doubleBoardRosterName {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
 .doubleBoardLeaderboardRow.you {
   background: #edf4ff;
   border-color: rgba(11, 61, 105, 0.3);
