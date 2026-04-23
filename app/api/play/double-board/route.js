@@ -93,6 +93,7 @@ function buildSessionMetadata(metadata = {}, questions = []) {
     ...safeMetadata,
     answerMode: normalizeAnswerMode(safeMetadata.answerMode),
     playMode: normalizePlayMode(safeMetadata.playMode),
+    turnAdvanceMode: safeMetadata.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     turnIndex: Math.max(0, Number(safeMetadata.turnIndex || 0)),
     freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(safeMetadata.freeForAllTimerSeconds),
     startCountdownEndsAt: parseFutureTime(safeMetadata.startCountdownEndsAt),
@@ -382,6 +383,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     answerMode: sessionMetadata.answerMode,
     multipleChoiceEnabled: sessionMetadata.answerMode === "multiple_choice",
     playMode,
+    turnAdvanceMode: sessionMetadata.turnAdvanceMode,
     freeForAllTimerSeconds: sessionMetadata.freeForAllTimerSeconds,
     startCountdownEndsAt: sessionMetadata.startCountdownEndsAt,
     activeQuestionId,
@@ -586,6 +588,7 @@ async function createFreshSession(
   answerMode,
   playMode,
   freeForAllTimerSeconds,
+  turnAdvanceMode,
   existingPlayers = []
 ) {
   if (!canManageCourse(viewer.courses, courseId, viewer.accountType)) {
@@ -615,6 +618,7 @@ async function createFreshSession(
         mockMode: !courseId,
         answerMode,
         playMode,
+        turnAdvanceMode,
         turnIndex: 0,
         freeForAllTimerSeconds,
         startCountdownEndsAt: null,
@@ -758,6 +762,7 @@ export async function POST(request) {
       const answerMode = normalizeAnswerMode(body.answerMode);
       const playMode = normalizePlayMode(body.playMode);
       const freeForAllTimerSeconds = normalizeFreeForAllTimerSeconds(body.freeForAllTimerSeconds);
+      const turnAdvanceMode = body.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong";
       let existingPlayers = [];
 
       if (courseId && !canAccessCourse(viewer.courses, courseId)) {
@@ -818,6 +823,7 @@ export async function POST(request) {
         answerMode,
         playMode,
         freeForAllTimerSeconds,
+        turnAdvanceMode,
         existingPlayers
       );
     }
@@ -1175,7 +1181,7 @@ export async function POST(request) {
           return NextResponse.json({ error: attemptError.message }, { status: 400 });
         }
 
-        if (playMode === "one_at_a_time") {
+        if (playMode === "one_at_a_time" && sessionMetadata.turnAdvanceMode === "one_per_turn") {
           await bumpTurnIndex(admin, session);
         }
 

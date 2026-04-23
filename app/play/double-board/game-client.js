@@ -54,6 +54,7 @@ function normalizeSessionPayload(session) {
         : {},
     answerMode: session.answerMode === "multiple_choice" ? "multiple_choice" : "typed",
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
+    turnAdvanceMode: session.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
     serverNowMs: Number.isFinite(Date.parse(String(session.serverNow || "")))
       ? Date.parse(String(session.serverNow || ""))
@@ -510,6 +511,7 @@ export default function DoubleBoardClient({
   const [numberMode, setNumberMode] = useState("single_digit");
   const [answerMode, setAnswerMode] = useState("typed");
   const [playMode, setPlayMode] = useState("free_for_all");
+  const [turnAdvanceMode, setTurnAdvanceMode] = useState("until_wrong");
   const [freeForAllTimerSeconds, setFreeForAllTimerSeconds] = useState(10);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -590,6 +592,7 @@ export default function DoubleBoardClient({
           numberMode,
           answerMode,
           playMode,
+          turnAdvanceMode,
           freeForAllTimerSeconds,
           sessionId: session?.id || null,
           ...extra,
@@ -611,6 +614,7 @@ export default function DoubleBoardClient({
         }
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
+        setTurnAdvanceMode(normalizedSession?.turnAdvanceMode || "until_wrong");
         setSelectedHistoryUserId((current) => {
           if (current && normalizedSession?.answerHistoryByUser?.[current]) {
             return current;
@@ -688,6 +692,12 @@ export default function DoubleBoardClient({
       setPlayMode(session.playMode);
     }
   }, [session?.playMode]);
+
+  useEffect(() => {
+    if (session?.turnAdvanceMode) {
+      setTurnAdvanceMode(session.turnAdvanceMode);
+    }
+  }, [session?.turnAdvanceMode]);
 
   useEffect(() => {
     if (!canHost || session?.status !== "live") return;
@@ -985,6 +995,20 @@ export default function DoubleBoardClient({
                             <option value="one_at_a_time">One at a time</option>
                           </select>
                         </label>
+                        {playMode === "one_at_a_time" ? (
+                          <label>
+                            Turn advances
+                            <select
+                              className="input"
+                              value={turnAdvanceMode}
+                              onChange={(event) => setTurnAdvanceMode(event.target.value)}
+                              disabled={busy || session?.status === "live"}
+                            >
+                              <option value="until_wrong">Keep going until wrong</option>
+                              <option value="one_per_turn">One question per turn</option>
+                            </select>
+                          </label>
+                        ) : null}
                         <label>
                           Question timer (seconds)
                           <input
@@ -1091,7 +1115,9 @@ export default function DoubleBoardClient({
                     <h3>{session?.activeTurnDisplayName ? `${session.activeTurnDisplayName}'s Turn` : "Waiting For A Turn"}</h3>
                     <p>
                       {session?.activeTurnDisplayName
-                        ? "That student can choose any open question, submit one answer, and then the turn moves to the next student in join order."
+                        ? session?.turnAdvanceMode === "one_per_turn"
+                          ? "That student can choose any open question, submit one answer, and then the turn moves to the next student in join order."
+                          : "That student keeps choosing questions until they get one wrong, then the turn moves to the next student in join order."
                         : "Students will rotate in the order they joined once at least one student is in the game."}
                     </p>
                   </div>
