@@ -281,6 +281,23 @@ function StudentSettingsSummary({ summary }) {
     turnAdvanceMode: "Turn advances",
     freeForAllTimerSeconds: "Question timer",
   };
+  const valueLabels = {
+    numberMode: Object.fromEntries(
+      Object.values(DOUBLE_BOARD_NUMBER_MODES).map((mode) => [mode.slug, mode.label])
+    ),
+    answerMode: {
+      typed: "Typed answer",
+      multiple_choice: "Multiple choice",
+    },
+    playMode: {
+      free_for_all: "Free for all",
+      one_at_a_time: "One at a time",
+    },
+    turnAdvanceMode: {
+      until_wrong: "Keep going until wrong",
+      one_per_turn: "One question per turn",
+    },
+  };
 
   return (
     <div className="doubleBoardWaitingCard">
@@ -291,7 +308,9 @@ function StudentSettingsSummary({ summary }) {
           const setting = summary.settings?.[key];
           if (!setting) return null;
           const winnerLabel =
-            key === "freeForAllTimerSeconds" ? `${setting.winner} seconds` : String(setting.winner || "");
+            key === "freeForAllTimerSeconds"
+              ? `${setting.winner} seconds`
+              : valueLabels[key]?.[setting.winner] || String(setting.winner || "");
 
           return (
             <div key={key} className="doubleBoardVoteSummaryRow">
