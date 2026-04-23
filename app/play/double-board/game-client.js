@@ -495,10 +495,13 @@ function BoardPanel({
                 claimSecondsLeft > 0 &&
                 question.claim?.userId &&
                 question.claim.userId !== viewerId;
+              const isLockedForViewer =
+                playMode === "free_for_all" && question.lockoutUserIds?.includes(viewerId);
               const disabled =
                 !canAnswer ||
                 question.solved ||
-                isClaimedByOther;
+                isClaimedByOther ||
+                isLockedForViewer;
               const highValue = question.attemptCount >= 2;
               const tileLabel =
                 sessionStatus === "waiting" && !canManage
@@ -525,7 +528,9 @@ function BoardPanel({
                   type="button"
                   className={`doubleBoardTile state-${question.state} ${isSelected ? "selected" : ""} ${
                     highValue ? "highValue" : ""
-                  } ${!question.solved && question.claim && claimSecondsLeft > 0 ? "engaged" : ""}`}
+                  } ${!question.solved && question.claim && claimSecondsLeft > 0 ? "engaged" : ""} ${
+                    isLockedForViewer ? "lockedOut" : ""
+                  }`}
                   onClick={() => onSelect(question)}
                   disabled={disabled}
                   title={tileTooltip(question)}

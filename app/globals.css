@@ -3216,6 +3216,13 @@ details[open] > summary.btn,
   background: rgba(255, 255, 255, 0.72);
 }
 
+.doubleBoardTile.lockedOut {
+  background: linear-gradient(180deg, #efe3ff 0%, #cfb4ff 100%);
+  border-color: #6f43b4;
+  color: #43206f;
+  box-shadow: inset 0 0 0 2px rgba(111, 67, 180, 0.35);
+}
+
 .doubleBoardTileSolvedState {
   display: flex;
   flex-direction: column;

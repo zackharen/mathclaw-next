@@ -154,6 +154,7 @@ function buildSessionMetadata(metadata = {}, questions = []) {
   const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
   const questionMap = new Map((questions || []).map((question) => [question.id, question]));
   const activeClaims = {};
+  const freeForAllLockouts = {};
 
   for (const [questionId, claim] of Object.entries(safeMetadata.activeClaims || {})) {
     const question = questionMap.get(questionId);
@@ -170,6 +171,16 @@ function buildSessionMetadata(metadata = {}, questions = []) {
       claimedAt: claim.claimedAt || nowIso(),
       expiresAt,
     };
+  }
+
+  for (const [questionId, userIds] of Object.entries(safeMetadata.freeForAllLockouts || {})) {
+    const question = questionMap.get(questionId);
+    if (questionMap.size > 0 && (!question || question.solved)) continue;
+    if (!Array.isArray(userIds)) continue;
+    const sanitizedUserIds = userIds.map((value) => normalizeId(value)).filter(Boolean);
+    if (sanitizedUserIds.length) {
+      freeForAllLockouts[questionId] = sanitizedUserIds;
+    }
   }
 
   return {
@@ -199,6 +210,7 @@ function buildSessionMetadata(metadata = {}, questions = []) {
     freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(safeMetadata.freeForAllTimerSeconds),
     startCountdownEndsAt: parseFutureTime(safeMetadata.startCountdownEndsAt),
     activeClaims,
+    freeForAllLockouts,
   };
 }
 
@@ -288,7 +300,14 @@ function getActiveQuestionId(questions, playMode, sessionStatus) {
   );
 }
 
-function serializeQuestion(row, canManage, sessionStatus, claim = null, solvedCount = 0) {
+function serializeQuestion(
+  row,
+  canManage,
+  sessionStatus,
+  claim = null,
+  solvedCount = 0,
+  lockoutUserIds = []
+) {
   const solved = Boolean(row.solved);
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
@@ -321,6 +340,7 @@ function serializeQuestion(row, canManage, sessionStatus, claim = null, solvedCo
     isHidden: !revealExpression,
     metadata,
     claim: questionClaimForPayload(claim),
+    lockoutUserIds,
     state: solved ? (everMissed ? "solved-after-miss" : "solved") : everMissed ? "missed" : "unanswered",
     displayValue: solved ? `${expressionText} = ${answerDisplay}` : everMissed ? "X" : " ",
   };
@@ -448,7 +468,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       canManage,
       session.status,
       sessionMetadata.activeClaims?.[row.id] || null,
-      solvedCount
+      solvedCount,
+      sessionMetadata.freeForAllLockouts?.[row.id] || []
     )
   );
   const playMode = sessionMetadata.playMode;
@@ -852,6 +873,7 @@ async function createFreshSession(
         freeForAllTimerSeconds,
         startCountdownEndsAt: null,
         activeClaims: {},
+        freeForAllLockouts: {},
       },
       updated_at: nowIso(),
     })
@@ -1309,7 +1331,19 @@ export async function POST(request) {
       const activeClaims = {
         ...buildSessionMetadata(session.metadata).activeClaims,
       };
+      const freeForAllLockouts = buildSessionMetadata(session.metadata).freeForAllLockouts;
       const existingClaim = activeClaims[question.id];
+
+      if (freeForAllLockouts?.[question.id]?.includes(user.id)) {
+        const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+        return NextResponse.json({
+          session: bundle,
+          result: {
+            claimed: false,
+            message: "That tile is locked for you until another student tries it.",
+          },
+        });
+      }
 
       if (existingClaim?.userId === user.id) {
         const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
@@ -1466,6 +1500,20 @@ export async function POST(request) {
         }
       }
 
+      const currentLockouts = {
+        ...sessionMetadata.freeForAllLockouts,
+      };
+      if (playMode === "free_for_all") {
+        const questionLockouts = Array.isArray(currentLockouts[question.id])
+          ? currentLockouts[question.id].filter((lockedUserId) => lockedUserId !== user.id)
+          : [];
+        if (questionLockouts.length) {
+          currentLockouts[question.id] = questionLockouts;
+        } else {
+          delete currentLockouts[question.id];
+        }
+      }
+
       const isCorrect = submittedAnswer === Number(question.correct_answer);
 
       if (isCorrect) {
@@ -1473,6 +1521,7 @@ export async function POST(request) {
           ...sessionMetadata.activeClaims,
         };
         delete nextClaims[question.id];
+        delete currentLockouts[question.id];
 
         const { data: solvedQuestion, error: solveError } = await admin
           .from("double_board_questions")
@@ -1534,6 +1583,7 @@ export async function POST(request) {
             metadata: {
               ...sessionMetadata,
               activeClaims: nextClaims,
+              freeForAllLockouts: currentLockouts,
             },
             updated_at: nowIso(),
           })
@@ -1614,6 +1664,13 @@ export async function POST(request) {
           metadata: {
             ...sessionMetadata,
             activeClaims: buildSessionMetadata(session.metadata).activeClaims,
+            freeForAllLockouts:
+              playMode === "free_for_all"
+                ? {
+                    ...currentLockouts,
+                    [question.id]: [user.id],
+                  }
+                : currentLockouts,
           },
           updated_at: nowIso(),
         })
