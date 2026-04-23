@@ -522,6 +522,7 @@ export default function DoubleBoardClient({
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
   const [clockNow, setClockNow] = useState(Date.now());
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const courseOptions = useMemo(() => {
     if (!canHost) return courses;
@@ -689,9 +690,21 @@ export default function DoubleBoardClient({
   }, [session?.playMode]);
 
   useEffect(() => {
-    if (!canHost) return;
-    setHostSetupOpen(!session || session.status !== "live");
-  }, [canHost, session]);
+    if (!canHost || session?.status !== "live") return;
+    setHostSetupOpen(false);
+  }, [canHost, session?.status]);
+
+  useEffect(() => {
+    function syncFullscreenState() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, []);
 
   useEffect(() => {
     if (session?.freeForAllTimerSeconds) {
@@ -814,61 +827,69 @@ export default function DoubleBoardClient({
   return (
     <DoubleBoardErrorBoundary>
       <div className="stack">
-        <section className="card doubleBoardShell">
+        <section className={`card doubleBoardShell ${isFullscreen ? "isFullscreen" : ""}`}>
           <StartCountdownOverlay countdownValue={countdownActive ? countdownValue : 0} />
-          <div className="doubleBoardTopRow">
-          <div>
-            <p className="doubleBoardEyebrow">Live classroom review game</p>
-            <h2>Double Board Arena</h2>
-            <p className="doubleBoardIntro">
-              {session
-                ? `${currentCourseLabel} · ${session.status === "waiting"
-                    ? "Boards generated and waiting for start."
-                    : session.status === "live"
-                      ? "Game is live."
-                      : "Game is finished."
-                  }`
-                : `${currentCourseLabel} · No active game right now.`}
-            </p>
-            <p className="doubleBoardIntro">
-              Choose between the original integer-operation board and the new percent-change multiplier board.
-            </p>
-          </div>
-          <div className="ctaRow">
-            {canHost ? (
-              <select
-                className="input"
-                value={courseId}
-                onChange={(event) => handleCourseChange(event.target.value)}
-              >
-                {courseOptions.map((course) => (
-                  <option key={course.id || "practice-room"} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <select
-                className="input"
-                value={courseId}
-                onChange={(event) => handleCourseChange(event.target.value)}
-              >
-                <option value="">Select a class</option>
-                {courseOptions.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button className="btn" type="button" onClick={handleFullscreen}>
-              Project / Fullscreen
-            </button>
-            <button className="btn" type="button" onClick={() => loadSession(courseId)}>
-              Refresh
-            </button>
-          </div>
-        </div>
+          {!isFullscreen ? (
+            <div className="doubleBoardTopRow">
+              <div>
+                <p className="doubleBoardEyebrow">Live classroom review game</p>
+                <h2>Double Board Arena</h2>
+                <p className="doubleBoardIntro">
+                  {session
+                    ? `${currentCourseLabel} · ${session.status === "waiting"
+                        ? "Boards generated and waiting for start."
+                        : session.status === "live"
+                          ? "Game is live."
+                          : "Game is finished."
+                      }`
+                    : `${currentCourseLabel} · No active game right now.`}
+                </p>
+                <p className="doubleBoardIntro">
+                  Choose between the original integer-operation board and the new percent-change multiplier board.
+                </p>
+              </div>
+              <div className="ctaRow">
+                {canHost ? (
+                  <select
+                    className="input"
+                    value={courseId}
+                    onChange={(event) => handleCourseChange(event.target.value)}
+                  >
+                    {courseOptions.map((course) => (
+                      <option key={course.id || "practice-room"} value={course.id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    className="input"
+                    value={courseId}
+                    onChange={(event) => handleCourseChange(event.target.value)}
+                  >
+                    <option value="">Select a class</option>
+                    {courseOptions.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button className="btn" type="button" onClick={handleFullscreen}>
+                  Project / Fullscreen
+                </button>
+                <button className="btn" type="button" onClick={() => loadSession(courseId)}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="doubleBoardFullscreenBar">
+              <button className="btn" type="button" onClick={handleFullscreen}>
+                Exit Fullscreen
+              </button>
+            </div>
+          )}
 
           {flashMessage ? <div className="doubleBoardFlash">{flashMessage}</div> : null}
 

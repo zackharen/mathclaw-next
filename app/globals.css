@@ -3042,6 +3042,11 @@ details[open] > summary.btn,
     linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
 }
 
+.doubleBoardShell.isFullscreen {
+  min-height: 100vh;
+  padding-top: 0.85rem;
+}
+
 .doubleBoardTopRow {
   display: flex;
   justify-content: space-between;
@@ -3070,6 +3075,12 @@ details[open] > summary.btn,
   padding: 0.85rem 1rem;
   background: #f4f9ff;
   font-weight: 700;
+}
+
+.doubleBoardFullscreenBar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.6rem;
 }
 
 .doubleBoardArena {
@@ -3584,7 +3595,7 @@ details[open] > summary.btn,
 .doubleBoardModalClose {
   position: absolute;
   top: 0.9rem;
-  left: 0.9rem;
+  right: 0.9rem;
   width: 2.35rem;
   height: 2.35rem;
   display: inline-flex;
