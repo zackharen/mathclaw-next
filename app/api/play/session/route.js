@@ -7,6 +7,33 @@ import { ensureGameCatalog, GAME_SLUGS } from "@/lib/student-games/catalog";
 
 const ALLOWED_GAMES = GAME_SLUGS;
 
+// Maximum score accepted per session for each game. Values are generous upper bounds
+// for what a legitimate single-session run can produce. Scores above the ceiling are
+// clamped rather than rejected so valid-but-surprising runs still get recorded.
+const SCORE_CEILINGS = {
+  "2048": 500_000,
+  connect4: 1,
+  integer_practice: 500,
+  money_counting: 500,
+  minesweeper: 10_000,
+  number_compare: 500,
+  telling_time: 500,
+  slope_intercept: 500,
+  sudoku: 500,
+  spiral_review: 500,
+  question_kind_review: 500,
+  double_board_review: 2_000,
+  skill_builder: 500,
+  showdown_framework: 500,
+  comet_typing: 10_000,
+};
+
+function clampScore(gameSlug, rawScore) {
+  const ceiling = SCORE_CEILINGS[gameSlug];
+  if (ceiling === undefined) return Math.max(0, rawScore);
+  return Math.max(0, Math.min(ceiling, rawScore));
+}
+
 export async function POST(request) {
   const supabase = await createClient();
   const {
@@ -21,7 +48,7 @@ export async function POST(request) {
 
   const body = await request.json();
   const gameSlug = String(body.gameSlug || "");
-  const score = Number(body.score || 0);
+  const score = clampScore(gameSlug, Number(body.score || 0));
   const result = body.result ? String(body.result) : null;
   const metadata =
     body.metadata && typeof body.metadata === "object" ? body.metadata : {};

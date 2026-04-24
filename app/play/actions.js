@@ -47,6 +47,10 @@ export async function joinClassByCodeAction(formData) {
 
   const accountType = await getAccountTypeForUser(supabase, user);
 
+  if (accountType === "teacher") {
+    redirect("/play?join_error=teachers_use_co_teacher_flow");
+  }
+
   let course = null;
 
   const { data: rpcResult, error: rpcError } = await supabase.rpc("join_course_by_code", {
