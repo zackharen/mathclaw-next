@@ -1202,7 +1202,7 @@ export default async function AdminPage({ searchParams }) {
                             <span>Set temporary password</span>
                             <input
                               className="input"
-                              type="text"
+                              type="password"
                               name="password"
                               minLength={8}
                               placeholder="Minimum 8 characters"

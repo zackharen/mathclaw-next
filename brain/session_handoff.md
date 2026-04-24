@@ -8,12 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-23 America/New_York
+2026-04-24 America/New_York
 
 ## What Was Built (Current Session)
-- Double Board now has the full 12-feature classroom update across the recent `staging` commits: turn reordering, student settings voting, Mixed Review, free-for-all lockouts, roster presence colors, sitewide student ready banner, end-of-game podium, timed one-at-a-time keep-going turns, teacher active-question popup, fixed 4-choice multiple choice, manual Next Student control, and the new full-width status row
-- The remaining unpushed `staging` work adds server-owned `turnPhase` / `turnPhaseEndsAt` / `turnQuestionId` state, synced one-at-a-time phase timers, teacher popup controls, shared multiple-choice option generation in `lib/question-engine/double-board.js`, and the new status-row / phase-card UI in Double Board
-- Repo-wide lint still has unrelated pre-existing failures, but targeted Double Board syntax and ESLint checks pass
+- Applied all 4 security audit migrations to production (with several prerequisite fixes along the way)
+- Discovered and fixed: `account_type` column missing (ran `migrations_20260326_account_types.sql`), `discoverable` column missing (ran `migrations_20260303_teacher_discovery.sql`), `course_members` table missing (created from schema.sql definition)
+- Backfilled student profiles that had been stamped 'teacher' by the column default
+- Backfilled player profiles similarly
+- RLS on `profiles` and `courses` is now live in production with a reduced safe policy set (see Known Issues for what was dropped and why)
 
 ## Current State Of The Project
 - Three account types live in production: `teacher`, `student`, `player` (see `conventions.md` → Account Types)
@@ -27,7 +29,6 @@ This file represents the **current state only**. It should stay short enough to 
 - Saved-state for Integer Practice and 2048 now lives in the `saved_game_progress` DB table; auth-metadata fallback remains for existing users until their next save
 - Local dev boots on `.env.local`; staging uses `.env.staging.local` and the `staging` branch, with a separate Supabase project; `Production` and `Preview` Vercel scopes map to the corresponding Supabase projects
 - Admin has a "Clear saved game progress" control on the User Information page; now clears from DB and legacy auth metadata
-- Temporary Integer Practice repair route (`app/api/admin/repair-integer-practice/route.js`) still exists — now safe to remove
 - Root `README.md` has been replaced with a project-specific overview pointing at `/brain/START_HERE.md`
 
 ## Active Tasks
@@ -36,14 +37,15 @@ This file represents the **current state only**. It should stay short enough to 
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. Remove `app/api/admin/repair-integer-practice/route.js` — the saved-progress migration is done; this repair route is no longer needed
+1. **Re-implement cross-user profile visibility via security definer functions** — The 3 complex profiles policies (classmates readable, co-teacher reads class members, teacher reads class members) and `courses: co-teacher read` all cause Postgres "infinite recursion detected in policy" errors because `student_course_memberships` has an existing RLS policy that queries `courses`, creating a cycle the moment `courses` has any policy touching another RLS-protected table. Fix: wrap the subquery logic in `security definer` functions (which bypass RLS internally) and reference those from the policies. This is the most important remaining security hardening item.
 2. Rotate the staging `SUPABASE_SERVICE_ROLE_KEY` — it was pasted into chat during staging bootstrap and should be considered compromised
 3. Confirm the `staging` branch preview URL resolves, then attach `staging.mathclaw.com` to it and add `https://staging.mathclaw.com/auth/callback` in the staging Supabase auth settings
-4. Visual pass on `/play/double-board` in fullscreen/projector width to confirm the new full-width status row, teacher popup, podium modal, and phase-card timing all feel strong in class use
-5. Playtest Double Board on teacher and student devices with a short `5` or `10` second timer to verify synced select/answer phases, manual next-student, student voting resolution, roster colors, free-for-all lockouts, and Mixed Review question variety under real classroom conditions
-6. Visual pass on `/play/integer-practice` to confirm the single-row number line renders well across wide and narrow screens
-7. Playtest Integer Practice progression tuning now that thresholds, weak-skill gates, and score bands are centralized
-8. Continue documenting systems that keep changing — question-engine, saved-state, and showdown framework are the next likely candidates for dedicated brain files
+4. Merge PR `claude/laughing-mayer-0b46ce` → main to ship the stale-poll modal fix
+5. Visual pass on `/play/double-board` in fullscreen/projector width to confirm the new full-width status row, teacher popup, podium modal, and phase-card timing all feel strong in class use
+6. Playtest Double Board on teacher and student devices with a short `5` or `10` second timer to verify synced select/answer phases, manual next-student, student voting resolution, roster colors, free-for-all lockouts, and Mixed Review question variety under real classroom conditions
+7. Visual pass on `/play/integer-practice` to confirm the single-row number line renders well across wide and narrow screens
+8. Playtest Integer Practice progression tuning now that thresholds, weak-skill gates, and score bands are centralized
+9. Continue documenting systems that keep changing — question-engine, saved-state, and showdown framework are the next likely candidates for dedicated brain files
 
 ## Key Files To Load Next Time
 Default startup path (keep minimal):
@@ -64,9 +66,10 @@ Load only when scope requires:
 Per-task file maps live in `file_map.md` and the feature_context files. Do not accumulate per-task file lists in this handoff — add them to `file_map.md` or the relevant feature_context file instead.
 
 ## Known Issues / Bugs
+- **RLS cross-user profile policies not live** — The following policies were dropped from production because they cause Postgres infinite recursion (via `student_course_memberships` RLS → `courses` RLS cycle): `profiles: classmates readable`, `profiles: co-teacher reads class members`, `profiles: teacher reads class members`, `courses: co-teacher read`, `courses: enrolled student read`. All existing app paths that need this access already use the admin client or security definer RPCs, so no user-facing feature is broken. The fix is to rewrite these as `security definer` functions. See Next Recommended Steps #1.
+- **`course_members` table created in production** — it exists now (created from schema.sql definition) but is empty; no co-teacher assignments have been made. All migrations from the audit session have been applied to production.
 - **Account type metadata**: legacy teacher accounts can be missing `account_type` in auth metadata. Teacher-only gates must use an explicit teacher check *and* tolerate legacy profiles via fallbacks. Never treat "non-student" as "teacher" now that `player` exists.
 - **Saved-state fallback**: auth-metadata fallback for old `saved_games.*` entries remains active in both page.js files. It can be removed once all active users have re-saved (or after a cleanup script). Not urgent.
-- **Temporary admin repair route** exists: `app/api/admin/repair-integer-practice/route.js`. Now safe to remove.
 - **Middleware convention**: still `middleware.js`; Next 16 warns about the newer `proxy` convention.
 - **Lint**: pre-existing unrelated failures in `app/admin/page.js` (`Date.now()` during render) and `app/play/comet-typing/game-client.js` (hook dependency warning, unescaped apostrophe).
 - **Vercel dashboard** can intermittently fail to render Deployments view even when the live app is healthy. Check the deployed URL directly before assuming an outage. Corrected env vars do not take effect until a fresh deployment is created — a deploy hook is a reliable path when the dashboard is flaky.

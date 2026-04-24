@@ -425,10 +425,14 @@ export async function POST(request) {
       },
     };
 
-    const { data: updated, error: updateError } = await supabase
+    // Rematch resets a finished match — the tightened RLS update policy only allows
+    // the current-turn player to update active matches, so rematch uses the admin client.
+    const rematchAdmin = createAdminClient();
+    const { data: updated, error: updateError } = await rematchAdmin
       .from("connect4_matches")
       .update(payload)
       .eq("id", match.id)
+      .eq("status", "finished")
       .select("*")
       .single();
 
