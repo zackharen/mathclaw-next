@@ -4927,3 +4927,219 @@ details[open] > summary.btn,
     bottom: -0.3rem;
   }
 }
+
+.lockerPracticeCard {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.lockerPracticeHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.lockerPromptPanel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.lockerDirectionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 1rem;
+  border-radius: 999px;
+  border: 2px solid #123b68;
+  background:
+    linear-gradient(135deg, rgba(187, 222, 251, 0.9), rgba(232, 245, 255, 0.95));
+  color: #123b68;
+  width: fit-content;
+}
+
+.lockerDirectionBadge span {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.lockerComboStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.lockerComboChip {
+  min-width: 3rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 999px;
+  border: 2px solid rgba(17, 39, 62, 0.15);
+  background: #f5f8fb;
+  text-align: center;
+  font-weight: 800;
+  color: #16324f;
+}
+
+.lockerComboChip.isActive {
+  border-color: #f4b400;
+  background: #fff8dc;
+}
+
+.lockerDialShell {
+  --locker-dial-mark-radius: clamp(6.8rem, 35vw, 9.35rem);
+  position: relative;
+  width: min(100%, 24rem);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.lockerDialFace {
+  position: absolute;
+  inset: 1rem;
+  border-radius: 50%;
+  border: 0.4rem solid #17324f;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.95) 0, rgba(255, 255, 255, 0.25) 24%, transparent 42%),
+    conic-gradient(from 180deg, #d8dee7, #f7fafc, #cbd5e1, #f7fafc, #d8dee7);
+  box-shadow:
+    inset 0 0 0 0.4rem #7a8797,
+    inset 0 0 0 1rem #ecf2f7,
+    0 1.2rem 2.6rem rgba(23, 50, 79, 0.16);
+  transition: transform 120ms ease-out;
+}
+
+.lockerDialMark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2.05rem;
+  margin-left: -1.025rem;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #17324f;
+}
+
+.lockerDialMark.isTarget {
+  color: #8a2d0a;
+  text-shadow: 0 0 0.35rem rgba(244, 180, 0, 0.85);
+}
+
+.lockerDialPointer {
+  position: absolute;
+  left: 50%;
+  top: 0.6rem;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 0.95rem solid transparent;
+  border-right: 0.95rem solid transparent;
+  border-top: 1.55rem solid #d62839;
+  z-index: 2;
+}
+
+.lockerDialCenter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 7.75rem;
+  height: 7.75rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.96) 0, rgba(255, 255, 255, 0.35) 22%, transparent 36%),
+    linear-gradient(160deg, #16324f, #0f2238);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border: 0.35rem solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0.9rem 1.8rem rgba(15, 34, 56, 0.28);
+  z-index: 1;
+}
+
+.lockerDialCenter strong {
+  font-size: 2.3rem;
+  line-height: 1;
+}
+
+.lockerDialCenterLabel {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.lockerSliderPanel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.lockerSliderLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: #17324f;
+}
+
+.lockerSlider {
+  width: 100%;
+  accent-color: #123b68;
+  min-height: 3rem;
+}
+
+.lockerHelperText {
+  margin: 0;
+  color: #425466;
+}
+
+.lockerActionRow {
+  gap: 0.85rem;
+}
+
+.lockerActionRow .btn {
+  min-height: 3rem;
+}
+
+.lockerFeedbackPanel {
+  padding: 1rem 1.1rem;
+  border-radius: 1rem;
+  background: #f5f8fb;
+  border: 1px solid rgba(18, 59, 104, 0.12);
+}
+
+.lockerFeedbackPanel p {
+  margin: 0.5rem 0 0;
+}
+
+@media (max-width: 720px) {
+  .lockerPracticeHeader {
+    flex-direction: column;
+  }
+
+  .lockerDialCenter {
+    width: 6.6rem;
+    height: 6.6rem;
+  }
+
+  .lockerDialCenter strong {
+    font-size: 2rem;
+  }
+
+  .lockerActionRow {
+    flex-direction: column;
+  }
+
+  .lockerActionRow .btn {
+    width: 100%;
+  }
+
+  .lockerSliderLabels {
+    font-size: 0.84rem;
+  }
+}

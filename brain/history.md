@@ -14,6 +14,16 @@ Each dated entry should also include a short `Attention Allocation` block when p
 
 ---
 
+## 2026-04-24
+
+- Applied the security-audit production migrations with prerequisite fixes for missing `account_type`, `discoverable`, and `course_members` schema pieces
+- Backfilled student/player profiles that had inherited the teacher default
+- Enabled production RLS for `profiles` and `courses` with a reduced safe policy set; complex cross-user visibility policies still needed security-definer follow-up
+
+### Attention Allocation
+- `Infra/Deploy` — `heavy` — production migration and RLS work
+- `Auth/Onboarding` — `medium` — profile account-type backfill
+
 ## 2026-04-23 (session 4 — security audit)
 
 - Full read-only security and quality audit (Phase 1) followed by execution of all findings (Phase 2)

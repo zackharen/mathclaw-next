@@ -18,6 +18,7 @@ const SCORE_CEILINGS = {
   minesweeper: 10_000,
   number_compare: 500,
   telling_time: 500,
+  locker_practice: 100,
   slope_intercept: 500,
   sudoku: 500,
   spiral_review: 500,
