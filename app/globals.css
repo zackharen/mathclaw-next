@@ -4927,3 +4927,604 @@ details[open] > summary.btn,
     bottom: -0.3rem;
   }
 }
+
+/* ── Lowest Number Wins ─────────────────────────────────────────────────────── */
+
+.lnwGame {
+  width: 100%;
+}
+
+.lnwHeader {
+  padding: 1rem 1.25rem;
+}
+
+.lnwHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.lnwHeaderClass {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-right: 0.6rem;
+}
+
+.lnwStatusPill {
+  display: inline-block;
+  background: var(--ink, #1a1a2e);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.2em 0.65em;
+  border-radius: 999px;
+}
+
+.lnwHeaderMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lnwMetaTag {
+  font-size: 0.82rem;
+  color: #666;
+}
+
+.lnwPhaseCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Waiting */
+.lnwWaitingContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem 0;
+  text-align: center;
+}
+
+.lnwWaitingCount {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.lnwWaitingMsg {
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.lnwBigBtn {
+  min-width: 12rem;
+  font-size: 1.05rem;
+  padding: 0.75em 2em;
+}
+
+/* Submission counter */
+.lnwSubmissionBar {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.lnwSubmissionCount {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink, #1a1a2e);
+}
+
+.lnwSubmissionSep {
+  font-size: 2rem;
+  font-weight: 400;
+  color: #aaa;
+}
+
+.lnwSubmissionTotal {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #aaa;
+}
+
+.lnwSubmissionLabel {
+  display: block;
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.25rem;
+  letter-spacing: 0.04em;
+}
+
+.lnwTeacherPickControls {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+/* Pick form */
+.lnwSubmittedState {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.lnwSubmittedMsg {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.lnwPickForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.lnwPickLabel {
+  font-size: 0.95rem;
+  color: #444;
+}
+
+.lnwPickInputRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.lnwPickInput {
+  font-size: 1.6rem;
+  font-weight: 700;
+  width: 8rem;
+  text-align: center;
+  border: 2px solid var(--ink, #1a1a2e);
+  border-radius: 0.4rem;
+  padding: 0.4em 0.5em;
+  outline: none;
+}
+
+.lnwPickInput:focus {
+  border-color: var(--accent, #4f46e5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+}
+
+/* Results */
+.lnwResults {
+  background: #fff;
+  border: 1.5px solid #e5e5e5;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lnwResultsHeading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.lnwWinnerBanner {
+  background: var(--ink, #1a1a2e);
+  color: #fff;
+  border-radius: 0.6rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.lnwWinnerLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.lnwWinnerName {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.lnwWinnerValue {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.lnwNoWinnerBanner {
+  background: #f5f5f5;
+  border: 1.5px solid #ddd;
+  border-radius: 0.6rem;
+  padding: 0.9rem 1.25rem;
+  color: #555;
+  font-weight: 600;
+}
+
+.lnwNoPicks {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.lnwPickTable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lnwPickGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.4rem;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+}
+
+.lnwPickGroupWinner {
+  background: #fef9e7;
+  border-color: #f5c842;
+  font-weight: 700;
+}
+
+.lnwPickGroupElim {
+  opacity: 0.55;
+}
+
+.lnwPickGroupValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  min-width: 3rem;
+  color: var(--ink, #1a1a2e);
+}
+
+.lnwPickGroupStar {
+  color: #e6a800;
+}
+
+.lnwPickGroupPlayers {
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.lnwPickGroupTag {
+  color: #888;
+  font-size: 0.82rem;
+}
+
+/* Reveal controls */
+.lnwRevealControls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Ended */
+.lnwEndedCard {
+  text-align: center;
+}
+
+.lnwErrorCard {
+  border-left: 4px solid var(--error, #dc2626);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Radio group */
+.lnwRadioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lnwRadioOption {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  border: 1.5px solid #ddd;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.93rem;
+  transition: border-color 0.15s;
+}
+
+.lnwRadioOption input {
+  accent-color: var(--ink, #1a1a2e);
+}
+
+.lnwRadioSelected {
+  border-color: var(--ink, #1a1a2e);
+  background: #f5f5fb;
+}
+
+.lnwRadioHint {
+  color: #888;
+  font-size: 0.82rem;
+}
+
+/* Leaderboard */
+.lnwLeaderboard {
+  background: #fff;
+  border: 1.5px solid #e5e5e5;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.lnwLbHeading {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.85rem;
+  color: #333;
+}
+
+.lnwLbSub {
+  font-weight: 400;
+  color: #888;
+  font-size: 0.88rem;
+}
+
+.lnwLbList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lnwLbRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  background: #f9f9f9;
+}
+
+.lnwLbRank {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #888;
+  min-width: 2rem;
+}
+
+.lnwLbName {
+  flex: 1;
+  font-size: 0.93rem;
+  font-weight: 600;
+}
+
+.lnwLbWins {
+  font-size: 0.88rem;
+  color: #555;
+}
+
+/* ── Projector mode ── */
+
+.lnwProjector {
+  position: fixed;
+  inset: 0;
+  background: #0d0d1a;
+  color: #fff;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+
+.lnwProjectorClose {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: none;
+  border-radius: 0.4rem;
+  padding: 0.45em 1em;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.lnwProjectorClose:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.lnwProjectorInner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1.5rem;
+  text-align: center;
+}
+
+.lnwProjectorHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.lnwProjectorTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.lnwProjectorClass {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.lnwProjectorBig {
+  font-size: 3rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.lnwProjectorSub {
+  font-size: 1.4rem;
+  opacity: 0.65;
+  margin: 0;
+}
+
+.lnwProjectorRoundLabel {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin: 0;
+}
+
+.lnwProjectorCounter {
+  font-size: 7rem;
+  font-weight: 900;
+  line-height: 1;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.lnwProjectorWinner {
+  font-size: 4rem;
+  font-weight: 900;
+  margin: 0;
+}
+
+.lnwProjectorWinValue {
+  font-size: 1.6rem;
+  opacity: 0.75;
+  margin: 0;
+}
+
+.lnwProjectorNoWinner {
+  font-size: 2.5rem;
+  font-weight: 700;
+  opacity: 0.75;
+  margin: 0;
+}
+
+.lnwProjectorPickList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  width: 100%;
+  max-width: 44rem;
+}
+
+.lnwProjectorPickRow {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  background: rgba(255,255,255,0.08);
+  font-size: 1.15rem;
+}
+
+.lnwProjectorPickRow.lnwPickWinner {
+  background: rgba(245,200,66,0.22);
+  font-weight: 800;
+}
+
+.lnwProjectorPickRow.lnwPickElim {
+  opacity: 0.4;
+}
+
+.lnwPickValue {
+  font-weight: 800;
+  min-width: 4rem;
+}
+
+.lnwPickNames {
+  flex: 1;
+  text-align: left;
+}
+
+.lnwPickTag {
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+.lnwProjectorLeaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  max-width: 36rem;
+}
+
+.lnwProjectorLbRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.45rem 1rem;
+  border-radius: 0.4rem;
+  background: rgba(255,255,255,0.08);
+  font-size: 1.1rem;
+}
+
+.lnwProjectorLbRank {
+  opacity: 0.55;
+  min-width: 2.5rem;
+  font-weight: 700;
+}
+
+.lnwProjectorLbName {
+  flex: 1;
+  font-weight: 700;
+}
+
+.lnwProjectorLbWins {
+  opacity: 0.75;
+}
+
+@media (max-width: 600px) {
+  .lnwSubmissionCount,
+  .lnwSubmissionTotal {
+    font-size: 2.25rem;
+  }
+
+  .lnwProjectorCounter {
+    font-size: 5rem;
+  }
+
+  .lnwProjectorWinner {
+    font-size: 2.75rem;
+  }
+
+  .lnwPickInputRow {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .lnwPickInput {
+    width: 100%;
+  }
+
+  .lnwRevealControls {
+    flex-direction: column;
+  }
+
+  .lnwRevealControls .btn {
+    width: 100%;
+  }
+}

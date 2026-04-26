@@ -8,14 +8,16 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-24 America/New_York
+2026-04-26 America/New_York
 
 ## What Was Built (Current Session)
-- Applied all 4 security audit migrations to production (with several prerequisite fixes along the way)
-- Discovered and fixed: `account_type` column missing (ran `migrations_20260326_account_types.sql`), `discoverable` column missing (ran `migrations_20260303_teacher_discovery.sql`), `course_members` table missing (created from schema.sql definition)
-- Backfilled student profiles that had been stamped 'teacher' by the column default
-- Backfilled player profiles similarly
-- RLS on `profiles` and `courses` is now live in production with a reduced safe policy set (see Known Issues for what was dropped and why)
+- Built **Lowest Number Wins** — a new live classroom game at `/play/lowest-number-wins` following the Double Board live-session architecture
+- Files created: `app/play/lowest-number-wins/page.js`, `app/play/lowest-number-wins/game-client.js`, `app/api/play/lowest-number-wins/route.js`, `supabase/migrations_20260426_lowest_number_wins.sql`, `brain/feature_context/lowest_number_wins.md`
+- Files modified: `lib/student-games/catalog.js` (added entry), `app/globals.css` (added LNW styles)
+- Game rules: class-scoped, teacher-launched; students pick any number > 0 (integers or positive decimals per session setting); lowest unique number wins; draw if no unique number; teacher controls Start Round / Reveal / Next Round / End Session; picks hidden until teacher reveals; full per-name breakdown shown on reveal
+- Historical data: `total_wins` per player, `game_sessions` rows on session end
+- Projector mode: teacher-toggled fullscreen; live submission counter during picking; large winner announcement on reveal
+- Build verified clean — `/play/lowest-number-wins` and `/api/play/lowest-number-wins` appear in build output with no errors
 
 ## Current State Of The Project
 - Three account types live in production: `teacher`, `student`, `player` (see `conventions.md` → Account Types)
@@ -37,15 +39,15 @@ This file represents the **current state only**. It should stay short enough to 
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. **Re-implement cross-user profile visibility via security definer functions** — The 3 complex profiles policies (classmates readable, co-teacher reads class members, teacher reads class members) and `courses: co-teacher read` all cause Postgres "infinite recursion detected in policy" errors because `student_course_memberships` has an existing RLS policy that queries `courses`, creating a cycle the moment `courses` has any policy touching another RLS-protected table. Fix: wrap the subquery logic in `security definer` functions (which bypass RLS internally) and reference those from the policies. This is the most important remaining security hardening item.
-2. Rotate the staging `SUPABASE_SERVICE_ROLE_KEY` — it was pasted into chat during staging bootstrap and should be considered compromised
-3. Confirm the `staging` branch preview URL resolves, then attach `staging.mathclaw.com` to it and add `https://staging.mathclaw.com/auth/callback` in the staging Supabase auth settings
-4. Merge PR `claude/laughing-mayer-0b46ce` → main to ship the stale-poll modal fix
-5. Visual pass on `/play/double-board` in fullscreen/projector width to confirm the new full-width status row, teacher popup, podium modal, and phase-card timing all feel strong in class use
-6. Playtest Double Board on teacher and student devices with a short `5` or `10` second timer to verify synced select/answer phases, manual next-student, student voting resolution, roster colors, free-for-all lockouts, and Mixed Review question variety under real classroom conditions
-7. Visual pass on `/play/integer-practice` to confirm the single-row number line renders well across wide and narrow screens
-8. Playtest Integer Practice progression tuning now that thresholds, weak-skill gates, and score bands are centralized
-9. Continue documenting systems that keep changing — question-engine, saved-state, and showdown framework are the next likely candidates for dedicated brain files
+1. **Run `migrations_20260426_lowest_number_wins.sql` in Supabase** — must be applied before the game works with real data. The 3 tables (`lowest_number_wins_sessions`, `lowest_number_wins_players`, `lowest_number_wins_picks`) and their RLS policies are all in this migration.
+2. **Merge Lowest Number Wins branch → main** — the work is on `claude/upbeat-wescoff-7a8bdc`; create a PR and merge to ship.
+3. **Re-implement cross-user profile visibility via security definer functions** — The 3 complex profiles policies (classmates readable, co-teacher reads class members, teacher reads class members) and `courses: co-teacher read` all cause Postgres "infinite recursion detected in policy" errors. Fix: wrap the subquery logic in `security definer` functions. This is the most important remaining security hardening item.
+4. Rotate the staging `SUPABASE_SERVICE_ROLE_KEY` — it was pasted into chat during staging bootstrap and should be considered compromised
+5. Confirm the `staging` branch preview URL resolves, then attach `staging.mathclaw.com` to it and add `https://staging.mathclaw.com/auth/callback` in the staging Supabase auth settings
+6. Merge PR `claude/laughing-mayer-0b46ce` → main to ship the stale-poll modal fix
+7. Visual pass on `/play/double-board` in fullscreen/projector width
+8. Playtest Double Board on teacher and student devices
+9. Visual pass on `/play/integer-practice` for wide/narrow number line rendering
 
 ## Key Files To Load Next Time
 Default startup path (keep minimal):
