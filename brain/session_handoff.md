@@ -16,12 +16,13 @@ This file represents the **current state only**. It should stay short enough to 
 - Re-applied only the deployable Locker Practice work: new `/play/locker-practice` route, arcade catalog/route/session integration, and Locker-only global styles
 - Kept Open Middle, staging scripts, Supabase helper rewrites, `.claude/`, `supabase/.temp/`, and the protected join-code migration out of the release branch
 - Fixed Locker Practice dial behavior so the rotating dial face matches the validated current number
+- Follow-up Locker Practice polish: dial numbers now rotate radially with the dial, the center readout says `At marker`, and right/clockwise slider movement now increases the marker number consistently through visual display and validation
 
 ## Current State Of The Project
 - Three account types live in production: `teacher`, `student`, `player` (see `conventions.md` → Account Types)
 - The global site shell now uses full-page width instead of the older narrow 1180px cap, while still keeping responsive outer padding
 - The `/play` page now collapses the top class-management block behind a `Classes` disclosure, and it re-opens automatically after join success/error feedback
-- `/play/locker-practice` is isolated on `locker-practice-safe-deploy` with only its route, catalog/arcade wiring, score ceiling, and styles included
+- `/play/locker-practice` is isolated on `locker-practice-safe-deploy` with only its route, catalog/arcade wiring, score ceiling, and styles included; right/left dial movement now matches the marker number and validation model
 - Teacher workspace and student arcade are both active, real surfaces; class creation defaults to no-curriculum; curriculum opt-in
 - Arcade supports both `student` (class required) and `player` (class optional) entry paths
 - Integer Practice is a large adaptive system with its own progression engine and Node tests
@@ -38,8 +39,8 @@ This file represents the **current state only**. It should stay short enough to 
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. Verify and commit `locker-practice-safe-deploy`, then push/promote that branch instead of the old dirty `staging` checkout
-2. Playtest `/play/locker-practice` with signed-in accounts on laptop keyboard, mouse/touchpad, and phone-width touch input; tune slider travel and Level 6 realism if needed
+1. Push/promote `locker-practice-safe-deploy` instead of the old dirty `staging` checkout
+2. Playtest `/play/locker-practice` with signed-in accounts on laptop keyboard, mouse/touchpad, and phone-width touch input; tune Level 6 realism if needed
 3. Restore `stash@{0}` on a separate WIP branch when continuing Open Middle/docs/infra work; do not pop it onto the clean Locker deploy branch
 4. **Re-implement cross-user profile visibility via security definer functions** — The 3 complex profiles policies (classmates readable, co-teacher reads class members, teacher reads class members) and `courses: co-teacher read` all cause Postgres "infinite recursion detected in policy" errors because `student_course_memberships` has an existing RLS policy that queries `courses`, creating a cycle the moment `courses` has any policy touching another RLS-protected table. Fix: wrap the subquery logic in `security definer` functions (which bypass RLS internally) and reference those from the policies.
 5. Rotate the staging `SUPABASE_SERVICE_ROLE_KEY` — it was pasted into chat during staging bootstrap and should be considered compromised

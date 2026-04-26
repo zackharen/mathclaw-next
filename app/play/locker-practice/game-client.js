@@ -181,8 +181,8 @@ function summarizeAttempt({
   const withinTolerance = dialDistance(currentNumber, step.target) <= config.tolerance;
   const expectedTicks =
     step.direction === "right"
-      ? normalizeDialNumber(stepStartNumber - step.target)
-      : normalizeDialNumber(step.target - stepStartNumber);
+      ? normalizeDialNumber(step.target - stepStartNumber)
+      : normalizeDialNumber(stepStartNumber - step.target);
 
   if (!directionOk) {
     return {
@@ -251,7 +251,7 @@ function DialFace({ currentNumber, highlightedNumber, sliderValue, showTargetHig
       <div className="lockerDialPointer" aria-hidden="true" />
       <div
         className="lockerDialFace"
-        style={{ transform: `rotate(${-sliderValue * DIAL_STEP_DEGREES}deg)` }}
+        style={{ transform: `rotate(${sliderValue * DIAL_STEP_DEGREES}deg)` }}
         aria-hidden="true"
       >
         {Array.from({ length: DIAL_SIZE }, (_, number) => {
@@ -261,7 +261,7 @@ function DialFace({ currentNumber, highlightedNumber, sliderValue, showTargetHig
             <span
               key={number}
               className={`lockerDialMark ${isHighlighted ? "isTarget" : ""}`}
-              style={{ transform: `rotate(${angle}deg) translateY(calc(-1 * var(--locker-dial-mark-radius))) rotate(${-angle}deg)` }}
+              style={{ transform: `rotate(${angle}deg) translateY(calc(-1 * var(--locker-dial-mark-radius)))` }}
             >
               {number}
             </span>
@@ -269,7 +269,7 @@ function DialFace({ currentNumber, highlightedNumber, sliderValue, showTargetHig
         })}
       </div>
       <div className="lockerDialCenter">
-        <span className="lockerDialCenterLabel">Marker</span>
+        <span className="lockerDialCenterLabel">At marker</span>
         <strong>{currentNumber}</strong>
       </div>
     </div>
@@ -439,7 +439,7 @@ export default function LockerPracticeClient({
     const delta = nextValue - previousValue;
     previousSliderValueRef.current = nextValue;
     setSliderValue(nextValue);
-    setCurrentNumber(normalizeDialNumber(stepStartNumber - nextValue));
+    setCurrentNumber(normalizeDialNumber(stepStartNumber + nextValue));
 
     if (delta === 0) {
       return;
@@ -456,7 +456,7 @@ export default function LockerPracticeClient({
     }
 
     for (let tick = previousValue + Math.sign(delta); tick !== nextValue + Math.sign(delta); tick += Math.sign(delta)) {
-      if (tick !== 0 && normalizeDialNumber(stepStartNumber - tick) === stepStartNumber) {
+      if (tick !== 0 && normalizeDialNumber(stepStartNumber + tick) === stepStartNumber) {
         stepStatsRef.current.startPasses += 1;
       }
     }
@@ -683,7 +683,7 @@ export default function LockerPracticeClient({
           <div className="pillRow">
             <span className="pill">Level {level}</span>
             <span className="pill">Step {stepIndex + 1} / {challenge.steps.length}</span>
-            <span className="pill">Number {currentNumber}</span>
+            <span className="pill">At marker {currentNumber}</span>
           </div>
         </div>
 
@@ -732,7 +732,7 @@ export default function LockerPracticeClient({
             aria-describedby="locker-slider-help locker-feedback"
           />
           <p id="locker-slider-help" className="lockerHelperText">
-            The slider always starts centered at 0 for each step. Move left to turn left, or right to turn right.
+            The slider starts centered for each step. Move it right to turn clockwise, or left to turn counterclockwise.
           </p>
         </div>
 
