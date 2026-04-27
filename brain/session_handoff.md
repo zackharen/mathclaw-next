@@ -11,27 +11,25 @@ This file represents the **current state only**. It should stay short enough to 
 2026-04-26 America/New_York
 
 ## What Was Built (Current Session)
-- Preserved the prior dirty `staging` worktree in `stash@{0}` with message `preserve dirty tree before locker practice deploy cleanup 2026-04-26`
-- Created clean branch `locker-practice-safe-deploy` from `staging`
-- Re-applied only the deployable Locker Practice work: new `/play/locker-practice` route, arcade catalog/route/session integration, and Locker-only global styles
-- Kept Open Middle, staging scripts, Supabase helper rewrites, `.claude/`, `supabase/.temp/`, and the protected join-code migration out of the release branch
-- Fixed Locker Practice dial behavior so the rotating dial face matches the validated current number
-- Follow-up Locker Practice polish: dial numbers now rotate radially with the dial, the center readout says `At marker`, and right/clockwise slider movement now increases the marker number consistently through visual display and validation
+- Built **Lowest Number Wins** — new live classroom game at `/play/lowest-number-wins`
+- Students each pick a number > 0 (natural numbers or positive decimals per session setting); lowest unique number wins; draw if no unique number exists; teacher controls all pacing
+- Projector/fullscreen mode with live submission counter and large winner announcement
+- Historical data: per-player `total_wins`, `game_sessions` rows on session end; picks hidden from other students until teacher reveals
+- Merged `locker-practice-safe-deploy` → `main` (clean, no conflicts) and pushed; Vercel deployment triggered
 
 ## Current State Of The Project
 - Three account types live in production: `teacher`, `student`, `player` (see `conventions.md` → Account Types)
 - The global site shell now uses full-page width instead of the older narrow 1180px cap, while still keeping responsive outer padding
-- The `/play` page now collapses the top class-management block behind a `Classes` disclosure, and it re-opens automatically after join success/error feedback
-- `/play/locker-practice` is isolated on `locker-practice-safe-deploy` with only its route, catalog/arcade wiring, score ceiling, and styles included; right/left dial movement now matches the marker number and validation model
+- The `/play` page now collapses the top class-management block behind a `Classes` disclosure
+- `/play/locker-practice` is live on `main`; dial movement, validation, and visual model are all consistent
+- `/play/lowest-number-wins` is live on `main` and deploying; **migration `migrations_20260426_lowest_number_wins.sql` must be run in production Supabase before the game works**
 - Teacher workspace and student arcade are both active, real surfaces; class creation defaults to no-curriculum; curriculum opt-in
 - Arcade supports both `student` (class required) and `player` (class optional) entry paths
-- Integer Practice is a large adaptive system with its own progression engine and Node tests
-- Double Board supports integer operations, percent-change multipliers, and Mixed Review, with a live classroom flow that now includes turn reordering, student-voted settings, per-student lockouts in free-for-all, roster presence colors, synced one-at-a-time phase timers, teacher next-student control, podium end-state, and the new full-width status row
-- Double Board production already has server-synced countdown/claim timers, in-modal timer display, explicit modal close, live presence-based in-room tracking, faster live polling, updated board-progress scoring, and a projector-friendly fullscreen mode with reduced top chrome
+- Integer Practice is a large adaptive system with its own progression engine, Node tests, and owner-managed global mastery tuning stored as versioned `game_sessions` metadata
+- Double Board supports integer operations, percent-change multipliers, and Mixed Review, with a live classroom flow including turn reordering, student-voted settings, per-student lockouts, roster presence colors, synced timers, teacher next-student control, podium end-state, and projector fullscreen
 - Saved-state for Integer Practice and 2048 now lives in the `saved_game_progress` DB table; auth-metadata fallback remains for existing users until their next save
 - Local dev boots on `.env.local`; staging uses `.env.staging.local` and the `staging` branch, with a separate Supabase project; `Production` and `Preview` Vercel scopes map to the corresponding Supabase projects
-- Admin has a "Clear saved game progress" control on the User Information page; now clears from DB and legacy auth metadata
-- Root `README.md` has been replaced with a project-specific overview pointing at `/brain/START_HERE.md`
+- Admin has a "Clear saved game progress" control on the User Information page
 
 ## Active Tasks
 - None in progress.
@@ -39,12 +37,13 @@ This file represents the **current state only**. It should stay short enough to 
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. Push/promote `locker-practice-safe-deploy` instead of the old dirty `staging` checkout
-2. Playtest `/play/locker-practice` with signed-in accounts on laptop keyboard, mouse/touchpad, and phone-width touch input; tune Level 6 realism if needed
-3. Restore `stash@{0}` on a separate WIP branch when continuing Open Middle/docs/infra work; do not pop it onto the clean Locker deploy branch
-4. **Re-implement cross-user profile visibility via security definer functions** — The 3 complex profiles policies (classmates readable, co-teacher reads class members, teacher reads class members) and `courses: co-teacher read` all cause Postgres "infinite recursion detected in policy" errors because `student_course_memberships` has an existing RLS policy that queries `courses`, creating a cycle the moment `courses` has any policy touching another RLS-protected table. Fix: wrap the subquery logic in `security definer` functions (which bypass RLS internally) and reference those from the policies.
-5. Rotate the staging `SUPABASE_SERVICE_ROLE_KEY` — it was pasted into chat during staging bootstrap and should be considered compromised
-6. Confirm the `staging` branch preview URL resolves, then attach `staging.mathclaw.com` to it and add `https://staging.mathclaw.com/auth/callback` in the staging Supabase auth settings
+1. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** — paste the file into the SQL editor; it's short and won't hit the paste limit. Required before teacher can test Lowest Number Wins with class tomorrow.
+2. Playtest `/play/lowest-number-wins` with real teacher + student accounts after migration is in; verify submission count, reveal, winner, no-winner draw, next round, projector mode, and game_sessions recording
+3. Playtest `/admin?view=diagnostics` as the owner and tune Integer Mastery Dashboard default values against real play data from `/play/integer-practice`
+4. Playtest `/play/locker-practice` on laptop keyboard, mouse/touchpad, and phone-width touch input; tune Level 6 realism if needed
+5. **Re-implement cross-user profile visibility via security definer functions** — The 3 complex profiles policies cause Postgres infinite recursion via `student_course_memberships` RLS → `courses` RLS cycle. Fix: wrap subquery logic in `security definer` functions. Most important remaining security hardening item.
+6. Rotate the staging `SUPABASE_SERVICE_ROLE_KEY` — pasted into chat during staging bootstrap, should be considered compromised
+7. Confirm the `staging` branch preview URL resolves, then attach `staging.mathclaw.com` and add `https://staging.mathclaw.com/auth/callback` in staging Supabase auth settings
 
 ## Key Files To Load Next Time
 Default startup path (keep minimal):
@@ -61,16 +60,6 @@ Load only when scope requires:
 - `/Users/zackarenstein/mathclaw-next/brain/history.md` — past sessions, only when tracing timelines
 - `/Users/zackarenstein/mathclaw-next/brain/features.md` — broad catalog, reference-only
 - `/Users/zackarenstein/mathclaw-next/brain/current_priorities.md` — broad roadmap, reference-only
-
-Current Locker Practice release scope:
-- `/Users/zackarenstein/mathclaw-next/app/play/locker-practice/page.js`
-- `/Users/zackarenstein/mathclaw-next/app/play/locker-practice/game-client.js`
-- `/Users/zackarenstein/mathclaw-next/app/play/page.js`
-- `/Users/zackarenstein/mathclaw-next/lib/student-games/catalog.js`
-- `/Users/zackarenstein/mathclaw-next/app/api/play/session/route.js`
-- `/Users/zackarenstein/mathclaw-next/app/globals.css`
-- `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md`
-- `/Users/zackarenstein/mathclaw-next/brain/history.md`
 
 ## Known Issues / Bugs
 - **RLS cross-user profile policies not live** — The following policies were dropped from production because they cause Postgres infinite recursion (via `student_course_memberships` RLS → `courses` RLS cycle): `profiles: classmates readable`, `profiles: co-teacher reads class members`, `profiles: teacher reads class members`, `courses: co-teacher read`, `courses: enrolled student read`. All existing app paths that need this access already use the admin client or security definer RPCs, so no user-facing feature is broken. The fix is to rewrite these as `security definer` functions. See Next Recommended Steps #1.

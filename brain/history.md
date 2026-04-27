@@ -14,6 +14,35 @@ Each dated entry should also include a short `Attention Allocation` block when p
 
 ---
 
+## 2026-04-26
+
+- Built **Lowest Number Wins** — new live classroom game at `/play/lowest-number-wins`
+- Students each pick a number > 0 (natural numbers or positive decimals per session setting); whoever picks the lowest number no one else picked wins; draw if no unique number exists
+- Multiple rounds per session; teacher controls Start Round / Reveal / Next Round / End Session; picks hidden until reveal; full per-name breakdown shown on reveal
+- Projector/fullscreen mode: live submission counter during picking, large winner announcement on reveal
+- Historical data: per-player `total_wins`, `game_sessions` rows on session end
+- Files: `app/api/play/lowest-number-wins/route.js`, `app/play/lowest-number-wins/page.js` + `game-client.js`, `supabase/migrations_20260426_lowest_number_wins.sql`, `brain/feature_context/lowest_number_wins.md`, catalog entry, CSS
+- Merged `locker-practice-safe-deploy` → `main` and pushed; Vercel deploy triggered
+- Migration `migrations_20260426_lowest_number_wins.sql` still needs to be run in production Supabase before the game works
+
+### Attention Allocation
+- `Lowest Number Wins` — `heavy` — shipped (new feature, full stack)
+- `Infra/Deploy` — `medium` — merged locker-practice-safe-deploy + LNW into main, pushed to production
+
+## 2026-04-27
+
+- Preserved the prior dirty `staging` worktree in stash, created clean `locker-practice-safe-deploy` branch
+- Re-applied only the deployable Locker Practice work: new `/play/locker-practice` route, arcade catalog/route/session integration, and Locker-only global styles
+- Fixed Locker Practice dial behavior: rotating dial face matches the validated current number; dial numbers now rotate radially with the dial; center readout says `Number under top marker`; right/clockwise slider movement increases marker number consistently; direction validation checks committed slider direction instead of first tiny movement
+- Built an owner-only Integer Mastery Dashboard in `/admin?view=diagnostics` for global Adding & Subtracting Integers level-up tuning
+- Integer Practice Adaptive Practice and Level Progression now use saved global mastery settings: minimum attempts, recent window, correct-in-window, streak, blended historical/current accuracy, retry handling, hint gate, speed gate, and close buffer
+- Added admin mastery simulator and Node coverage for custom recent-correct and first-try-only mastery rules
+
+### Attention Allocation
+- `Locker Practice` — `heavy` — shipped (clean deploy branch, dial bugfixes)
+- `Integer Practice` — `heavy` — new feature (global mastery settings, owner dashboard, admin simulator)
+- `Infra/Deploy` — `medium` — clean branch isolation, branch strategy work
+
 ## 2026-04-24
 
 - Applied the security-audit production migrations with prerequisite fixes for missing `account_type`, `discoverable`, and `course_members` schema pieces
