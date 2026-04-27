@@ -93,7 +93,7 @@ export default async function RootLayout({ children }) {
           <div className="shell">
             <header className="topbar">
               <div className="topbarBrand">
-                <Link className="brand" href={isTeacher ? "/classes" : user ? "/play" : "/"}>
+                <Link className="brand" href="/">
                   MathClaw
                 </Link>
                 {roleLabel ? <span className="roleBadge">{roleLabel}</span> : null}
