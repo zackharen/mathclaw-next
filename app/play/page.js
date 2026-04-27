@@ -6,6 +6,13 @@ import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
 
+const REVIEW_GAME_SLUGS = new Set([
+  "spiral_review",
+  "question_kind_review",
+  "double_board_review",
+  "lowest_number_wins",
+]);
+
 function gameHref(slug, courseId) {
   const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
   if (slug === "integer_practice") return `/play/integer-practice${query}`;
@@ -17,6 +24,7 @@ function gameHref(slug, courseId) {
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "double_board_review") return `/play/double-board${query}`;
+  if (slug === "lowest_number_wins") return `/play/lowest-number-wins${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
   if (slug === "locker_practice") return `/play/locker-practice${query}`;
   if (slug === "slope_intercept") return `/play/slope-intercept${query}`;
@@ -190,12 +198,7 @@ export default async function PlayPage({ searchParams }) {
     explanation: String(row.metadata?.explanation || "").trim(),
   }));
   const visibleGames = games.filter((game) => game.enabled);
-  const spiralReviewGame = visibleGames.find((game) => game.slug === "spiral_review") || null;
-  const questionKindReviewGame =
-    visibleGames.find((game) => game.slug === "question_kind_review") || null;
-  const doubleBoardReviewGame =
-    visibleGames.find((game) => game.slug === "double_board_review") || null;
-  const reviewGames = [spiralReviewGame, questionKindReviewGame, doubleBoardReviewGame].filter(Boolean);
+  const reviewGames = visibleGames.filter((game) => REVIEW_GAME_SLUGS.has(game.slug));
   const arcadeGames = visibleGames
     .filter((game) => game.category === "arcade" || game.slug === "connect4")
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -203,9 +206,7 @@ export default async function PlayPage({ searchParams }) {
     .filter(
       (game) =>
         game.category === "math_skills" &&
-        game.slug !== "spiral_review" &&
-        game.slug !== "question_kind_review" &&
-        game.slug !== "double_board_review"
+        !REVIEW_GAME_SLUGS.has(game.slug)
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 

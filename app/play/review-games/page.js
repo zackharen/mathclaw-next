@@ -5,11 +5,19 @@ import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 
+const REVIEW_GAME_SLUGS = new Set([
+  "spiral_review",
+  "question_kind_review",
+  "double_board_review",
+  "lowest_number_wins",
+]);
+
 function reviewHref(slug, courseId) {
   const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
   if (slug === "spiral_review") return `/play/spiral-review${query}`;
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "double_board_review") return `/play/double-board${query}`;
+  if (slug === "lowest_number_wins") return `/play/lowest-number-wins${query}`;
   return `/play${query}`;
 }
 
@@ -33,12 +41,7 @@ export default async function ReviewGamesPage({ searchParams }) {
   })).filter(
     (game) => game.enabled
   );
-  const reviewGames = visibleGames.filter(
-    (game) =>
-      game.slug === "spiral_review" ||
-      game.slug === "question_kind_review" ||
-      game.slug === "double_board_review"
-  );
+  const reviewGames = visibleGames.filter((game) => REVIEW_GAME_SLUGS.has(game.slug));
 
   return (
     <div className="stack">
