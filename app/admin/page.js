@@ -14,6 +14,7 @@ import DeleteClassButton from "./delete-class-button";
 import AdminToast from "./admin-toast";
 import AccountActionsToggle from "./account-actions-toggle";
 import BulkSelectionControls from "./bulk-selection-controls";
+import MasteryRangeInput from "./mastery-range-input";
 import {
   updateAccountTypeAction,
   deleteAccountAction,
@@ -864,30 +865,12 @@ export default async function AdminPage({ searchParams }) {
             <article className="card" style={{ background: "#fff" }}>
               <h3>Level-Up Rules</h3>
               <form action={updateIntegerMasterySettingsAction} className="list" style={{ marginTop: "0.85rem" }}>
-                <label>
-                  Minimum attempts before checking mastery: {integerMasterySettings.minAttempts}
-                  <input className="input" type="range" name="min_attempts" min="1" max="50" step="1" defaultValue={integerMasterySettings.minAttempts} />
-                </label>
-                <label>
-                  Recent window size: {integerMasterySettings.recentWindowSize}
-                  <input className="input" type="range" name="recent_window_size" min="1" max="50" step="1" defaultValue={integerMasterySettings.recentWindowSize} />
-                </label>
-                <label>
-                  Correct answers needed in that window: {integerMasterySettings.minCorrectInRecentWindow}
-                  <input className="input" type="range" name="min_correct_in_recent_window" min="1" max="50" step="1" defaultValue={integerMasterySettings.minCorrectInRecentWindow} />
-                </label>
-                <label>
-                  Correct streak needed: {integerMasterySettings.minCorrectStreak}
-                  <input className="input" type="range" name="min_correct_streak" min="0" max="30" step="1" defaultValue={integerMasterySettings.minCorrectStreak} />
-                </label>
-                <label>
-                  Blended accuracy required: {percentInput(integerMasterySettings.minBlendedAccuracy)}%
-                  <input className="input" type="range" name="min_blended_accuracy" min="50" max="100" step="1" defaultValue={percentInput(integerMasterySettings.minBlendedAccuracy)} />
-                </label>
-                <label>
-                  Historical weight: {percentInput(integerMasterySettings.historicalWeight)}%
-                  <input className="input" type="range" name="historical_weight" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.historicalWeight)} />
-                </label>
+                <MasteryRangeInput label="Minimum attempts before checking mastery" name="min_attempts" min="1" max="50" step="1" defaultValue={integerMasterySettings.minAttempts} />
+                <MasteryRangeInput label="Recent window size" name="recent_window_size" min="1" max="50" step="1" defaultValue={integerMasterySettings.recentWindowSize} />
+                <MasteryRangeInput label="Correct answers needed in that window" name="min_correct_in_recent_window" min="1" max="50" step="1" defaultValue={integerMasterySettings.minCorrectInRecentWindow} />
+                <MasteryRangeInput label="Correct streak needed" name="min_correct_streak" min="0" max="30" step="1" defaultValue={integerMasterySettings.minCorrectStreak} />
+                <MasteryRangeInput label="Blended accuracy required" suffix="%" name="min_blended_accuracy" min="50" max="100" step="1" defaultValue={percentInput(integerMasterySettings.minBlendedAccuracy)} />
+                <MasteryRangeInput label="Historical weight" suffix="%" name="historical_weight" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.historicalWeight)} />
                 <label className="toggleRow">
                   <input type="checkbox" name="count_retries_as_correct" defaultChecked={integerMasterySettings.countRetriesAsCorrect} />
                   Count retry-correct answers as correct for mastery
@@ -896,22 +879,13 @@ export default async function AdminPage({ searchParams }) {
                   <input type="checkbox" name="use_hint_gate" defaultChecked={integerMasterySettings.useHintGate} />
                   Use hint-rate gate
                 </label>
-                <label>
-                  Maximum hint rate: {percentInput(integerMasterySettings.maxHintRate)}%
-                  <input className="input" type="range" name="max_hint_rate" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.maxHintRate)} />
-                </label>
+                <MasteryRangeInput label="Maximum hint rate" suffix="%" name="max_hint_rate" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.maxHintRate)} />
                 <label className="toggleRow">
                   <input type="checkbox" name="use_speed_gate" defaultChecked={integerMasterySettings.useSpeedGate} />
                   Use speed gate
                 </label>
-                <label>
-                  Maximum median response time: {secondsInput(integerMasterySettings.maxMedianResponseMs)} seconds
-                  <input className="input" type="range" name="max_median_response_seconds" min="1" max="30" step="1" defaultValue={secondsInput(integerMasterySettings.maxMedianResponseMs)} />
-                </label>
-                <label>
-                  Close-state buffer: {percentInput(integerMasterySettings.closeBuffer)}%
-                  <input className="input" type="range" name="close_buffer" min="0" max="50" step="1" defaultValue={percentInput(integerMasterySettings.closeBuffer)} />
-                </label>
+                <MasteryRangeInput label="Maximum median response time" suffix=" seconds" name="max_median_response_seconds" min="1" max="30" step="1" defaultValue={secondsInput(integerMasterySettings.maxMedianResponseMs)} />
+                <MasteryRangeInput label="Close-state buffer" suffix="%" name="close_buffer" min="0" max="50" step="1" defaultValue={percentInput(integerMasterySettings.closeBuffer)} />
                 <div className="ctaRow">
                   <button className="btn primary" type="submit">Save Mastery Settings</button>
                 </div>
