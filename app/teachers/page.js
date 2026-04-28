@@ -52,6 +52,7 @@ export default async function TeachersPage({ searchParams }) {
     .select("id, display_name, school_name, discoverable")
     .neq("id", user.id)
     .eq("discoverable", true)
+    .eq("account_type", "teacher")
     .order("display_name", { ascending: true })
     .limit(30);
 
