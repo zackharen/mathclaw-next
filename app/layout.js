@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/account-type";
 import { canAccessAdminArea } from "@/lib/auth/owner";
 import AppNav from "./app-nav";
+import GameReadyBanner from "./components/GameReadyBanner";
 
 export const metadata = {
   title: "MathClaw",
@@ -65,25 +66,22 @@ export default async function RootLayout({ children }) {
     ];
   } else if (!isTeacher) {
     navItems = [
-      { href: "/play", label: "Arcade" },
       { href: "/about", label: "About" },
+      { href: "/play", label: "Arcade" },
       { href: "/onboarding/profile", label: "Profile" },
       { href: "/report-bug", label: "Report Bug" },
     ];
   } else {
     navItems = [
+      { href: "/about", label: "About" },
+      ...(canAccessAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+      { href: "/play", label: "Arcade" },
       { href: "/classes", label: "Classes" },
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/teachers", label: "Teachers" },
-      { href: "/play", label: "Arcade" },
-      { href: "/about", label: "About" },
       { href: "/onboarding/profile", label: "Profile" },
       { href: "/report-bug", label: "Report Bug" },
+      { href: "/teachers", label: "Teachers" },
     ];
-
-    if (canAccessAdmin) {
-      navItems.push({ href: "/admin", label: "Admin" });
-    }
   }
 
   return (
@@ -109,11 +107,7 @@ export default async function RootLayout({ children }) {
                 ) : null}
               </div>
             </header>
-            {gameReadyBannerHref ? (
-              <Link className="gameReadyBanner" href={gameReadyBannerHref}>
-                A Double Board game is ready - Join Now
-              </Link>
-            ) : null}
+            <GameReadyBanner href={gameReadyBannerHref} />
             <section className="content">{children}</section>
           </div>
         </main>
