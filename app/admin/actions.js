@@ -13,6 +13,12 @@ import {
   SITE_COPY_SETTINGS_GAME,
   SITE_FEATURE_SETTINGS_GAME,
 } from "@/lib/site-config";
+import {
+  DEFAULT_INTEGER_MASTERY_SETTINGS,
+  INTEGER_MASTERY_SETTINGS_GAME,
+  integerMasterySettingsFromForm,
+} from "@/lib/integer-practice/mastery-settings";
+import { ensureIntegerMasterySettingsCatalog } from "@/lib/integer-practice/mastery-settings.server";
 import { GAME_CATALOG } from "@/lib/student-games/catalog";
 import {
   ensureProfileForUser,
@@ -860,6 +866,8 @@ export async function updateSiteCopyAction(formData) {
 
   const metadata = {
     homeBanner: String(formData.get("home_banner") || "").trim(),
+    homeWelcome:
+      String(formData.get("home_welcome") || "").trim() || DEFAULT_SITE_COPY.homeWelcome,
     homeIntro: String(formData.get("home_intro") || "").trim() || DEFAULT_SITE_COPY.homeIntro,
     teacherCardCopy:
       String(formData.get("teacher_card_copy") || "").trim() || DEFAULT_SITE_COPY.teacherCardCopy,
@@ -889,4 +897,66 @@ export async function updateSiteCopyAction(formData) {
   revalidatePath("/about");
   revalidatePath("/admin");
   redirect("/admin?siteCopyUpdated=1");
+}
+
+export async function updateIntegerMasterySettingsAction(formData) {
+  const { admin, context, user } = await requireOwner();
+
+  if (!context.isOwner) {
+    redirect("/");
+  }
+
+  const settings = integerMasterySettingsFromForm(formData);
+  await ensureIntegerMasterySettingsCatalog(admin);
+
+  const { error } = await admin.from("game_sessions").insert({
+    game_slug: INTEGER_MASTERY_SETTINGS_GAME.slug,
+    player_id: user.id,
+    course_id: null,
+    score: 1,
+    result: "integer_mastery_settings",
+    metadata: {
+      settings,
+      source: "owner_integer_mastery_settings",
+    },
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/play/integer-practice");
+  redirect("/admin?integerMasteryUpdated=1&view=diagnostics");
+}
+
+export async function resetIntegerMasterySettingsAction() {
+  const { admin, context, user } = await requireOwner();
+
+  if (!context.isOwner) {
+    redirect("/");
+  }
+
+  await ensureIntegerMasterySettingsCatalog(admin);
+
+  const { error } = await admin.from("game_sessions").insert({
+    game_slug: INTEGER_MASTERY_SETTINGS_GAME.slug,
+    player_id: user.id,
+    course_id: null,
+    score: 1,
+    result: "integer_mastery_settings_reset",
+    metadata: {
+      settings: DEFAULT_INTEGER_MASTERY_SETTINGS,
+      source: "owner_integer_mastery_settings",
+      resetToDefaults: true,
+    },
+  });
+
+  if (error) {
+    redirect(`/admin?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/play/integer-practice");
+  redirect("/admin?integerMasteryReset=1&view=diagnostics");
 }

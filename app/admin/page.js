@@ -5,6 +5,9 @@ import { canAccessAdminArea, isAdminUser, isOwnerEmail, isOwnerUser } from "@/li
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import { splitDisplayName } from "@/lib/auth/account-type";
 import { describeSiteAudience, getSiteCopy, getSiteFeatureConfig } from "@/lib/site-config";
+import { getIntegerMasterySettings } from "@/lib/integer-practice/mastery-settings.server";
+import { evaluateLevelProgression } from "@/lib/integer-practice/progression";
+import { getLevelById } from "@/lib/integer-practice/levels";
 import { GAME_CATALOG } from "@/lib/student-games/catalog";
 import DeleteAccountButton from "./delete-account-button";
 import DeleteClassButton from "./delete-class-button";
@@ -28,6 +31,8 @@ import {
   updateSiteCopyAction,
   updateSiteFeatureAudienceAction,
   bulkUpdateSiteFeatureAudienceAction,
+  updateIntegerMasterySettingsAction,
+  resetIntegerMasterySettingsAction,
 } from "./actions";
 
 function formatDate(value) {
@@ -59,11 +64,13 @@ function Notice({ searchParams }) {
   const siteFeatureBulkUpdated = searchParams?.siteFeatureBulkUpdated === "1";
   const siteFeatureBulkCount = Number(searchParams?.siteFeatureBulkCount || 0);
   const siteCopyUpdated = searchParams?.siteCopyUpdated === "1";
+  const integerMasteryUpdated = searchParams?.integerMasteryUpdated === "1";
+  const integerMasteryReset = searchParams?.integerMasteryReset === "1";
   const bulkCount = Number(searchParams?.bulkCount || 0);
   const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !gameProgressCleared && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !error) {
+  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !gameProgressCleared && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !integerMasteryUpdated && !integerMasteryReset && !error) {
     return null;
   }
 
@@ -91,6 +98,8 @@ function Notice({ searchParams }) {
       {siteFeatureUpdated ? <p>Site-wide feature visibility updated.</p> : null}
       {siteFeatureBulkUpdated ? <p>Bulk site-wide feature visibility updated for {siteFeatureBulkCount || 0} feature{siteFeatureBulkCount === 1 ? "" : "s"}.</p> : null}
       {siteCopyUpdated ? <p>Site copy updated.</p> : null}
+      {integerMasteryUpdated ? <p>Integer mastery settings saved. New integer practice runs will use them.</p> : null}
+      {integerMasteryReset ? <p>Integer mastery settings reset to defaults.</p> : null}
       {bulkSkippedOwners > 0 ? <p>Skipped {bulkSkippedOwners} owner account{bulkSkippedOwners === 1 ? "" : "s"}.</p> : null}
       {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
     </div>
@@ -192,6 +201,66 @@ function formatGameLabel(slug) {
     teacher_awards: "Teacher Awards",
     student_created_questions: "Student-Created Questions",
   }[slug] || slug || "Unknown";
+}
+
+function percentInput(value) {
+  return Math.round(Number(value || 0) * 100);
+}
+
+function secondsInput(ms) {
+  return Math.round(Number(ms || 0) / 1000);
+}
+
+function makeIntegerSimulatorEntry(index, settings, correctPattern) {
+  return {
+    levelId: 20,
+    correct: Boolean(correctPattern[index]),
+    responseMs: 5000,
+    hintUsed: false,
+    attemptsUsed: settings.countRetriesAsCorrect ? 2 : 1,
+    skillTags: ["negative_minus_negative", "same_sign_subtraction_pattern", "crosses_zero", "medium_numbers"],
+  };
+}
+
+function buildIntegerMasterySimulator(settings) {
+  const level = getLevelById(20);
+  const sampleSize = Math.max(settings.minAttempts, settings.recentWindowSize);
+  const allCorrect = Array.from({ length: sampleSize }, () => true);
+  const oneShort = Array.from(
+    { length: sampleSize },
+    (_, index) => index < Math.max(0, settings.minCorrectInRecentWindow - 1)
+  );
+  const shortStreak = Array.from({ length: sampleSize }, (_, index) => {
+    const groupSize = Math.max(1, settings.minCorrectStreak);
+    return index % groupSize !== groupSize - 1;
+  });
+
+  return [
+    {
+      label: "Meets saved rule",
+      result: evaluateLevelProgression({
+        level,
+        profile: { rollingHistory: allCorrect.map((_, index) => makeIntegerSimulatorEntry(index, settings, allCorrect)) },
+        masterySettings: settings,
+      }),
+    },
+    {
+      label: "One recent correct short",
+      result: evaluateLevelProgression({
+        level,
+        profile: { rollingHistory: oneShort.map((_, index) => makeIntegerSimulatorEntry(index, settings, oneShort)) },
+        masterySettings: settings,
+      }),
+    },
+    {
+      label: "Streak short",
+      result: evaluateLevelProgression({
+        level,
+        profile: { rollingHistory: shortStreak.map((_, index) => makeIntegerSimulatorEntry(index, settings, shortStreak)) },
+        masterySettings: settings,
+      }),
+    },
+  ];
 }
 
 function normalizeAdminView(value) {
@@ -571,9 +640,12 @@ export default async function AdminPage({ searchParams }) {
           ? "Keep investing in question-engine and review-family systems because student practice depth is leading the app."
           : "Keep the app arcade-first while trimming low-usage complexity and watching whether review systems overtake pure games.";
   const managedSiteGames = GAME_CATALOG.filter((game) => game.category !== "admin");
-  const [siteFeatureConfig, siteCopy] = canViewDiagnostics
-    ? await Promise.all([getSiteFeatureConfig(admin), getSiteCopy(admin)])
-    : [{ audienceBySlug: {} }, null];
+  const [siteFeatureConfig, siteCopy, integerMasterySettings] = canViewDiagnostics
+    ? await Promise.all([getSiteFeatureConfig(admin), getSiteCopy(admin), getIntegerMasterySettings(admin)])
+    : [{ audienceBySlug: {} }, null, null];
+  const integerMasterySimulator = integerMasterySettings
+    ? buildIntegerMasterySimulator(integerMasterySettings)
+    : [];
 
   return (
     <div className="stack adminStack">
@@ -751,6 +823,10 @@ export default async function AdminPage({ searchParams }) {
                     <input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} />
                   </label>
                   <label>
+                    Homepage welcome message
+                    <input className="input" name="home_welcome" defaultValue={siteCopy?.homeWelcome || ""} />
+                  </label>
+                  <label>
                     Homepage intro
                     <textarea className="input" name="home_intro" rows={3} defaultValue={siteCopy?.homeIntro || ""} />
                   </label>
@@ -780,6 +856,97 @@ export default async function AdminPage({ searchParams }) {
                     </button>
                   </div>
                 </form>
+              </article>
+            </div>
+          </section>
+
+          <section className="card">
+            <h2>Integer Mastery Dashboard</h2>
+            <p>
+              These global rules apply to Adding & Subtracting Integers in Adaptive Practice and Level Progression after you save them.
+            </p>
+            <div className="featureGrid" style={{ marginTop: "1rem" }}>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Level-Up Rules</h3>
+                <form action={updateIntegerMasterySettingsAction} className="list" style={{ marginTop: "0.85rem" }}>
+                  <label>
+                    Minimum attempts before checking mastery: {integerMasterySettings.minAttempts}
+                    <input className="input" type="range" name="min_attempts" min="1" max="50" step="1" defaultValue={integerMasterySettings.minAttempts} />
+                  </label>
+                  <label>
+                    Recent window size: {integerMasterySettings.recentWindowSize}
+                    <input className="input" type="range" name="recent_window_size" min="1" max="50" step="1" defaultValue={integerMasterySettings.recentWindowSize} />
+                  </label>
+                  <label>
+                    Correct answers needed in that window: {integerMasterySettings.minCorrectInRecentWindow}
+                    <input className="input" type="range" name="min_correct_in_recent_window" min="1" max="50" step="1" defaultValue={integerMasterySettings.minCorrectInRecentWindow} />
+                  </label>
+                  <label>
+                    Correct streak needed: {integerMasterySettings.minCorrectStreak}
+                    <input className="input" type="range" name="min_correct_streak" min="0" max="30" step="1" defaultValue={integerMasterySettings.minCorrectStreak} />
+                  </label>
+                  <label>
+                    Blended accuracy required: {percentInput(integerMasterySettings.minBlendedAccuracy)}%
+                    <input className="input" type="range" name="min_blended_accuracy" min="50" max="100" step="1" defaultValue={percentInput(integerMasterySettings.minBlendedAccuracy)} />
+                  </label>
+                  <label>
+                    Historical weight: {percentInput(integerMasterySettings.historicalWeight)}%
+                    <input className="input" type="range" name="historical_weight" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.historicalWeight)} />
+                  </label>
+                  <label className="toggleRow">
+                    <input type="checkbox" name="count_retries_as_correct" defaultChecked={integerMasterySettings.countRetriesAsCorrect} />
+                    Count retry-correct answers as correct for mastery
+                  </label>
+                  <label className="toggleRow">
+                    <input type="checkbox" name="use_hint_gate" defaultChecked={integerMasterySettings.useHintGate} />
+                    Use hint-rate gate
+                  </label>
+                  <label>
+                    Maximum hint rate: {percentInput(integerMasterySettings.maxHintRate)}%
+                    <input className="input" type="range" name="max_hint_rate" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.maxHintRate)} />
+                  </label>
+                  <label className="toggleRow">
+                    <input type="checkbox" name="use_speed_gate" defaultChecked={integerMasterySettings.useSpeedGate} />
+                    Use speed gate
+                  </label>
+                  <label>
+                    Maximum median response time: {secondsInput(integerMasterySettings.maxMedianResponseMs)} seconds
+                    <input className="input" type="range" name="max_median_response_seconds" min="1" max="30" step="1" defaultValue={secondsInput(integerMasterySettings.maxMedianResponseMs)} />
+                  </label>
+                  <label>
+                    Close-state buffer: {percentInput(integerMasterySettings.closeBuffer)}%
+                    <input className="input" type="range" name="close_buffer" min="0" max="50" step="1" defaultValue={percentInput(integerMasterySettings.closeBuffer)} />
+                  </label>
+                  <div className="ctaRow">
+                    <button className="btn primary" type="submit">Save Mastery Settings</button>
+                  </div>
+                </form>
+                <form action={resetIntegerMasterySettingsAction} className="ctaRow" style={{ marginTop: "0.75rem" }}>
+                  <button className="btn ghost" type="submit">Reset To Defaults</button>
+                </form>
+              </article>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Mastery Simulator</h3>
+                <p>
+                  This quick check uses Level 20 sample histories so you can see whether the saved rules feel too strict or too loose.
+                </p>
+                <div className="list" style={{ marginTop: "0.85rem" }}>
+                  {integerMasterySimulator.map((item) => (
+                    <div key={item.label} className="dataWallNote">
+                      <strong>{item.label}</strong>
+                      <p>
+                        {item.result.canLevelUp ? "Levels up" : "Stays put"} · {item.result.reasons.recentCorrectCount}/{item.result.reasons.recentWindowSize} recent correct · {Math.round(item.result.reasons.blendedAccuracy * 100)}% blended
+                      </p>
+                      {!item.result.canLevelUp && item.result.blockedReasons[0] ? (
+                        <p>{item.result.blockedReasons[0]}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <div className="dataWallNote" style={{ marginTop: "0.85rem" }}>
+                  <strong>Last saved</strong>
+                  <p>{integerMasterySettings.updatedAt ? formatDate(integerMasterySettings.updatedAt) : "Defaults are active."}</p>
+                </div>
               </article>
             </div>
           </section>
