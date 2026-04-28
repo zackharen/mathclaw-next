@@ -97,7 +97,7 @@ export default async function RootLayout({ children }) {
                     src="/mathclaw-logo-nav.png"
                     alt="MathClaw"
                     height={44}
-                    width={220}
+                    width={440}
                     style={{ height: "clamp(32px, 3.5vw, 44px)", width: "auto" }}
                     priority
                   />
