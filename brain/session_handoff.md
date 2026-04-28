@@ -8,22 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-28 America/New_York (local-only Admin iteration interrupted)
+2026-04-28 America/New_York (Admin restructure shipped to production)
 
 ## What Was Built (Current Session)
-- **Local-only workflow change from user:** keep upcoming changes on `localhost:3000`; do not push live until the user explicitly asks to make them live.
-- Local-only header chip update: top-left role chip now says `Player Mode`, `Student Mode`, `Teacher Mode`, or `Admin Mode`; Admin wins when `canAccessAdminArea(user)` is true because Admin is an access flag layered over the normal account type. Chip colors now use navy shades from lightest Player to darkest Admin. Files: `app/layout.js`, `app/globals.css`. Not pushed live yet.
-- Local-only Admin page iteration: moved `Admin Sections` directly under the account count cards; added `Feature Rollout Controls` and `Editable Site Copy` as their own switcher buttons/views; moved `School Snapshot` into the `User Information` view so the switcher controls everything below it; feature/site-copy saves now return to their matching view. Not pushed live yet.
-- Local dev server issue: `localhost:3000` became wedged after an invalid Admin JSX compile and then a Next/Turbopack restart. Current listener check shows PID `67492` on port 3000, but `curl http://localhost:3000/` cannot connect. Previous attempts to kill Node from the sandbox were blocked with `Operation not permitted`; user can kill it from Terminal with `kill 67492`. After killing it, next session should clear/rename stale `.next` dev cache if needed and restart `npm run dev`.
-- Added the homepage MathClaw square logo (`public/mathclaw-logo.png`) to the top of `/about`, centered above the two About cells with responsive sizing
-- Updated `/about` to show two side-by-side Admin-backed cells only: "About Us" uses `siteCopy.aboutStory`, and "Mission Statement" uses `siteCopy.missionStatement`; the lower "Where It Fits" cell was removed
-- Added an `aboutGrid` style so the two About page cells stretch to matching heights on desktop and stack on mobile
-- Updated Admin → Editable Site Copy wording so the editable about text is labeled "About Us text"; the existing hidden `about_title` value is preserved during saves
-- Simplified homepage: stripped all user-type-specific sections; now shows only a banner (if set) and an `<h1>` welcome heading
-- Added `homeWelcome` field to site copy system (`lib/site-config.js`, `app/admin/actions.js`, `app/admin/page.js`); default is "Welcome to Mathclaw!"; editable from admin diagnostics panel under "Editable Site Copy"
-- Added MathClaw square logo (`public/mathclaw-logo.png`) to the homepage above the welcome heading
-- Replaced nav brand text with horizontal MathClaw logo image (`public/mathclaw-logo-nav.png`) — acts as home button, scales responsively via `clamp` height; iterated to transparent-background wider-crop final version
-- Fixed Vercel build failure: `lib/integer-practice/mastery-settings.js` and `mastery-settings.server.js` were untracked locally and never committed, breaking all production builds
+- **Admin Sections switcher shipped to production:** five alphabetized buttons — Bugs and Internal Errors, Editable Site Copy, Feature Rollout Controls, Mastery Settings, User Information. Each has its own `?view=` route. Files: `app/admin/page.js`, `app/admin/actions.js`.
+- **Mastery Settings view** (`/admin?view=mastery`): pulled Integer Mastery Dashboard out of the diagnostics view and reframed it as a cross-game setting for all future adaptive practice games. Mastery save/reset actions now redirect back to `?view=mastery`.
+- **School Snapshot** moved inside the `accounts` view so it changes with the switcher rather than always being visible.
+- **Header chip** shipped: `Player Mode`, `Student Mode`, `Teacher Mode`, `Admin Mode`; Admin wins when `canAccessAdminArea(user)` is true. Navy shade variants in `app/globals.css`.
+- **Auth metadata cleanup** shipped: `lib/auth/session-metadata.js` + `removeLegacySavedGamesFromMetadata` called in `app/auth/callback/route.js` and sign-in form; strips legacy `saved_games` from auth metadata on every sign-in.
+- **All accumulated local changes committed** (double board decimal percents, integer progression engine, locker practice client updates, brain docs) in commit `fa2fae1`.
 
 ## Current State Of The Project
 - Three account types live in production: `teacher`, `student`, `player` (see `conventions.md` -> Account Types)
@@ -32,7 +25,7 @@ This file represents the **current state only**. It should stay short enough to 
 - The homepage (`app/page.js`) is intentionally minimal: banner (if set) + `homeWelcome` heading + MathClaw square logo. User-type-specific widgets will be added incrementally. The welcome text is editable from admin → Editable Site Copy.
 - The `/about` page shows the centered square MathClaw logo above two cells only: "About Us" from Admin `About Us text` / `aboutStory`, and "Mission Statement" from Admin `Mission statement` / `missionStatement`; the cells match height on desktop and stack on mobile.
 - Header chip local work in progress: role chip labels are `Player Mode`, `Student Mode`, `Teacher Mode`, `Admin Mode`, with Admin determined by admin access rather than `account_type`; navy shade variants live in `app/globals.css`. This is local only until the user asks to push live.
-- Admin page local work in progress: `Admin Sections` now sits below the count summary and has four views (`accounts`, `diagnostics`, `features`, `site-copy`). `accounts` should show School Snapshot + User Information below the switcher; `diagnostics` should show Integer Mastery Dashboard, Performance Spend/App Decision, Internal Error Log, and Bug Inbox; `features` should show Feature Rollout Controls; `site-copy` should show Editable Site Copy. This is local only until the user asks to push live.
+- Admin page is live: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → School Snapshot + User Information; `diagnostics` → Performance Spend/App Decision, Internal Error Log, Bug Inbox; `features` → Feature Rollout Controls; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator).
 - The `/play` page now collapses its main content blocks behind matching disclosure headers, with feedback sections opening automatically when needed; section order is Classes, Group Activities, Fun & Games, Awards & Extra Credit, Create A Math Question
 - Group Activities is a direct 3-column card grid on `/play` with Double Board, Lowest Number Wins, and Open Middle
 - Fun & Games has three equal-width columns: `#arcade`, `#mathskills`, and `#survivalskills`; Locker Practice belongs under `#survivalskills`
@@ -58,8 +51,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Reverted invalid `eslint.ignoreDuringBuilds` key from `next.config.mjs` (not supported in Next.js 16)
 
 ## Active Tasks
-- Continue local-only Admin page/layout optimization after fixing `localhost:3000`.
-- Current local dev blocker: port 3000 has stuck Node PID `67492`, but localhost is not responding. User may need to run `kill 67492`; then restart `npm run dev` from `/Users/zackarenstein/mathclaw-next`. If the dev server serves 404 for all routes after restart, rename or clear `.next` dev cache before starting again.
+- No active blockers. All local Admin/chip/auth work is now live on `main`.
 
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
@@ -71,10 +63,7 @@ This file represents the **current state only**. It should stay short enough to 
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. **Fix local dev server first** - kill PID `67492` if still present, rename/clear stale `.next` if routes still 404, restart `npm run dev`, and verify `/`, `/about`, `/admin`, `/admin?view=accounts`, `/admin?view=diagnostics`, `/admin?view=features`, and `/admin?view=site-copy`.
-2. Verify Admin local views in the browser while logged in as owner/admin. Everything above `Admin Sections` should remain visible; everything below should change based on the selected button.
-3. Keep all further site-optimization work local on `localhost:3000`; do not push until the user explicitly asks to make changes live.
-4. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - paste the file into the SQL editor; it's short and won't hit the paste limit. Required before teacher can test Lowest Number Wins with class tomorrow.
+1. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - required before Lowest Number Wins works with real classes.
 5. **Run `migrations_20260427_double_board_decimal_percents.sql` in Supabase** before creating live Double Board percent sessions with decimal Column 3 questions.
 6. Playtest `/play/open-middle` live with teacher + student accounts; verify template creation, launch, student join, response autosave, reveal/revise, and session close
 7. Playtest `/play/lowest-number-wins` with real teacher + student accounts after migration is in; verify submission count, reveal, winner, no-winner draw, next round, projector mode, and game_sessions recording
@@ -105,7 +94,6 @@ Load only when scope requires:
 - `/Users/zackarenstein/mathclaw-next/brain/future_ideas.md` - future ideas / todo bank; load when asked about backlog, roadmap candidates, todo items, or to reference the ideas bank
 
 ## Known Issues / Bugs
-- **Local dev server currently wedged** - PID `67492` is listening on port 3000 but `localhost:3000` is not responding. If this persists in the next session, ask the user to run `kill 67492`, then restart the dev server. If Next serves 404 for all routes after restart even though `app/page.js` exists, rename/clear `.next` dev cache and restart.
 - **RLS cross-user profile policies not live** - The following policies were dropped from production because they cause Postgres infinite recursion (via `student_course_memberships` RLS -> `courses` RLS cycle): `profiles: classmates readable`, `profiles: co-teacher reads class members`, `profiles: teacher reads class members`, `courses: co-teacher read`, `courses: enrolled student read`. All existing app paths that need this access already use the admin client or security definer RPCs, so no user-facing feature is broken. The fix is to rewrite these as `security definer` functions.
 - **`course_members` table created in production** - it exists now (created from schema.sql definition) but is empty; no co-teacher assignments have been made. All migrations from the audit session have been applied to production.
 - **Locker Practice tuning** - clean release branch builds the route and fixes the dial visual/state mismatch, but Level 6 still uses a simplified approximation of real locker pass behavior and needs hands-on classroom/mobile playtesting
