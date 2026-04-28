@@ -65,7 +65,7 @@ test("student is blocked by a hard fail", () => {
   const result = evaluateLevelProgression({ level, profile: buildProfile(entries) });
 
   assert.equal(result.canLevelUp, false);
-  assert.equal(result.blockedReasonCodes.includes("low_accuracy"), true);
+  assert.equal(result.blockedReasonCodes.includes("low_recent_correct"), true);
 });
 
 test("student is blocked despite high score because of weak skill tag mastery", () => {
@@ -97,7 +97,7 @@ test("student is blocked despite high score because of weak skill tag mastery", 
 
 test("student is blocked because of insufficient attempts", () => {
   const level = getLevelById(32);
-  const entries = Array.from({ length: 14 }, () =>
+  const entries = Array.from({ length: 9 }, () =>
     makeEntry({
       levelId: 32,
       responseMs: 2300,
@@ -150,10 +150,10 @@ test("stale older skill history does not weak-skill block current level promotio
   assert.equal(result.weakSkillTags.includes("subtraction_to_negative"), false);
 });
 
-test("tier thresholds differ correctly by level range", () => {
+test("global mastery threshold is shared across level ranges", () => {
   const tierCases = [
-    { levelId: 5, threshold: 300 },
-    { levelId: 20, threshold: 350 },
+    { levelId: 5, threshold: 400 },
+    { levelId: 20, threshold: 400 },
     { levelId: 39, threshold: 400 },
   ];
 
@@ -185,6 +185,102 @@ test("hint-heavy behavior blocks progress correctly", () => {
 
   assert.equal(result.canLevelUp, false);
   assert.equal(result.blockedReasonCodes.includes("high_hint_rate"), true);
+});
+
+test("custom mastery settings can tighten recent correct requirement", () => {
+  const level = getLevelById(12);
+  const entries = [
+    ...Array.from({ length: 8 }, () =>
+      makeEntry({
+        levelId: 12,
+        responseMs: 2600,
+        skillTags: ["positive_plus_negative", "different_sign_addition", "small_numbers"],
+      })
+    ),
+    ...Array.from({ length: 2 }, () =>
+      makeEntry({
+        levelId: 12,
+        correct: false,
+        responseMs: 2600,
+        skillTags: ["positive_plus_negative", "different_sign_addition", "small_numbers"],
+      })
+    ),
+  ];
+  const result = evaluateLevelProgression({
+    level,
+    profile: buildProfile(entries),
+    masterySettings: {
+      minAttempts: 10,
+      recentWindowSize: 10,
+      minCorrectInRecentWindow: 9,
+      minCorrectStreak: 5,
+      minBlendedAccuracy: 0.8,
+      useHintGate: true,
+      maxHintRate: 0.2,
+    },
+  });
+
+  assert.equal(result.canLevelUp, false);
+  assert.equal(result.blockedReasonCodes.includes("low_recent_correct"), true);
+});
+
+test("custom mastery settings can require first-try correctness", () => {
+  const level = getLevelById(12);
+  const entries = Array.from({ length: 10 }, () => ({
+    ...makeEntry({
+      levelId: 12,
+      responseMs: 2600,
+      skillTags: ["positive_plus_negative", "different_sign_addition", "small_numbers"],
+    }),
+    attemptsUsed: 2,
+  }));
+  const result = evaluateLevelProgression({
+    level,
+    profile: buildProfile(entries),
+    masterySettings: {
+      minAttempts: 10,
+      recentWindowSize: 10,
+      minCorrectInRecentWindow: 8,
+      minCorrectStreak: 5,
+      minBlendedAccuracy: 0.8,
+      countRetriesAsCorrect: false,
+    },
+  });
+
+  assert.equal(result.canLevelUp, false);
+  assert.equal(result.blockedReasonCodes.includes("low_recent_correct"), true);
+});
+
+test("saved aggregate level stats can place a student without full question history", () => {
+  const level = getLevelById(12);
+  const result = evaluateLevelProgression({
+    level,
+    profile: {
+      rollingHistory: [],
+      levelStats: {
+        12: {
+          attempts: 20,
+          correct: 18,
+          firstTryCorrect: 18,
+          hintsUsed: 0,
+          totalResponseMs: 52000,
+          bestStreak: 12,
+          bestFirstTryStreak: 12,
+        },
+      },
+    },
+    masterySettings: {
+      minAttempts: 10,
+      recentWindowSize: 10,
+      minCorrectInRecentWindow: 8,
+      minCorrectStreak: 5,
+      minBlendedAccuracy: 0.8,
+    },
+  });
+
+  assert.equal(result.canLevelUp, true);
+  assert.equal(result.evidence.attempts, 20);
+  assert.equal(result.reasons.historicalAccuracy, 0.9);
 });
 
 test("borderline threshold cases behave predictably", () => {
@@ -229,48 +325,36 @@ test("borderline threshold cases behave predictably", () => {
       blockedReason: "short_streak",
     },
     {
-      name: "close but blocked by score threshold",
+      name: "close but blocked by blended accuracy",
       entries: [
-        ...Array.from({ length: 5 }, () =>
+        ...Array.from({ length: 8 }, () =>
           makeEntry({
             levelId: 22,
-            responseMs: 8200,
+            responseMs: 4200,
             hintUsed: false,
             skillTags: ["mixed_integer_operations", "medium_numbers"],
           })
         ),
-        makeEntry({
-          levelId: 22,
-          correct: false,
-          responseMs: 8200,
-          hintUsed: false,
-          skillTags: ["mixed_integer_operations", "medium_numbers"],
-        }),
-        ...Array.from({ length: 3 }, (_, index) =>
-          makeEntry({
-            levelId: 22,
-            responseMs: 8200,
-            hintUsed: index < 2,
-            skillTags: ["mixed_integer_operations", "medium_numbers"],
-          })
-        ),
-        makeEntry({
-          levelId: 22,
-          correct: false,
-          responseMs: 8200,
-          hintUsed: false,
-          skillTags: ["mixed_integer_operations", "medium_numbers"],
-        }),
         ...Array.from({ length: 2 }, () =>
           makeEntry({
             levelId: 22,
-            responseMs: 8200,
+            correct: false,
+            responseMs: 4200,
+            hintUsed: false,
+            skillTags: ["mixed_integer_operations", "medium_numbers"],
+          })
+        ),
+        ...Array.from({ length: 10 }, () =>
+          makeEntry({
+            levelId: 22,
+            correct: false,
+            responseMs: 4200,
             hintUsed: false,
             skillTags: ["mixed_integer_operations", "medium_numbers"],
           })
         ),
       ],
-      blockedReason: "score_threshold",
+      blockedReason: "low_blended_accuracy",
     },
   ];
 

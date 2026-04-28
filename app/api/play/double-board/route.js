@@ -23,7 +23,7 @@ import { upsertGameStats } from "@/lib/student-games/stats";
 const GAME_SLUG = "double_board_review";
 const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
-const START_COUNTDOWN_SECONDS = 3;
+const START_COUNTDOWN_SECONDS = 5;
 const PLAYER_PRESENCE_WINDOW_MS = 8000;
 const TURN_PHASE_SELECT_TILE = "select_tile";
 const TURN_PHASE_ANSWER_QUESTION = "answer_question";
@@ -574,6 +574,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     })
     .sort((a, b) => {
       if (a.joinedAt && b.joinedAt) {
+        if (b.score !== a.score) return b.score - a.score;
         return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
       }
       if (a.joinedAt) return -1;
@@ -1656,13 +1657,36 @@ export async function POST(request) {
         });
       }
 
-      activeClaims[question.id] = {
+      const { data: freshSession } = await admin
+        .from("double_board_sessions")
+        .select("metadata")
+        .eq("id", currentSession.id)
+        .single();
+      const freshMetadata = buildSessionMetadata(freshSession?.metadata, []);
+      const freshClaim = freshMetadata.activeClaims?.[question.id];
+
+      if (freshClaim && freshClaim.userId !== user.id) {
+        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+        return NextResponse.json({
+          session: bundle,
+          result: {
+            claimed: false,
+            message: `${freshClaim.firstName} is answering that one right now.`,
+          },
+        });
+      }
+
+      const freshActiveClaims = {
+        ...freshMetadata.activeClaims,
+      };
+
+      freshActiveClaims[question.id] = {
         userId: user.id,
         displayName,
         firstName: firstNameFromDisplayName(displayName),
         claimedAt: nowIso(),
         expiresAt: new Date(
-          Date.now() + sessionMetadata.freeForAllTimerSeconds * 1000
+          Date.now() + freshMetadata.freeForAllTimerSeconds * 1000
         ).toISOString(),
       };
 
@@ -1670,8 +1694,8 @@ export async function POST(request) {
         .from("double_board_sessions")
         .update({
           metadata: {
-            ...sessionMetadata,
-            activeClaims,
+            ...freshMetadata,
+            activeClaims: freshActiveClaims,
           },
           updated_at: nowIso(),
         })

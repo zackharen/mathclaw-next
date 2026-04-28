@@ -47,6 +47,10 @@ function formatChoiceValue(question, choice) {
   return formatDoubleBoardAnswer(choice, question?.metadata || {});
 }
 
+function isMultiplierAnswerFormat(answerFormat) {
+  return answerFormat === "multiplier_hundredths" || answerFormat === "multiplier_tenthousandths";
+}
+
 function normalizeSessionPayload(session) {
   if (!session || typeof session !== "object") return null;
 
@@ -691,7 +695,11 @@ function AnswerModal({
 
   const multipleChoiceOptions =
     answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
-  const isMultiplierQuestion = question.metadata?.answerFormat === "multiplier_hundredths";
+  const isMultiplierQuestion = isMultiplierAnswerFormat(question.metadata?.answerFormat);
+  const multiplierPattern =
+    question.metadata?.answerFormat === "multiplier_tenthousandths"
+      ? "^(?:\\d+|\\d*\\.\\d{1,4})$"
+      : "^(?:\\d+|\\d*\\.\\d{1,2})$";
   const answerPrompt = isMultiplierQuestion
     ? "Enter the decimal multiplier for that percent change."
     : "Enter one whole-number answer. Wrong answers do not reveal the solution.";
@@ -763,7 +771,7 @@ function AnswerModal({
             <input
               className="input"
               inputMode={isMultiplierQuestion ? "decimal" : "numeric"}
-              pattern={isMultiplierQuestion ? "^(?:\\d+|\\d*\\.\\d{1,2})$" : "-?[0-9]*"}
+              pattern={isMultiplierQuestion ? multiplierPattern : "-?[0-9]*"}
               autoFocus
               value={answerValue}
               onChange={(event) => onAnswerChange(event.target.value)}
@@ -1052,6 +1060,7 @@ export default function DoubleBoardClient({
 
   useEffect(() => {
     if (!session) return;
+    if (voteOverlayOpen) return;
 
     setVoteSettings({
       numberMode: session.viewerVote?.numberMode || session.numberMode || "single_digit",
@@ -1073,6 +1082,7 @@ export default function DoubleBoardClient({
     session?.viewerVote?.numberMode,
     session?.viewerVote?.playMode,
     session?.viewerVote?.turnAdvanceMode,
+    voteOverlayOpen,
   ]);
 
   useEffect(() => {

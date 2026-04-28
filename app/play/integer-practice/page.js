@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getIntegerMasterySettings } from "@/lib/integer-practice/mastery-settings.server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import IntegerPracticeClient from "./game-client";
 
@@ -12,7 +14,8 @@ export default async function IntegerPracticePage({ searchParams }) {
 
   if (!user) redirect("/auth/sign-in?redirect=/play/integer-practice");
   const accountType = await getAccountTypeForUser(supabase, user);
-  const [allCourses, courses, personalResult, savedProgressResult] = await Promise.all([
+  const admin = createAdminClient();
+  const [allCourses, courses, personalResult, savedProgressResult, masterySettings] = await Promise.all([
     listAccessibleCourses(supabase, user.id),
     listAccessibleCourses(supabase, user.id, { gameSlug: "integer_practice" }),
     supabase
@@ -27,6 +30,7 @@ export default async function IntegerPracticePage({ searchParams }) {
       .eq("user_id", user.id)
       .eq("game_slug", "integer_practice")
       .maybeSingle(),
+    getIntegerMasterySettings(admin),
   ]);
 
   // Fall back to auth metadata for users who haven't saved since the DB migration.
@@ -68,6 +72,7 @@ export default async function IntegerPracticePage({ searchParams }) {
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
         savedProfileState={savedIntegerPractice}
+        masterySettings={masterySettings}
       />
     </div>
   );

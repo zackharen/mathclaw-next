@@ -786,7 +786,7 @@ export async function updateSiteFeatureAudienceAction(formData) {
   revalidatePath("/classes");
   revalidatePath("/play");
   revalidatePath("/play/review-games");
-  redirect("/admin?siteFeatureUpdated=1");
+  redirect("/admin?view=features&siteFeatureUpdated=1");
 }
 
 export async function bulkUpdateSiteFeatureAudienceAction(formData) {
@@ -852,7 +852,7 @@ export async function bulkUpdateSiteFeatureAudienceAction(formData) {
   revalidatePath("/classes");
   revalidatePath("/play");
   revalidatePath("/play/review-games");
-  redirect(`/admin?siteFeatureBulkUpdated=1&siteFeatureBulkCount=${selectedGameSlugs.length}`);
+  redirect(`/admin?view=features&siteFeatureBulkUpdated=1&siteFeatureBulkCount=${selectedGameSlugs.length}`);
 }
 
 export async function updateSiteCopyAction(formData) {
@@ -896,7 +896,7 @@ export async function updateSiteCopyAction(formData) {
   revalidatePath("/");
   revalidatePath("/about");
   revalidatePath("/admin");
-  redirect("/admin?siteCopyUpdated=1");
+  redirect("/admin?view=site-copy&siteCopyUpdated=1");
 }
 
 export async function updateIntegerMasterySettingsAction(formData) {
@@ -927,7 +927,7 @@ export async function updateIntegerMasterySettingsAction(formData) {
 
   revalidatePath("/admin");
   revalidatePath("/play/integer-practice");
-  redirect("/admin?integerMasteryUpdated=1&view=diagnostics");
+  redirect("/admin?integerMasteryUpdated=1&view=mastery");
 }
 
 export async function resetIntegerMasterySettingsAction() {
@@ -958,5 +958,5 @@ export async function resetIntegerMasterySettingsAction() {
 
   revalidatePath("/admin");
   revalidatePath("/play/integer-practice");
-  redirect("/admin?integerMasteryReset=1&view=diagnostics");
+  redirect("/admin?integerMasteryReset=1&view=mastery");
 }

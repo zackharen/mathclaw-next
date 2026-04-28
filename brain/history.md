@@ -29,6 +29,26 @@ Each dated entry should also include a short `Attention Allocation` block when p
 - `Lowest Number Wins` — `heavy` — shipped (new feature, full stack)
 - `Infra/Deploy` — `medium` — merged locker-practice-safe-deploy + LNW into main, pushed to production
 
+## 2026-04-28
+
+- Fixed `/teachers` page showing student and soft-deleted accounts: added `.eq("account_type", "teacher")` filter and cross-referenced against `auth.admin.listUsers` to exclude `app_metadata.account_deleted = true` rows
+- Ran SQL to clean orphaned profile rows (profiles with no matching auth user): set `discoverable = false` for all such rows
+- Alphabetized nav items for teacher and student/player navs; Log Out stays hardcoded last
+- Committed `app/components/GameReadyBanner.js` which was untracked and silently breaking all Vercel production builds
+- Reverted invalid `eslint.ignoreDuringBuilds` key from `next.config.mjs` (not supported in Next.js 16)
+- Simplified homepage: stripped all user-type-specific sections; replaced with a single `homeWelcome` heading (editable from admin site copy panel, default "Welcome to Mathclaw!")
+- Added MathClaw square logo (`public/mathclaw-logo.png`) to the homepage
+- Replaced nav brand text with horizontal MathClaw logo image (`public/mathclaw-logo-nav.png`) — acts as home button, scales responsively by height
+- Iterated nav logo twice (transparent background, then wider/tighter-crop version) based on user feedback
+- Fixed Vercel build failure caused by `lib/integer-practice/mastery-settings.js` and `mastery-settings.server.js` being untracked and never committed
+
+### Attention Allocation
+- `Homepage` — `heavy` — redesign (cleared content, added logo, welcome heading, admin-editable copy)
+- `Nav/Shell` — `medium` — logo replaces brand text, iterated to final version
+- `Teachers Page` — `medium` — bugfix (account_type filter, soft-deleted exclusion)
+- `Infra/Deploy` — `medium` — fixed broken Vercel builds (untracked component + missing lib files)
+- `Brain/Docs` — `light` — session handoff update
+
 ## 2026-04-27
 
 - Preserved the prior dirty `staging` worktree in stash, created clean `locker-practice-safe-deploy` branch

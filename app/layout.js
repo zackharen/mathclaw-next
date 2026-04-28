@@ -25,13 +25,15 @@ export default async function RootLayout({ children }) {
   const accountType = user ? await getAccountTypeForUser(supabase, user) : null;
   const isTeacher = Boolean(user && isTeacherAccountType(accountType));
   const canAccessAdmin = Boolean(user && canAccessAdminArea(user));
+  const roleMode = canAccessAdmin ? "admin" : accountType;
   let gameReadyBannerHref = null;
-  const roleLabel =
-    accountType === "teacher"
-      ? "Teacher Workspace"
-      : user
-        ? "Arcade"
-        : null;
+  const roleLabels = {
+    admin: "Admin Mode",
+    teacher: "Teacher Mode",
+    student: "Student Mode",
+    player: "Player Mode",
+  };
+  const roleLabel = user ? roleLabels[roleMode] || null : null;
 
   if (user && accountType === "student") {
     const { data: memberships } = await supabase
@@ -102,7 +104,7 @@ export default async function RootLayout({ children }) {
                     priority
                   />
                 </Link>
-                {roleLabel ? <span className="roleBadge">{roleLabel}</span> : null}
+                {roleLabel ? <span className={`roleBadge ${roleMode ? `roleBadge--${roleMode}` : ""}`}>{roleLabel}</span> : null}
               </div>
               <div className="topbarNav">
                 <AppNav items={navItems} />

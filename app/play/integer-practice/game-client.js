@@ -54,9 +54,14 @@ function profileStorageKey(userId, courseId) {
 function normalizeSavedProfileEnvelope(raw) {
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw.profile && typeof raw.profile === "object" ? raw.profile : raw;
+  const inferredLevelStats =
+    candidate.levelStats && typeof candidate.levelStats === "object"
+      ? candidate.levelStats
+      : buildCompactLevelStatsFromHistory(candidate.rollingHistory);
   const profile = {
     ...createEmptyIntegerProfile(),
     ...candidate,
+    levelStats: inferredLevelStats,
   };
 
   if (!Number.isInteger(Number(profile.currentLevelId || 0)) || Number(profile.currentLevelId || 0) < 1) {
@@ -85,7 +90,7 @@ function saveLocalProfile(userId, courseId, profile) {
   window.localStorage.setItem(
     profileStorageKey(userId, courseId),
     JSON.stringify({
-      profile,
+      profile: buildServerProfileSnapshot(profile),
       updatedAt: new Date().toISOString(),
     })
   );
@@ -121,6 +126,56 @@ function buildCompactHistoryEntry(entry) {
   };
 }
 
+function buildCompactLevelStats(levelStats) {
+  return Object.fromEntries(
+    Object.entries(levelStats || {}).map(([levelId, value]) => [
+      levelId,
+      {
+        attempts: Number(value?.attempts || 0),
+        correct: Number(value?.correct || 0),
+        firstTryCorrect: Number(value?.firstTryCorrect || 0),
+        hintsUsed: Number(value?.hintsUsed || 0),
+        totalResponseMs: Number(value?.totalResponseMs || 0),
+        currentStreak: Number(value?.currentStreak || 0),
+        bestStreak: Number(value?.bestStreak || 0),
+        currentFirstTryStreak: Number(value?.currentFirstTryStreak || 0),
+        bestFirstTryStreak: Number(value?.bestFirstTryStreak || 0),
+      },
+    ])
+  );
+}
+
+function buildCompactLevelStatsFromHistory(history) {
+  const stats = {};
+  for (const entry of Array.isArray(history) ? history : []) {
+    const levelKey = String(Number(entry?.levelId || 1));
+    const current = stats[levelKey] || {
+      attempts: 0,
+      correct: 0,
+      firstTryCorrect: 0,
+      hintsUsed: 0,
+      totalResponseMs: 0,
+      currentStreak: 0,
+      bestStreak: 0,
+      currentFirstTryStreak: 0,
+      bestFirstTryStreak: 0,
+    };
+    const correct = entry?.correct === true;
+    const firstTryCorrect = correct && Number(entry?.attemptsUsed || 1) <= 1;
+    current.attempts += 1;
+    current.correct += correct ? 1 : 0;
+    current.firstTryCorrect += firstTryCorrect ? 1 : 0;
+    current.hintsUsed += entry?.hintUsed === true ? 1 : 0;
+    current.totalResponseMs += Number(entry?.responseMs || 0);
+    current.currentStreak = correct ? current.currentStreak + 1 : 0;
+    current.bestStreak = Math.max(current.bestStreak, current.currentStreak);
+    current.currentFirstTryStreak = firstTryCorrect ? current.currentFirstTryStreak + 1 : 0;
+    current.bestFirstTryStreak = Math.max(current.bestFirstTryStreak, current.currentFirstTryStreak);
+    stats[levelKey] = current;
+  }
+  return stats;
+}
+
 function buildServerProfileSnapshot(profile) {
   const summary = summarizeProfile(profile);
   return {
@@ -128,13 +183,18 @@ function buildServerProfileSnapshot(profile) {
     highestLevelReached: Number(profile?.highestLevelReached || 1),
     masteredSkillTags: Array.isArray(profile?.masteredSkillTags) ? profile.masteredSkillTags.slice(0, 8) : [],
     strugglingSkillTags: Array.isArray(profile?.strugglingSkillTags) ? profile.strugglingSkillTags.slice(0, 6) : [],
+    levelStats: buildCompactLevelStats(
+      profile?.levelStats && Object.keys(profile.levelStats).length
+        ? profile.levelStats
+        : buildCompactLevelStatsFromHistory(profile?.rollingHistory)
+    ),
     accuracyBySkill: buildCompactSkillMap(profile?.accuracyBySkill || summary.accuracyBySkill),
     hintDependence: Number(profile?.hintDependence || summary.hintRate || 0),
     badges: Array.isArray(profile?.badges) ? profile.badges.slice(0, 8) : [],
     fluencyState: typeof profile?.fluencyState === "string" ? profile.fluencyState : summary.fluencyState,
     dropOffPoint: Number(profile?.dropOffPoint || summary.dropOffPoint || 0) || null,
     rollingHistory: Array.isArray(profile?.rollingHistory)
-      ? profile.rollingHistory.slice(0, 18).map(buildCompactHistoryEntry)
+      ? profile.rollingHistory.slice(0, 20).map(buildCompactHistoryEntry)
       : [],
     currentScaffolds:
       profile?.currentScaffolds && typeof profile.currentScaffolds === "object"
@@ -159,10 +219,10 @@ function readServerProfileForCourse(savedProfileState, courseId) {
     savedProfileState?.profilesByCourse && typeof savedProfileState.profilesByCourse === "object"
       ? savedProfileState.profilesByCourse
       : null;
-  if (!profilesByCourse) return null;
+  if (!profilesByCourse) return normalizeSavedProfileEnvelope(savedProfileState?.profile || savedProfileState || null);
 
   const courseKey = courseId || "none";
-  return normalizeSavedProfileEnvelope(profilesByCourse[courseKey] || null);
+  return normalizeSavedProfileEnvelope(profilesByCourse[courseKey] || savedProfileState?.profile || null);
 }
 
 function chooseNewestProfile(localEnvelope, serverEnvelope) {
@@ -413,6 +473,7 @@ export default function IntegerPracticeClient({
   initialLeaderboard,
   personalStats,
   savedProfileState,
+  masterySettings,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("adaptive");
@@ -444,9 +505,11 @@ export default function IntegerPracticeClient({
   const profileSummary = useMemo(() => summarizeProfile(profile), [profile]);
   const activeLevel = useMemo(() => getLevelById(currentLevelId), [currentLevelId]);
   const activeScaffolds = overrideScaffolds || activeLevel.scaffolds;
+  const activeMasterySettings =
+    mode === "adaptive" || mode === "progression" ? masterySettings : null;
   const levelReadiness = useMemo(
-    () => evaluateLevelProgression({ level: activeLevel, profile, profileSummary }),
-    [activeLevel, profile, profileSummary]
+    () => evaluateLevelProgression({ level: activeLevel, profile, profileSummary, masterySettings: activeMasterySettings }),
+    [activeLevel, activeMasterySettings, profile, profileSummary]
   );
   const visibleChoices = useMemo(() => {
     if (activeScaffolds.answerMode !== "multiple_choice") return [];
@@ -715,6 +778,7 @@ export default function IntegerPracticeClient({
       profile: nextProfileBase,
       profileSummary: summary,
       assignment: assignmentPlan,
+      masterySettings: activeMasterySettings,
     });
     const nextLevelId = levelPlan.nextLevelId;
     const finalProfile = registerBadgeUpdates(
@@ -768,6 +832,7 @@ export default function IntegerPracticeClient({
     resetQuestion(nextLevelId, levelPlan.supportScaffolds);
   }, [
     activeLevel,
+    activeMasterySettings,
     activeScaffolds.allowRetry,
     activeScaffolds.answerMode,
     assignmentPlan,

@@ -177,7 +177,8 @@ function summarizeAttempt({
   sliderValue,
   stepStats,
 }) {
-  const directionOk = stepStats.firstDirection === step.direction;
+  const committedDirection = sliderValue > 0 ? "right" : sliderValue < 0 ? "left" : null;
+  const directionOk = committedDirection === step.direction;
   const withinTolerance = dialDistance(currentNumber, step.target) <= config.tolerance;
   const expectedTicks =
     step.direction === "right"
@@ -245,13 +246,13 @@ function summarizeAttempt({
   };
 }
 
-function DialFace({ currentNumber, highlightedNumber, sliderValue, showTargetHighlight }) {
+function DialFace({ currentNumber, highlightedNumber, dialRotationTicks, showTargetHighlight }) {
   return (
     <div className="lockerDialShell">
       <div className="lockerDialPointer" aria-hidden="true" />
       <div
         className="lockerDialFace"
-        style={{ transform: `rotate(${sliderValue * DIAL_STEP_DEGREES}deg)` }}
+        style={{ transform: `rotate(${dialRotationTicks * DIAL_STEP_DEGREES}deg)` }}
         aria-hidden="true"
       >
         {Array.from({ length: DIAL_SIZE }, (_, number) => {
@@ -269,7 +270,7 @@ function DialFace({ currentNumber, highlightedNumber, sliderValue, showTargetHig
         })}
       </div>
       <div className="lockerDialCenter">
-        <span className="lockerDialCenterLabel">At marker</span>
+        <span className="lockerDialCenterLabel">Number under top marker</span>
         <strong>{currentNumber}</strong>
       </div>
     </div>
@@ -683,7 +684,7 @@ export default function LockerPracticeClient({
           <div className="pillRow">
             <span className="pill">Level {level}</span>
             <span className="pill">Step {stepIndex + 1} / {challenge.steps.length}</span>
-            <span className="pill">At marker {currentNumber}</span>
+            <span className="pill">Under top marker: {currentNumber}</span>
           </div>
         </div>
 
@@ -711,7 +712,7 @@ export default function LockerPracticeClient({
         <DialFace
           currentNumber={currentNumber}
           highlightedNumber={currentStep.target}
-          sliderValue={sliderValue}
+          dialRotationTicks={stepStartNumber + sliderValue}
           showTargetHighlight={config.highlightTarget}
         />
 

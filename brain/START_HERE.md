@@ -10,6 +10,7 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
    - `/Users/zackarenstein/mathclaw-next/brain/project_overview.md`
    - `/Users/zackarenstein/mathclaw-next/brain/architecture.md`
    - `/Users/zackarenstein/mathclaw-next/brain/conventions.md`
+   - `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md`
    - `/Users/zackarenstein/mathclaw-next/brain/file_map.md`
    - `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md`
 2. Use `/Users/zackarenstein/mathclaw-next/brain/feature_context/INDEX.md` to identify the minimum relevant files in `/Users/zackarenstein/mathclaw-next/brain/feature_context/`.
@@ -17,9 +18,11 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 4. Avoid loading unrelated context.
 5. Before making code changes, state which brain files were used.
 6. Tell the user which code files you plan to inspect first.
+7. Check whether `localhost:3000` is already running. If no process is listening on port 3000, start the local dev server from `/Users/zackarenstein/mathclaw-next` with `npm run dev`. If port 3000 is already occupied, do not start a duplicate server; verify whether it responds at `http://localhost:3000`, report the result, and ask before restarting the process or changing ports.
 
 ## Working Rules
 - Preserve existing project conventions, UI patterns, and structure.
+- Follow `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md` before editing code.
 - Keep edits minimal, precise, and high-signal.
 - Do not invent unsupported features.
 - Unless the user explicitly says otherwise, treat requests to fix/build/change something as requests to carry the change through to the live site, not just local code changes.
@@ -31,6 +34,7 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 ## Reference Docs
 - `/Users/zackarenstein/mathclaw-next/brain/features.md` is a broad catalog, not part of the default startup path.
 - `/Users/zackarenstein/mathclaw-next/brain/current_priorities.md` is a broad roadmap snapshot, not part of the default startup path.
+- `/Users/zackarenstein/mathclaw-next/brain/future_ideas.md` is the future ideas / todo bank. Load it when the user asks about future ideas, backlog, roadmap candidates, todo items, or asks to reference the bank.
 - Prefer `session_handoff.md` for current status and `feature_context/INDEX.md` for task routing.
 
 ## `USH` Rule

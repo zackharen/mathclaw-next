@@ -264,7 +264,7 @@ function buildIntegerMasterySimulator(settings) {
 }
 
 function normalizeAdminView(value) {
-  return ["accounts", "diagnostics"].includes(value) ? value : "accounts";
+  return ["accounts", "diagnostics", "features", "site-copy", "mastery"].includes(value) ? value : "accounts";
 }
 
 function summarizeAccountClasses(item) {
@@ -699,255 +699,256 @@ export default async function AdminPage({ searchParams }) {
         </div>
       </section>
 
-      {adminContext.hasSchoolScope && schoolSummaries.length > 0 ? (
-        <section className="card">
-          <h2>{schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}</h2>
-          <p>
-            {schoolFilter === "all"
-              ? "Quick counts by school so you can spot where the most accounts and admins live."
-              : "Quick counts for the currently selected school."}
-          </p>
-          <div className="adminSchoolGrid">
-            {(schoolFilter === "all" ? schoolSummaries.slice(0, 8) : schoolSummaries).map((school) => (
-              <article key={school.schoolName} className="card adminSchoolCard">
-                <h3>{school.schoolName}</h3>
-                <div className="adminSchoolStats">
-                  <p><strong>Total:</strong> {school.total}</p>
-                  <p><strong>Teachers:</strong> {school.teachers}</p>
-                  <p><strong>Students:</strong> {school.students}</p>
-                  <p><strong>Admins:</strong> {school.admins}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       {canViewDiagnostics ? (
         <section className="card adminSectionSwitcher">
           <h2>Admin Sections</h2>
-          <p>Choose whether you want to work with people and classes, or review bugs and silent system issues.</p>
+          <p>Choose the admin tools you want to use. Everything above this stays visible while this changes the workspace below.</p>
           <div className="adminViewSwitch">
-            <a
-              className={`btn ${effectiveAdminView === "accounts" ? "primary" : "ghost"}`}
-              href="/admin?view=accounts"
-            >
-              User Information
-            </a>
             <a
               className={`btn ${effectiveAdminView === "diagnostics" ? "primary" : "ghost"}`}
               href="/admin?view=diagnostics"
             >
               Bugs and Internal Errors
             </a>
+            <a
+              className={`btn ${effectiveAdminView === "site-copy" ? "primary" : "ghost"}`}
+              href="/admin?view=site-copy"
+            >
+              Editable Site Copy
+            </a>
+            <a
+              className={`btn ${effectiveAdminView === "features" ? "primary" : "ghost"}`}
+              href="/admin?view=features"
+            >
+              Feature Rollout Controls
+            </a>
+            <a
+              className={`btn ${effectiveAdminView === "mastery" ? "primary" : "ghost"}`}
+              href="/admin?view=mastery"
+            >
+              Mastery Settings
+            </a>
+            <a
+              className={`btn ${effectiveAdminView === "accounts" ? "primary" : "ghost"}`}
+              href="/admin?view=accounts"
+            >
+              User Information
+            </a>
+          </div>
+        </section>
+      ) : null}
+
+      {canViewDiagnostics && effectiveAdminView === "features" ? (
+        <section className="card">
+          <h2>Feature Rollout Controls</h2>
+          <p>
+            Use these controls to hide features site-wide or release them to teachers before students.
+          </p>
+          <article className="card" style={{ background: "#fff", marginTop: "1rem" }}>
+            <p>Set each feature to live for everyone, visible only to teachers, or disabled site-wide.</p>
+            <form
+              id="bulkFeatureUpdateForm"
+              action={bulkUpdateSiteFeatureAudienceAction}
+              className="classGameControlItem isEnabled"
+              style={{ marginTop: "0.85rem" }}
+            >
+              <div className="classGameControlCopy">
+                <div className="classGameControlTopline">
+                  <strong>Bulk Update Selected Features</strong>
+                  <span className="pill classGameStatusPill isEnabled">Owner control</span>
+                </div>
+                <span>Check the features you want below, then apply one rollout state to that selected set.</span>
+              </div>
+              <select className="input" name="bulk_audience" defaultValue="everyone" style={{ maxWidth: "14rem" }}>
+                <option value="everyone">Everyone</option>
+                <option value="teachers_only">Teachers only</option>
+                <option value="disabled">Disabled site-wide</option>
+              </select>
+              <button className="btn primary" type="submit">
+                Apply To Selected
+              </button>
+            </form>
+            <div className="list" style={{ marginTop: "0.85rem" }}>
+              {managedSiteGames.map((game) => (
+                <form key={game.slug} action={updateSiteFeatureAudienceAction} className="classGameControlItem isEnabled">
+                  <input
+                    type="checkbox"
+                    name="selected_game_slugs"
+                    value={game.slug}
+                    form="bulkFeatureUpdateForm"
+                    aria-label={`Select ${game.name} for bulk update`}
+                  />
+                  <input type="hidden" name="game_slug" value={game.slug} />
+                  <div className="classGameControlCopy">
+                    <div className="classGameControlTopline">
+                      <strong>{game.name}</strong>
+                      <span className="pill classGameStatusPill isEnabled">
+                        {describeSiteAudience(siteFeatureConfig.audienceBySlug?.[game.slug])}
+                      </span>
+                    </div>
+                    <span>{game.description}</span>
+                  </div>
+                  <select
+                    className="input"
+                    name="audience"
+                    defaultValue={siteFeatureConfig.audienceBySlug?.[game.slug] || "everyone"}
+                    style={{ maxWidth: "14rem" }}
+                  >
+                    <option value="everyone">Everyone</option>
+                    <option value="teachers_only">Teachers only</option>
+                    <option value="disabled">Disabled site-wide</option>
+                  </select>
+                  <button className="btn primary" type="submit">
+                    Save
+                  </button>
+                </form>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {canViewDiagnostics && effectiveAdminView === "site-copy" ? (
+        <section className="card">
+          <h2>Editable Site Copy</h2>
+          <p>Update public-facing copy without leaving MathClaw.</p>
+          <article className="card" style={{ background: "#fff", marginTop: "1rem" }}>
+            <p>Update the homepage banner, workspace copy, About Us text, and mission statement from here.</p>
+            <form action={updateSiteCopyAction} className="list" style={{ marginTop: "0.85rem" }}>
+              <label>
+                Homepage banner
+                <input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} />
+              </label>
+              <label>
+                Homepage welcome message
+                <input className="input" name="home_welcome" defaultValue={siteCopy?.homeWelcome || ""} />
+              </label>
+              <label>
+                Homepage intro
+                <textarea className="input" name="home_intro" rows={3} defaultValue={siteCopy?.homeIntro || ""} />
+              </label>
+              <label>
+                Teacher card copy
+                <textarea className="input" name="teacher_card_copy" rows={3} defaultValue={siteCopy?.teacherCardCopy || ""} />
+              </label>
+              <label>
+                Student card copy
+                <textarea className="input" name="student_card_copy" rows={3} defaultValue={siteCopy?.studentCardCopy || ""} />
+              </label>
+              <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
+              <label>
+                Mission statement
+                <textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} />
+              </label>
+              <label>
+                About Us text
+                <textarea className="input" name="about_story" rows={5} defaultValue={siteCopy?.aboutStory || ""} />
+              </label>
+              <div className="ctaRow">
+                <button className="btn primary" type="submit">
+                  Save Site Copy
+                </button>
+              </div>
+            </form>
+          </article>
+        </section>
+      ) : null}
+
+      {canViewDiagnostics && effectiveAdminView === "mastery" ? (
+        <section className="card">
+          <h2>Mastery Settings</h2>
+          <p>
+            Global progression rules that apply across all adaptive practice games. Save here to update mastery thresholds for all supported games.
+          </p>
+          <div className="featureGrid" style={{ marginTop: "1rem" }}>
+            <article className="card" style={{ background: "#fff" }}>
+              <h3>Level-Up Rules</h3>
+              <form action={updateIntegerMasterySettingsAction} className="list" style={{ marginTop: "0.85rem" }}>
+                <label>
+                  Minimum attempts before checking mastery: {integerMasterySettings.minAttempts}
+                  <input className="input" type="range" name="min_attempts" min="1" max="50" step="1" defaultValue={integerMasterySettings.minAttempts} />
+                </label>
+                <label>
+                  Recent window size: {integerMasterySettings.recentWindowSize}
+                  <input className="input" type="range" name="recent_window_size" min="1" max="50" step="1" defaultValue={integerMasterySettings.recentWindowSize} />
+                </label>
+                <label>
+                  Correct answers needed in that window: {integerMasterySettings.minCorrectInRecentWindow}
+                  <input className="input" type="range" name="min_correct_in_recent_window" min="1" max="50" step="1" defaultValue={integerMasterySettings.minCorrectInRecentWindow} />
+                </label>
+                <label>
+                  Correct streak needed: {integerMasterySettings.minCorrectStreak}
+                  <input className="input" type="range" name="min_correct_streak" min="0" max="30" step="1" defaultValue={integerMasterySettings.minCorrectStreak} />
+                </label>
+                <label>
+                  Blended accuracy required: {percentInput(integerMasterySettings.minBlendedAccuracy)}%
+                  <input className="input" type="range" name="min_blended_accuracy" min="50" max="100" step="1" defaultValue={percentInput(integerMasterySettings.minBlendedAccuracy)} />
+                </label>
+                <label>
+                  Historical weight: {percentInput(integerMasterySettings.historicalWeight)}%
+                  <input className="input" type="range" name="historical_weight" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.historicalWeight)} />
+                </label>
+                <label className="toggleRow">
+                  <input type="checkbox" name="count_retries_as_correct" defaultChecked={integerMasterySettings.countRetriesAsCorrect} />
+                  Count retry-correct answers as correct for mastery
+                </label>
+                <label className="toggleRow">
+                  <input type="checkbox" name="use_hint_gate" defaultChecked={integerMasterySettings.useHintGate} />
+                  Use hint-rate gate
+                </label>
+                <label>
+                  Maximum hint rate: {percentInput(integerMasterySettings.maxHintRate)}%
+                  <input className="input" type="range" name="max_hint_rate" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.maxHintRate)} />
+                </label>
+                <label className="toggleRow">
+                  <input type="checkbox" name="use_speed_gate" defaultChecked={integerMasterySettings.useSpeedGate} />
+                  Use speed gate
+                </label>
+                <label>
+                  Maximum median response time: {secondsInput(integerMasterySettings.maxMedianResponseMs)} seconds
+                  <input className="input" type="range" name="max_median_response_seconds" min="1" max="30" step="1" defaultValue={secondsInput(integerMasterySettings.maxMedianResponseMs)} />
+                </label>
+                <label>
+                  Close-state buffer: {percentInput(integerMasterySettings.closeBuffer)}%
+                  <input className="input" type="range" name="close_buffer" min="0" max="50" step="1" defaultValue={percentInput(integerMasterySettings.closeBuffer)} />
+                </label>
+                <div className="ctaRow">
+                  <button className="btn primary" type="submit">Save Mastery Settings</button>
+                </div>
+              </form>
+              <form action={resetIntegerMasterySettingsAction} className="ctaRow" style={{ marginTop: "0.75rem" }}>
+                <button className="btn ghost" type="submit">Reset To Defaults</button>
+              </form>
+            </article>
+            <article className="card" style={{ background: "#fff" }}>
+              <h3>Mastery Simulator</h3>
+              <p>
+                This quick check uses Level 20 sample histories so you can see whether the saved rules feel too strict or too loose.
+              </p>
+              <div className="list" style={{ marginTop: "0.85rem" }}>
+                {integerMasterySimulator.map((item) => (
+                  <div key={item.label} className="dataWallNote">
+                    <strong>{item.label}</strong>
+                    <p>
+                      {item.result.canLevelUp ? "Levels up" : "Stays put"} · {item.result.reasons.recentCorrectCount}/{item.result.reasons.recentWindowSize} recent correct · {Math.round(item.result.reasons.blendedAccuracy * 100)}% blended
+                    </p>
+                    {!item.result.canLevelUp && item.result.blockedReasons[0] ? (
+                      <p>{item.result.blockedReasons[0]}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="dataWallNote" style={{ marginTop: "0.85rem" }}>
+                <strong>Last saved</strong>
+                <p>{integerMasterySettings.updatedAt ? formatDate(integerMasterySettings.updatedAt) : "Defaults are active."}</p>
+              </div>
+            </article>
           </div>
         </section>
       ) : null}
 
       {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
         <>
-          <section className="card">
-            <h2>Owner Site Controls</h2>
-            <p>
-              Use these controls to hide features site-wide, release them to teachers before students, and edit public-facing copy without leaving MathClaw.
-            </p>
-            <div className="featureGrid" style={{ marginTop: "1rem" }}>
-              <article className="card" style={{ background: "#fff" }}>
-                <h3>Feature Rollout Controls</h3>
-                <p>Set each feature to live for everyone, visible only to teachers, or disabled site-wide.</p>
-                <form
-                  id="bulkFeatureUpdateForm"
-                  action={bulkUpdateSiteFeatureAudienceAction}
-                  className="classGameControlItem isEnabled"
-                  style={{ marginTop: "0.85rem" }}
-                >
-                  <div className="classGameControlCopy">
-                    <div className="classGameControlTopline">
-                      <strong>Bulk Update Selected Features</strong>
-                      <span className="pill classGameStatusPill isEnabled">Owner control</span>
-                    </div>
-                    <span>Check the features you want below, then apply one rollout state to that selected set.</span>
-                  </div>
-                  <select className="input" name="bulk_audience" defaultValue="everyone" style={{ maxWidth: "14rem" }}>
-                    <option value="everyone">Everyone</option>
-                    <option value="teachers_only">Teachers only</option>
-                    <option value="disabled">Disabled site-wide</option>
-                  </select>
-                  <button className="btn primary" type="submit">
-                    Apply To Selected
-                  </button>
-                </form>
-                <div className="list" style={{ marginTop: "0.85rem" }}>
-                  {managedSiteGames.map((game) => (
-                    <form key={game.slug} action={updateSiteFeatureAudienceAction} className="classGameControlItem isEnabled">
-                      <input
-                        type="checkbox"
-                        name="selected_game_slugs"
-                        value={game.slug}
-                        form="bulkFeatureUpdateForm"
-                        aria-label={`Select ${game.name} for bulk update`}
-                      />
-                      <input type="hidden" name="game_slug" value={game.slug} />
-                      <div className="classGameControlCopy">
-                        <div className="classGameControlTopline">
-                          <strong>{game.name}</strong>
-                          <span className="pill classGameStatusPill isEnabled">
-                            {describeSiteAudience(siteFeatureConfig.audienceBySlug?.[game.slug])}
-                          </span>
-                        </div>
-                        <span>{game.description}</span>
-                      </div>
-                      <select
-                        className="input"
-                        name="audience"
-                        defaultValue={siteFeatureConfig.audienceBySlug?.[game.slug] || "everyone"}
-                        style={{ maxWidth: "14rem" }}
-                      >
-                        <option value="everyone">Everyone</option>
-                        <option value="teachers_only">Teachers only</option>
-                        <option value="disabled">Disabled site-wide</option>
-                      </select>
-                      <button className="btn primary" type="submit">
-                        Save
-                      </button>
-                    </form>
-                  ))}
-                </div>
-              </article>
-              <article className="card" style={{ background: "#fff" }}>
-                <h3>Editable Site Copy</h3>
-                <p>Update the homepage banner, workspace copy, About Us text, and mission statement from here.</p>
-                <form action={updateSiteCopyAction} className="list" style={{ marginTop: "0.85rem" }}>
-                  <label>
-                    Homepage banner
-                    <input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} />
-                  </label>
-                  <label>
-                    Homepage welcome message
-                    <input className="input" name="home_welcome" defaultValue={siteCopy?.homeWelcome || ""} />
-                  </label>
-                  <label>
-                    Homepage intro
-                    <textarea className="input" name="home_intro" rows={3} defaultValue={siteCopy?.homeIntro || ""} />
-                  </label>
-                  <label>
-                    Teacher card copy
-                    <textarea className="input" name="teacher_card_copy" rows={3} defaultValue={siteCopy?.teacherCardCopy || ""} />
-                  </label>
-                  <label>
-                    Student card copy
-                    <textarea className="input" name="student_card_copy" rows={3} defaultValue={siteCopy?.studentCardCopy || ""} />
-                  </label>
-                  <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
-                  <label>
-                    Mission statement
-                    <textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} />
-                  </label>
-                  <label>
-                    About Us text
-                    <textarea className="input" name="about_story" rows={5} defaultValue={siteCopy?.aboutStory || ""} />
-                  </label>
-                  <div className="ctaRow">
-                    <button className="btn primary" type="submit">
-                      Save Site Copy
-                    </button>
-                  </div>
-                </form>
-              </article>
-            </div>
-          </section>
-
-          <section className="card">
-            <h2>Integer Mastery Dashboard</h2>
-            <p>
-              These global rules apply to Adding & Subtracting Integers in Adaptive Practice and Level Progression after you save them.
-            </p>
-            <div className="featureGrid" style={{ marginTop: "1rem" }}>
-              <article className="card" style={{ background: "#fff" }}>
-                <h3>Level-Up Rules</h3>
-                <form action={updateIntegerMasterySettingsAction} className="list" style={{ marginTop: "0.85rem" }}>
-                  <label>
-                    Minimum attempts before checking mastery: {integerMasterySettings.minAttempts}
-                    <input className="input" type="range" name="min_attempts" min="1" max="50" step="1" defaultValue={integerMasterySettings.minAttempts} />
-                  </label>
-                  <label>
-                    Recent window size: {integerMasterySettings.recentWindowSize}
-                    <input className="input" type="range" name="recent_window_size" min="1" max="50" step="1" defaultValue={integerMasterySettings.recentWindowSize} />
-                  </label>
-                  <label>
-                    Correct answers needed in that window: {integerMasterySettings.minCorrectInRecentWindow}
-                    <input className="input" type="range" name="min_correct_in_recent_window" min="1" max="50" step="1" defaultValue={integerMasterySettings.minCorrectInRecentWindow} />
-                  </label>
-                  <label>
-                    Correct streak needed: {integerMasterySettings.minCorrectStreak}
-                    <input className="input" type="range" name="min_correct_streak" min="0" max="30" step="1" defaultValue={integerMasterySettings.minCorrectStreak} />
-                  </label>
-                  <label>
-                    Blended accuracy required: {percentInput(integerMasterySettings.minBlendedAccuracy)}%
-                    <input className="input" type="range" name="min_blended_accuracy" min="50" max="100" step="1" defaultValue={percentInput(integerMasterySettings.minBlendedAccuracy)} />
-                  </label>
-                  <label>
-                    Historical weight: {percentInput(integerMasterySettings.historicalWeight)}%
-                    <input className="input" type="range" name="historical_weight" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.historicalWeight)} />
-                  </label>
-                  <label className="toggleRow">
-                    <input type="checkbox" name="count_retries_as_correct" defaultChecked={integerMasterySettings.countRetriesAsCorrect} />
-                    Count retry-correct answers as correct for mastery
-                  </label>
-                  <label className="toggleRow">
-                    <input type="checkbox" name="use_hint_gate" defaultChecked={integerMasterySettings.useHintGate} />
-                    Use hint-rate gate
-                  </label>
-                  <label>
-                    Maximum hint rate: {percentInput(integerMasterySettings.maxHintRate)}%
-                    <input className="input" type="range" name="max_hint_rate" min="0" max="100" step="5" defaultValue={percentInput(integerMasterySettings.maxHintRate)} />
-                  </label>
-                  <label className="toggleRow">
-                    <input type="checkbox" name="use_speed_gate" defaultChecked={integerMasterySettings.useSpeedGate} />
-                    Use speed gate
-                  </label>
-                  <label>
-                    Maximum median response time: {secondsInput(integerMasterySettings.maxMedianResponseMs)} seconds
-                    <input className="input" type="range" name="max_median_response_seconds" min="1" max="30" step="1" defaultValue={secondsInput(integerMasterySettings.maxMedianResponseMs)} />
-                  </label>
-                  <label>
-                    Close-state buffer: {percentInput(integerMasterySettings.closeBuffer)}%
-                    <input className="input" type="range" name="close_buffer" min="0" max="50" step="1" defaultValue={percentInput(integerMasterySettings.closeBuffer)} />
-                  </label>
-                  <div className="ctaRow">
-                    <button className="btn primary" type="submit">Save Mastery Settings</button>
-                  </div>
-                </form>
-                <form action={resetIntegerMasterySettingsAction} className="ctaRow" style={{ marginTop: "0.75rem" }}>
-                  <button className="btn ghost" type="submit">Reset To Defaults</button>
-                </form>
-              </article>
-              <article className="card" style={{ background: "#fff" }}>
-                <h3>Mastery Simulator</h3>
-                <p>
-                  This quick check uses Level 20 sample histories so you can see whether the saved rules feel too strict or too loose.
-                </p>
-                <div className="list" style={{ marginTop: "0.85rem" }}>
-                  {integerMasterySimulator.map((item) => (
-                    <div key={item.label} className="dataWallNote">
-                      <strong>{item.label}</strong>
-                      <p>
-                        {item.result.canLevelUp ? "Levels up" : "Stays put"} · {item.result.reasons.recentCorrectCount}/{item.result.reasons.recentWindowSize} recent correct · {Math.round(item.result.reasons.blendedAccuracy * 100)}% blended
-                      </p>
-                      {!item.result.canLevelUp && item.result.blockedReasons[0] ? (
-                        <p>{item.result.blockedReasons[0]}</p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-                <div className="dataWallNote" style={{ marginTop: "0.85rem" }}>
-                  <strong>Last saved</strong>
-                  <p>{integerMasterySettings.updatedAt ? formatDate(integerMasterySettings.updatedAt) : "Defaults are active."}</p>
-                </div>
-              </article>
-            </div>
-          </section>
-
           <section className="card">
             <h2>Performance Spend And App Decision</h2>
             <p>
@@ -1090,8 +1091,33 @@ export default async function AdminPage({ searchParams }) {
       ) : null}
 
       {effectiveAdminView === "accounts" && adminContext.hasSchoolScope ? (
-        <section className="card">
-          <h2>User Information</h2>
+        <>
+          {schoolSummaries.length > 0 ? (
+            <section className="card">
+              <h2>{schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}</h2>
+              <p>
+                {schoolFilter === "all"
+                  ? "Quick counts by school so you can spot where the most accounts and admins live."
+                  : "Quick counts for the currently selected school."}
+              </p>
+              <div className="adminSchoolGrid">
+                {(schoolFilter === "all" ? schoolSummaries.slice(0, 8) : schoolSummaries).map((school) => (
+                  <article key={school.schoolName} className="card adminSchoolCard">
+                    <h3>{school.schoolName}</h3>
+                    <div className="adminSchoolStats">
+                      <p><strong>Total:</strong> {school.total}</p>
+                      <p><strong>Teachers:</strong> {school.teachers}</p>
+                      <p><strong>Students:</strong> {school.students}</p>
+                      <p><strong>Admins:</strong> {school.admins}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="card">
+            <h2>User Information</h2>
         <form className="adminFilterBar adminFilterBarWide" method="get">
           <input type="hidden" name="view" value="accounts" />
           <label className="stack">
@@ -1450,7 +1476,8 @@ export default async function AdminPage({ searchParams }) {
             </div>
           </>
         ) : null}
-        </section>
+          </section>
+        </>
       ) : null}
 
       <AdminToast

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getAccountTypeForUser, sanitizeNextForAccountType } from "@/lib/auth/account-type";
+import { removeLegacySavedGamesFromMetadata } from "@/lib/auth/session-metadata";
 
 export default function SignInForm({ redirectTo }) {
   const [email, setEmail] = useState("");
@@ -34,7 +35,27 @@ export default function SignInForm({ redirectTo }) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const accountType = await getAccountTypeForUser(supabase, user, "teacher");
+
+    if (user?.user_metadata?.saved_games) {
+      const { metadata } = removeLegacySavedGamesFromMetadata(user.user_metadata);
+      const { error: compactError } = await supabase.auth.updateUser({ data: metadata });
+      const { error: refreshError } = compactError
+        ? { error: compactError }
+        : await supabase.auth.refreshSession();
+
+      if (compactError || refreshError) {
+        await supabase.auth.signOut();
+        setActiveMethod(null);
+        setError("Your legacy saved progress needs cleanup before sign-in can finish. Please try again.");
+        return;
+      }
+    }
+
+    const {
+      data: { user: refreshedUser },
+    } = await supabase.auth.getUser();
+    const activeUser = refreshedUser || user;
+    const accountType = await getAccountTypeForUser(supabase, activeUser, "teacher");
 
     router.push(sanitizeNextForAccountType(redirectTo, accountType));
     router.refresh();

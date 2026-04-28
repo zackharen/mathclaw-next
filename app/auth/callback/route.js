@@ -7,6 +7,7 @@ import {
   parseAccountType,
   sanitizeNextForAccountType,
 } from "@/lib/auth/account-type";
+import { removeLegacySavedGamesFromMetadata } from "@/lib/auth/session-metadata";
 import { normalizeJoinCode } from "@/lib/student-games/join-code";
 
 function appendQueryParams(path, entries) {
@@ -80,14 +81,25 @@ export async function GET(request) {
 
       if (
         user.user_metadata?.account_type !== currentAccountType ||
+        user.user_metadata?.saved_games ||
         (requestedSchoolName && user.user_metadata?.school_name !== requestedSchoolName)
       ) {
-        await supabase.auth.updateUser({
+        const { metadata } = removeLegacySavedGamesFromMetadata(user.user_metadata);
+        const { error: updateError } = await supabase.auth.updateUser({
           data: {
+            ...metadata,
             account_type: currentAccountType,
             ...(requestedSchoolName ? { school_name: requestedSchoolName } : {}),
           },
         });
+        if (updateError) {
+          return NextResponse.redirect(
+            new URL(
+              `/auth/sign-in?error=${encodeURIComponent("Could not finish account cleanup. Please try again.")}`,
+              requestUrl.origin
+            )
+          );
+        }
       }
 
       const {
