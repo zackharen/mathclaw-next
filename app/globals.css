@@ -497,33 +497,34 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
-.arcadeClassesDetails {
+.arcadeSectionDetails {
   margin-top: 0;
 }
 
-.arcadeClassesSummary {
+.arcadeSectionSummary {
   list-style: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  padding: 0 0.75rem 0 0.7rem;
   cursor: pointer;
 }
 
-.arcadeClassesSummary::-webkit-details-marker {
+.arcadeSectionSummary::-webkit-details-marker {
   display: none;
 }
 
-.arcadeClassesSummary h2 {
+.arcadeSectionSummary h2 {
   margin: 0;
 }
 
-.arcadeClassesSummary p {
+.arcadeSectionSummary p {
   margin: 0.35rem 0 0;
   color: #4e6679;
 }
 
-.arcadeClassesToggle {
+.arcadeSectionToggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -538,19 +539,19 @@ p {
   flex-shrink: 0;
 }
 
-.arcadeClassesSummary .hideLabel {
+.arcadeSectionSummary .hideLabel {
   display: none;
 }
 
-details[open] > summary.arcadeClassesSummary .showLabel {
+details[open] > summary.arcadeSectionSummary .showLabel {
   display: none;
 }
 
-details[open] > summary.arcadeClassesSummary .hideLabel {
+details[open] > summary.arcadeSectionSummary .hideLabel {
   display: inline;
 }
 
-.arcadeClassesBody {
+.arcadeSectionBody {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--line);
@@ -564,7 +565,7 @@ details[open] > summary.arcadeClassesSummary .hideLabel {
   display: grid;
   gap: 1.25rem;
   align-items: start;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .arcadeColumn {
@@ -594,6 +595,18 @@ details[open] > summary.arcadeClassesSummary .hideLabel {
 .arcadeGameCard {
   display: grid;
   gap: 0.6rem;
+  grid-template-rows: auto minmax(2.8rem, auto) auto 1fr auto;
+  min-height: 16.5rem;
+}
+
+.arcadeGameCard .compactKv {
+  align-self: end;
+  margin-top: 0;
+}
+
+.arcadeGameCard .ctaRow {
+  align-self: end;
+  margin-top: 0.75rem;
 }
 
 .arcadeGameTags {
@@ -603,17 +616,308 @@ details[open] > summary.arcadeClassesSummary .hideLabel {
 }
 
 @media (max-width: 900px) {
-  .arcadeClassesSummary {
+  .arcadeSectionSummary {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .arcadeClassesToggle {
+  .arcadeSectionToggle {
     width: 100%;
   }
 
   .arcadeColumns {
     grid-template-columns: 1fr;
+  }
+}
+
+.openMiddleHub {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.openMiddleHubCard {
+  border: 3px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.openMiddleHubHeader,
+.openMiddleSessionHeader,
+.openMiddleTeacherRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.openMiddleHubGrid,
+.openMiddleTeacherGrid,
+.openMiddleLiveGrid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.openMiddleSelectField,
+.openMiddleAuthorForm label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.openMiddleSelectField span,
+.openMiddleAuthorForm label span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.openMiddleSelectField select,
+.openMiddleAuthorForm select {
+  min-height: 2.8rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.9rem;
+  border: 2px solid rgba(15, 23, 42, 0.16);
+  background: #fff;
+  color: #0f172a;
+}
+
+.openMiddleAuthorForm {
+  display: grid;
+  gap: 1rem;
+}
+
+.openMiddleAuthorGrid,
+.openMiddleOperatorRow,
+.openMiddleSessionList,
+.openMiddleVersionList,
+.openMiddleTemplateList,
+.openMiddleDigitPool,
+.openMiddleResponseList {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.openMiddleAuthorGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.openMiddleOperatorRow {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.openMiddleOperatorChip,
+.openMiddleVersionCard,
+.openMiddleTemplateCard,
+.openMiddleSessionCard,
+.openMiddleResponseCard {
+  border-radius: 1rem;
+  border: 2px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+}
+
+.openMiddleOperatorChip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  font-weight: 700;
+}
+
+.openMiddlePreviewCard,
+.openMiddleEquationBoard,
+.openMiddlePlayPanel,
+.openMiddleRevealPanel,
+.openMiddleCountdownCard,
+.openMiddleStatusBanner {
+  border-radius: 1.25rem;
+  border: 2px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, #fffef7 0%, #f8fafc 100%);
+}
+
+.openMiddlePreviewCard,
+.openMiddleEquationBoard,
+.openMiddlePlayPanel,
+.openMiddleRevealPanel {
+  padding: 1rem;
+}
+
+.openMiddleEquationLine {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 3rem;
+}
+
+.openMiddleEquationLine + .openMiddleEquationLine {
+  margin-top: 0.75rem;
+}
+
+.openMiddlePreviewBlank,
+.openMiddleLiveBlank {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(15, 23, 42, 0.22);
+  background: #fff;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.openMiddleLiveBlank {
+  border-style: solid;
+  cursor: pointer;
+}
+
+.openMiddleLiveBlank.filled {
+  border-color: #ea580c;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.openMiddlePreviewText {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.openMiddleSessionList {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 1rem;
+}
+
+.openMiddleSessionCard,
+.openMiddleVersionCard,
+.openMiddleTemplateCard,
+.openMiddleResponseCard {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+}
+
+.openMiddleSessionCard {
+  text-decoration: none;
+  color: inherit;
+}
+
+.openMiddleVersionCard.selected,
+.openMiddleTemplateCard.selected {
+  border-color: #0f172a;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.openMiddleVersionCard {
+  text-align: left;
+}
+
+.openMiddleTemplateCard {
+  width: 100%;
+  text-align: left;
+}
+
+.openMiddleMutedNote,
+.openMiddleMutedInline {
+  color: rgba(15, 23, 42, 0.68);
+}
+
+.openMiddleSuccessNote {
+  color: #166534;
+  font-weight: 700;
+}
+
+.openMiddleErrorNote,
+.openMiddleErrorList p {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.openMiddleDigitPool {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.openMiddleDigitButton {
+  min-height: 3.1rem;
+  border-radius: 1rem;
+  border: 2px solid rgba(15, 23, 42, 0.14);
+  background: #fff;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.openMiddleDigitButton.used {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.28);
+}
+
+.openMiddleCountdownCard {
+  min-width: 120px;
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.openMiddleCountdownCard span {
+  display: block;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.68);
+}
+
+.openMiddleCountdownCard strong {
+  font-size: 1.8rem;
+  color: #0f172a;
+}
+
+.openMiddleStatusBanner {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+  margin-top: 1rem;
+}
+
+.openMiddleStatusBanner.live {
+  background: linear-gradient(180deg, #ecfeff 0%, #f8fafc 100%);
+}
+
+.openMiddleStatusBanner.waiting {
+  background: linear-gradient(180deg, #fef9c3 0%, #fffef7 100%);
+}
+
+.openMiddleRevealLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.openMiddleRevealLine.correct,
+.openMiddleResponseCard.correct {
+  color: #166534;
+}
+
+.openMiddleRevealLine.incorrect,
+.openMiddleResponseCard.incorrect {
+  color: #b91c1c;
+}
+
+@media (max-width: 900px) {
+  .openMiddleHubGrid,
+  .openMiddleTeacherGrid,
+  .openMiddleLiveGrid,
+  .openMiddleAuthorGrid,
+  .openMiddleOperatorRow {
+    grid-template-columns: 1fr;
+  }
+
+  .openMiddleDigitPool {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
@@ -2887,12 +3191,14 @@ details[open] > summary.btn,
 
 .reviewGameFamilyGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
-.reviewFamilyComingSoon {
-  border-style: dashed;
+@media (max-width: 900px) {
+  .reviewGameFamilyGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .doubleBoardScoreStrip {

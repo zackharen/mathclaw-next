@@ -10,6 +10,7 @@ const REVIEW_GAME_SLUGS = new Set([
   "question_kind_review",
   "double_board_review",
   "lowest_number_wins",
+  "open_middle",
 ]);
 
 function reviewHref(slug, courseId) {
@@ -18,6 +19,7 @@ function reviewHref(slug, courseId) {
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "double_board_review") return `/play/double-board${query}`;
   if (slug === "lowest_number_wins") return `/play/lowest-number-wins${query}`;
+  if (slug === "open_middle") return `/play/open-middle${query}`;
   return `/play${query}`;
 }
 

@@ -11,6 +11,7 @@ const REVIEW_GAME_SLUGS = new Set([
   "question_kind_review",
   "double_board_review",
   "lowest_number_wins",
+  "open_middle",
 ]);
 
 function gameHref(slug, courseId) {
@@ -25,6 +26,7 @@ function gameHref(slug, courseId) {
   if (slug === "question_kind_review") return `/play/question-kind-review${query}`;
   if (slug === "double_board_review") return `/play/double-board${query}`;
   if (slug === "lowest_number_wins") return `/play/lowest-number-wins${query}`;
+  if (slug === "open_middle") return `/play/open-middle${query}`;
   if (slug === "telling_time") return `/play/telling-time${query}`;
   if (slug === "locker_practice") return `/play/locker-practice${query}`;
   if (slug === "slope_intercept") return `/play/slope-intercept${query}`;
@@ -47,6 +49,10 @@ function getGameTags(game) {
 
   if (game.category === "math_skills") {
     tags.push("#mathskills");
+  }
+
+  if (game.category === "survival_skills") {
+    tags.push("#survivalskills");
   }
 
   if (game.is_multiplayer) {
@@ -91,6 +97,26 @@ const STUDENT_QUESTION_TYPE_OPTIONS = [
   { slug: "time", label: "Time Question" },
   { slug: "question_kind", label: "Question Type Challenge" },
 ];
+
+function ArcadeDisclosure({ title, description, open = false, children }) {
+  return (
+    <section className="card">
+      <details className="arcadeSectionDetails" open={open}>
+        <summary className="arcadeSectionSummary">
+          <div>
+            <h2>{title}</h2>
+            {description ? <p>{description}</p> : null}
+          </div>
+          <span className="arcadeSectionToggle">
+            <span className="showLabel">Show</span>
+            <span className="hideLabel">Hide</span>
+          </span>
+        </summary>
+        <div className="arcadeSectionBody">{children}</div>
+      </details>
+    </section>
+  );
+}
 
 function statRowsForGame(game, stats) {
   if (!stats) return [];
@@ -174,6 +200,12 @@ export default async function PlayPage({ searchParams }) {
     params?.join_error === "server" ||
     params?.join_success === "1" ||
     typeof params?.game_disabled === "string";
+  const hasQuestionFeedback =
+    params?.question_created === "1" ||
+    params?.question_error === "missing" ||
+    params?.question_error === "course" ||
+    params?.question_error === "catalog" ||
+    params?.question_error === "save";
   const joinedCourseId = typeof params?.course === "string" ? params.course : "";
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
   const activeCourse = joinedCourse || courses[0] || null;
@@ -209,6 +241,9 @@ export default async function PlayPage({ searchParams }) {
         !REVIEW_GAME_SLUGS.has(game.slug)
     )
     .sort((a, b) => a.name.localeCompare(b.name));
+  const survivalSkillsGames = visibleGames
+    .filter((game) => game.category === "survival_skills")
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="stack">
@@ -221,19 +256,11 @@ export default async function PlayPage({ searchParams }) {
         </p>
       </section>
 
-      <section className="card">
-        <details className="arcadeClassesDetails" open={hasJoinFeedback}>
-          <summary className="arcadeClassesSummary">
-            <div>
-              <h2>Classes</h2>
-              <p>Join a class or switch between the ones already connected to this account.</p>
-            </div>
-            <span className="arcadeClassesToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="arcadeClassesBody">
+      <ArcadeDisclosure
+        title="Classes"
+        description="Join a class or switch between the ones already connected to this account."
+        open={hasJoinFeedback}
+      >
             <div className="featureGrid arcadeClassesGrid">
               <form action={joinClassByCodeAction} className="card" style={{ background: "#fff" }}>
                 <h2>Join A Math Class</h2>
@@ -320,14 +347,164 @@ export default async function PlayPage({ searchParams }) {
                 )}
               </article>
             </div>
-          </div>
-        </details>
-      </section>
+      </ArcadeDisclosure>
 
-      <section className="card">
-        <h2>Your Awards And Extra Credit</h2>
+      {reviewGames.length > 0 ? (
+        <ArcadeDisclosure
+          title="Group Activities"
+          description="Use these modes when you want mixed review, strategy reminders, and more of a checkpoint feeling than a single-skill drill."
+        >
+          <div className="reviewGameFamilyGrid" style={{ marginTop: "1rem" }}>
+            {reviewGames.map((game) => (
+              <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                <h3>{game.name}</h3>
+                <p>{game.description}</p>
+                <p className="arcadeGameTags">#review, #mathskills</p>
+                {statsByGame.get(game.slug) ? (
+                  <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                    {statRowsForGame(game, statsByGame.get(game.slug)).map(([label, value]) => (
+                      <div key={label}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="ctaRow">
+                  <Link className="btn" href={gameHref(game.slug, activeCourse?.id || "")}>
+                    Open {game.name}
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </ArcadeDisclosure>
+      ) : null}
+      <ArcadeDisclosure
+        title="Fun & Games"
+        description="Arcade-style games, skill practice, and independent play."
+      >
+        {activeCourse && visibleGames.length === 0 ? (
+          <p style={{ marginTop: "0.75rem" }}>No games are enabled for this class yet.</p>
+        ) : null}
+        <div className="arcadeColumns">
+          <div className="arcadeColumn">
+            <div className="arcadeColumnHeader">
+              <h3>#arcade</h3>
+              <p>Arcade-style games and head-to-head play.</p>
+            </div>
+            <div className="arcadeGameList">
+              {arcadeGames.map((game) => {
+                const stats = statsByGame.get(game.slug);
+                return (
+                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                    <h3>{game.name}</h3>
+                    <p>{game.description}</p>
+                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
+                    {stats ? (
+                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                        {statRowsForGame(game, stats).map(([label, value]) => (
+                          <div key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="ctaRow">
+                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
+                        Play {game.name}
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="arcadeColumn">
+            <div className="arcadeColumnHeader">
+              <h3>#mathskills</h3>
+              <p>Quick skill practice and fluency-building games.</p>
+            </div>
+            <div className="arcadeGameList">
+              {mathSkillsGames.map((game) => {
+                const stats = statsByGame.get(game.slug);
+                return (
+                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                    <h3>{game.name}</h3>
+                    <p>{game.description}</p>
+                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
+                    {stats ? (
+                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                        {statRowsForGame(game, stats).map(([label, value]) => (
+                          <div key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="ctaRow">
+                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
+                        Play {game.name}
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="arcadeColumn">
+            <div className="arcadeColumnHeader">
+              <h3>#survivalskills</h3>
+              <p>Practical skills for everyday confidence.</p>
+            </div>
+            <div className="arcadeGameList">
+              {survivalSkillsGames.length === 0 ? (
+                <article className="card arcadeGameCard" style={{ background: "#f7fafc" }}>
+                  <h3>More Survival Skills</h3>
+                  <p>New survival-skills games will land here as they are added.</p>
+                  <p className="arcadeGameTags">#survivalskills</p>
+                </article>
+              ) : null}
+              {survivalSkillsGames.map((game) => {
+                const stats = statsByGame.get(game.slug);
+                return (
+                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
+                    <h3>{game.name}</h3>
+                    <p>{game.description}</p>
+                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
+                    {stats ? (
+                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+                        {statRowsForGame(game, stats).map(([label, value]) => (
+                          <div key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="ctaRow">
+                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
+                        Play {game.name}
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </ArcadeDisclosure>
+      <ArcadeDisclosure
+        title="Awards & Extra Credit"
+        description="Teacher awards and extra credit will show up here once they start handing them out."
+        open={awards.length > 0}
+      >
         {awards.length === 0 ? (
-          <p>Your teacher awards and extra credit will show up here once they start handing them out.</p>
+          <p>No awards or extra credit yet.</p>
         ) : (
           <div className="list">
             {awards.map((award, index) => (
@@ -347,12 +524,12 @@ export default async function PlayPage({ searchParams }) {
             ))}
           </div>
         )}
-      </section>
-      <section className="card">
-        <h2>Create A Math Question</h2>
-        <p>
-          Turn what you know into a performance task by writing your own question, answer, and short explanation for your class.
-        </p>
+      </ArcadeDisclosure>
+      <ArcadeDisclosure
+        title="Create A Math Question"
+        description="Turn what you know into a performance task by writing your own question, answer, and short explanation for your class."
+        open={hasQuestionFeedback}
+      >
         {params?.question_created === "1" ? (
           <p style={{ color: "#0a7a32", fontWeight: 700, marginTop: "0.75rem" }}>
             Your question was saved for this class.
@@ -463,128 +640,7 @@ export default async function PlayPage({ searchParams }) {
             </article>
           </div>
         )}
-      </section>
-      {reviewGames.length > 0 ? (
-        <section className="card">
-          <h2>Review Games</h2>
-          <p>
-            Use these modes when you want mixed review, strategy reminders, and more of a checkpoint feeling than a single-skill drill.
-          </p>
-          <div className="ctaRow" style={{ marginTop: "0.9rem" }}>
-            <Link className="btn primary" href={gameHref("review_games", activeCourse?.id || "")}>
-              Open Review Hub
-            </Link>
-          </div>
-          <div className="reviewGameFamilyGrid" style={{ marginTop: "1rem" }}>
-            {reviewGames.map((game) => (
-              <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                <h3>{game.name}</h3>
-                <p>{game.description}</p>
-                <p className="arcadeGameTags">#review, #mathskills</p>
-                {statsByGame.get(game.slug) ? (
-                  <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                    {statRowsForGame(game, statsByGame.get(game.slug)).map(([label, value]) => (
-                      <div key={label}>
-                        <span>{label}</span>
-                        <strong>{value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="ctaRow">
-                  <Link className="btn" href={gameHref(game.slug, activeCourse?.id || "")}>
-                    Open {game.name}
-                  </Link>
-                </div>
-              </article>
-            ))}
-            <article className="card reviewFamilyComingSoon" style={{ background: "#f7fafc" }}>
-              <h3>More Review Modes</h3>
-              <p>Adaptive review paths, family-style review games, and future checkpoints will land here next.</p>
-            </article>
-          </div>
-        </section>
-      ) : null}
-      <section className="card">
-        <h2>{activeCourse ? `Games For ${activeCourse.title}` : "Games"}</h2>
-        {activeCourse ? (
-          <p>
-            This arcade view is using <strong>{activeCourse.class_name}</strong> as the current class context.
-          </p>
-        ) : null}
-        {activeCourse && visibleGames.length === 0 ? (
-          <p style={{ marginTop: "0.75rem" }}>No games are enabled for this class yet.</p>
-        ) : null}
-        <div className="arcadeColumns">
-          <div className="arcadeColumn">
-            <div className="arcadeColumnHeader">
-              <h3>#arcade</h3>
-              <p>Arcade-style games and head-to-head play.</p>
-            </div>
-            <div className="arcadeGameList">
-              {arcadeGames.map((game) => {
-                const stats = statsByGame.get(game.slug);
-                return (
-                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
-                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
-                    {stats ? (
-                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        {statRowsForGame(game, stats).map(([label, value]) => (
-                          <div key={label}>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
-                        Play {game.name}
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="arcadeColumn">
-            <div className="arcadeColumnHeader">
-              <h3>#mathskills</h3>
-              <p>Quick skill practice and fluency-building games.</p>
-            </div>
-            <div className="arcadeGameList">
-              {mathSkillsGames.map((game) => {
-                const stats = statsByGame.get(game.slug);
-                return (
-                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
-                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
-                    {stats ? (
-                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        {statRowsForGame(game, stats).map(([label, value]) => (
-                          <div key={label}>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
-                        Play {game.name}
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
+      </ArcadeDisclosure>
     </div>
   );
 }
