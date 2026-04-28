@@ -1,5 +1,6 @@
 import "./globals.css";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { signOutAction } from "@/app/auth/actions";
 import {
@@ -91,8 +92,15 @@ export default async function RootLayout({ children }) {
           <div className="shell">
             <header className="topbar">
               <div className="topbarBrand">
-                <Link className="brand" href="/">
-                  MathClaw
+                <Link className="brand" href="/" style={{ lineHeight: 0 }}>
+                  <Image
+                    src="/mathclaw-logo-nav.png"
+                    alt="MathClaw"
+                    height={44}
+                    width={220}
+                    style={{ height: "clamp(32px, 3.5vw, 44px)", width: "auto" }}
+                    priority
+                  />
                 </Link>
                 {roleLabel ? <span className="roleBadge">{roleLabel}</span> : null}
               </div>
