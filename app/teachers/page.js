@@ -93,6 +93,21 @@ export default async function TeachersPage({ searchParams }) {
   }
 
   let searchableProfiles = profilesRes.data || [];
+
+  // Run connections fetch and auth user validation in parallel.
+  const adminForOrphanCheck = createAdminClient();
+  const [{ data: connections }, { data: authUsersData }] = await Promise.all([
+    supabase
+      .from("teacher_connections")
+      .select("id, requester_id, addressee_id, status")
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
+    adminForOrphanCheck.auth.admin.listUsers({ page: 1, perPage: 500 }),
+  ]);
+
+  // Filter out orphaned profiles whose auth account no longer exists.
+  const validAuthIds = new Set((authUsersData?.users || []).map((u) => u.id));
+  searchableProfiles = searchableProfiles.filter((p) => validAuthIds.has(p.id));
+
   if (query) {
     const q = query.toLowerCase();
     searchableProfiles = searchableProfiles.filter((p) => {
@@ -101,11 +116,6 @@ export default async function TeachersPage({ searchParams }) {
       return dn.includes(q) || sn.includes(q);
     });
   }
-
-  const { data: connections } = await supabase
-    .from("teacher_connections")
-    .select("id, requester_id, addressee_id, status")
-    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
   const connectionByPair = new Map();
   const incoming = [];
