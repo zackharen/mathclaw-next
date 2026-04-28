@@ -816,7 +816,7 @@ export default async function AdminPage({ searchParams }) {
               </article>
               <article className="card" style={{ background: "#fff" }}>
                 <h3>Editable Site Copy</h3>
-                <p>Update the homepage banner, workspace copy, and mission statement from here.</p>
+                <p>Update the homepage banner, workspace copy, About Us text, and mission statement from here.</p>
                 <form action={updateSiteCopyAction} className="list" style={{ marginTop: "0.85rem" }}>
                   <label>
                     Homepage banner
@@ -838,16 +838,13 @@ export default async function AdminPage({ searchParams }) {
                     Student card copy
                     <textarea className="input" name="student_card_copy" rows={3} defaultValue={siteCopy?.studentCardCopy || ""} />
                   </label>
-                  <label>
-                    About page title
-                    <input className="input" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
-                  </label>
+                  <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
                   <label>
                     Mission statement
                     <textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} />
                   </label>
                   <label>
-                    About story
+                    About Us text
                     <textarea className="input" name="about_story" rows={5} defaultValue={siteCopy?.aboutStory || ""} />
                   </label>
                   <div className="ctaRow">

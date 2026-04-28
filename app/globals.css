@@ -418,6 +418,10 @@ p {
 }
 
 @media (max-width: 760px) {
+  .aboutGrid {
+    grid-template-columns: 1fr;
+  }
+
   .classGameControlItem {
     align-items: stretch;
     flex-direction: column;
@@ -495,6 +499,26 @@ p {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.aboutGrid {
+  display: grid;
+  align-items: stretch;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aboutLogo {
+  display: flex;
+  justify-content: center;
+}
+
+.aboutLogo img {
+  width: min(360px, 60vw);
+}
+
+.aboutGrid .card {
+  height: 100%;
 }
 
 .arcadeSectionDetails {
