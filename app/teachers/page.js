@@ -104,8 +104,12 @@ export default async function TeachersPage({ searchParams }) {
     adminForOrphanCheck.auth.admin.listUsers({ page: 1, perPage: 500 }),
   ]);
 
-  // Filter out orphaned profiles whose auth account no longer exists.
-  const validAuthIds = new Set((authUsersData?.users || []).map((u) => u.id));
+  // Filter out orphaned profiles and soft-deleted accounts (account_deleted = true).
+  const validAuthIds = new Set(
+    (authUsersData?.users || [])
+      .filter((u) => u?.app_metadata?.account_deleted !== true)
+      .map((u) => u.id)
+  );
   searchableProfiles = searchableProfiles.filter((p) => validAuthIds.has(p.id));
 
   if (query) {
