@@ -114,7 +114,7 @@ function AdminDisclosure({ title, description, open = false, children }) {
         <summary className="adminSectionSummary">
           <div>
             <h2>{title}</h2>
-            {description ? <p>{description}</p> : null}
+            {description ? <span className="adminSectionDesc">{description}</span> : null}
           </div>
           <span className="adminSectionToggle">
             <span className="showLabel">Show</span>
@@ -131,9 +131,7 @@ function AdminInnerDisclosure({ title, open = false, children }) {
   return (
     <details className="adminSectionDetails adminInnerSectionDetails" open={open}>
       <summary className="adminSectionSummary">
-        <div>
-          <h3>{title}</h3>
-        </div>
+        <h3>{title}</h3>
         <span className="adminSectionToggle">
           <span className="showLabel">Show</span>
           <span className="hideLabel">Hide</span>

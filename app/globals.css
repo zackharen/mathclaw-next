@@ -2089,11 +2089,13 @@ details[open] > summary.btn,
 }
 
 .adminSectionSummary h2,
-.adminSectionSummary h3 {
+.adminSectionSummary h3,
+.adminSectionSummary h4 {
   margin: 0;
 }
 
-.adminSectionSummary p {
+.adminSectionDesc {
+  display: block;
   margin: 0.35rem 0 0;
   color: #4e6679;
 }
