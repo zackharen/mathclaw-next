@@ -1028,46 +1028,41 @@ export default async function AdminPage({ searchParams }) {
       {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
         <>
           <AdminDisclosure
-            title="Traffic & App Usage"
-            description="This owner view turns recent usage and silent-failure signals into a practical product-direction checkpoint."
+            title="Bug Reports"
+            description="Reports submitted from inside MathClaw land here so you can spot repeat issues quickly."
+            open={Boolean(qs.bugReport)}
           >
-            <div className="adminSummaryGrid" style={{ marginTop: "1rem" }}>
-              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
-                <h3>Sessions Last 7 Days</h3>
-                <p className="adminStat">{recentWindowSessions.length}</p>
-              </div>
-              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
-                <h3>Active Players</h3>
-                <p className="adminStat">{activePlayerCountLast7Days}</p>
-              </div>
-              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
-                <h3>Active Classes</h3>
-                <p className="adminStat">{activeCourseCountLast7Days}</p>
-              </div>
-              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
-                <h3>Errors Last 5 Weeks</h3>
-                <p className="adminStat">{recentInternalEvents.length}</p>
-              </div>
-            </div>
-            <div style={{ marginTop: "1rem" }}>
-              <article className="card" style={{ background: "#fff" }}>
-                <h3>Where Students Are Spending Time</h3>
-                {recentSessionsError ? (
-                  <p>Recent session data could not load.</p>
-                ) : topGamesLast7Days.length === 0 ? (
-                  <p>No recent session activity yet.</p>
-                ) : (
-                  <div className="list" style={{ marginTop: "0.75rem" }}>
-                    {topGamesLast7Days.map((item) => (
-                      <div key={item.slug} className="dataWallRow">
-                        <strong>{item.label}</strong>
-                        <span>{item.count} sessions</span>
-                      </div>
+            {bugReportError ? <p>Could not load bug reports: {bugReportError.message}</p> : null}
+            {!bugReportError && bugReports.length === 0 ? <p>No bug reports yet.</p> : null}
+            {!bugReportError && bugReports.length > 0 ? (
+              <>
+                {openBugReports.length > 0 ? (
+                  <div className="adminBugList adminTwoColumnLogGrid">
+                    {openBugReports.map((report) => (
+                      <BugReportCard key={report.id} report={report} />
                     ))}
                   </div>
+                ) : (
+                  <p>No open bug reports.</p>
                 )}
-              </article>
-            </div>
+                {resolvedBugReports.length > 0 ? (
+                  <details className="adminNestedSectionDetails">
+                    <summary className="adminNestedSectionSummary">
+                      <span>Resolved Bug Reports</span>
+                      <span className="adminSectionToggle">
+                        <span className="showLabel">Show</span>
+                        <span className="hideLabel">Hide</span>
+                      </span>
+                    </summary>
+                    <div className="adminBugList adminTwoColumnLogGrid">
+                      {resolvedBugReports.map((report) => (
+                        <BugReportCard key={report.id} report={report} />
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </>
+            ) : null}
           </AdminDisclosure>
 
           <AdminDisclosure
@@ -1108,41 +1103,46 @@ export default async function AdminPage({ searchParams }) {
           </AdminDisclosure>
 
           <AdminDisclosure
-            title="Bug Reports"
-            description="Reports submitted from inside MathClaw land here so you can spot repeat issues quickly."
-            open={Boolean(qs.bugReport)}
+            title="Traffic & App Usage"
+            description="This owner view turns recent usage and silent-failure signals into a practical product-direction checkpoint."
           >
-            {bugReportError ? <p>Could not load bug reports: {bugReportError.message}</p> : null}
-            {!bugReportError && bugReports.length === 0 ? <p>No bug reports yet.</p> : null}
-            {!bugReportError && bugReports.length > 0 ? (
-              <>
-                {openBugReports.length > 0 ? (
-                  <div className="adminBugList adminTwoColumnLogGrid">
-                    {openBugReports.map((report) => (
-                      <BugReportCard key={report.id} report={report} />
+            <div className="adminSummaryGrid" style={{ marginTop: "1rem" }}>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Sessions Last 7 Days</h3>
+                <p className="adminStat">{recentWindowSessions.length}</p>
+              </div>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Active Players</h3>
+                <p className="adminStat">{activePlayerCountLast7Days}</p>
+              </div>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Active Classes</h3>
+                <p className="adminStat">{activeCourseCountLast7Days}</p>
+              </div>
+              <div className="card adminSummaryCard" style={{ background: "#fff" }}>
+                <h3>Errors Last 5 Weeks</h3>
+                <p className="adminStat">{recentInternalEvents.length}</p>
+              </div>
+            </div>
+            <div style={{ marginTop: "1rem" }}>
+              <article className="card" style={{ background: "#fff" }}>
+                <h3>Where Students Are Spending Time</h3>
+                {recentSessionsError ? (
+                  <p>Recent session data could not load.</p>
+                ) : topGamesLast7Days.length === 0 ? (
+                  <p>No recent session activity yet.</p>
+                ) : (
+                  <div className="list" style={{ marginTop: "0.75rem" }}>
+                    {topGamesLast7Days.map((item) => (
+                      <div key={item.slug} className="dataWallRow">
+                        <strong>{item.label}</strong>
+                        <span>{item.count} sessions</span>
+                      </div>
                     ))}
                   </div>
-                ) : (
-                  <p>No open bug reports.</p>
                 )}
-                {resolvedBugReports.length > 0 ? (
-                  <details className="adminNestedSectionDetails">
-                    <summary className="adminNestedSectionSummary">
-                      <span>Resolved Bug Reports</span>
-                      <span className="adminSectionToggle">
-                        <span className="showLabel">Show</span>
-                        <span className="hideLabel">Hide</span>
-                      </span>
-                    </summary>
-                    <div className="adminBugList adminTwoColumnLogGrid">
-                      {resolvedBugReports.map((report) => (
-                        <BugReportCard key={report.id} report={report} />
-                      ))}
-                    </div>
-                  </details>
-                ) : null}
-              </>
-            ) : null}
+              </article>
+            </div>
           </AdminDisclosure>
         </>
       ) : null}
