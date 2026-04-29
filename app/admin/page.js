@@ -1091,7 +1091,7 @@ export default async function AdminPage({ searchParams }) {
       ) : null}
 
       {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
-        <>
+        <div>
           <AdminDisclosure
             title="Bug Reports"
             description="Reports submitted from inside MathClaw land here so you can spot repeat issues quickly."
@@ -1195,11 +1195,11 @@ export default async function AdminPage({ searchParams }) {
               </article>
             </div>
           </AdminDisclosure>
-        </>
+        </div>
       ) : null}
 
       {effectiveAdminView === "accounts" && adminContext.hasSchoolScope ? (
-        <>
+        <div>
           {schoolSummaries.length > 0 ? (
             <AdminDisclosure
               title={schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}
@@ -1585,7 +1585,7 @@ export default async function AdminPage({ searchParams }) {
           </>
         ) : null}
           </AdminDisclosure>
-        </>
+        </div>
       ) : null}
 
       <AdminToast
