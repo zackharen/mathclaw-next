@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-29 America/New_York (Claude Code permissions + admin layout shipped)
+2026-04-29 America/New_York (admin UI polish: section spacing, Save Text button, hydration fix)
+
+## What Was Built (2026-04-29 Afternoon Session)
+- **Admin UI polish shipped to `main`** (`app/admin/page.js`, `app/globals.css`):
+  - Edit Site Text Save Text button no longer sits in its own card — it's a plain `ctaRow` div below the form sections.
+  - New `AdminInnerDisclosure` component: same pill-toggle visual as `AdminDisclosure` but without the outer `section.card` wrapper. Used for nested collapsible sections (Resolved Bug Reports, Older Internal Errors) inside the Bugs and Internal Errors view.
+  - Diagnostics and Accounts AdminDisclosure groups wrapped in plain `<div>` so they stack tight like Edit Site Text (one `adminStack` grid item instead of separate items). This is the **grouped disclosure stack** pattern — just wrap sibling `AdminDisclosure` sections in a `<div>` to collapse inter-section gaps.
+  - Fixed hydration error: `AdminDisclosure` description changed from `<p>` to `<span class="adminSectionDesc">` (phrasing content, valid inside `<summary>`); `AdminInnerDisclosure` summary uses bare `<h3>` with no `<div>` wrapper. Both `<p>` and `<div>` inside `<summary>` are invalid HTML and caused browser auto-close behavior that misaligned the SSR DOM from React's expected tree.
+  - CSS: `.adminSectionSummary p` replaced with `.adminSectionDesc`; `.adminInnerSectionDetails` adds `margin-top: 1.25rem`; `adminSectionSummary h3/h4` margin reset added.
 
 ## What Was Built (Current Session)
 - **Claude Code project permissions configured:** `.claude/settings.json` created at repo root and pushed to `main`. Auto-approves Read/Edit/npm/basic git; blocks push, force-reset, Supabase db push/reset, Vercel deploy, rm -rf, sudo. `defaultMode: acceptEdits`. Write scopes: `app/`, `components/`, `lib/`, `public/`, `brain/`, `data/`, `docs/`, `scripts/`, `tests/`. `styles/` dropped (doesn't exist); `supabase/` excluded intentionally (migrations need deliberate edits). `scripts/` Python/mjs files not invoked by npm — add `Bash(node scripts/*)` / `Bash(python3 scripts/*)` allow rules if needed.
