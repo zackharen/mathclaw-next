@@ -8,7 +8,7 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-29 America/New_York (admin UI polish: section spacing, Save Text button, hydration fix)
+2026-04-29 America/New_York (added USHM command; local admin changes still unshipped)
 
 ## What Was Built (2026-04-29 Afternoon Session)
 - **Admin UI polish shipped to `main`** (`app/admin/page.js`, `app/globals.css`):
@@ -19,6 +19,20 @@ This file represents the **current state only**. It should stay short enough to 
   - CSS: `.adminSectionSummary p` replaced with `.adminSectionDesc`; `.adminInnerSectionDetails` adds `margin-top: 1.25rem`; `adminSectionSummary h3/h4` margin reset added.
 
 ## What Was Built (Current Session)
+- **New brain command added** (`brain/START_HERE.md`, `brain/conventions.md`):
+  - `USHM` now means: push all local changes live, merge/promote to `main` as needed, deploy/promote to production using the normal MathClaw workflow, then update `session_handoff.md`.
+  - `USHM` is explicit approval for commit/push/deploy, but not for destructive commands such as force pushes, hard resets, or destructive database/schema operations.
+- **Admin Feature Rollout Controls local update, not committed/deployed** (`app/admin/page.js`, `app/globals.css`):
+  - `/admin?view=features` now uses the same admin header card + grouped `AdminDisclosure` stack as the newer admin views: Bulk Update Selected Features and Feature Controls are separate tight-stacked sections.
+  - Feature rollout rows and the bulk action row now use admin-specific CSS classes (`adminFeatureBulkForm`, `adminFeatureControlItem`, `adminFeatureControlList`, `adminFeatureStatusPill`) with black borders, compact spacing, responsive stacking, and the existing navy/white admin button style.
+  - Inner Feature Controls rows now use a grouped-stack treatment too: no row gaps, shared borders, and rounded corners only on the first/last row.
+  - Feature Controls has a sort switch for `Alphabetical` (`featureSort=alpha`) or `Current Status` (`featureSort=status`). Status sort groups Everyone, Teachers, Disabled, with alphabetical order inside each status.
+  - Rollout labels are shortened locally in admin to `Everyone`, `Teachers`, and `Disabled`; this does not change the shared/public `describeSiteAudience(...)` helper.
+  - Status chips use role-chip-inspired navy shades: Everyone light navy, Teachers mid navy, Disabled dark navy.
+- **Editable Admin copy fields expanded locally** (`lib/site-config.js`, `app/admin/actions.js`, `app/admin/page.js`):
+  - Edit Site Text → Admin now includes fields for hardcoded Admin-page copy: owner/scoped admin titles, no-school copy, Admin Sections title/description and button labels, Feature Rollout page title/description, Bulk Update section copy, bulk control title/badge/description/button, Feature Controls title/description, sort label/button text, and per-row Save button text.
+  - New metadata defaults/normalization live in `lib/site-config.js`; save wiring lives in `app/admin/actions.js`; the Admin page now reads these values from `siteCopy`.
+  - Verification: `npx eslint app/admin/page.js` parsed the file but still reports the pre-existing `Date.now()` render purity error noted in Known Issues. Browser verification was blocked because `localhost:3000` is held by an unresponsive process that this sandbox cannot kill, and a temporary port dev server hit a local Next lockfile permission error after startup.
 - **Claude Code project permissions configured:** `.claude/settings.json` created at repo root and pushed to `main`. Auto-approves Read/Edit/npm/basic git; blocks push, force-reset, Supabase db push/reset, Vercel deploy, rm -rf, sudo. `defaultMode: acceptEdits`. Write scopes: `app/`, `components/`, `lib/`, `public/`, `brain/`, `data/`, `docs/`, `scripts/`, `tests/`. `styles/` dropped (doesn't exist); `supabase/` excluded intentionally (migrations need deliberate edits). `scripts/` Python/mjs files not invoked by npm — add `Bash(node scripts/*)` / `Bash(python3 scripts/*)` allow rules if needed.
 - **Admin layout cleanup is live on `main`:** `app/admin/page.js`, `app/globals.css` changes were already pushed before this session (brain was stale on this).
 - **Admin defaults and collapsible sections:** `/admin` now defaults owner/admin users to Bugs and Internal Errors (`?view=diagnostics`). Diagnostics sections all start collapsed: Traffic & App Usage, Internal Error Log, Bug Reports. `/admin?view=accounts` page-level sections also start collapsed: School Snapshot and User Information.
@@ -39,7 +53,7 @@ This file represents the **current state only**. It should stay short enough to 
 - The homepage (`app/page.js`) is intentionally minimal: banner (if set) + `homeWelcome` heading + MathClaw square logo. User-type-specific widgets will be added incrementally. The welcome text is editable from admin → Editable Site Copy.
 - The `/about` page shows the centered square MathClaw logo above two cells only: "About Us" from Admin `About Us text` / `aboutStory`, and "Mission Statement" from Admin `Mission statement` / `missionStatement`; the cells match height on desktop and stack on mobile.
 - Header chip local work in progress: role chip labels are `Player Mode`, `Student Mode`, `Teacher Mode`, `Admin Mode`, with Admin determined by admin access rather than `account_type`; navy shade variants live in `app/globals.css`. This is local only until the user asks to push live.
-- Admin page is live, with newer local layout changes not yet pushed: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → collapsed School Snapshot + collapsed User Information; `diagnostics` → collapsed Traffic & App Usage, collapsed Internal Error Log, collapsed Bug Reports; `features` → Feature Rollout Controls; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator). Local `/admin` default for owner/admin users is Bugs and Internal Errors.
+- Admin page is live, with newer local layout changes not yet pushed: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → collapsed School Snapshot + collapsed User Information; `diagnostics` → collapsed Traffic & App Usage, collapsed Internal Error Log, collapsed Bug Reports; `features` → Feature Rollout Controls with grouped admin disclosure formatting, alphabetical/status sorting, short rollout labels, navy shade status chips, and editable Admin copy fields; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator). Local `/admin` default for owner/admin users is Bugs and Internal Errors.
 - The `/play` page now collapses its main content blocks behind matching disclosure headers, with feedback sections opening automatically when needed; section order is Classes, Group Activities, Fun & Games, Awards & Extra Credit, Create A Math Question
 - Group Activities is a direct 3-column card grid on `/play` with Double Board, Lowest Number Wins, and Open Middle
 - Fun & Games has three equal-width columns: `#arcade`, `#mathskills`, and `#survivalskills`; Locker Practice belongs under `#survivalskills`
@@ -65,7 +79,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Reverted invalid `eslint.ignoreDuringBuilds` key from `next.config.mjs` (not supported in Next.js 16)
 
 ## Active Tasks
-- None outstanding from this session.
+- Review local admin changes in browser after restarting/fixing local dev server, then commit and deploy if approved. Current modified files: `app/admin/actions.js`, `app/admin/page.js`, `app/globals.css`, `lib/site-config.js`, `brain/session_handoff.md`.
 
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.

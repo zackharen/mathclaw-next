@@ -39,3 +39,17 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 
 ## `USH` Rule
 If the user types `USH`, update only `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary unless explicitly asked for more.
+
+## `USHM` Rule
+If the user types `USHM`, push all local changes live, then update `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary.
+
+Treat `USHM` as explicit approval to:
+1. Review the current branch, local changes, and deployment state.
+2. Run the smallest useful verification checks before shipping.
+3. Commit local changes with a clear message if needed.
+4. Merge/promote the work to `main` when not already on `main`.
+5. Push `main` and deploy/promote to the production site using the normal MathClaw workflow.
+6. Confirm the live site/deployment result when tools and permissions allow.
+7. Update `session_handoff.md` with what changed, what is in progress, and known issues.
+
+Do not run destructive commands for `USHM` (for example `git reset --hard`, force pushes, or schema-destructive database commands) unless the user explicitly adds that instruction.

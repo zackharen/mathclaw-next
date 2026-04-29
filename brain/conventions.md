@@ -72,3 +72,20 @@ When the user types `USH`:
 4. Do not modify any other files unless the user explicitly asks
 
 This is a workflow convention for future AI sessions and should be treated as a project command.
+
+### `USHM`
+When the user types `USHM`:
+1. Analyze the current branch, codebase state, local changes, and recent changes
+2. Run the smallest useful verification checks before shipping
+3. Commit local changes if needed with a clear message
+4. Merge/promote the work to `main` if the current branch is not already `main`
+5. Push `main`
+6. Deploy or promote the pushed changes to the production site using the normal MathClaw deployment workflow
+7. Confirm the live site/deployment result when tools and permissions allow
+8. Update `/brain/session_handoff.md` with:
+   - what changed
+   - what is in progress
+   - what should happen next
+   - issues or bugs found
+
+`USHM` means "push all changes live and update memory." Treat it as explicit approval for the commit/push/deploy workflow, but not as approval for destructive commands such as force pushes, hard resets, or destructive database/schema operations.

@@ -4,11 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessAdminArea, isAdminUser, isOwnerEmail, isOwnerUser } from "@/lib/auth/owner";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import { splitDisplayName } from "@/lib/auth/account-type";
-import { describeSiteAudience, getSiteCopy, getSiteFeatureConfig } from "@/lib/site-config";
+import { getSiteCopy, getSiteFeatureConfig } from "@/lib/site-config";
 import { getIntegerMasterySettings } from "@/lib/integer-practice/mastery-settings.server";
 import { evaluateLevelProgression } from "@/lib/integer-practice/progression";
 import { getLevelById } from "@/lib/integer-practice/levels";
-import { GAME_CATALOG } from "@/lib/student-games/catalog";
+import { GAME_CATALOG, sortGamesByName } from "@/lib/student-games/catalog";
 import DeleteAccountButton from "./delete-account-button";
 import DeleteClassButton from "./delete-class-button";
 import AdminToast from "./admin-toast";
@@ -376,6 +376,28 @@ function normalizeAdminView(value) {
   return ["accounts", "diagnostics", "features", "site-copy", "mastery"].includes(value) ? value : "diagnostics";
 }
 
+function normalizeFeatureSort(value) {
+  return value === "status" ? "status" : "alpha";
+}
+
+function formatFeatureAudience(audience) {
+  if (audience === "teachers_only") return "Teachers";
+  if (audience === "disabled") return "Disabled";
+  return "Everyone";
+}
+
+function getFeatureAudienceClass(audience) {
+  if (audience === "teachers_only") return "isTeachers";
+  if (audience === "disabled") return "isDisabled";
+  return "isEveryone";
+}
+
+function getFeatureAudienceRank(audience) {
+  if (audience === "teachers_only") return 1;
+  if (audience === "disabled") return 2;
+  return 0;
+}
+
 function summarizeAccountClasses(item) {
   const primaryOwnedClass = item.ownedClasses[0];
   const primaryAssignedClass = item.assignedClasses[0];
@@ -423,6 +445,7 @@ export default async function AdminPage({ searchParams }) {
   const sortBy = normalizeSort(String(qs.sort || "last_name"));
   const schoolFilter = normalizeSchoolFilter(qs.school);
   const adminView = normalizeAdminView(String(qs.view || "diagnostics"));
+  const featureSort = normalizeFeatureSort(String(qs.featureSort || "alpha"));
   const supabase = await createClient();
   const {
     data: { user },
@@ -757,10 +780,22 @@ export default async function AdminPage({ searchParams }) {
     if (!["error", "warning"].includes(event.level)) return false;
     return new Date(event.created_at).getTime() < fiveWeekCutoff;
   });
-  const managedSiteGames = GAME_CATALOG.filter((game) => game.category !== "admin");
-  const [siteFeatureConfig, siteCopy, integerMasterySettings] = canViewDiagnostics
-    ? await Promise.all([getSiteFeatureConfig(admin), getSiteCopy(admin), getIntegerMasterySettings(admin)])
-    : [{ audienceBySlug: {} }, null, null];
+  const [siteFeatureConfig, siteCopy, integerMasterySettings] = await Promise.all([
+    canViewDiagnostics ? getSiteFeatureConfig(admin) : Promise.resolve({ audienceBySlug: {} }),
+    getSiteCopy(admin),
+    canViewDiagnostics ? getIntegerMasterySettings(admin) : Promise.resolve(null),
+  ]);
+  const managedSiteGames = sortGamesByName(GAME_CATALOG.filter((game) => game.category !== "admin"))
+    .sort((a, b) => {
+      if (featureSort !== "status") {
+        return 0;
+      }
+      const aAudience = siteFeatureConfig.audienceBySlug?.[a.slug] || "everyone";
+      const bAudience = siteFeatureConfig.audienceBySlug?.[b.slug] || "everyone";
+      const rankDelta = getFeatureAudienceRank(aAudience) - getFeatureAudienceRank(bAudience);
+      if (rankDelta !== 0) return rankDelta;
+      return a.name.localeCompare(b.name);
+    });
   const integerMasterySimulator = integerMasterySettings
     ? buildIntegerMasterySimulator(integerMasterySettings)
     : [];
@@ -770,13 +805,13 @@ export default async function AdminPage({ searchParams }) {
   return (
     <div className="stack adminStack">
       <section className="card">
-        <h1>{adminContext.isOwner ? "Owner Admin" : "Admin"}</h1>
+        <h1>{adminContext.isOwner ? siteCopy.adminOwnerTitle : siteCopy.adminScopedTitle}</h1>
         <p>
           {adminContext.isOwner
             ? siteCopy.adminOwnerDescription
             : adminContext.hasSchoolScope
               ? `Manage teachers, students, and classes in ${adminContext.schoolName}.`
-              : "Your admin account needs a school assignment before school-scoped tools can load."}
+              : siteCopy.adminNoSchoolDescription}
         </p>
       </section>
 
@@ -784,7 +819,7 @@ export default async function AdminPage({ searchParams }) {
 
       {!adminContext.isOwner && !adminContext.hasSchoolScope ? (
         <section className="card noticeError">
-          <p>No school is assigned to this admin account yet, so school-scoped admin tools are unavailable.</p>
+          <p>{siteCopy.adminNoSchoolNotice}</p>
         </section>
       ) : null}
 
@@ -821,111 +856,142 @@ export default async function AdminPage({ searchParams }) {
 
       {canViewDiagnostics ? (
         <section className="card adminSectionSwitcher">
-          <h2>Admin Sections</h2>
-          <p>Choose the admin tools you want to use. Everything above this stays visible while this changes the workspace below.</p>
+          <h2>{siteCopy.adminSectionsTitle}</h2>
+          <p>{siteCopy.adminSectionsDescription}</p>
           <div className="adminViewSwitch">
             <a
               className={`btn ${effectiveAdminView === "diagnostics" ? "primary" : "ghost"}`}
               href="/admin?view=diagnostics"
             >
-              Bugs and Internal Errors
+              {siteCopy.adminViewDiagnosticsLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "site-copy" ? "primary" : "ghost"}`}
               href="/admin?view=site-copy"
             >
-              Edit Site Text
+              {siteCopy.adminViewSiteCopyLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "features" ? "primary" : "ghost"}`}
               href="/admin?view=features"
             >
-              Feature Rollout Controls
+              {siteCopy.adminViewFeaturesLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "mastery" ? "primary" : "ghost"}`}
               href="/admin?view=mastery"
             >
-              Mastery Settings
+              {siteCopy.adminViewMasteryLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "accounts" ? "primary" : "ghost"}`}
               href="/admin?view=accounts"
             >
-              User Information
+              {siteCopy.adminViewAccountsLabel}
             </a>
           </div>
         </section>
       ) : null}
 
       {canViewDiagnostics && effectiveAdminView === "features" ? (
-        <section className="card">
-          <h2>Feature Rollout Controls</h2>
-          <p>
-            Use these controls to hide features site-wide or release them to teachers before students.
-          </p>
-          <article className="card" style={{ background: "#fff", marginTop: "1rem" }}>
-            <p>Set each feature to live for everyone, visible only to teachers, or disabled site-wide.</p>
-            <form
-              id="bulkFeatureUpdateForm"
-              action={bulkUpdateSiteFeatureAudienceAction}
-              className="classGameControlItem isEnabled"
-              style={{ marginTop: "0.85rem" }}
+        <>
+          <section className="card">
+            <h2>{siteCopy.adminFeatureRolloutTitle}</h2>
+            <p>
+              {siteCopy.adminFeatureRolloutDescription}
+            </p>
+          </section>
+          <div>
+            <AdminDisclosure
+              title={siteCopy.adminFeatureBulkTitle}
+              description={siteCopy.adminFeatureBulkDescription}
+              open
             >
-              <div className="classGameControlCopy">
-                <div className="classGameControlTopline">
-                  <strong>Bulk Update Selected Features</strong>
-                  <span className="pill classGameStatusPill isEnabled">Owner control</span>
-                </div>
-                <span>Check the features you want below, then apply one rollout state to that selected set.</span>
-              </div>
-              <select className="input" name="bulk_audience" defaultValue="everyone" style={{ maxWidth: "14rem" }}>
-                <option value="everyone">Everyone</option>
-                <option value="teachers_only">Teachers only</option>
-                <option value="disabled">Disabled site-wide</option>
-              </select>
-              <button className="btn primary" type="submit">
-                Apply To Selected
-              </button>
-            </form>
-            <div className="list" style={{ marginTop: "0.85rem" }}>
-              {managedSiteGames.map((game) => (
-                <form key={game.slug} action={updateSiteFeatureAudienceAction} className="classGameControlItem isEnabled">
-                  <input
-                    type="checkbox"
-                    name="selected_game_slugs"
-                    value={game.slug}
-                    form="bulkFeatureUpdateForm"
-                    aria-label={`Select ${game.name} for bulk update`}
-                  />
-                  <input type="hidden" name="game_slug" value={game.slug} />
-                  <div className="classGameControlCopy">
-                    <div className="classGameControlTopline">
-                      <strong>{game.name}</strong>
-                      <span className="pill classGameStatusPill isEnabled">
-                        {describeSiteAudience(siteFeatureConfig.audienceBySlug?.[game.slug])}
-                      </span>
-                    </div>
-                    <span>{game.description}</span>
+              <form
+                id="bulkFeatureUpdateForm"
+                action={bulkUpdateSiteFeatureAudienceAction}
+                className="adminFeatureBulkForm"
+              >
+                <div className="adminFeatureControlCopy">
+                  <div className="adminFeatureControlTopline">
+                    <strong>{siteCopy.adminFeatureBulkControlTitle}</strong>
+                    <span className="pill adminFeatureOwnerPill">{siteCopy.adminFeatureBulkControlBadge}</span>
                   </div>
-                  <select
-                    className="input"
-                    name="audience"
-                    defaultValue={siteFeatureConfig.audienceBySlug?.[game.slug] || "everyone"}
-                    style={{ maxWidth: "14rem" }}
+                  <span>{siteCopy.adminFeatureBulkControlDescription}</span>
+                </div>
+                <select className="input" name="bulk_audience" defaultValue="everyone">
+                  <option value="everyone">Everyone</option>
+                  <option value="teachers_only">Teachers</option>
+                  <option value="disabled">Disabled</option>
+                </select>
+                <button className="btn primary" type="submit">
+                  {siteCopy.adminFeatureBulkButton}
+                </button>
+              </form>
+            </AdminDisclosure>
+            <AdminDisclosure
+              title={siteCopy.adminFeatureControlsTitle}
+              description={siteCopy.adminFeatureControlsDescription}
+              open
+            >
+              <div className="adminFeatureSortBar">
+                <span>{siteCopy.adminFeatureSortLabel}</span>
+                <div className="adminViewSwitch">
+                  <a
+                    className={`btn ${featureSort === "alpha" ? "primary" : "ghost"}`}
+                    href="/admin?view=features&featureSort=alpha"
                   >
-                    <option value="everyone">Everyone</option>
-                    <option value="teachers_only">Teachers only</option>
-                    <option value="disabled">Disabled site-wide</option>
-                  </select>
-                  <button className="btn primary" type="submit">
-                    Save
-                  </button>
-                </form>
-              ))}
-            </div>
-          </article>
-        </section>
+                    {siteCopy.adminFeatureSortAlphabetical}
+                  </a>
+                  <a
+                    className={`btn ${featureSort === "status" ? "primary" : "ghost"}`}
+                    href="/admin?view=features&featureSort=status"
+                  >
+                    {siteCopy.adminFeatureSortStatus}
+                  </a>
+                </div>
+              </div>
+              <div className="adminFeatureControlList">
+                {managedSiteGames.map((game) => {
+                  const audience = siteFeatureConfig.audienceBySlug?.[game.slug] || "everyone";
+                  return (
+                    <form key={game.slug} action={updateSiteFeatureAudienceAction} className="adminFeatureControlItem">
+                      <input
+                        type="checkbox"
+                        name="selected_game_slugs"
+                        value={game.slug}
+                        form="bulkFeatureUpdateForm"
+                        aria-label={`Select ${game.name} for bulk update`}
+                      />
+                      <input type="hidden" name="game_slug" value={game.slug} />
+                      <div className="adminFeatureControlCopy">
+                        <div className="adminFeatureControlTopline">
+                          <strong>{game.name}</strong>
+                          <span className={`pill adminFeatureStatusPill ${getFeatureAudienceClass(audience)}`}>
+                            {formatFeatureAudience(audience)}
+                          </span>
+                        </div>
+                        <span>{game.description}</span>
+                      </div>
+                      <select
+                        className="input"
+                        name="audience"
+                        defaultValue={audience}
+                      >
+                        <option value="everyone">Everyone</option>
+                        <option value="teachers_only">Teachers</option>
+                        <option value="disabled">Disabled</option>
+                      </select>
+                      <button className="btn primary" type="submit">
+                        {siteCopy.adminFeatureSaveButton}
+                      </button>
+                    </form>
+                  );
+                })}
+              </div>
+            </AdminDisclosure>
+          </div>
+        </>
       ) : null}
 
       {canViewDiagnostics && effectiveAdminView === "site-copy" ? (
@@ -953,9 +1019,34 @@ export default async function AdminPage({ searchParams }) {
               </div>
             </AdminDisclosure>
 
-            <AdminDisclosure title="Admin" description="Intro text shown at the top of the admin page for owner accounts.">
+            <AdminDisclosure title="Admin" description="Admin workspace headings, helper text, and Feature Rollout Controls copy.">
               <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Owner Admin Page Title<input className="input" name="admin_owner_title" defaultValue={siteCopy?.adminOwnerTitle || ""} /></label>
+                <label>School Admin Page Title<input className="input" name="admin_scoped_title" defaultValue={siteCopy?.adminScopedTitle || ""} /></label>
                 <label>Owner Description<textarea className="input" name="admin_owner_description" rows={2} defaultValue={siteCopy?.adminOwnerDescription || ""} /></label>
+                <label>No-School Admin Description<textarea className="input" name="admin_no_school_description" rows={2} defaultValue={siteCopy?.adminNoSchoolDescription || ""} /></label>
+                <label>No-School Notice<textarea className="input" name="admin_no_school_notice" rows={2} defaultValue={siteCopy?.adminNoSchoolNotice || ""} /></label>
+                <label>Admin Sections Title<input className="input" name="admin_sections_title" defaultValue={siteCopy?.adminSectionsTitle || ""} /></label>
+                <label>Admin Sections Description<textarea className="input" name="admin_sections_description" rows={2} defaultValue={siteCopy?.adminSectionsDescription || ""} /></label>
+                <label>Bugs and Internal Errors Button<input className="input" name="admin_view_diagnostics_label" defaultValue={siteCopy?.adminViewDiagnosticsLabel || ""} /></label>
+                <label>Edit Site Text Button<input className="input" name="admin_view_site_copy_label" defaultValue={siteCopy?.adminViewSiteCopyLabel || ""} /></label>
+                <label>Feature Rollout Controls Button<input className="input" name="admin_view_features_label" defaultValue={siteCopy?.adminViewFeaturesLabel || ""} /></label>
+                <label>Mastery Settings Button<input className="input" name="admin_view_mastery_label" defaultValue={siteCopy?.adminViewMasteryLabel || ""} /></label>
+                <label>User Information Button<input className="input" name="admin_view_accounts_label" defaultValue={siteCopy?.adminViewAccountsLabel || ""} /></label>
+                <label>Feature Rollout Page Title<input className="input" name="admin_feature_rollout_title" defaultValue={siteCopy?.adminFeatureRolloutTitle || ""} /></label>
+                <label>Feature Rollout Page Description<textarea className="input" name="admin_feature_rollout_description" rows={2} defaultValue={siteCopy?.adminFeatureRolloutDescription || ""} /></label>
+                <label>Bulk Update Section Title<input className="input" name="admin_feature_bulk_title" defaultValue={siteCopy?.adminFeatureBulkTitle || ""} /></label>
+                <label>Bulk Update Section Description<textarea className="input" name="admin_feature_bulk_description" rows={2} defaultValue={siteCopy?.adminFeatureBulkDescription || ""} /></label>
+                <label>Bulk Update Control Title<input className="input" name="admin_feature_bulk_control_title" defaultValue={siteCopy?.adminFeatureBulkControlTitle || ""} /></label>
+                <label>Bulk Update Control Badge<input className="input" name="admin_feature_bulk_control_badge" defaultValue={siteCopy?.adminFeatureBulkControlBadge || ""} /></label>
+                <label>Bulk Update Control Description<textarea className="input" name="admin_feature_bulk_control_description" rows={2} defaultValue={siteCopy?.adminFeatureBulkControlDescription || ""} /></label>
+                <label>Bulk Update Button<input className="input" name="admin_feature_bulk_button" defaultValue={siteCopy?.adminFeatureBulkButton || ""} /></label>
+                <label>Feature Controls Section Title<input className="input" name="admin_feature_controls_title" defaultValue={siteCopy?.adminFeatureControlsTitle || ""} /></label>
+                <label>Feature Controls Section Description<textarea className="input" name="admin_feature_controls_description" rows={2} defaultValue={siteCopy?.adminFeatureControlsDescription || ""} /></label>
+                <label>Feature Sort Label<input className="input" name="admin_feature_sort_label" defaultValue={siteCopy?.adminFeatureSortLabel || ""} /></label>
+                <label>Alphabetical Sort Button<input className="input" name="admin_feature_sort_alphabetical" defaultValue={siteCopy?.adminFeatureSortAlphabetical || ""} /></label>
+                <label>Status Sort Button<input className="input" name="admin_feature_sort_status" defaultValue={siteCopy?.adminFeatureSortStatus || ""} /></label>
+                <label>Feature Save Button<input className="input" name="admin_feature_save_button" defaultValue={siteCopy?.adminFeatureSaveButton || ""} /></label>
               </div>
             </AdminDisclosure>
 

@@ -2138,6 +2138,107 @@ details[open] > summary.adminSectionSummary .hideLabel {
   margin-top: 1.25rem;
 }
 
+.adminFeatureBulkForm,
+.adminFeatureControlItem {
+  display: grid;
+  align-items: center;
+  gap: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #f9fbfc;
+  padding: 0.85rem 1rem;
+}
+
+.adminFeatureBulkForm {
+  grid-template-columns: minmax(0, 1fr) minmax(11rem, 14rem) auto;
+}
+
+.adminFeatureSortBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.adminFeatureSortBar > span {
+  color: #4e6679;
+  font-weight: 700;
+}
+
+.adminFeatureControlList {
+  display: grid;
+  gap: 0;
+}
+
+.adminFeatureControlItem {
+  grid-template-columns: auto minmax(0, 1fr) minmax(11rem, 14rem) auto;
+  border-radius: 0;
+}
+
+.adminFeatureControlItem + .adminFeatureControlItem {
+  border-top: 0;
+}
+
+.adminFeatureControlItem:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.adminFeatureControlItem:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.adminFeatureControlItem:only-child {
+  border-radius: 10px;
+}
+
+.adminFeatureControlCopy {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.adminFeatureControlTopline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.adminFeatureControlCopy > span {
+  color: #4e6679;
+  font-size: 0.92rem;
+}
+
+.adminFeatureStatusPill {
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  padding: 0.22rem 0.62rem;
+}
+
+.adminFeatureStatusPill.isEveryone {
+  background: #d7e8f6;
+  color: #00325a;
+}
+
+.adminFeatureStatusPill.isTeachers {
+  background: #0f5f9a;
+  color: #ffffff;
+}
+
+.adminFeatureStatusPill.isDisabled {
+  background: #00213d;
+  color: #ffffff;
+}
+
+.adminFeatureOwnerPill {
+  background: #8fbce0;
+  color: #002f54;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  padding: 0.22rem 0.62rem;
+}
+
 .adminStat {
   margin: 0;
   font-size: clamp(2rem, 5vw, 3rem);
@@ -2348,6 +2449,21 @@ details[open] > summary.adminSectionSummary .hideLabel {
   .adminSelectableCard {
     grid-template-columns: 1fr;
     gap: 0.4rem;
+  }
+
+  .adminFeatureBulkForm,
+  .adminFeatureControlItem {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .adminFeatureControlItem > input[type="checkbox"] {
+    justify-self: start;
+  }
+
+  .adminFeatureBulkForm .btn,
+  .adminFeatureControlItem .btn {
+    width: 100%;
   }
 
   .adminBulkSelectionHeader {
