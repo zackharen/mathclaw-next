@@ -107,6 +107,89 @@ function Notice({ searchParams }) {
   );
 }
 
+function AdminDisclosure({ title, description, open = false, children }) {
+  return (
+    <section className="card">
+      <details className="adminSectionDetails" open={open}>
+        <summary className="adminSectionSummary">
+          <div>
+            <h2>{title}</h2>
+            {description ? <p>{description}</p> : null}
+          </div>
+          <span className="adminSectionToggle">
+            <span className="showLabel">Show</span>
+            <span className="hideLabel">Hide</span>
+          </span>
+        </summary>
+        <div className="adminSectionBody">{children}</div>
+      </details>
+    </section>
+  );
+}
+
+function BugReportCard({ report }) {
+  return (
+    <article className="card adminBugCard">
+      <div className="adminUserHeader">
+        <div>
+          <h3>{report.summary}</h3>
+          <p>
+            {report.reporter_name || report.reporter_email} · {report.reporter_email}
+          </p>
+        </div>
+        <div className="adminBadgeRow">
+          <span className="adminRoleBadge">{report.severity}</span>
+          <span className="adminRoleBadge">{report.status}</span>
+        </div>
+      </div>
+      <div className="adminMetaGrid">
+        <p><strong>Reported:</strong> {formatDate(report.created_at)}</p>
+        <p><strong>Account type:</strong> {report.account_type || "-"}</p>
+        <p><strong>Page:</strong> {report.page_path || "-"}</p>
+      </div>
+      <p><strong>What happened:</strong> {report.details}</p>
+      {report.expected_behavior ? (
+        <p style={{ marginTop: "0.5rem" }}>
+          <strong>Expected:</strong> {report.expected_behavior}
+        </p>
+      ) : null}
+      <div className="ctaRow" style={{ marginTop: "0.85rem" }}>
+        <form action={updateBugReportStatusAction} className="adminInlineForm">
+          <input type="hidden" name="report_id" value={report.id} />
+          <input type="hidden" name="status" value={report.status === "resolved" ? "open" : "resolved"} />
+          <button className="btn ghost" type="submit">
+            {report.status === "resolved" ? "Reopen" : "Mark Resolved"}
+          </button>
+        </form>
+      </div>
+    </article>
+  );
+}
+
+function InternalEventCard({ event, accountNameByEmail }) {
+  return (
+    <article className="card adminBugCard">
+      <div className="adminUserHeader">
+        <div>
+          <h3>{formatInternalEventTitle(event.event_key)}</h3>
+          <p>
+            {accountNameByEmail.get(String(event.user_email || "").toLowerCase()) || "Unknown user"}
+            {event.account_type ? ` · ${event.account_type}` : ""}
+          </p>
+        </div>
+        <div className="adminBadgeRow">
+          <span className="adminRoleBadge">{formatInternalEventLevel(event.level)}</span>
+          <span className="adminRoleBadge">{formatInternalEventSource(event.source)}</span>
+        </div>
+      </div>
+      <div className="adminMetaGrid">
+        <p><strong>Logged:</strong> {formatDate(event.created_at)}</p>
+      </div>
+      <p><strong>Message:</strong> {event.message}</p>
+    </article>
+  );
+}
+
 function normalizeRoleFilter(value) {
   return ["all", "student", "teacher", "owner"].includes(value) ? value : "all";
 }
@@ -128,6 +211,16 @@ function getBestDisplayName(profile, metadata, email, fallback = "-") {
     metadata?.full_name ||
     metadata?.name ||
     (email ? String(email).split("@")[0] : "") ||
+    fallback
+  );
+}
+
+function getDisplayNameWithoutEmail(profile, metadata, fallback = "Unknown user") {
+  return (
+    profile?.display_name ||
+    metadata?.display_name ||
+    metadata?.full_name ||
+    metadata?.name ||
     fallback
   );
 }
@@ -265,7 +358,7 @@ function buildIntegerMasterySimulator(settings) {
 }
 
 function normalizeAdminView(value) {
-  return ["accounts", "diagnostics", "features", "site-copy", "mastery"].includes(value) ? value : "accounts";
+  return ["accounts", "diagnostics", "features", "site-copy", "mastery"].includes(value) ? value : "diagnostics";
 }
 
 function summarizeAccountClasses(item) {
@@ -314,7 +407,7 @@ export default async function AdminPage({ searchParams }) {
   const roleFilter = normalizeRoleFilter(String(qs.role || "all"));
   const sortBy = normalizeSort(String(qs.sort || "last_name"));
   const schoolFilter = normalizeSchoolFilter(qs.school);
-  const adminView = normalizeAdminView(String(qs.view || "accounts"));
+  const adminView = normalizeAdminView(String(qs.view || "diagnostics"));
   const supabase = await createClient();
   const {
     data: { user },
@@ -342,6 +435,7 @@ export default async function AdminPage({ searchParams }) {
   let internalEventError = null;
   let recentSessions = [];
   let recentSessionsError = null;
+  const accountNameByEmail = new Map();
 
   if (!error) {
     const authUsers = (data?.users || []).filter(
@@ -370,9 +464,9 @@ export default async function AdminPage({ searchParams }) {
           .limit(30),
         admin
           .from("internal_event_logs")
-          .select("id, event_key, source, level, message, user_email, account_type, course_id, context, created_at")
+          .select("id, event_key, source, level, message, user_email, account_type, context, created_at")
           .order("created_at", { ascending: false })
-          .limit(30),
+          .limit(200),
         admin
           .from("game_sessions")
           .select("id, game_slug, player_id, course_id, created_at")
@@ -407,6 +501,16 @@ export default async function AdminPage({ searchParams }) {
             const schoolName = String(profile?.school_name || authUser?.user_metadata?.school_name || "").trim();
             return schoolName && schoolName === adminContext.schoolName;
           });
+      for (const authUser of visibleAuthUsers) {
+        if (!authUser.email) continue;
+        accountNameByEmail.set(
+          String(authUser.email).toLowerCase(),
+          getDisplayNameWithoutEmail(
+            profilesById.get(authUser.id),
+            authUser.user_metadata || {}
+          )
+        );
+      }
       const visibleUserIds = new Set(visibleAuthUsers.map((authUser) => authUser.id));
       const visibleCourses = adminContext.isOwner
         ? courses || []
@@ -627,19 +731,17 @@ export default async function AdminPage({ searchParams }) {
   const activeCourseCountLast7Days = new Set(
     recentWindowSessions.map((session) => session.course_id).filter(Boolean)
   ).size;
-  const internalIssueCountLast7Days = internalEvents.filter((event) => {
+  const fiveWeekCutoff = now - 35 * 24 * 60 * 60 * 1000;
+  const recentInternalEvents = internalEvents.filter((event) => {
     if (!event?.created_at) return false;
     if (!["error", "warning"].includes(event.level)) return false;
-    return now - new Date(event.created_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
-  }).length;
-  const diagnosticsDecision =
-    topGamesLast7Days.length === 0
-      ? "Collect more live usage before making a major product-direction cut."
-      : topGamesLast7Days[0].slug === "showdown_framework"
-        ? "Lean further into battle-style arcade experiences because the newest framework is already pulling activity."
-        : topGamesLast7Days.some((item) => item.slug === "spiral_review" || item.slug === "question_kind_review" || item.slug === "skill_builder")
-          ? "Keep investing in question-engine and review-family systems because student practice depth is leading the app."
-          : "Keep the app arcade-first while trimming low-usage complexity and watching whether review systems overtake pure games.";
+    return new Date(event.created_at).getTime() >= fiveWeekCutoff;
+  });
+  const olderInternalEvents = internalEvents.filter((event) => {
+    if (!event?.created_at) return false;
+    if (!["error", "warning"].includes(event.level)) return false;
+    return new Date(event.created_at).getTime() < fiveWeekCutoff;
+  });
   const managedSiteGames = GAME_CATALOG.filter((game) => game.category !== "admin");
   const [siteFeatureConfig, siteCopy, integerMasterySettings] = canViewDiagnostics
     ? await Promise.all([getSiteFeatureConfig(admin), getSiteCopy(admin), getIntegerMasterySettings(admin)])
@@ -647,6 +749,8 @@ export default async function AdminPage({ searchParams }) {
   const integerMasterySimulator = integerMasterySettings
     ? buildIntegerMasterySimulator(integerMasterySettings)
     : [];
+  const openBugReports = bugReports.filter((report) => report.status !== "resolved");
+  const resolvedBugReports = bugReports.filter((report) => report.status === "resolved");
 
   return (
     <div className="stack adminStack">
@@ -690,9 +794,9 @@ export default async function AdminPage({ searchParams }) {
                 <p className="adminStat">{bugReports.filter((item) => item.status !== "resolved").length}</p>
               </div>
               <div className="card adminSummaryCard">
-                <h3>Recent Internal Issues</h3>
+                <h3>Recent Internal Errors</h3>
                 <p className="adminStat">
-                  {internalEvents.filter((item) => ["error", "warning"].includes(item.level)).length}
+                  {recentInternalEvents.length}
                 </p>
               </div>
             </>
@@ -923,11 +1027,10 @@ export default async function AdminPage({ searchParams }) {
 
       {canViewDiagnostics && effectiveAdminView === "diagnostics" ? (
         <>
-          <section className="card">
-            <h2>Performance Spend And App Decision</h2>
-            <p>
-              This owner view turns recent usage and silent-failure signals into a practical product-direction checkpoint.
-            </p>
+          <AdminDisclosure
+            title="Traffic & App Usage"
+            description="This owner view turns recent usage and silent-failure signals into a practical product-direction checkpoint."
+          >
             <div className="adminSummaryGrid" style={{ marginTop: "1rem" }}>
               <div className="card adminSummaryCard" style={{ background: "#fff" }}>
                 <h3>Sessions Last 7 Days</h3>
@@ -942,11 +1045,11 @@ export default async function AdminPage({ searchParams }) {
                 <p className="adminStat">{activeCourseCountLast7Days}</p>
               </div>
               <div className="card adminSummaryCard" style={{ background: "#fff" }}>
-                <h3>Issues Last 7 Days</h3>
-                <p className="adminStat">{internalIssueCountLast7Days}</p>
+                <h3>Errors Last 5 Weeks</h3>
+                <p className="adminStat">{recentInternalEvents.length}</p>
               </div>
             </div>
-            <div className="featureGrid" style={{ marginTop: "1rem" }}>
+            <div style={{ marginTop: "1rem" }}>
               <article className="card" style={{ background: "#fff" }}>
                 <h3>Where Students Are Spending Time</h3>
                 {recentSessionsError ? (
@@ -964,116 +1067,97 @@ export default async function AdminPage({ searchParams }) {
                   </div>
                 )}
               </article>
-              <article className="card" style={{ background: "#fff" }}>
-                <h3>Current App Decision</h3>
-                <p style={{ marginTop: "0.75rem" }}>{diagnosticsDecision}</p>
-                <div className="list" style={{ marginTop: "0.9rem" }}>
-                  <div className="dataWallNote">
-                    <strong>Spend Rule</strong>
-                    <p>Favor features that strengthen the highest-usage game family instead of spreading polish evenly across everything.</p>
-                  </div>
-                  <div className="dataWallNote">
-                    <strong>Perf Rule</strong>
-                    <p>Watch planning and diagnostics-heavy flows for cost, because those are where explicit perf logging already exists.</p>
-                  </div>
-                  <div className="dataWallNote">
-                    <strong>Ship Rule</strong>
-                    <p>When issues rise faster than sessions, prioritize simplification and reliability before expanding the surface area again.</p>
-                  </div>
-                </div>
-              </article>
             </div>
-          </section>
+          </AdminDisclosure>
 
-          <section className="card">
-            <h2>Internal Error Log</h2>
-            <p>These are silent failures captured automatically from important flows like class joins, score saves, and Connect4.</p>
+          <AdminDisclosure
+            title="Internal Error Log"
+            description="These are silent failures captured automatically from important flows like class joins, score saves, and Connect4."
+          >
             {internalEventError ? <p>Could not load internal event logs: {internalEventError.message}</p> : null}
             {!internalEventError && internalEvents.length === 0 ? <p>No internal errors logged yet.</p> : null}
             {!internalEventError && internalEvents.length > 0 ? (
-              <div className="adminBugList">
-                {internalEvents.map((event) => (
-                  <article key={event.id} className="card adminBugCard">
-                    <div className="adminUserHeader">
-                      <div>
-                        <h3>{formatInternalEventTitle(event.event_key)}</h3>
-                        <p>{event.user_email || "Unknown user"}{event.account_type ? ` · ${event.account_type}` : ""}</p>
-                      </div>
-                      <div className="adminBadgeRow">
-                        <span className="adminRoleBadge">{formatInternalEventLevel(event.level)}</span>
-                        <span className="adminRoleBadge">{formatInternalEventSource(event.source)}</span>
-                      </div>
+              <>
+                {recentInternalEvents.length > 0 ? (
+                  <div className="adminBugList adminTwoColumnLogGrid">
+                    {recentInternalEvents.map((event) => (
+                      <InternalEventCard key={event.id} event={event} accountNameByEmail={accountNameByEmail} />
+                    ))}
+                  </div>
+                ) : (
+                  <p>No internal errors from the last 5 weeks.</p>
+                )}
+                {olderInternalEvents.length > 0 ? (
+                  <details className="adminNestedSectionDetails">
+                    <summary className="adminNestedSectionSummary">
+                      <span>Older Internal Errors</span>
+                      <span className="adminSectionToggle">
+                        <span className="showLabel">Show</span>
+                        <span className="hideLabel">Hide</span>
+                      </span>
+                    </summary>
+                    <div className="adminBugList adminTwoColumnLogGrid">
+                      {olderInternalEvents.map((event) => (
+                        <InternalEventCard key={event.id} event={event} accountNameByEmail={accountNameByEmail} />
+                      ))}
                     </div>
-                    <div className="adminMetaGrid">
-                      <p><strong>Logged:</strong> {formatDate(event.created_at)}</p>
-                      <p><strong>Course:</strong> {event.course_id || "-"}</p>
-                    </div>
-                    <p><strong>Message:</strong> {event.message}</p>
-                  </article>
-                ))}
-              </div>
+                  </details>
+                ) : null}
+              </>
             ) : null}
-          </section>
+          </AdminDisclosure>
 
-          <section className="card">
-            <h2>Bug Inbox</h2>
-            <p>Reports submitted from inside MathClaw land here so you can spot repeat issues quickly.</p>
+          <AdminDisclosure
+            title="Bug Reports"
+            description="Reports submitted from inside MathClaw land here so you can spot repeat issues quickly."
+            open={Boolean(qs.bugReport)}
+          >
             {bugReportError ? <p>Could not load bug reports: {bugReportError.message}</p> : null}
             {!bugReportError && bugReports.length === 0 ? <p>No bug reports yet.</p> : null}
             {!bugReportError && bugReports.length > 0 ? (
-              <div className="adminBugList">
-                {bugReports.map((report) => (
-                  <article key={report.id} className="card adminBugCard">
-                    <div className="adminUserHeader">
-                      <div>
-                        <h3>{report.summary}</h3>
-                        <p>
-                          {report.reporter_name || report.reporter_email} · {report.reporter_email}
-                        </p>
-                      </div>
-                      <div className="adminBadgeRow">
-                        <span className="adminRoleBadge">{report.severity}</span>
-                        <span className="adminRoleBadge">{report.status}</span>
-                      </div>
+              <>
+                {openBugReports.length > 0 ? (
+                  <div className="adminBugList adminTwoColumnLogGrid">
+                    {openBugReports.map((report) => (
+                      <BugReportCard key={report.id} report={report} />
+                    ))}
+                  </div>
+                ) : (
+                  <p>No open bug reports.</p>
+                )}
+                {resolvedBugReports.length > 0 ? (
+                  <details className="adminNestedSectionDetails">
+                    <summary className="adminNestedSectionSummary">
+                      <span>Resolved Bug Reports</span>
+                      <span className="adminSectionToggle">
+                        <span className="showLabel">Show</span>
+                        <span className="hideLabel">Hide</span>
+                      </span>
+                    </summary>
+                    <div className="adminBugList adminTwoColumnLogGrid">
+                      {resolvedBugReports.map((report) => (
+                        <BugReportCard key={report.id} report={report} />
+                      ))}
                     </div>
-                    <div className="adminMetaGrid">
-                      <p><strong>Reported:</strong> {formatDate(report.created_at)}</p>
-                      <p><strong>Account type:</strong> {report.account_type || "-"}</p>
-                      <p><strong>Page:</strong> {report.page_path || "-"}</p>
-                    </div>
-                    <p><strong>What happened:</strong> {report.details}</p>
-                    {report.expected_behavior ? (
-                      <p style={{ marginTop: "0.5rem" }}>
-                        <strong>Expected:</strong> {report.expected_behavior}
-                      </p>
-                    ) : null}
-                    <div className="ctaRow" style={{ marginTop: "0.85rem" }}>
-                      <form action={updateBugReportStatusAction} className="adminInlineForm">
-                        <input type="hidden" name="report_id" value={report.id} />
-                        <input type="hidden" name="status" value={report.status === "resolved" ? "open" : "resolved"} />
-                        <button className="btn ghost" type="submit">
-                          {report.status === "resolved" ? "Reopen" : "Mark Resolved"}
-                        </button>
-                      </form>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                  </details>
+                ) : null}
+              </>
             ) : null}
-          </section>
+          </AdminDisclosure>
         </>
       ) : null}
 
       {effectiveAdminView === "accounts" && adminContext.hasSchoolScope ? (
         <>
           {schoolSummaries.length > 0 ? (
-            <section className="card">
-              <h2>{schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}</h2>
-              <p>
-                {schoolFilter === "all"
+            <AdminDisclosure
+              title={schoolFilter === "all" ? "School Snapshot" : `${schoolFilter} Snapshot`}
+              description={
+                schoolFilter === "all"
                   ? "Quick counts by school so you can spot where the most accounts and admins live."
-                  : "Quick counts for the currently selected school."}
-              </p>
+                  : "Quick counts for the currently selected school."
+              }
+            >
               <div className="adminSchoolGrid">
                 {(schoolFilter === "all" ? schoolSummaries.slice(0, 8) : schoolSummaries).map((school) => (
                   <article key={school.schoolName} className="card adminSchoolCard">
@@ -1087,11 +1171,10 @@ export default async function AdminPage({ searchParams }) {
                   </article>
                 ))}
               </div>
-            </section>
+            </AdminDisclosure>
           ) : null}
 
-          <section className="card">
-            <h2>User Information</h2>
+          <AdminDisclosure title="User Information">
         <form className="adminFilterBar adminFilterBarWide" method="get">
           <input type="hidden" name="view" value="accounts" />
           <label className="stack">
@@ -1450,7 +1533,7 @@ export default async function AdminPage({ searchParams }) {
             </div>
           </>
         ) : null}
-          </section>
+          </AdminDisclosure>
         </>
       ) : null}
 

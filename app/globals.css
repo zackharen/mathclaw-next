@@ -368,6 +368,51 @@ p {
   background: #fff;
 }
 
+.adminTwoColumnLogGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.adminTwoColumnLogGrid > .adminBugCard {
+  height: 100%;
+}
+
+.adminNestedSectionDetails {
+  margin-top: 1rem;
+}
+
+.adminNestedSectionSummary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 1.5em;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.adminNestedSectionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.adminNestedSectionSummary .hideLabel {
+  display: none;
+}
+
+.adminNestedSectionDetails[open] > .adminNestedSectionSummary .showLabel {
+  display: none;
+}
+
+.adminNestedSectionDetails[open] > .adminNestedSectionSummary .hideLabel {
+  display: inline;
+}
+
 .classGameControlsList {
   display: grid;
   gap: 0.55rem;
@@ -449,6 +494,10 @@ p {
 
   .classGameControlItem .btn {
     width: 100%;
+  }
+
+  .adminTwoColumnLogGrid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2019,6 +2068,66 @@ details[open] > summary.btn,
 
 .adminSummaryCard h3 {
   margin: 0 0 0.75rem;
+}
+
+.adminSectionDetails {
+  margin-top: 0;
+}
+
+.adminSectionSummary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 0.75rem 0 0.7rem;
+  cursor: pointer;
+}
+
+.adminSectionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.adminSectionSummary h2 {
+  margin: 0;
+}
+
+.adminSectionSummary p {
+  margin: 0.35rem 0 0;
+  color: #4e6679;
+}
+
+.adminSectionToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.75rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  background: #f4f8fb;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 700;
+  color: var(--navy);
+  flex-shrink: 0;
+}
+
+.adminSectionSummary .hideLabel {
+  display: none;
+}
+
+details[open] > summary.adminSectionSummary .showLabel {
+  display: none;
+}
+
+details[open] > summary.adminSectionSummary .hideLabel {
+  display: inline;
+}
+
+.adminSectionBody {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
 }
 
 .adminStat {

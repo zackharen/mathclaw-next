@@ -8,9 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-28 America/New_York (Admin restructure shipped to production)
+2026-04-29 America/New_York (Admin layout cleanup local commit)
 
 ## What Was Built (Current Session)
+- **Admin layout cleanup is local on `main`, not pushed:** the current local commit changes `app/admin/page.js`, `app/globals.css`, and this handoff. `main` is ahead of `origin/main` by 1.
+- **Admin defaults and collapsible sections:** `/admin` now defaults owner/admin users to Bugs and Internal Errors (`?view=diagnostics`). Diagnostics sections all start collapsed: Traffic & App Usage, Internal Error Log, Bug Reports. `/admin?view=accounts` page-level sections also start collapsed: School Snapshot and User Information.
+- **Traffic & App Usage:** renamed from Performance Spend And App Decision. It keeps the four metric cards, removes the old Current App Decision panel, and stretches Where Students Are Spending Time full width.
+- **Internal Error Log:** cards show the account display name instead of login email, omit course IDs, and render in a two-column newest-first grid on desktop. Recent Internal Errors counts only errors/warnings from the last 5 weeks; older errors move into a collapsed Older Internal Errors section. The query now loads up to 200 log rows so the archive can populate.
+- **Bug Reports:** title is plural, opens automatically after resolve/reopen actions, open reports use the same two-column newest-first grid, and resolved reports live in a collapsed Resolved Bug Reports archive with matching title styling and equal-height grid cells.
 - **Admin Sections switcher shipped to production:** five alphabetized buttons — Bugs and Internal Errors, Editable Site Copy, Feature Rollout Controls, Mastery Settings, User Information. Each has its own `?view=` route. Files: `app/admin/page.js`, `app/admin/actions.js`.
 - **Mastery Settings view** (`/admin?view=mastery`): pulled Integer Mastery Dashboard out of the diagnostics view and reframed it as a cross-game setting for all future adaptive practice games. Mastery save/reset actions now redirect back to `?view=mastery`.
 - **School Snapshot** moved inside the `accounts` view so it changes with the switcher rather than always being visible.
@@ -25,7 +30,7 @@ This file represents the **current state only**. It should stay short enough to 
 - The homepage (`app/page.js`) is intentionally minimal: banner (if set) + `homeWelcome` heading + MathClaw square logo. User-type-specific widgets will be added incrementally. The welcome text is editable from admin → Editable Site Copy.
 - The `/about` page shows the centered square MathClaw logo above two cells only: "About Us" from Admin `About Us text` / `aboutStory`, and "Mission Statement" from Admin `Mission statement` / `missionStatement`; the cells match height on desktop and stack on mobile.
 - Header chip local work in progress: role chip labels are `Player Mode`, `Student Mode`, `Teacher Mode`, `Admin Mode`, with Admin determined by admin access rather than `account_type`; navy shade variants live in `app/globals.css`. This is local only until the user asks to push live.
-- Admin page is live: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → School Snapshot + User Information; `diagnostics` → Performance Spend/App Decision, Internal Error Log, Bug Inbox; `features` → Feature Rollout Controls; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator).
+- Admin page is live, with newer local layout changes not yet pushed: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → collapsed School Snapshot + collapsed User Information; `diagnostics` → collapsed Traffic & App Usage, collapsed Internal Error Log, collapsed Bug Reports; `features` → Feature Rollout Controls; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator). Local `/admin` default for owner/admin users is Bugs and Internal Errors.
 - The `/play` page now collapses its main content blocks behind matching disclosure headers, with feedback sections opening automatically when needed; section order is Classes, Group Activities, Fun & Games, Awards & Extra Credit, Create A Math Question
 - Group Activities is a direct 3-column card grid on `/play` with Double Board, Lowest Number Wins, and Open Middle
 - Fun & Games has three equal-width columns: `#arcade`, `#mathskills`, and `#survivalskills`; Locker Practice belongs under `#survivalskills`
@@ -51,7 +56,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Reverted invalid `eslint.ignoreDuringBuilds` key from `next.config.mjs` (not supported in Next.js 16)
 
 ## Active Tasks
-- No active blockers. All local Admin/chip/auth work is now live on `main`.
+- Admin layout cleanup is local on `main` and not pushed. Verified with targeted lint using `react-hooks/purity` disabled; full admin lint still hits the pre-existing `Date.now()` purity error in `app/admin/page.js`.
 
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
