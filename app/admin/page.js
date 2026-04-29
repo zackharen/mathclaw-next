@@ -819,7 +819,7 @@ export default async function AdminPage({ searchParams }) {
               className={`btn ${effectiveAdminView === "site-copy" ? "primary" : "ghost"}`}
               href="/admin?view=site-copy"
             >
-              Editable Site Copy
+              Edit Site Text
             </a>
             <a
               className={`btn ${effectiveAdminView === "features" ? "primary" : "ghost"}`}
@@ -915,43 +915,31 @@ export default async function AdminPage({ searchParams }) {
 
       {canViewDiagnostics && effectiveAdminView === "site-copy" ? (
         <section className="card">
-          <h2>Editable Site Copy</h2>
+          <h2>Edit Site Text</h2>
           <p>Update public-facing copy without leaving MathClaw.</p>
           <article className="card" style={{ background: "#fff", marginTop: "1rem" }}>
-            <p>Update the homepage banner, workspace copy, About Us text, and mission statement from here.</p>
-            <form action={updateSiteCopyAction} className="list" style={{ marginTop: "0.85rem" }}>
+            <p>Update the homepage banner, About Us text, and mission statement from here.</p>
+            <form action={updateSiteCopyAction} className="list formList" style={{ marginTop: "0.85rem" }}>
+              <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
               <label>
-                Homepage banner
+                Homepage Banner
                 <input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} />
               </label>
               <label>
-                Homepage welcome message
+                Homepage Welcome Message
                 <input className="input" name="home_welcome" defaultValue={siteCopy?.homeWelcome || ""} />
               </label>
               <label>
-                Homepage intro
-                <textarea className="input" name="home_intro" rows={3} defaultValue={siteCopy?.homeIntro || ""} />
-              </label>
-              <label>
-                Teacher card copy
-                <textarea className="input" name="teacher_card_copy" rows={3} defaultValue={siteCopy?.teacherCardCopy || ""} />
-              </label>
-              <label>
-                Student card copy
-                <textarea className="input" name="student_card_copy" rows={3} defaultValue={siteCopy?.studentCardCopy || ""} />
-              </label>
-              <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
-              <label>
-                Mission statement
+                Mission Statement
                 <textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} />
               </label>
               <label>
-                About Us text
+                About Us Text
                 <textarea className="input" name="about_story" rows={5} defaultValue={siteCopy?.aboutStory || ""} />
               </label>
               <div className="ctaRow">
                 <button className="btn primary" type="submit">
-                  Save Site Copy
+                  Save Text
                 </button>
               </div>
             </form>
