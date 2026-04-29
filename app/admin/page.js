@@ -127,6 +127,23 @@ function AdminDisclosure({ title, description, open = false, children }) {
   );
 }
 
+function AdminInnerDisclosure({ title, open = false, children }) {
+  return (
+    <details className="adminSectionDetails adminInnerSectionDetails" open={open}>
+      <summary className="adminSectionSummary">
+        <div>
+          <h3>{title}</h3>
+        </div>
+        <span className="adminSectionToggle">
+          <span className="showLabel">Show</span>
+          <span className="hideLabel">Hide</span>
+        </span>
+      </summary>
+      <div className="adminSectionBody">{children}</div>
+    </details>
+  );
+}
+
 function BugReportCard({ report }) {
   return (
     <article className="card adminBugCard">
@@ -1002,11 +1019,9 @@ export default async function AdminPage({ searchParams }) {
               </div>
             </AdminDisclosure>
 
-            <section className="card">
-              <div className="ctaRow">
-                <button className="btn primary" type="submit">Save Text</button>
-              </div>
-            </section>
+            <div className="ctaRow" style={{ marginTop: "1.25rem" }}>
+              <button className="btn primary" type="submit">Save Text</button>
+            </div>
           </form>
         </>
       ) : null}
@@ -1098,20 +1113,13 @@ export default async function AdminPage({ searchParams }) {
                   <p>No open bug reports.</p>
                 )}
                 {resolvedBugReports.length > 0 ? (
-                  <details className="adminNestedSectionDetails">
-                    <summary className="adminNestedSectionSummary">
-                      <span>Resolved Bug Reports</span>
-                      <span className="adminSectionToggle">
-                        <span className="showLabel">Show</span>
-                        <span className="hideLabel">Hide</span>
-                      </span>
-                    </summary>
+                  <AdminInnerDisclosure title="Resolved Bug Reports">
                     <div className="adminBugList adminTwoColumnLogGrid">
                       {resolvedBugReports.map((report) => (
                         <BugReportCard key={report.id} report={report} />
                       ))}
                     </div>
-                  </details>
+                  </AdminInnerDisclosure>
                 ) : null}
               </>
             ) : null}
@@ -1135,20 +1143,13 @@ export default async function AdminPage({ searchParams }) {
                   <p>No internal errors from the last 5 weeks.</p>
                 )}
                 {olderInternalEvents.length > 0 ? (
-                  <details className="adminNestedSectionDetails">
-                    <summary className="adminNestedSectionSummary">
-                      <span>Older Internal Errors</span>
-                      <span className="adminSectionToggle">
-                        <span className="showLabel">Show</span>
-                        <span className="hideLabel">Hide</span>
-                      </span>
-                    </summary>
+                  <AdminInnerDisclosure title="Older Internal Errors">
                     <div className="adminBugList adminTwoColumnLogGrid">
                       {olderInternalEvents.map((event) => (
                         <InternalEventCard key={event.id} event={event} accountNameByEmail={accountNameByEmail} />
                       ))}
                     </div>
-                  </details>
+                  </AdminInnerDisclosure>
                 ) : null}
               </>
             ) : null}

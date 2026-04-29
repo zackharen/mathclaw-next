@@ -2088,7 +2088,8 @@ details[open] > summary.btn,
   display: none;
 }
 
-.adminSectionSummary h2 {
+.adminSectionSummary h2,
+.adminSectionSummary h3 {
   margin: 0;
 }
 
@@ -2129,6 +2130,10 @@ details[open] > summary.adminSectionSummary .hideLabel {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--line);
+}
+
+.adminInnerSectionDetails {
+  margin-top: 1.25rem;
 }
 
 .adminStat {
