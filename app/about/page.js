@@ -19,11 +19,11 @@ export default async function AboutPage() {
 
       <section className="aboutGrid">
         <article className="card" style={{ background: "#fff" }}>
-          <h1>About Us</h1>
+          <h1>{siteCopy.aboutSectionTitle}</h1>
           <p>{siteCopy.aboutStory}</p>
         </article>
         <article className="card" style={{ background: "#fff" }}>
-          <h1>Mission Statement</h1>
+          <h1>{siteCopy.missionSectionTitle}</h1>
           <p>{siteCopy.missionStatement}</p>
         </article>
       </section>

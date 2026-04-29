@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
+import { getSiteCopy } from "@/lib/site-config";
 
 function prettyDate(value) {
   const [year, month, day] = String(value).split("-").map(Number);
@@ -39,6 +40,7 @@ function paceDeltaLabel(delta) {
 }
 
 export default async function DashboardPage() {
+  const siteCopy = await getSiteCopy();
   const supabase = await createClient();
   const {
     data: { user },
@@ -243,8 +245,8 @@ export default async function DashboardPage() {
   return (
     <div className="stack">
       <section className="card">
-        <h1>Pacing Dashboard</h1>
-        <p>Class-by-class pacing status based on completed lessons and current plan.</p>
+        <h1>{siteCopy.dashboardTitle}</h1>
+        <p>{siteCopy.dashboardDescription}</p>
       </section>
 
       <section className="card">

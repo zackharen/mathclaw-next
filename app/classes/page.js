@@ -8,6 +8,7 @@ import {
   normalizeAccountType,
 } from "@/lib/auth/account-type";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
+import { getSiteCopy } from "@/lib/site-config";
 import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
   addCoTeacherAction,
@@ -103,6 +104,7 @@ function getGameSupportCopy(game) {
 
 export default async function ClassesPage({ searchParams }) {
   const qs = (await searchParams) || {};
+  const siteCopy = await getSiteCopy();
   const supabase = await createClient();
   const {
     data: { user },
@@ -235,8 +237,8 @@ export default async function ClassesPage({ searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>Your Classes</h1>
-        <p>Manage class setup and open planning workflows.</p>
+        <h1>{siteCopy.classesTitle}</h1>
+        <p>{siteCopy.classesDescription}</p>
         <div className="ctaRow">
           <Link className="btn primary" href="/classes/new">
             Add Class

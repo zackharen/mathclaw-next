@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { submitBugReportAction } from "./actions";
+import { getSiteCopy } from "@/lib/site-config";
 
 function BugNotice({ searchParams }) {
   const submitted = searchParams?.submitted === "1";
@@ -19,6 +20,7 @@ function BugNotice({ searchParams }) {
 }
 
 export default async function ReportBugPage({ searchParams }) {
+  const siteCopy = await getSiteCopy();
   const supabase = await createClient();
   const {
     data: { user },
@@ -40,21 +42,15 @@ export default async function ReportBugPage({ searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>Report A Bug</h1>
-        <p>
-          If something feels broken, confusing, or unexpectedly slow, log it here so it lands
-          in the owner admin inbox.
-        </p>
+        <h1>{siteCopy.reportBugTitle}</h1>
+        <p>{siteCopy.reportBugDescription}</p>
       </section>
 
       <BugNotice searchParams={params} />
 
       <section className="card">
-        <h2>What Happened?</h2>
-        <p>
-          Tell us what you were trying to do, what you expected, and what actually happened.
-          The more specific the note, the faster it is to fix.
-        </p>
+        <h2>{siteCopy.reportBugFormTitle}</h2>
+        <p>{siteCopy.reportBugFormDescription}</p>
         <form action={submitBugReportAction} className="bugReportForm">
           <label className="stack">
             <span>Signed in as</span>

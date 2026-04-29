@@ -758,7 +758,7 @@ export default async function AdminPage({ searchParams }) {
         <h1>{adminContext.isOwner ? "Owner Admin" : "Admin"}</h1>
         <p>
           {adminContext.isOwner
-            ? "Manage MathClaw accounts without digging through Supabase. This is just for the owner account."
+            ? siteCopy.adminOwnerDescription
             : adminContext.hasSchoolScope
               ? `Manage teachers, students, and classes in ${adminContext.schoolName}.`
               : "Your admin account needs a school assignment before school-scoped tools can load."}
@@ -914,37 +914,101 @@ export default async function AdminPage({ searchParams }) {
       ) : null}
 
       {canViewDiagnostics && effectiveAdminView === "site-copy" ? (
-        <section className="card">
-          <h2>Edit Site Text</h2>
-          <p>Update public-facing copy without leaving MathClaw.</p>
-          <article className="card" style={{ background: "#fff", marginTop: "1rem" }}>
-            <p>Update the homepage banner, About Us text, and mission statement from here.</p>
-            <form action={updateSiteCopyAction} className="list formList" style={{ marginTop: "0.85rem" }}>
-              <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
-              <label>
-                Homepage Banner
-                <input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} />
-              </label>
-              <label>
-                Homepage Welcome Message
-                <input className="input" name="home_welcome" defaultValue={siteCopy?.homeWelcome || ""} />
-              </label>
-              <label>
-                Mission Statement
-                <textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} />
-              </label>
-              <label>
-                About Us Text
-                <textarea className="input" name="about_story" rows={5} defaultValue={siteCopy?.aboutStory || ""} />
-              </label>
-              <div className="ctaRow">
-                <button className="btn primary" type="submit">
-                  Save Text
-                </button>
+        <>
+          <section className="card">
+            <h2>Edit Site Text</h2>
+            <p>Update public-facing copy without leaving MathClaw. Open a section, edit the text, then save all at once.</p>
+          </section>
+          <form action={updateSiteCopyAction}>
+            <input type="hidden" name="about_title" defaultValue={siteCopy?.aboutTitle || ""} />
+
+            <AdminDisclosure title="Homepage" description="Banner and welcome message shown on the home page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Homepage Banner<input className="input" name="home_banner" defaultValue={siteCopy?.homeBanner || ""} /></label>
+                <label>Homepage Welcome Message<input className="input" name="home_welcome" defaultValue={siteCopy?.homeWelcome || ""} /></label>
               </div>
-            </form>
-          </article>
-        </section>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="About" description="Content shown on the /about page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>About Us Section Title<input className="input" name="about_section_title" defaultValue={siteCopy?.aboutSectionTitle || ""} /></label>
+                <label>About Us Text<textarea className="input" name="about_story" rows={4} defaultValue={siteCopy?.aboutStory || ""} /></label>
+                <label>Mission Statement Section Title<input className="input" name="mission_section_title" defaultValue={siteCopy?.missionSectionTitle || ""} /></label>
+                <label>Mission Statement<textarea className="input" name="mission_statement" rows={3} defaultValue={siteCopy?.missionStatement || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Admin" description="Intro text shown at the top of the admin page for owner accounts.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Owner Description<textarea className="input" name="admin_owner_description" rows={2} defaultValue={siteCopy?.adminOwnerDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Arcade" description="Titles and descriptions for every section on the /play arcade page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Student Arcade Title<input className="input" name="arcade_student_title" defaultValue={siteCopy?.arcadeStudentTitle || ""} /></label>
+                <label>Student Intro (follows &ldquo;Welcome, [name].&rdquo;)<input className="input" name="arcade_student_description" defaultValue={siteCopy?.arcadeStudentDescription || ""} /></label>
+                <label>Teacher Arcade Title<input className="input" name="arcade_teacher_title" defaultValue={siteCopy?.arcadeTeacherTitle || ""} /></label>
+                <label>Teacher Intro (follows &ldquo;Welcome, [name].&rdquo;)<input className="input" name="arcade_teacher_description" defaultValue={siteCopy?.arcadeTeacherDescription || ""} /></label>
+                <label>Classes Section Title<input className="input" name="arcade_classes_title" defaultValue={siteCopy?.arcadeClassesTitle || ""} /></label>
+                <label>Classes Section Description<input className="input" name="arcade_classes_description" defaultValue={siteCopy?.arcadeClassesDescription || ""} /></label>
+                <label>Group Activities Title<input className="input" name="arcade_group_activities_title" defaultValue={siteCopy?.arcadeGroupActivitiesTitle || ""} /></label>
+                <label>Group Activities Description<textarea className="input" name="arcade_group_activities_description" rows={2} defaultValue={siteCopy?.arcadeGroupActivitiesDescription || ""} /></label>
+                <label>Fun &amp; Games Title<input className="input" name="arcade_fun_games_title" defaultValue={siteCopy?.arcadeFunGamesTitle || ""} /></label>
+                <label>Fun &amp; Games Description<input className="input" name="arcade_fun_games_description" defaultValue={siteCopy?.arcadeFunGamesDescription || ""} /></label>
+                <label>Awards &amp; Extra Credit Title<input className="input" name="arcade_awards_title" defaultValue={siteCopy?.arcadeAwardsTitle || ""} /></label>
+                <label>Awards &amp; Extra Credit Description<textarea className="input" name="arcade_awards_description" rows={2} defaultValue={siteCopy?.arcadeAwardsDescription || ""} /></label>
+                <label>Create A Math Question Title<input className="input" name="arcade_create_question_title" defaultValue={siteCopy?.arcadeCreateQuestionTitle || ""} /></label>
+                <label>Create A Math Question Description<textarea className="input" name="arcade_create_question_description" rows={2} defaultValue={siteCopy?.arcadeCreateQuestionDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Classes" description="Page title and subtitle on the /classes teacher page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Page Title<input className="input" name="classes_title" defaultValue={siteCopy?.classesTitle || ""} /></label>
+                <label>Page Description<input className="input" name="classes_description" defaultValue={siteCopy?.classesDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Dashboard" description="Page title and subtitle on the /dashboard pacing page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Page Title<input className="input" name="dashboard_title" defaultValue={siteCopy?.dashboardTitle || ""} /></label>
+                <label>Page Description<input className="input" name="dashboard_description" defaultValue={siteCopy?.dashboardDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Profile" description="Title and role-specific subtitles on the /onboarding/profile page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Page Title<input className="input" name="profile_title" defaultValue={siteCopy?.profileTitle || ""} /></label>
+                <label>Teacher Description<input className="input" name="profile_teacher_description" defaultValue={siteCopy?.profileTeacherDescription || ""} /></label>
+                <label>Student Description<input className="input" name="profile_student_description" defaultValue={siteCopy?.profileStudentDescription || ""} /></label>
+                <label>Player Description<input className="input" name="profile_player_description" defaultValue={siteCopy?.profilePlayerDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Report Bug" description="Page and form copy on the /report-bug page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Page Title<input className="input" name="report_bug_title" defaultValue={siteCopy?.reportBugTitle || ""} /></label>
+                <label>Page Description<textarea className="input" name="report_bug_description" rows={2} defaultValue={siteCopy?.reportBugDescription || ""} /></label>
+                <label>Form Section Title<input className="input" name="report_bug_form_title" defaultValue={siteCopy?.reportBugFormTitle || ""} /></label>
+                <label>Form Section Description<textarea className="input" name="report_bug_form_description" rows={2} defaultValue={siteCopy?.reportBugFormDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <AdminDisclosure title="Teachers" description="Page title and subtitle on the /teachers page.">
+              <div className="list formList" style={{ marginTop: "0.75rem" }}>
+                <label>Page Title<input className="input" name="teachers_title" defaultValue={siteCopy?.teachersTitle || ""} /></label>
+                <label>Page Description<input className="input" name="teachers_description" defaultValue={siteCopy?.teachersDescription || ""} /></label>
+              </div>
+            </AdminDisclosure>
+
+            <section className="card">
+              <div className="ctaRow">
+                <button className="btn primary" type="submit">Save Text</button>
+              </div>
+            </section>
+          </form>
+        </>
       ) : null}
 
       {canViewDiagnostics && effectiveAdminView === "mastery" ? (

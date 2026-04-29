@@ -864,19 +864,67 @@ export async function updateSiteCopyAction(formData) {
 
   await ensureSiteConfigCatalog(admin);
 
+  const g = (name) => String(formData.get(name) || "").trim();
+  const gd = (name, key) => g(name) || DEFAULT_SITE_COPY[key];
+
   const metadata = {
-    homeBanner: String(formData.get("home_banner") || "").trim(),
-    homeWelcome:
-      String(formData.get("home_welcome") || "").trim() || DEFAULT_SITE_COPY.homeWelcome,
-    homeIntro: String(formData.get("home_intro") || "").trim() || DEFAULT_SITE_COPY.homeIntro,
-    teacherCardCopy:
-      String(formData.get("teacher_card_copy") || "").trim() || DEFAULT_SITE_COPY.teacherCardCopy,
-    studentCardCopy:
-      String(formData.get("student_card_copy") || "").trim() || DEFAULT_SITE_COPY.studentCardCopy,
-    aboutTitle: String(formData.get("about_title") || "").trim() || DEFAULT_SITE_COPY.aboutTitle,
-    missionStatement:
-      String(formData.get("mission_statement") || "").trim() || DEFAULT_SITE_COPY.missionStatement,
-    aboutStory: String(formData.get("about_story") || "").trim() || DEFAULT_SITE_COPY.aboutStory,
+    // Homepage
+    homeBanner: g("home_banner"),
+    homeWelcome: gd("home_welcome", "homeWelcome"),
+    homeIntro: g("home_intro") || DEFAULT_SITE_COPY.homeIntro,
+    teacherCardCopy: g("teacher_card_copy") || DEFAULT_SITE_COPY.teacherCardCopy,
+    studentCardCopy: g("student_card_copy") || DEFAULT_SITE_COPY.studentCardCopy,
+
+    // About
+    aboutTitle: gd("about_title", "aboutTitle"),
+    aboutSectionTitle: gd("about_section_title", "aboutSectionTitle"),
+    missionSectionTitle: gd("mission_section_title", "missionSectionTitle"),
+    missionStatement: gd("mission_statement", "missionStatement"),
+    aboutStory: gd("about_story", "aboutStory"),
+
+    // Admin
+    adminOwnerDescription: gd("admin_owner_description", "adminOwnerDescription"),
+
+    // Arcade
+    arcadeStudentTitle: gd("arcade_student_title", "arcadeStudentTitle"),
+    arcadeTeacherTitle: gd("arcade_teacher_title", "arcadeTeacherTitle"),
+    arcadeStudentDescription: gd("arcade_student_description", "arcadeStudentDescription"),
+    arcadeTeacherDescription: gd("arcade_teacher_description", "arcadeTeacherDescription"),
+    arcadeClassesTitle: gd("arcade_classes_title", "arcadeClassesTitle"),
+    arcadeClassesDescription: gd("arcade_classes_description", "arcadeClassesDescription"),
+    arcadeGroupActivitiesTitle: gd("arcade_group_activities_title", "arcadeGroupActivitiesTitle"),
+    arcadeGroupActivitiesDescription: gd("arcade_group_activities_description", "arcadeGroupActivitiesDescription"),
+    arcadeFunGamesTitle: gd("arcade_fun_games_title", "arcadeFunGamesTitle"),
+    arcadeFunGamesDescription: gd("arcade_fun_games_description", "arcadeFunGamesDescription"),
+    arcadeAwardsTitle: gd("arcade_awards_title", "arcadeAwardsTitle"),
+    arcadeAwardsDescription: gd("arcade_awards_description", "arcadeAwardsDescription"),
+    arcadeCreateQuestionTitle: gd("arcade_create_question_title", "arcadeCreateQuestionTitle"),
+    arcadeCreateQuestionDescription: gd("arcade_create_question_description", "arcadeCreateQuestionDescription"),
+
+    // Classes
+    classesTitle: gd("classes_title", "classesTitle"),
+    classesDescription: gd("classes_description", "classesDescription"),
+
+    // Dashboard
+    dashboardTitle: gd("dashboard_title", "dashboardTitle"),
+    dashboardDescription: gd("dashboard_description", "dashboardDescription"),
+
+    // Profile
+    profileTitle: gd("profile_title", "profileTitle"),
+    profileTeacherDescription: gd("profile_teacher_description", "profileTeacherDescription"),
+    profileStudentDescription: gd("profile_student_description", "profileStudentDescription"),
+    profilePlayerDescription: gd("profile_player_description", "profilePlayerDescription"),
+
+    // Report Bug
+    reportBugTitle: gd("report_bug_title", "reportBugTitle"),
+    reportBugDescription: gd("report_bug_description", "reportBugDescription"),
+    reportBugFormTitle: gd("report_bug_form_title", "reportBugFormTitle"),
+    reportBugFormDescription: gd("report_bug_form_description", "reportBugFormDescription"),
+
+    // Teachers
+    teachersTitle: gd("teachers_title", "teachersTitle"),
+    teachersDescription: gd("teachers_description", "teachersDescription"),
+
     source: "owner_site_config",
   };
 
@@ -896,6 +944,12 @@ export async function updateSiteCopyAction(formData) {
   revalidatePath("/");
   revalidatePath("/about");
   revalidatePath("/admin");
+  revalidatePath("/play");
+  revalidatePath("/classes");
+  revalidatePath("/dashboard");
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/report-bug");
+  revalidatePath("/teachers");
   redirect("/admin?view=site-copy&siteCopyUpdated=1");
 }
 

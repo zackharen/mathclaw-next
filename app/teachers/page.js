@@ -7,6 +7,7 @@ import {
   declineTeacherRequestAction,
   sendTeacherRequestAction,
 } from "./actions";
+import { getSiteCopy } from "@/lib/site-config";
 
 function connectionKey(a, b) {
   return [a, b].sort().join("__");
@@ -21,6 +22,7 @@ export default async function TeachersPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const query = typeof qs.q === "string" ? qs.q.trim() : "";
   const updated = qs.updated === "1";
+  const siteCopy = await getSiteCopy();
 
   const supabase = await createClient();
   const {
@@ -223,8 +225,8 @@ export default async function TeachersPage({ searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>Teachers</h1>
-        <p>Find colleagues, build your school network, and grow a MathClaw teaching community.</p>
+        <h1>{siteCopy.teachersTitle}</h1>
+        <p>{siteCopy.teachersDescription}</p>
         <form className="ctaRow" action="/teachers" method="get">
           <input
             className="input"

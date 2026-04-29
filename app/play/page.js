@@ -5,6 +5,7 @@ import { getAccountTypeForUser, isStudentAccountType } from "@/lib/auth/account-
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
+import { getSiteCopy } from "@/lib/site-config";
 
 const REVIEW_GAME_SLUGS = new Set([
   "spiral_review",
@@ -148,6 +149,7 @@ function statRowsForGame(game, stats) {
 }
 
 export default async function PlayPage({ searchParams }) {
+  const siteCopy = await getSiteCopy();
   const supabase = await createClient();
   const {
     data: { user },
@@ -248,17 +250,15 @@ export default async function PlayPage({ searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>{isStudent ? "Student Arcade" : "Arcade"}</h1>
+        <h1>{isStudent ? siteCopy.arcadeStudentTitle : siteCopy.arcadeTeacherTitle}</h1>
         <p>
-          {isStudent
-            ? `Welcome, ${profile.display_name}. Join a class with a teacher code, play games, and save your progress over time.`
-            : `Welcome, ${profile.display_name}. Play games anytime, and join a class later if you want class leaderboards and teacher tracking.`}
+          {`Welcome, ${profile.display_name}. ${isStudent ? siteCopy.arcadeStudentDescription : siteCopy.arcadeTeacherDescription}`}
         </p>
       </section>
 
       <ArcadeDisclosure
-        title="Classes"
-        description="Join a class or switch between the ones already connected to this account."
+        title={siteCopy.arcadeClassesTitle}
+        description={siteCopy.arcadeClassesDescription}
         open={hasJoinFeedback}
       >
             <div className="featureGrid arcadeClassesGrid">
@@ -351,8 +351,8 @@ export default async function PlayPage({ searchParams }) {
 
       {reviewGames.length > 0 ? (
         <ArcadeDisclosure
-          title="Group Activities"
-          description="Use these modes when you want mixed review, strategy reminders, and more of a checkpoint feeling than a single-skill drill."
+          title={siteCopy.arcadeGroupActivitiesTitle}
+          description={siteCopy.arcadeGroupActivitiesDescription}
         >
           <div className="reviewGameFamilyGrid" style={{ marginTop: "1rem" }}>
             {reviewGames.map((game) => (
@@ -381,8 +381,8 @@ export default async function PlayPage({ searchParams }) {
         </ArcadeDisclosure>
       ) : null}
       <ArcadeDisclosure
-        title="Fun & Games"
-        description="Arcade-style games, skill practice, and independent play."
+        title={siteCopy.arcadeFunGamesTitle}
+        description={siteCopy.arcadeFunGamesDescription}
       >
         {activeCourse && visibleGames.length === 0 ? (
           <p style={{ marginTop: "0.75rem" }}>No games are enabled for this class yet.</p>
@@ -499,8 +499,8 @@ export default async function PlayPage({ searchParams }) {
         </div>
       </ArcadeDisclosure>
       <ArcadeDisclosure
-        title="Awards & Extra Credit"
-        description="Teacher awards and extra credit will show up here once they start handing them out."
+        title={siteCopy.arcadeAwardsTitle}
+        description={siteCopy.arcadeAwardsDescription}
         open={awards.length > 0}
       >
         {awards.length === 0 ? (
@@ -526,8 +526,8 @@ export default async function PlayPage({ searchParams }) {
         )}
       </ArcadeDisclosure>
       <ArcadeDisclosure
-        title="Create A Math Question"
-        description="Turn what you know into a performance task by writing your own question, answer, and short explanation for your class."
+        title={siteCopy.arcadeCreateQuestionTitle}
+        description={siteCopy.arcadeCreateQuestionDescription}
         open={hasQuestionFeedback}
       >
         {params?.question_created === "1" ? (

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
+import { getSiteCopy } from "@/lib/site-config";
 import {
   saveAnnouncementTemplateAction,
   saveSchoolCalendarAction,
@@ -86,6 +87,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
   const templateUpdated = qs.template_updated === "1";
+  const siteCopy = await getSiteCopy();
 
   const supabase = await createClient();
   const {
@@ -249,13 +251,13 @@ Standards: {standards}`;
   return (
     <div className="stack">
       <section className="card">
-        <h1>Profile</h1>
+        <h1>{siteCopy.profileTitle}</h1>
         <p>
           {accountType === "teacher"
-            ? "Update your teacher profile details."
+            ? siteCopy.profileTeacherDescription
             : accountType === "student"
-              ? "Update your student profile details."
-              : "Update your arcade player profile details."}
+              ? siteCopy.profileStudentDescription
+              : siteCopy.profilePlayerDescription}
         </p>
         <ProfileForm
           userId={user.id}
