@@ -8,10 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-29 America/New_York (Admin layout cleanup local commit)
+2026-04-29 America/New_York (Claude Code permissions + admin layout shipped)
 
 ## What Was Built (Current Session)
-- **Admin layout cleanup is local on `main`, not pushed:** the current local commit changes `app/admin/page.js`, `app/globals.css`, and this handoff. `main` is ahead of `origin/main` by 1.
+- **Claude Code project permissions configured:** `.claude/settings.json` created at repo root and pushed to `main`. Auto-approves Read/Edit/npm/basic git; blocks push, force-reset, Supabase db push/reset, Vercel deploy, rm -rf, sudo. `defaultMode: acceptEdits`. Write scopes: `app/`, `components/`, `lib/`, `public/`, `brain/`, `data/`, `docs/`, `scripts/`, `tests/`. `styles/` dropped (doesn't exist); `supabase/` excluded intentionally (migrations need deliberate edits). `scripts/` Python/mjs files not invoked by npm — add `Bash(node scripts/*)` / `Bash(python3 scripts/*)` allow rules if needed.
+- **Admin layout cleanup is live on `main`:** `app/admin/page.js`, `app/globals.css` changes were already pushed before this session (brain was stale on this).
 - **Admin defaults and collapsible sections:** `/admin` now defaults owner/admin users to Bugs and Internal Errors (`?view=diagnostics`). Diagnostics sections all start collapsed: Traffic & App Usage, Internal Error Log, Bug Reports. `/admin?view=accounts` page-level sections also start collapsed: School Snapshot and User Information.
 - **Traffic & App Usage:** renamed from Performance Spend And App Decision. It keeps the four metric cards, removes the old Current App Decision panel, and stretches Where Students Are Spending Time full width.
 - **Internal Error Log:** cards show the account display name instead of login email, omit course IDs, and render in a two-column newest-first grid on desktop. Recent Internal Errors counts only errors/warnings from the last 5 weeks; older errors move into a collapsed Older Internal Errors section. The query now loads up to 200 log rows so the archive can populate.
@@ -56,7 +57,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Reverted invalid `eslint.ignoreDuringBuilds` key from `next.config.mjs` (not supported in Next.js 16)
 
 ## Active Tasks
-- Admin layout cleanup is local on `main` and not pushed. Verified with targeted lint using `react-hooks/purity` disabled; full admin lint still hits the pre-existing `Date.now()` purity error in `app/admin/page.js`.
+- None outstanding from this session.
 
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
