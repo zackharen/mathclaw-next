@@ -40,6 +40,9 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 ## `USH` Rule
 If the user types `USH`, update only `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary unless explicitly asked for more.
 
+## `LU` Rule
+If the user types `LU` followed by notes or requested changes, follow the `LU` protocol defined in `conventions.md` → Command Shortcuts → `LU`: read relevant brain/feature context, ask numbered clarifying questions one at a time, then produce a fully-specified implementation prompt in a code block for a new chat session to execute.
+
 ## `USHM` Rule
 If the user types `USHM`, push all local changes live, then update `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary.
 

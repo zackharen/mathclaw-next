@@ -915,7 +915,6 @@ export default async function AdminPage({ searchParams }) {
                 <div className="adminFeatureControlCopy">
                   <div className="adminFeatureControlTopline">
                     <strong>{siteCopy.adminFeatureBulkControlTitle}</strong>
-                    <span className="pill adminFeatureOwnerPill">{siteCopy.adminFeatureBulkControlBadge}</span>
                   </div>
                   <span>{siteCopy.adminFeatureBulkControlDescription}</span>
                 </div>

@@ -89,3 +89,17 @@ When the user types `USHM`:
    - issues or bugs found
 
 `USHM` means "push all changes live and update memory." Treat it as explicit approval for the commit/push/deploy workflow, but not as approval for destructive commands such as force pushes, hard resets, or destructive database/schema operations.
+
+### `LU` (Let's Update)
+When the user types `LU` followed by a set of notes or requested changes:
+1. Read the standard startup brain files plus any feature context files relevant to the requested changes.
+2. Ask the user clarifying questions **one at a time**, numbered (e.g. **1.**, **2.**), waiting for each answer before asking the next.
+3. Only ask questions where the answer would meaningfully change the implementation. Skip questions that are already clear from context.
+4. Once all questions are answered, craft a detailed, self-contained implementation prompt intended for a **new chat session** to execute.
+5. Output the final prompt in a **code block** for easy copying.
+
+The prompt must:
+- Open with the standard brain entrypoint instruction (`Use the MathClaw brain entrypoint at /Users/zackarenstein/mathclaw-next/brain/START_HERE.md and follow it exactly.`)
+- List which feature context files to load
+- Describe each change with enough specificity that a new AI session can implement it without needing to ask follow-up questions (include file names, function names, line number hints, and precise behavior)
+- End with a reminder to carry changes live per the delivery convention and update `session_handoff.md`

@@ -8,7 +8,7 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-30 America/New_York (Double Board and Lowest Number Wins fixes deployed)
+2026-04-30 America/New_York (USHM: LU command and small UI polish deployed)
 
 ## What Was Built (2026-04-29 Afternoon Session)
 - **Admin UI polish shipped to `main`** (`app/admin/page.js`, `app/globals.css`):
@@ -19,6 +19,12 @@ This file represents the **current state only**. It should stay short enough to 
   - CSS: `.adminSectionSummary p` replaced with `.adminSectionDesc`; `.adminInnerSectionDetails` adds `margin-top: 1.25rem`; `adminSectionSummary h3/h4` margin reset added.
 
 ## What Was Built (Current Session)
+- **LU command and small UI polish shipped to `main` and production** (`brain/START_HERE.md`, `brain/conventions.md`, `app/admin/page.js`, `app/play/page.js`):
+  - Added the `LU` ("Let's Update") workflow to the brain docs: read relevant context, ask numbered clarifying questions one at a time, then produce a self-contained implementation prompt in a code block for a new chat.
+  - Removed the Admin Feature Rollout bulk-control badge from the Feature Rollout Controls page.
+  - Wrapped the `/play` `ArcadeDisclosure` stack in a plain div, matching the grouped disclosure stack pattern used elsewhere.
+  - Verification before shipping: `git diff --check` passed, `npm test` passed 12/12 tests, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
+
 - **Double Board fixes shipped to `main` and production** (`app/api/play/double-board/route.js`, `app/play/double-board/game-client.js`, `app/globals.css`):
   - Start countdown is now a 3-second server window and the client caps countdown display at 3, so startup shows 3, 2, 1.
   - One-at-a-time turn reordering now updates the visible list immediately and persists `turnOrderUserIds` without recomputing away the active turn.

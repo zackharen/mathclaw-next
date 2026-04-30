@@ -256,6 +256,7 @@ export default async function PlayPage({ searchParams }) {
         </p>
       </section>
 
+      <div>
       <ArcadeDisclosure
         title={siteCopy.arcadeClassesTitle}
         description={siteCopy.arcadeClassesDescription}
@@ -641,6 +642,7 @@ export default async function PlayPage({ searchParams }) {
           </div>
         )}
       </ArcadeDisclosure>
+      </div>
     </div>
   );
 }
