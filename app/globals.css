@@ -3850,7 +3850,8 @@ details[open] > summary.adminSectionSummary .hideLabel {
   background: rgba(255, 255, 255, 0.72);
 }
 
-.doubleBoardTile.lockedOut {
+.doubleBoardTile.lockedOut,
+.doubleBoardTile.lockedOutOwn {
   background: linear-gradient(180deg, #efe3ff 0%, #cfb4ff 100%);
   border-color: #6f43b4;
   color: #43206f;
@@ -4383,13 +4384,14 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .doubleBoardTeacherPopup {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 79;
-  width: min(100%, 24rem);
+  width: min(92vw, 42rem);
   border: 3px solid #0b3d69;
   border-radius: 24px;
-  padding: 1.1rem;
+  padding: 1.4rem;
   background: linear-gradient(180deg, #ffffff 0%, #edf4ff 100%);
   box-shadow: 0 28px 60px rgba(11, 29, 52, 0.24);
 }
@@ -4397,6 +4399,9 @@ details[open] > summary.adminSectionSummary .hideLabel {
 .doubleBoardTeacherPopup h3 {
   margin-top: 0;
   padding-right: 2.5rem;
+  font-size: clamp(2rem, 5vw, 4.25rem);
+  line-height: 1.05;
+  text-align: center;
 }
 
 .doubleBoardVoteForm {
@@ -4448,7 +4453,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .doubleBoardModal {
   position: relative;
-  width: min(100%, 32rem);
+  width: min(92vw, 42rem);
   border: 3px solid #0b3d69;
   border-radius: 24px;
   padding: 1.2rem;
@@ -4458,6 +4463,9 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .doubleBoardModal h3 {
   margin-top: 0;
+  font-size: clamp(1.8rem, 4vw, 3.75rem);
+  line-height: 1.08;
+  text-align: center;
 }
 
 .doubleBoardModalClose {
@@ -5847,6 +5855,59 @@ details[open] > summary.adminSectionSummary .hideLabel {
   padding: 0.5rem 0;
 }
 
+.lnwRosterCard h3 {
+  margin: 0 0 0.85rem;
+}
+
+.lnwRoster,
+.lnwProjectorRoster {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.lnwRoster {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.lnwRosterRow,
+.lnwProjectorRosterRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.lnwRosterRow {
+  padding: 0.55rem 0.7rem;
+  border: 1.5px solid #e5e5e5;
+  border-radius: 0.45rem;
+  background: #fff;
+}
+
+.lnwRosterDot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16);
+}
+
+.lnwRosterDot.waiting {
+  background: #d33a2c;
+}
+
+.lnwRosterDot.submitted {
+  background: #2f9e44;
+}
+
+.lnwRosterEmpty,
+.lnwProjectorRosterEmpty {
+  margin: 0;
+  color: #666;
+}
+
 /* Pick form */
 .lnwSubmittedState {
   text-align: center;
@@ -6271,6 +6332,36 @@ details[open] > summary.adminSectionSummary .hideLabel {
   margin-top: 0.5rem;
   width: 100%;
   max-width: 36rem;
+}
+
+.lnwProjectorControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.lnwProjectorControls .btn {
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+.lnwProjectorRoster {
+  width: min(100%, 46rem);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  margin-top: 0.25rem;
+}
+
+.lnwProjectorRosterRow {
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.lnwProjectorRosterEmpty {
+  opacity: 0.65;
 }
 
 .lnwProjectorLbRow {

@@ -78,6 +78,7 @@ function normalizeSessionPayload(session) {
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
     turnPhase: normalizeTurnPhase(session.turnPhase),
     turnPhaseEndsAt: futureTimestampOrNull(session.turnPhaseEndsAt),
+    turnUnclaimCount: Math.max(0, Number(session.turnUnclaimCount || 0)),
     activeTurnDisplayName:
       typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
     activeTurnUserId: typeof session.activeTurnUserId === "string" ? session.activeTurnUserId : null,
@@ -624,7 +625,7 @@ function BoardPanel({
                   className={`doubleBoardTile state-${question.state} ${isSelected ? "selected" : ""} ${
                     highValue ? "highValue" : ""
                   } ${!question.solved && question.claim && claimSecondsLeft > 0 ? "engaged" : ""} ${
-                    isLockedForViewer ? "lockedOut" : ""
+                    isLockedForViewer ? "lockedOut lockedOutOwn" : ""
                   }`}
                   onClick={() => onSelect(question)}
                   disabled={disabled}
@@ -690,6 +691,7 @@ function AnswerModal({
   onCancel,
   onSubmit,
   busy,
+  canUnclaim = true,
 }) {
   if (!open || !question) return null;
 
@@ -714,15 +716,17 @@ function AnswerModal({
         aria-modal="true"
         aria-labelledby="double-board-answer-title"
       >
-        <button
-          type="button"
-          className="doubleBoardModalClose"
-          onClick={onCancel}
-          disabled={busy}
-          aria-label="Exit question"
-        >
-          X
-        </button>
+        {canUnclaim ? (
+          <button
+            type="button"
+            className="doubleBoardModalClose"
+            onClick={onCancel}
+            disabled={busy}
+            aria-label="Exit question"
+          >
+            X
+          </button>
+        ) : null}
         <p className="doubleBoardEyebrow">
           {formatBoardLocation(question.boardKey, question.rowIndex, question.colIndex)}
         </p>
@@ -754,11 +758,13 @@ function AnswerModal({
                 />
               </button>
             ))}
-            <div className="ctaRow">
-              <button className="btn" type="button" onClick={onCancel} disabled={busy}>
-                Back to board
-              </button>
-            </div>
+            {canUnclaim ? (
+              <div className="ctaRow">
+                <button className="btn" type="button" onClick={onCancel} disabled={busy}>
+                  Back to board
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : (
           <form
@@ -782,9 +788,11 @@ function AnswerModal({
               <button className="btn primary" type="submit" disabled={busy || !String(answerValue).trim()}>
                 Submit Answer
               </button>
-              <button className="btn" type="button" onClick={onCancel} disabled={busy}>
-                Back to board
-              </button>
+              {canUnclaim ? (
+                <button className="btn" type="button" onClick={onCancel} disabled={busy}>
+                  Back to board
+                </button>
+              ) : null}
             </div>
           </form>
         )}
@@ -1135,7 +1143,7 @@ export default function DoubleBoardClient({
     return () => window.clearInterval(interval);
   }, [boards.A, boards.B, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
 
-  const countdownValue = secondsRemaining(session?.startCountdownEndsAt, clockNow);
+  const countdownValue = Math.min(3, secondsRemaining(session?.startCountdownEndsAt, clockNow));
   const countdownActive = countdownValue > 0;
   const currentCourseLabel = courseTitle(courseOptions, session?.courseId ?? courseId);
   const liveTone = statusTone(session?.status);
@@ -1291,8 +1299,35 @@ export default function DoubleBoardClient({
     }
   }
 
+  async function handleCancelQuestion() {
+    if (
+      session?.playMode === "one_at_a_time" &&
+      selectedQuestion?.id &&
+      session?.turnUnclaimCount < 1
+    ) {
+      const payload = await postAction("unclaim_question", {
+        questionId: selectedQuestion.id,
+      });
+      if (!payload?.result?.unclaimed) return;
+    }
+
+    setSelectedQuestion(null);
+    setAnswerValue("");
+  }
+
   async function handleTurnOrderReorder(orderedUserIds) {
     if (!session || !canHost || session.playMode !== "one_at_a_time") return;
+    const orderedSet = new Set(orderedUserIds);
+    setSession((current) => {
+      if (!current?.turnOrder) return current;
+      const itemMap = new Map(current.turnOrder.map((item) => [item.userId, item]));
+      const orderedItems = orderedUserIds.map((userId) => itemMap.get(userId)).filter(Boolean);
+      const remainingItems = current.turnOrder.filter((item) => !orderedSet.has(item.userId));
+      return {
+        ...current,
+        turnOrder: [...orderedItems, ...remainingItems],
+      };
+    });
     await postAction("reorder_turns", {
       orderedUserIds,
     });
@@ -1538,9 +1573,7 @@ export default function DoubleBoardClient({
                   >
                     End Game
                   </button>
-                  {session?.playMode === "one_at_a_time" &&
-                  session?.status === "live" &&
-                  (session?.turnPhase || session?.activeQuestionId) ? (
+                  {session?.playMode === "one_at_a_time" && session?.status === "live" ? (
                     <button
                       className="btn"
                       type="button"
@@ -1726,9 +1759,12 @@ export default function DoubleBoardClient({
           answerMode={session?.answerMode || answerMode}
           answerValue={answerValue}
           onAnswerChange={setAnswerValue}
-          onCancel={() => setSelectedQuestion(null)}
+          onCancel={handleCancelQuestion}
           onSubmit={handleSubmitAnswer}
           busy={busy}
+          canUnclaim={
+            session?.playMode !== "one_at_a_time" || Number(session?.turnUnclaimCount || 0) < 1
+          }
         />
         <StudentVoteOverlay
           open={voteOverlayOpen}

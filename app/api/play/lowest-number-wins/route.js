@@ -201,6 +201,14 @@ async function loadSessionBundle(admin, sessionId, viewer) {
   const submittedCount = studentPlayers.filter((p) =>
     submittedUserIds.has(p.user_id)
   ).length;
+  const studentSubmissionStatus = studentPlayers.map((p) => ({
+    id: p.id,
+    userId: p.user_id,
+    displayName: p.display_name,
+    hasSubmitted: submittedUserIds.has(p.user_id),
+    joinedAt: p.joined_at,
+    isPresent: isPlayerPresent(p),
+  }));
 
   const viewerPick = currentRoundPicks.find((p) => p.user_id === viewer.user.id) || null;
   const viewerHasSubmitted = Boolean(viewerPick);
@@ -278,6 +286,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     viewerTotalWins: Number(viewerPlayer?.total_wins || 0),
     totalStudents,
     submittedCount,
+    studentSubmissionStatus,
     viewerHasSubmitted,
     viewerPickValue: viewerPick ? Number(viewerPick.value) : null,
     picks: picksPayload,

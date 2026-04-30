@@ -17,6 +17,9 @@ function normalizeSession(raw) {
     currentRound: Number(raw.currentRound || 0),
     totalStudents: Number(raw.totalStudents || 0),
     submittedCount: Number(raw.submittedCount || 0),
+    studentSubmissionStatus: Array.isArray(raw.studentSubmissionStatus)
+      ? raw.studentSubmissionStatus
+      : [],
     leaderboard: Array.isArray(raw.leaderboard) ? raw.leaderboard : [],
     roundHistory: Array.isArray(raw.roundHistory) ? raw.roundHistory : [],
     picks: Array.isArray(raw.picks) ? raw.picks : null,
@@ -35,9 +38,47 @@ function formatValue(value, numberType) {
 
 // ── Projector view ──────────────────────────────────────────────────────────
 
-function ProjectorView({ session, courseId, courses, onClose }) {
+function StudentSubmissionRoster({ students, dark = false }) {
+  if (!students?.length) {
+    return <p className={dark ? "lnwProjectorRosterEmpty" : "lnwRosterEmpty"}>No students have joined yet.</p>;
+  }
+
+  return (
+    <div className={dark ? "lnwProjectorRoster" : "lnwRoster"}>
+      {students.map((student) => (
+        <div key={student.userId} className={dark ? "lnwProjectorRosterRow" : "lnwRosterRow"}>
+          <span
+            className={`lnwRosterDot ${student.hasSubmitted ? "submitted" : "waiting"}`}
+            aria-label={student.hasSubmitted ? "Submitted" : "Not submitted"}
+          />
+          <span>{student.displayName}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ProjectorView({
+  session,
+  courseId,
+  courses,
+  onClose,
+  onStartRound,
+  onReveal,
+  onNextRound,
+  onEnd,
+}) {
   const title = courseTitle(courses, courseId);
-  const { status, currentRound, submittedCount, totalStudents, picks, currentRoundResult, numberType } = session;
+  const {
+    status,
+    currentRound,
+    submittedCount,
+    totalStudents,
+    picks,
+    currentRoundResult,
+    numberType,
+    studentSubmissionStatus,
+  } = session;
 
   return (
     <div className="lnwProjector">
@@ -125,6 +166,31 @@ function ProjectorView({ session, courseId, courses, onClose }) {
             )}
           </div>
         )}
+        {status !== "ended" ? (
+          <div className="lnwProjectorControls">
+            {status === "waiting" ? (
+              <button className="btn btnPrimary" type="button" onClick={onStartRound}>
+                Start Round
+              </button>
+            ) : null}
+            {status === "picking" ? (
+              <button className="btn btnPrimary" type="button" onClick={onReveal}>
+                Reveal
+              </button>
+            ) : null}
+            {status === "revealed" ? (
+              <>
+                <button className="btn btnPrimary" type="button" onClick={onNextRound}>
+                  Next Round
+                </button>
+                <button className="btn btnDanger" type="button" onClick={onEnd}>
+                  End Session
+                </button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        <StudentSubmissionRoster students={studentSubmissionStatus} dark />
       </div>
     </div>
   );
@@ -501,6 +567,10 @@ export default function LowestNumberWinsClient({
         courseId={courseId}
         courses={courses}
         onClose={() => setProjectorMode(false)}
+        onStartRound={handleStartRound}
+        onReveal={handleReveal}
+        onNextRound={handleNextRound}
+        onEnd={handleEnd}
       />
     );
   }
@@ -541,6 +611,11 @@ export default function LowestNumberWinsClient({
           <button className="btn btnSmall" onClick={clearError}>Dismiss</button>
         </section>
       )}
+
+      <section className="card lnwRosterCard">
+        <h3>Student Picks</h3>
+        <StudentSubmissionRoster students={session.studentSubmissionStatus} />
+      </section>
 
       {/* ── WAITING ── */}
       {status === "waiting" && (
