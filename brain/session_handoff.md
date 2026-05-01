@@ -30,6 +30,9 @@ This file represents the **current state only**. It should stay short enough to 
   - Double Board question expressions stay hidden during the start countdown.
   - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
   - Deployment: code commit `81f5a5a` (`Fix group activity banners and Double Board timing`) pushed to `origin/main`; GitHub/Vercel status reported "Deployment has completed"; `https://www.mathclaw.com` returned HTTP 200.
+- **Double Board one-at-a-time timer hotfix shipped** (`app/api/play/double-board/route.js`):
+  - Automatic turn expiry now refetches the latest session metadata before advancing, preventing simultaneous stale poll responses from repeatedly refreshing the next student's timer.
+  - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
 
 - **LU command and small UI polish shipped to `main` and production** (`brain/START_HERE.md`, `brain/conventions.md`, `app/admin/page.js`, `app/play/page.js`):
   - Added the `LU` ("Let's Update") workflow to the brain docs: read relevant context, ask numbered clarifying questions one at a time, then produce a self-contained implementation prompt in a code block for a new chat.

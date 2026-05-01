@@ -849,6 +849,15 @@ async function startCurrentTurnSelection(admin, session) {
   return data;
 }
 
+async function fetchDoubleBoardSession(admin, sessionId) {
+  const { data } = await admin
+    .from("double_board_sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .maybeSingle();
+  return data || null;
+}
+
 async function reconcileOneAtATimeTimerState(admin, session) {
   let currentSession = session;
 
@@ -906,6 +915,18 @@ async function reconcileOneAtATimeTimerState(admin, session) {
 
     if (Date.parse(sessionMetadata.turnPhaseEndsAt) > Date.now()) {
       return currentSession;
+    }
+
+    const latestSession = await fetchDoubleBoardSession(admin, currentSession.id);
+    const latestMetadata = buildSessionMetadata(latestSession?.metadata);
+    const latestTimerChanged =
+      latestMetadata.activeTurnUserId !== sessionMetadata.activeTurnUserId ||
+      latestMetadata.turnPhase !== sessionMetadata.turnPhase ||
+      latestMetadata.turnPhaseEndsAt !== sessionMetadata.turnPhaseEndsAt;
+
+    if (latestSession && latestTimerChanged) {
+      currentSession = latestSession;
+      continue;
     }
 
     currentSession = await advanceTurn(admin, currentSession, sessionPlayers || []);
