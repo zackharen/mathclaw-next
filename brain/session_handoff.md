@@ -19,7 +19,7 @@ This file represents the **current state only**. It should stay short enough to 
   - CSS: `.adminSectionSummary p` replaced with `.adminSectionDesc`; `.adminInnerSectionDetails` adds `margin-top: 1.25rem`; `adminSectionSummary h3/h4` margin reset added.
 
 ## What Was Built (Current Session)
-- **Group activity banner and Double Board fixes ready to ship** (`app/layout.js`, `app/components/GameReadyBanner.js`, `app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`):
+- **Group activity banner and Double Board fixes shipped to `main` and production** (`app/layout.js`, `app/components/GameReadyBanner.js`, `app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`):
   - Site-wide student banner now considers Double Board, Lowest Number Wins, and Open Middle, but only when the teacher has a recent player-presence update within 8 seconds. If more than one game is active, the banner uses the most recent teacher presence and hides on all three game routes.
   - Double Board countdown ticking no longer restarts every poll because claim timer dependencies now use a stable claim key.
   - Double Board client now seeds timer display from `serverNowMs` returned by the API, avoiding phase timers inflated by client/server clock drift.
@@ -29,6 +29,7 @@ This file represents the **current state only**. It should stay short enough to 
   - Teacher center panel no longer shows the always-zero "Your Score" stat card.
   - Double Board question expressions stay hidden during the start countdown.
   - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
+  - Deployment: code commit `81f5a5a` (`Fix group activity banners and Double Board timing`) pushed to `origin/main`; GitHub/Vercel status reported "Deployment has completed"; `https://www.mathclaw.com` returned HTTP 200.
 
 - **LU command and small UI polish shipped to `main` and production** (`brain/START_HERE.md`, `brain/conventions.md`, `app/admin/page.js`, `app/play/page.js`):
   - Added the `LU` ("Let's Update") workflow to the brain docs: read relevant context, ask numbered clarifying questions one at a time, then produce a self-contained implementation prompt in a code block for a new chat.
