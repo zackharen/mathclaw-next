@@ -33,6 +33,7 @@ This file represents the **current state only**. It should stay short enough to 
 - **Double Board one-at-a-time timer hotfix shipped** (`app/api/play/double-board/route.js`):
   - Automatic turn expiry now refetches the latest session metadata before advancing, preventing simultaneous stale poll responses from repeatedly refreshing the next student's timer.
   - Follow-up fix: one-at-a-time turn rotation now builds its eligible turn list from the full enrolled class roster plus joined student players, so an expired timer does not loop back to the same joined student when classmates are enrolled but not yet present in `double_board_players`.
+  - Start countdown fix: the first student's select-tile timer now starts after the 3-second game-start countdown ends, so a 10-second timer gives the first student the full 10 seconds.
   - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
 
 - **LU command and small UI polish shipped to `main` and production** (`brain/START_HERE.md`, `brain/conventions.md`, `app/admin/page.js`, `app/play/page.js`):

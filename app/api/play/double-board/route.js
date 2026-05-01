@@ -520,19 +520,19 @@ function usesTimedKeepGoingTurns(session, sessionMetadata) {
   );
 }
 
-function nextTurnPhaseEndIso(sessionMetadata) {
+function nextTurnPhaseEndIso(sessionMetadata, startMs = Date.now()) {
   return new Date(
-    Date.now() + normalizeFreeForAllTimerSeconds(sessionMetadata?.freeForAllTimerSeconds) * 1000
+    startMs + normalizeFreeForAllTimerSeconds(sessionMetadata?.freeForAllTimerSeconds) * 1000
   ).toISOString();
 }
 
-function buildSelectPhaseMetadata(sessionMetadata, activeTurnUserId) {
+function buildSelectPhaseMetadata(sessionMetadata, activeTurnUserId, startMs = Date.now()) {
   return {
     ...sessionMetadata,
     activeTurnUserId: activeTurnUserId || null,
     turnQuestionId: null,
     turnPhase: activeTurnUserId ? TURN_PHASE_SELECT_TILE : null,
-    turnPhaseEndsAt: activeTurnUserId ? nextTurnPhaseEndIso(sessionMetadata) : null,
+    turnPhaseEndsAt: activeTurnUserId ? nextTurnPhaseEndIso(sessionMetadata, startMs) : null,
   };
 }
 
@@ -1413,18 +1413,24 @@ export async function POST(request) {
         startMetadata.activeTurnUserId ||
         getActiveTurnPlayer(turnEligiblePlayers, currentSession)?.user_id ||
         null;
+      const startCountdownEndsAt = new Date(
+        Date.now() + START_COUNTDOWN_SECONDS * 1000
+      ).toISOString();
+      const startCountdownEndsAtMs = Date.parse(startCountdownEndsAt);
       const nextMetadata = {
         ...startMetadata,
         ...(startMetadata.turnAdvanceMode === "until_wrong"
-          ? buildSelectPhaseMetadata({ ...startMetadata, turnUnclaimCount: 0 }, firstTurnUserId)
+          ? buildSelectPhaseMetadata(
+              { ...startMetadata, turnUnclaimCount: 0 },
+              firstTurnUserId,
+              Number.isFinite(startCountdownEndsAtMs) ? startCountdownEndsAtMs : Date.now()
+            )
           : clearTurnQuestionState({
               ...startMetadata,
               activeTurnUserId: firstTurnUserId,
               turnUnclaimCount: 0,
             })),
-        startCountdownEndsAt: new Date(
-          Date.now() + START_COUNTDOWN_SECONDS * 1000
-        ).toISOString(),
+        startCountdownEndsAt,
       };
 
       const { error } = await admin
