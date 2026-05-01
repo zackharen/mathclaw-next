@@ -316,13 +316,14 @@ function serializeQuestion(
   sessionStatus,
   claim = null,
   solvedCount = 0,
-  lockoutUserIds = []
+  lockoutUserIds = [],
+  isCountdownActive = false
 ) {
   const solved = Boolean(row.solved);
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
   const revealAnswer = solved || sessionStatus === "ended" || canManage;
-  const revealExpression = sessionStatus !== "waiting";
+  const revealExpression = sessionStatus !== "waiting" && !isCountdownActive;
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
   const expressionText = row.expression_text || "Hidden";
   const answerDisplay = formatDoubleBoardAnswer(row.correct_answer, metadata);
@@ -401,7 +402,7 @@ function orderStudentsBySessionMetadata(players, sessionMetadata, options = {}) 
 
 function getActiveTurnPlayer(players, session) {
   const sessionMetadata = buildSessionMetadata(session?.metadata);
-  const students = orderStudentsBySessionMetadata(players, sessionMetadata);
+  const students = orderStudentsBySessionMetadata(players, sessionMetadata, { presentOnly: false });
   if (!students.length) return null;
 
   if (sessionMetadata.activeTurnUserId) {
@@ -516,6 +517,10 @@ async function loadSessionBundle(admin, sessionId, viewer) {
   const sessionMetadata = buildSessionMetadata(session.metadata, questions || []);
   const canManage = viewerCanManageSession(session, viewer.courses, viewer.user, viewer.accountType);
   const solvedCount = (questions || []).filter((question) => question?.solved).length;
+  const isCountdownActive =
+    session.status === "live" &&
+    Boolean(sessionMetadata.startCountdownEndsAt) &&
+    Date.parse(sessionMetadata.startCountdownEndsAt) > Date.now();
   const serializedQuestions = (questions || []).map((row) =>
     serializeQuestion(
       row,
@@ -523,7 +528,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       session.status,
       sessionMetadata.activeClaims?.[row.id] || null,
       solvedCount,
-      sessionMetadata.freeForAllLockouts?.[row.id] || []
+      sessionMetadata.freeForAllLockouts?.[row.id] || [],
+      isCountdownActive
     )
   );
   const playMode = sessionMetadata.playMode;
@@ -645,6 +651,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
 
   return {
     id: session.id,
+    serverNowMs: Date.now(),
     courseId: session.course_id,
     hostTeacherId: session.host_teacher_id,
     status: session.status,
@@ -765,7 +772,7 @@ async function touchPlayerPresence(admin, sessionId, userId) {
 
 async function advanceTurn(admin, session, players = []) {
   const sessionMetadata = buildSessionMetadata(session?.metadata);
-  const orderedStudents = orderStudentsBySessionMetadata(players, sessionMetadata);
+  const orderedStudents = orderStudentsBySessionMetadata(players, sessionMetadata, { presentOnly: false });
   let activeTurnUserId = null;
   let nextTurnIndex = Number(sessionMetadata.turnIndex || 0);
 
@@ -1460,22 +1467,13 @@ export async function POST(request) {
       const { resolvedSettings, summary } = buildResolvedStudentSettings(currentSession, voteMetadata);
       const nextMetadata = {
         ...voteMetadata,
-        answerMode: resolvedSettings.answerMode,
-        playMode: resolvedSettings.playMode,
-        turnAdvanceMode: resolvedSettings.turnAdvanceMode,
-        freeForAllTimerSeconds: resolvedSettings.freeForAllTimerSeconds,
         resolvedStudentSettings: resolvedSettings,
         resolvedStudentVoteSummary: summary,
       };
 
-      if (currentSession.status === "waiting" && resolvedSettings.numberMode !== currentSession.number_mode) {
-        await replaceSessionQuestions(admin, currentSession, resolvedSettings.numberMode);
-      }
-
       const { error } = await admin
         .from("double_board_sessions")
         .update({
-          number_mode: resolvedSettings.numberMode,
           metadata: nextMetadata,
           updated_at: nowIso(),
         })
@@ -1485,6 +1483,45 @@ export async function POST(request) {
 
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Vote submitted." } });
+    }
+
+    if (action === "apply_votes") {
+      if (!canManage) {
+        return NextResponse.json({ error: "Only the host can apply votes." }, { status: 403 });
+      }
+
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
+      const resolved = sessionMetadata.resolvedStudentSettings;
+      if (!resolved) {
+        return NextResponse.json({ error: "No resolved settings to apply." }, { status: 400 });
+      }
+
+      if (currentSession.status === "waiting" && resolved.numberMode !== currentSession.number_mode) {
+        await replaceSessionQuestions(admin, currentSession, resolved.numberMode);
+      }
+
+      const { error } = await admin
+        .from("double_board_sessions")
+        .update({
+          number_mode: resolved.numberMode,
+          metadata: {
+            ...sessionMetadata,
+            answerMode: resolved.answerMode,
+            playMode: resolved.playMode,
+            turnAdvanceMode: resolved.turnAdvanceMode,
+            freeForAllTimerSeconds: resolved.freeForAllTimerSeconds,
+          },
+          updated_at: nowIso(),
+        })
+        .eq("id", currentSession.id);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      return NextResponse.json({
+        session: bundle,
+        result: { message: "Student vote settings applied." },
+      });
     }
 
     if (action === "join") {
@@ -2107,12 +2144,18 @@ export async function POST(request) {
         })
         .eq("id", currentSession.id);
 
+      const { data: refreshedSession } = await admin
+        .from("double_board_sessions")
+        .select("*")
+        .eq("id", currentSession.id)
+        .single();
+
       if (playMode === "one_at_a_time") {
         const { data: sessionPlayers } = await admin
           .from("double_board_players")
           .select("*")
           .eq("session_id", currentSession.id);
-        await advanceTurn(admin, currentSession, sessionPlayers || []);
+        await advanceTurn(admin, refreshedSession || currentSession, sessionPlayers || []);
       }
 
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });

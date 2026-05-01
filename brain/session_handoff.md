@@ -8,7 +8,7 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-04-30 America/New_York (USHM: LU command and small UI polish deployed)
+2026-05-01 America/New_York (group activity banner and Double Board flow fixes)
 
 ## What Was Built (2026-04-29 Afternoon Session)
 - **Admin UI polish shipped to `main`** (`app/admin/page.js`, `app/globals.css`):
@@ -19,6 +19,17 @@ This file represents the **current state only**. It should stay short enough to 
   - CSS: `.adminSectionSummary p` replaced with `.adminSectionDesc`; `.adminInnerSectionDetails` adds `margin-top: 1.25rem`; `adminSectionSummary h3/h4` margin reset added.
 
 ## What Was Built (Current Session)
+- **Group activity banner and Double Board fixes ready to ship** (`app/layout.js`, `app/components/GameReadyBanner.js`, `app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`):
+  - Site-wide student banner now considers Double Board, Lowest Number Wins, and Open Middle, but only when the teacher has a recent player-presence update within 8 seconds. If more than one game is active, the banner uses the most recent teacher presence and hides on all three game routes.
+  - Double Board countdown ticking no longer restarts every poll because claim timer dependencies now use a stable claim key.
+  - Double Board client now seeds timer display from `serverNowMs` returned by the API, avoiding phase timers inflated by client/server clock drift.
+  - Multiple choice options in the student answer modal and teacher popup are memoized per question id so choices do not reshuffle on every render.
+  - Student setting votes now store resolved results without changing live session settings; teachers can explicitly apply the winning vote results.
+  - One-at-a-time `until_wrong` turn advancement now refetches session metadata after wrong-answer cleanup and rotates through all joined students rather than only recently present students.
+  - Teacher center panel no longer shows the always-zero "Your Score" stat card.
+  - Double Board question expressions stay hidden during the start countdown.
+  - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
+
 - **LU command and small UI polish shipped to `main` and production** (`brain/START_HERE.md`, `brain/conventions.md`, `app/admin/page.js`, `app/play/page.js`):
   - Added the `LU` ("Let's Update") workflow to the brain docs: read relevant context, ask numbered clarifying questions one at a time, then produce a self-contained implementation prompt in a code block for a new chat.
   - Removed the Admin Feature Rollout bulk-control badge from the Feature Rollout Controls page.

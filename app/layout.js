@@ -27,6 +27,7 @@ export default async function RootLayout({ children }) {
   const canAccessAdmin = Boolean(user && canAccessAdminArea(user));
   const roleMode = canAccessAdmin ? "admin" : accountType;
   let gameReadyBannerHref = null;
+  let gameReadyBannerLabel = null;
   const roleLabels = {
     admin: "Admin Mode",
     teacher: "Teacher Mode",
@@ -43,17 +44,99 @@ export default async function RootLayout({ children }) {
     const courseIds = (memberships || []).map((membership) => membership.course_id).filter(Boolean);
 
     if (courseIds.length) {
+      const candidates = [];
+      const eightSecondsAgo = new Date(Date.now() - 8000).toISOString();
       const { data: readySession } = await supabase
         .from("double_board_sessions")
-        .select("course_id")
+        .select("id, course_id")
         .in("course_id", courseIds)
         .in("status", ["waiting", "live"])
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (readySession?.course_id) {
-        gameReadyBannerHref = `/play/double-board?course=${readySession.course_id}`;
+      if (readySession?.id && readySession?.course_id) {
+        const { data: dbTeacherPresence } = await supabase
+          .from("double_board_players")
+          .select("updated_at")
+          .eq("session_id", readySession.id)
+          .eq("role", "teacher")
+          .gte("updated_at", eightSecondsAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (dbTeacherPresence) {
+          candidates.push({
+            href: `/play/double-board?course=${readySession.course_id}`,
+            label: "A Double Board game is ready - Join Now",
+            updatedAt: dbTeacherPresence.updated_at,
+          });
+        }
+      }
+
+      const { data: lowestNumberWinsSession } = await supabase
+        .from("lowest_number_wins_sessions")
+        .select("id, course_id")
+        .in("course_id", courseIds)
+        .neq("status", "ended")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lowestNumberWinsSession?.id && lowestNumberWinsSession?.course_id) {
+        const { data: lnwTeacherPresence } = await supabase
+          .from("lowest_number_wins_players")
+          .select("updated_at")
+          .eq("session_id", lowestNumberWinsSession.id)
+          .eq("role", "teacher")
+          .gte("updated_at", eightSecondsAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (lnwTeacherPresence) {
+          candidates.push({
+            href: `/play/lowest-number-wins?course=${lowestNumberWinsSession.course_id}`,
+            label: "A Lowest Number Wins round is live - Join Now",
+            updatedAt: lnwTeacherPresence.updated_at,
+          });
+        }
+      }
+
+      const { data: openMiddleSession } = await supabase
+        .from("open_middle_sessions")
+        .select("id, course_id")
+        .in("course_id", courseIds)
+        .eq("status", "live")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (openMiddleSession?.id) {
+        const { data: openMiddleTeacherPresence } = await supabase
+          .from("open_middle_players")
+          .select("updated_at")
+          .eq("session_id", openMiddleSession.id)
+          .eq("role", "teacher")
+          .gte("updated_at", eightSecondsAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (openMiddleTeacherPresence) {
+          candidates.push({
+            href: `/play/open-middle/${openMiddleSession.id}`,
+            label: "An Open Middle puzzle is live - Join Now",
+            updatedAt: openMiddleTeacherPresence.updated_at,
+          });
+        }
+      }
+
+      const readyCandidate = candidates.sort(
+        (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
+      )[0];
+
+      if (readyCandidate) {
+        gameReadyBannerHref = readyCandidate.href;
+        gameReadyBannerLabel = readyCandidate.label;
       }
     }
   }
@@ -117,7 +200,7 @@ export default async function RootLayout({ children }) {
                 ) : null}
               </div>
             </header>
-            <GameReadyBanner href={gameReadyBannerHref} />
+            <GameReadyBanner href={gameReadyBannerHref} label={gameReadyBannerLabel} />
             <section className="content">{children}</section>
           </div>
         </main>

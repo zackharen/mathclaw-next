@@ -78,6 +78,7 @@ function normalizeSessionPayload(session) {
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
     turnPhase: normalizeTurnPhase(session.turnPhase),
     turnPhaseEndsAt: futureTimestampOrNull(session.turnPhaseEndsAt),
+    serverNowMs: typeof session.serverNowMs === "number" ? session.serverNowMs : null,
     turnUnclaimCount: Math.max(0, Number(session.turnUnclaimCount || 0)),
     activeTurnDisplayName:
       typeof session.activeTurnDisplayName === "string" ? session.activeTurnDisplayName : null,
@@ -279,7 +280,7 @@ function TurnOrderPanel({
   );
 }
 
-function StudentSettingsSummary({ summary }) {
+function StudentSettingsSummary({ summary, canHost = false, busy = false, onApply }) {
   if (!summary?.totalVotes) return null;
 
   const labels = {
@@ -328,6 +329,11 @@ function StudentSettingsSummary({ summary }) {
           );
         })}
       </div>
+      {canHost ? (
+        <button className="btn primary" type="button" onClick={onApply} disabled={busy}>
+          Apply Student Vote Results
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -464,10 +470,17 @@ function TeacherQuestionPopup({
   secondsLeft,
   onClose,
 }) {
+  const multipleChoiceOptions = useMemo(
+    () =>
+      answerMode === "multiple_choice" && question
+        ? buildDoubleBoardMultipleChoiceOptions(question)
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [question?.id, answerMode]
+  );
+
   if (!open || !question) return null;
 
-  const multipleChoiceOptions =
-    answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
   const phaseLabel =
     turnPhase === "answer_question" ? "Answer phase" : turnPhase === "select_tile" ? "Select phase" : "Turn";
 
@@ -693,10 +706,17 @@ function AnswerModal({
   busy,
   canUnclaim = true,
 }) {
+  const multipleChoiceOptions = useMemo(
+    () =>
+      answerMode === "multiple_choice" && question
+        ? buildDoubleBoardMultipleChoiceOptions(question)
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [question?.id, answerMode]
+  );
+
   if (!open || !question) return null;
 
-  const multipleChoiceOptions =
-    answerMode === "multiple_choice" ? buildDoubleBoardMultipleChoiceOptions(question) : [];
   const isMultiplierQuestion = isMultiplierAnswerFormat(question.metadata?.answerFormat);
   const multiplierPattern =
     question.metadata?.answerFormat === "multiplier_tenthousandths"
@@ -896,8 +916,9 @@ export default function DoubleBoardClient({
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Double Board.");
       }
-      setSession(normalizeSessionPayload(payload.session));
-      setClockNow(Date.now());
+      const normalizedSession = normalizeSessionPayload(payload.session);
+      setSession(normalizedSession);
+      setClockNow(normalizedSession?.serverNowMs ?? Date.now());
       if (!options.quiet) {
         setFlashMessage("");
       }
@@ -944,7 +965,7 @@ export default function DoubleBoardClient({
       if (payload.session) {
         const normalizedSession = normalizeSessionPayload(payload.session);
         setSession(normalizedSession);
-        setClockNow(Date.now());
+        setClockNow(normalizedSession?.serverNowMs ?? Date.now());
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
         setTurnAdvanceMode(normalizedSession?.turnAdvanceMode || "until_wrong");
@@ -1124,13 +1145,19 @@ export default function DoubleBoardClient({
   }, [canHost, session?.isJoined, session?.status, session?.studentSettingsEnabled]);
 
   const boards = session?.boards || {};
+  const boardsClaimKey = useMemo(() => {
+    return [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
+      .filter(Boolean)
+      .filter((question) => question?.claim?.expiresAt)
+      .map((question) => `${question.id}:${question.claim.expiresAt}`)
+      .join(",");
+  }, [boards.A, boards.B]);
 
   useEffect(() => {
     const now = Date.now();
     const hasCountdown = secondsRemaining(session?.startCountdownEndsAt, now) > 0;
     const hasTurnTimer = secondsRemaining(session?.turnPhaseEndsAt, now) > 0;
-    const hasClaims = [boards.A, boards.B]
-      .flatMap((board) => boardQuestions(board).flat())
+    const hasClaims = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
       .some((question) => question?.claim && secondsRemaining(question.claim.expiresAt, now) > 0);
 
     if (!hasCountdown && !hasClaims && !hasTurnTimer) return undefined;
@@ -1141,7 +1168,7 @@ export default function DoubleBoardClient({
     }, 250);
 
     return () => window.clearInterval(interval);
-  }, [boards.A, boards.B, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
+  }, [boardsClaimKey, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
 
   const countdownValue = Math.min(3, secondsRemaining(session?.startCountdownEndsAt, clockNow));
   const countdownActive = countdownValue > 0;
@@ -1609,10 +1636,12 @@ export default function DoubleBoardClient({
                     <span>Missed But Open</span>
                     <strong>{session.missedCount}</strong>
                   </div>
-                  <div className="doubleBoardStatCard">
-                    <span>Your Score</span>
-                    <strong>{session.viewerScore}</strong>
-                  </div>
+                  {!canHost ? (
+                    <div className="doubleBoardStatCard">
+                      <span>Your Score</span>
+                      <strong>{session.viewerScore}</strong>
+                    </div>
+                  ) : null}
                 </div>
 
                 {!session.isJoined && (session.status === "live" || session.status === "waiting") ? (
@@ -1673,7 +1702,12 @@ export default function DoubleBoardClient({
                 ) : null}
 
                 {canHost && session?.resolvedStudentVoteSummary ? (
-                  <StudentSettingsSummary summary={session.resolvedStudentVoteSummary} />
+                  <StudentSettingsSummary
+                    summary={session.resolvedStudentVoteSummary}
+                    canHost={canHost}
+                    busy={busy}
+                    onApply={() => postAction("apply_votes")}
+                  />
                 ) : null}
 
                 <div className="doubleBoardLeaderboardWrap">
