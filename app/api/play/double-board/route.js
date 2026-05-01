@@ -400,6 +400,68 @@ function orderStudentsBySessionMetadata(players, sessionMetadata, options = {}) 
   return ordered;
 }
 
+function buildTurnEligiblePlayers(players = [], classMembers = [], classProfiles = []) {
+  const profileMap = new Map((classProfiles || []).map((profile) => [profile.id, profile]));
+  const studentPlayers = getStudentTurnOrder(players);
+
+  if (!classMembers?.length) {
+    return studentPlayers;
+  }
+
+  const playerMap = new Map(studentPlayers.map((player) => [player.user_id, player]));
+  const classMemberIds = (classMembers || [])
+    .map((member) => normalizeId(member.profile_id))
+    .filter(Boolean);
+  const classMemberIdSet = new Set(classMemberIds);
+  const classTurnPlayers = classMemberIds.map((userId, index) => {
+    const player = playerMap.get(userId);
+    if (player) return player;
+
+    return {
+      id: `class-${userId}`,
+      user_id: userId,
+      display_name: profileMap.get(userId)?.display_name || "Student",
+      role: "student",
+      score: 0,
+      joined_at: new Date(Date.UTC(3000, 0, 1, 0, 0, index)).toISOString(),
+      updated_at: null,
+    };
+  });
+
+  for (const player of studentPlayers) {
+    if (!classMemberIdSet.has(player.user_id)) {
+      classTurnPlayers.push(player);
+    }
+  }
+
+  return classTurnPlayers;
+}
+
+async function loadClassTurnContext(admin, session, players = []) {
+  if (!session?.course_id) {
+    return {
+      classMembers: [],
+      classProfiles: [],
+      turnEligiblePlayers: getStudentTurnOrder(players),
+    };
+  }
+
+  const { data: classMembers } = await admin
+    .from("student_course_memberships")
+    .select("profile_id")
+    .eq("course_id", session.course_id);
+  const classMemberIds = (classMembers || []).map((member) => member.profile_id).filter(Boolean);
+  const { data: classProfiles } = classMemberIds.length
+    ? await admin.from("profiles").select("id, display_name").in("id", classMemberIds)
+    : { data: [] };
+
+  return {
+    classMembers: classMembers || [],
+    classProfiles: classProfiles || [],
+    turnEligiblePlayers: buildTurnEligiblePlayers(players, classMembers || [], classProfiles || []),
+  };
+}
+
 function getActiveTurnPlayer(players, session) {
   const sessionMetadata = buildSessionMetadata(session?.metadata);
   const students = orderStudentsBySessionMetadata(players, sessionMetadata, { presentOnly: false });
@@ -503,16 +565,11 @@ async function loadSessionBundle(admin, sessionId, viewer) {
 
   if (!session) return null;
 
-  const { data: classMembers } = session.course_id
-    ? await admin
-        .from("student_course_memberships")
-        .select("profile_id")
-        .eq("course_id", session.course_id)
-    : { data: [] };
-  const classMemberIds = (classMembers || []).map((member) => member.profile_id).filter(Boolean);
-  const { data: classProfiles } = classMemberIds.length
-    ? await admin.from("profiles").select("id, display_name").in("id", classMemberIds)
-    : { data: [] };
+  const { classMembers, classProfiles, turnEligiblePlayers } = await loadClassTurnContext(
+    admin,
+    session,
+    players || []
+  );
 
   const sessionMetadata = buildSessionMetadata(session.metadata, questions || []);
   const canManage = viewerCanManageSession(session, viewer.courses, viewer.user, viewer.accountType);
@@ -628,9 +685,9 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     });
   }
 
-  const activeTurnPlayer = getActiveTurnPlayer(players || [], session);
+  const activeTurnPlayer = getActiveTurnPlayer(turnEligiblePlayers, session);
   const turnOrder = buildTurnOrderPayload(
-    players || [],
+    turnEligiblePlayers,
     sessionMetadata,
     activeTurnPlayer?.user_id || null
   );
@@ -772,7 +829,8 @@ async function touchPlayerPresence(admin, sessionId, userId) {
 
 async function advanceTurn(admin, session, players = []) {
   const sessionMetadata = buildSessionMetadata(session?.metadata);
-  const orderedStudents = orderStudentsBySessionMetadata(players, sessionMetadata, { presentOnly: false });
+  const { turnEligiblePlayers } = await loadClassTurnContext(admin, session, players);
+  const orderedStudents = orderStudentsBySessionMetadata(turnEligiblePlayers, sessionMetadata, { presentOnly: false });
   let activeTurnUserId = null;
   let nextTurnIndex = Number(sessionMetadata.turnIndex || 0);
 
@@ -789,7 +847,7 @@ async function advanceTurn(admin, session, players = []) {
     ...clearTurnQuestionState(sessionMetadata),
     turnIndex: nextTurnIndex,
     activeTurnUserId,
-    turnOrderUserIds: sanitizeTurnOrderUserIds(sessionMetadata.turnOrderUserIds, players),
+    turnOrderUserIds: sanitizeTurnOrderUserIds(sessionMetadata.turnOrderUserIds, turnEligiblePlayers),
     turnUnclaimCount: 0,
   };
   const finalMetadata =
@@ -879,7 +937,12 @@ async function reconcileOneAtATimeTimerState(admin, session) {
       .from("double_board_players")
       .select("*")
       .eq("session_id", currentSession.id);
-    const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
+    const { turnEligiblePlayers } = await loadClassTurnContext(
+      admin,
+      currentSession,
+      sessionPlayers || []
+    );
+    const activeTurnPlayer = getActiveTurnPlayer(turnEligiblePlayers, currentSession);
 
     if (!activeTurnPlayer?.user_id) {
       return currentSession;
@@ -1340,10 +1403,15 @@ export async function POST(request) {
         .from("double_board_players")
         .select("*")
         .eq("session_id", currentSession.id);
+      const { turnEligiblePlayers } = await loadClassTurnContext(
+        admin,
+        currentSession,
+        sessionPlayers || []
+      );
       const startMetadata = buildSessionMetadata(currentSession.metadata);
       const firstTurnUserId =
         startMetadata.activeTurnUserId ||
-        getActiveTurnPlayer(sessionPlayers || [], currentSession)?.user_id ||
+        getActiveTurnPlayer(turnEligiblePlayers, currentSession)?.user_id ||
         null;
       const nextMetadata = {
         ...startMetadata,
@@ -1416,7 +1484,12 @@ export async function POST(request) {
         .from("double_board_players")
         .select("*")
         .eq("session_id", currentSession.id);
-      const nextTurnOrderUserIds = sanitizeTurnOrderUserIds(body.orderedUserIds, sessionPlayers || []);
+      const { turnEligiblePlayers } = await loadClassTurnContext(
+        admin,
+        currentSession,
+        sessionPlayers || []
+      );
+      const nextTurnOrderUserIds = sanitizeTurnOrderUserIds(body.orderedUserIds, turnEligiblePlayers);
       const activeTurnUserId =
         nextTurnOrderUserIds.includes(sessionMetadata.activeTurnUserId)
           ? sessionMetadata.activeTurnUserId
@@ -1616,7 +1689,12 @@ export async function POST(request) {
           .from("double_board_players")
           .select("*")
           .eq("session_id", currentSession.id);
-        const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
+        const { turnEligiblePlayers } = await loadClassTurnContext(
+          admin,
+          currentSession,
+          sessionPlayers || []
+        );
+        const activeTurnPlayer = getActiveTurnPlayer(turnEligiblePlayers, currentSession);
 
         if (activeTurnPlayer?.user_id && activeTurnPlayer.user_id !== user.id) {
           const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
@@ -1799,7 +1877,12 @@ export async function POST(request) {
         .from("double_board_players")
         .select("*")
         .eq("session_id", currentSession.id);
-      const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
+      const { turnEligiblePlayers } = await loadClassTurnContext(
+        admin,
+        currentSession,
+        sessionPlayers || []
+      );
+      const activeTurnPlayer = getActiveTurnPlayer(turnEligiblePlayers, currentSession);
 
       if (activeTurnPlayer?.user_id && activeTurnPlayer.user_id !== user.id) {
         const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
@@ -1916,8 +1999,13 @@ export async function POST(request) {
           .from("double_board_players")
           .select("*")
           .eq("session_id", currentSession.id);
+        const { turnEligiblePlayers } = await loadClassTurnContext(
+          admin,
+          currentSession,
+          sessionPlayers || []
+        );
 
-        const activeTurnPlayer = getActiveTurnPlayer(sessionPlayers || [], currentSession);
+        const activeTurnPlayer = getActiveTurnPlayer(turnEligiblePlayers, currentSession);
 
         if (activeTurnPlayer?.user_id && activeTurnPlayer.user_id !== user.id) {
           const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
