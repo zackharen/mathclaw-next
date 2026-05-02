@@ -8,7 +8,17 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-01 America/New_York (group activity banner and Double Board flow fixes)
+2026-05-02 America/New_York (Admin User Information UI cleanup)
+
+## What Was Built (2026-05-02 Session)
+- **Admin User Information UI cleanup shipped to `main`** (`app/admin/page.js`, `app/admin/actions.js`, `app/globals.css`):
+  - Search and Bulk Action sections are now two separate titled cards ("Search" / "Bulk Action") joined in a single `.adminCardGroup` with a shared outer border, matching the grouped disclosure stack pattern used elsewhere in admin.
+  - Account list rows are joined into their own `.adminCardGroup` with no gap between rows and a top-border divider between each.
+  - Bulk selection checkboxes moved inside the card group border (vertically centered, separated by a right-side divider line).
+  - Apply Filters / Clear buttons live in a row below the filter fields; "Deleted Accounts" moved to a footer row at the bottom of the account list.
+  - Bulk Action help text removed; "Apply to Selected" button moved to its own row below the four bulk fields.
+  - Class ownership/join detail text removed from account row summaries — now shows only class name + School.
+  - After deleting a class, the page redirects to `?classDeleted=1&view=accounts&open={userId}` so User Information stays open and the affected user's card auto-expands.
 
 ## What Was Built (2026-04-29 Afternoon Session)
 - **Admin UI polish shipped to `main`** (`app/admin/page.js`, `app/globals.css`):
