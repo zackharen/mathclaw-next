@@ -485,6 +485,7 @@ export async function deleteOwnedClassAction(formData) {
   const { admin, context } = await requireAdminActor();
 
   const courseId = String(formData.get("course_id") || "").trim();
+  const profileId = String(formData.get("profile_id") || "").trim();
 
   if (!courseId) {
     redirect("/admin?error=missing-course");
@@ -499,7 +500,8 @@ export async function deleteOwnedClassAction(formData) {
   revalidatePath("/admin");
   revalidatePath("/classes");
   revalidatePath("/play");
-  redirect("/admin?classDeleted=1");
+  const openParam = profileId ? `&open=${encodeURIComponent(profileId)}` : "";
+  redirect(`/admin?classDeleted=1&view=accounts${openParam}`);
 }
 
 export async function updateBugReportStatusAction(formData) {

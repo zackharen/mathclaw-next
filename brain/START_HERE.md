@@ -37,6 +37,9 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 - `/Users/zackarenstein/mathclaw-next/brain/future_ideas.md` is the future ideas / todo bank. Load it when the user asks about future ideas, backlog, roadmap candidates, todo items, or asks to reference the bank.
 - Prefer `session_handoff.md` for current status and `feature_context/INDEX.md` for task routing.
 
+## `vocab` Rule
+If the user types `vocab`, follow the `vocab` protocol defined in `conventions.md` → Command Shortcuts → `vocab`: pick 3 words from `brain/education/vocabulary.md` that haven't been shown yet in this conversation, and display each one with its name, definition, an example, and a non-example. Rotate through the list so different words appear each time.
+
 ## `USH` Rule
 If the user types `USH`, update only `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary unless explicitly asked for more.
 

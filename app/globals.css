@@ -2246,13 +2246,30 @@ details[open] > summary.adminSectionSummary .hideLabel {
   color: var(--navy);
 }
 
-.adminUserList {
-  display: grid;
-  gap: 1rem;
+.adminCardGroup {
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f9fbfc;
+  margin-bottom: 1rem;
 }
 
-.adminBulkActionCard {
-  margin-bottom: 1rem;
+.adminCardGroup > * + * {
+  border-top: 2px solid var(--line);
+}
+
+.adminUserList {
+  display: grid;
+  gap: 0;
+}
+
+.adminSearchBulkGroup .adminSearchCard,
+.adminSearchBulkGroup .adminBulkActionCard {
+  padding: 1rem;
+}
+
+.adminBulkActionCard h3 {
+  margin-bottom: 0.75rem;
 }
 
 .adminBulkActionGrid {
@@ -2267,9 +2284,13 @@ details[open] > summary.adminSectionSummary .hideLabel {
   align-items: end;
 }
 
-.adminBulkHelp {
-  margin: 0.75rem 0 0;
-  opacity: 0.85;
+.adminBulkSubmitRow {
+  margin-top: 0.75rem;
+}
+
+.adminDeletedAccountsFooter {
+  padding: 1rem;
+  border-top: 2px solid var(--line);
 }
 
 .adminBulkSelectionHeader {
@@ -2280,7 +2301,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 .adminSelectableCard {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: 0;
   align-items: start;
 }
 
@@ -2288,10 +2309,10 @@ details[open] > summary.adminSectionSummary .hideLabel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: start;
-  padding-top: 1rem;
-  min-width: 2.25rem;
+  align-self: stretch;
+  min-width: 2.75rem;
   min-height: 2.25rem;
+  border-right: 2px solid var(--line);
 }
 
 .adminBulkCheckbox input {
@@ -2398,8 +2419,12 @@ details[open] > summary.adminSectionSummary .hideLabel {
     minmax(0, 2fr)
     minmax(220px, 240px)
     minmax(220px, 240px)
-    minmax(220px, 240px)
-    auto;
+    minmax(220px, 240px);
+  margin-bottom: 0.75rem;
+}
+
+.adminSearchCard h3 {
+  margin-bottom: 0.75rem;
 }
 
 .adminFilterActions {
@@ -2447,8 +2472,11 @@ details[open] > summary.adminSectionSummary .hideLabel {
   }
 
   .adminSelectableCard {
-    grid-template-columns: 1fr;
-    gap: 0.4rem;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .adminSelectableCard .adminBulkCheckbox {
+    border-right: 2px solid var(--line);
   }
 
   .adminFeatureBulkForm,

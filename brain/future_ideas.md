@@ -7,9 +7,11 @@ Load this file only when the user asks about future ideas, backlog, roadmap cand
 ## Game And Classroom Ideas
 
 ### Tournaments
-- Start with **Connect 4 tournaments**.
-- Explore teacher-created brackets, classroom tournament codes, round advancement, rematches, and a projector-friendly bracket view.
-- Keep the first version narrow: one game type, class-scoped participation, teacher-controlled round progression, and simple winner recording.
+- Host tournaments across MathClaw games with automatic bracket generation and round progression.
+- **Connect 4** is the obvious starting point — traditional 1v1 bracket, players join via code, teacher advances rounds, projector-friendly bracket view.
+- For games that aren't natively 1v1 (e.g. Integer Practice, Locker), design a 1v1 or small-group (3-4 player) format that produces a clear winner per match so bracket logic still works.
+- Key features to design: teacher-created tournament codes, bracket generation, round advancement controls, winner recording, rematch support, and a projector view of the live bracket.
+- Keep the first version narrow: one game type, class-scoped participation, teacher-controlled round progression, simple winner recording.
 
 ### Complete Locker Practice
 - Finish hands-on playtesting and tuning for Locker Practice.
@@ -26,6 +28,24 @@ Load this file only when the user asks about future ideas, backlog, roadmap cand
 ### Showdown Framework Rework
 - Rework the Showdown framework so future head-to-head or reveal-based games can share cleaner infrastructure.
 - Look for common needs across setup, joining, round state, reveal timing, scoring, rematches, and projector views before extracting shared code.
+
+### Admin View Switch
+- From the admin account, allow switching to view the site as a different account type (student, teacher, owner, etc.).
+- UI: clicking the account chip in the top-left reveals a dropdown to select the impersonated role.
+- The switch should be clearly indicated so it's always obvious when viewing as a non-admin role.
+- Scoped to visual/UX preview — does not need to create real sessions or modify data as the impersonated user unless explicitly designed that way.
+
+### Desmos Curriculum
+- A structured curriculum of Desmos skills students need for standardized tests, drawn from an existing Canva doc with skill breakdowns.
+- Build the skill list into the site as browsable/trackable content, then attach interactive activities for each skill so students can practice and demonstrate mastery.
+- Eventually integrate with the existing mastery/progress tracking infrastructure.
+- Starting point: import the Canva skill list into the brain or a reference file before scoping the build.
+
+### Data & Probability Storytelling Blog
+- A blog-style section of the site where math and probability are used to tell real stories.
+- First story idea: volleyball team risk aversion — players avoid hitting hard to avoid errors, but a Bayesian probability argument shows that error rate vs. point-winning rate may favor aggressive play. Frame around how each error changes the probability of winning the game, and how to calculate the threshold where aggression becomes the better strategy.
+- Goal: make mathematical reasoning feel relevant and narrative-driven, not just computational.
+- Could double as a teacher resource or conversation-starter for probability units.
 
 ## Maintenance Notes
 - Keep speculative ideas here, not in `session_handoff.md`.

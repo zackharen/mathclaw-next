@@ -1315,61 +1315,60 @@ export default async function AdminPage({ searchParams }) {
             </AdminDisclosure>
           ) : null}
 
-          <AdminDisclosure title="User Information">
-        <form className="adminFilterBar adminFilterBarWide" method="get">
-          <input type="hidden" name="view" value="accounts" />
-          <label className="stack">
-            <span>Search</span>
-            <input
-              className="input"
-              type="search"
-              name="q"
-              placeholder="Find by name, email, school, or user ID"
-              defaultValue={qs.q || ""}
-            />
-          </label>
-          <label className="stack">
-            <span>Role</span>
-            <select className="input" name="role" defaultValue={roleFilter}>
-              <option value="all">All accounts</option>
-              <option value="teacher">Teachers</option>
-              <option value="student">Students</option>
-              <option value="owner">Owner accounts</option>
-            </select>
-          </label>
-          <label className="stack">
-            <span>Sort</span>
-            <select className="input" name="sort" defaultValue={sortBy}>
-              <option value="email">Email (A-Z)</option>
-              <option value="first_name">First Name (A-Z)</option>
-              <option value="last_name">Last Name (A-Z)</option>
-              <option value="recent">Recent Sign-In</option>
-            </select>
-          </label>
-          <label className="stack">
-            <span>School</span>
-            <select className="input" name="school" defaultValue={schoolFilter}>
-              <option value="all">All schools</option>
-              {schoolOptions.map((schoolName) => (
-                <option key={schoolName} value={schoolName}>
-                  {schoolName}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AdminDisclosure title="User Information" open={Boolean(qs.classDeleted)}>
+        <div className="adminCardGroup adminSearchBulkGroup">
+        <div className="adminSearchCard">
+          <h3>Search</h3>
+          <form id="adminSearchForm" className="adminFilterBar adminFilterBarWide" method="get">
+            <input type="hidden" name="view" value="accounts" />
+            <label className="stack">
+              <span>Search</span>
+              <input
+                className="input"
+                type="search"
+                name="q"
+                placeholder="Find by name, email, school, or user ID"
+                defaultValue={qs.q || ""}
+              />
+            </label>
+            <label className="stack">
+              <span>Role</span>
+              <select className="input" name="role" defaultValue={roleFilter}>
+                <option value="all">All accounts</option>
+                <option value="teacher">Teachers</option>
+                <option value="student">Students</option>
+                <option value="owner">Owner accounts</option>
+              </select>
+            </label>
+            <label className="stack">
+              <span>Sort</span>
+              <select className="input" name="sort" defaultValue={sortBy}>
+                <option value="email">Email (A-Z)</option>
+                <option value="first_name">First Name (A-Z)</option>
+                <option value="last_name">Last Name (A-Z)</option>
+                <option value="recent">Recent Sign-In</option>
+              </select>
+            </label>
+            <label className="stack">
+              <span>School</span>
+              <select className="input" name="school" defaultValue={schoolFilter}>
+                <option value="all">All schools</option>
+                {schoolOptions.map((schoolName) => (
+                  <option key={schoolName} value={schoolName}>
+                    {schoolName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </form>
           <div className="ctaRow adminFilterActions">
-            <button className="btn" type="submit">Apply Filters</button>
+            <button className="btn" type="submit" form="adminSearchForm">Apply Filters</button>
             <a className="btn ghost" href="/admin">Clear</a>
           </div>
-        </form>
-        <div className="adminSubnav">
-          <a className="btn ghost" href="/admin/deleted">Deleted Accounts</a>
         </div>
-        {error ? <p>Could not load accounts: {error.message}</p> : null}
-        {!error && users.length === 0 ? <p>No accounts yet.</p> : null}
         {!error && users.length > 0 ? (
-          <>
-            <form id="adminBulkActionForm" action={bulkAccountAction} className="card adminBulkActionCard">
+          <form id="adminBulkActionForm" action={bulkAccountAction} className="adminBulkActionCard">
+              <h3>Bulk Action</h3>
               <div className="adminBulkActionGrid">
                 <label className="stack">
                   <span>Bulk action</span>
@@ -1412,16 +1411,19 @@ export default async function AdminPage({ searchParams }) {
                     ))}
                   </select>
                 </label>
-                <div className="ctaRow adminInlineEditorRow adminSingleAction">
-                  <button className="btn" type="submit">Apply to Selected</button>
-                </div>
               </div>
-              <p className="adminBulkHelp">
-                Check the boxes next to the accounts you want, then choose one bulk action here. For school updates, a typed new school overrides the existing-school dropdown, and `Clear school` removes school assignments.
-              </p>
-            </form>
+              <div className="ctaRow adminBulkSubmitRow">
+                <button className="btn" type="submit">Apply to Selected</button>
+              </div>
+          </form>
+        ) : null}
+        </div>
+        {error ? <p>Could not load accounts: {error.message}</p> : null}
+        {!error && users.length === 0 ? <p>No accounts yet.</p> : null}
+        {!error && users.length > 0 ? (
+          <>
             <BulkSelectionControls />
-            <div className="adminUserList">
+            <div className="adminCardGroup adminUserList">
             {users.map((item) => {
               const classSummary = summarizeAccountClasses(item);
 
@@ -1435,15 +1437,13 @@ export default async function AdminPage({ searchParams }) {
                       form="adminBulkActionForm"
                     />
                   </label>
-                  <details className="card adminUserCard adminUserDetails">
+                  <details className="adminUserCard adminUserDetails" open={qs.open === item.id}>
                     <summary className="adminUserSummary">
                       <div className="adminUserSummaryMain">
                         <div>
                           <h3>{item.displayName}</h3>
                           <p className="adminUserSummaryClass">{classSummary.title}</p>
                           <p className="adminUserSummaryMeta">
-                            <span>{classSummary.detail}</span>
-                            <span className="adminSummaryDot">·</span>
                             <span><strong>School:</strong> {classSummary.school}</span>
                           </p>
                         </div>
@@ -1541,6 +1541,7 @@ export default async function AdminPage({ searchParams }) {
                               <span>{ownedClass.className || "Class name not set"}</span>
                               <form action={deleteOwnedClassAction} className="adminInlineForm">
                                 <input type="hidden" name="course_id" value={ownedClass.id} />
+                                <input type="hidden" name="profile_id" value={item.id} />
                                 <DeleteClassButton label="Delete Class" />
                               </form>
                             </div>
@@ -1671,6 +1672,9 @@ export default async function AdminPage({ searchParams }) {
                 </div>
               );
             })}
+            </div>
+            <div className="adminDeletedAccountsFooter">
+              <a className="btn ghost" href="/admin/deleted">Deleted Accounts</a>
             </div>
           </>
         ) : null}

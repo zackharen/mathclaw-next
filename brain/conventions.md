@@ -90,6 +90,22 @@ When the user types `USHM`:
 
 `USHM` means "push all changes live and update memory." Treat it as explicit approval for the commit/push/deploy workflow, but not as approval for destructive commands such as force pushes, hard resets, or destructive database/schema operations.
 
+### `vocab`
+When the user types `vocab`:
+1. Open `/Users/zackarenstein/mathclaw-next/brain/education/vocabulary.md`.
+2. Pick 3 words that have NOT been displayed earlier in the current conversation. If all words have been shown, start over from the top.
+3. For each word, output it in this exact format:
+
+---
+**[WORD]**
+*Definition:* [definition in plain English]
+*Example:* [example drawn from the MathClaw codebase]
+*Non-example:* [a concrete contrast that shows what it is NOT]
+
+---
+
+Keep the tone conversational and avoid jargon in the definitions themselves — the point is to make the concept click, not to sound technical.
+
 ### `LU` (Let's Update)
 When the user types `LU` followed by a set of notes or requested changes:
 1. Read the standard startup brain files plus any feature context files relevant to the requested changes.
