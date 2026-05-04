@@ -8,7 +8,19 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-04 America/New_York (Codex workflow guidance)
+2026-05-04 America/New_York (Double Board + LNW fixes)
+
+## What Was Built (2026-05-04 Session — Double Board + LNW)
+- **7 fixes shipped to `main` and production** (`app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`, `app/play/lowest-number-wins/game-client.js`, `app/api/play/lowest-number-wins/route.js`):
+  - **Timer fix**: added `clockOffsetRef = useRef(0)` computed from `serverNowMs - Date.now()` on session load. Removed `setClockNow(serverNowMs)` from poll handlers. Timer interval now uses `Date.now() + clockOffsetRef.current` so clockNow tracks estimated server time consistently — no more stutter between two values and countdown now shows 3→2→1 correctly.
+  - **Multiple choice for students**: `serializeQuestion` now accepts `answerMode` param and sets `revealAnswer = true` when `answerMode === "multiple_choice"`, so students receive `correctAnswer` and `buildDoubleBoardMultipleChoiceOptions` can generate choices.
+  - **Wrong-answer turn advancement**: `advanceTurn` return value is now captured and used as `currentSession` before `loadSessionBundle`, so the wrong-answer response immediately reflects the next student's turn.
+  - **Modal dismiss debounce**: 1200ms grace period before clearing `selectedQuestion`, preventing transient poll state from kicking students out mid-answer.
+  - **LNW no-winner → teacher credit**: when reveal finds no unique pick, `isTeacherWin = true`, teacher display name and host ID written to `roundResult`, `metadata.teacherWins` incremented, teacher appears on leaderboard with `(Teacher)` badge.
+  - **LNW session auto-detect**: polling now calls `setSession(null)` when API returns no session for the pinned ID, letting next tick re-discover by courseId. Focus/visibility handler re-fetches by courseId immediately.
+  - **Move To Next Game**: teacher button in LNW (revealed + ended states) and Double Board (teacher panel); sends `redirect_group` action storing `metadata.groupRedirectTo`; all polling clients auto-navigate when they see the field; initial load also checks for redirect.
+  - Commit `11214d5` pushed to `origin/main`; Vercel deployment triggered.
+  - `npm test` 12/12, `npm run build` clean.
 
 ## What Was Built (2026-05-04 Session)
 - **Codex workflow guidance and missing startup docs restored in the brain** (`brain/codex_workflows.md`, `brain/project_overview.md`, `brain/architecture.md`, `brain/file_map.md`, `brain/feature_context/INDEX.md`, `brain/START_HERE.md`, `brain/conventions.md`):
