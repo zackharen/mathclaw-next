@@ -317,12 +317,13 @@ function serializeQuestion(
   claim = null,
   solvedCount = 0,
   lockoutUserIds = [],
-  isCountdownActive = false
+  isCountdownActive = false,
+  answerMode = "typed"
 ) {
   const solved = Boolean(row.solved);
   const everMissed = Boolean(row.ever_missed);
   const attemptCount = Number(row.attempt_count || 0);
-  const revealAnswer = solved || sessionStatus === "ended" || canManage;
+  const revealAnswer = solved || sessionStatus === "ended" || canManage || answerMode === "multiple_choice";
   const revealExpression = sessionStatus !== "waiting" && !isCountdownActive;
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
   const expressionText = row.expression_text || "Hidden";
@@ -586,7 +587,8 @@ async function loadSessionBundle(admin, sessionId, viewer) {
       sessionMetadata.activeClaims?.[row.id] || null,
       solvedCount,
       sessionMetadata.freeForAllLockouts?.[row.id] || [],
-      isCountdownActive
+      isCountdownActive,
+      sessionMetadata.answerMode
     )
   );
   const playMode = sessionMetadata.playMode;
@@ -753,6 +755,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     answerHistoryByUser,
     boards,
     reviewItems,
+    groupRedirectTo: sessionMetadata.groupRedirectTo || null,
   };
 }
 
@@ -2270,7 +2273,8 @@ export async function POST(request) {
           .from("double_board_players")
           .select("*")
           .eq("session_id", currentSession.id);
-        await advanceTurn(admin, refreshedSession || currentSession, sessionPlayers || []);
+        const advancedSession = await advanceTurn(admin, refreshedSession || currentSession, sessionPlayers || []);
+        if (advancedSession) currentSession = advancedSession;
       }
 
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
@@ -2281,6 +2285,30 @@ export async function POST(request) {
           message: "Not correct yet. That tile stays open and gains value.",
         },
       });
+    }
+
+    if (action === "redirect_group") {
+      if (!canManage) {
+        return NextResponse.json({ error: "Only the host can redirect the group." }, { status: 403 });
+      }
+      const allowed = ["/play/double-board", "/play/open-middle", "/play/lowest-number-wins"];
+      const redirectTo = typeof body.redirectTo === "string" && allowed.includes(body.redirectTo)
+        ? body.redirectTo
+        : null;
+      if (!redirectTo) {
+        return NextResponse.json({ error: "Invalid redirect destination." }, { status: 400 });
+      }
+      const currentMetadata = buildSessionMetadata(currentSession.metadata);
+      const { error: redirectError } = await admin
+        .from("double_board_sessions")
+        .update({
+          metadata: { ...currentMetadata, groupRedirectTo: redirectTo },
+          updated_at: nowIso(),
+        })
+        .eq("id", currentSession.id);
+      if (redirectError) return NextResponse.json({ error: redirectError.message }, { status: 400 });
+      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      return NextResponse.json({ session: bundle });
     }
 
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });

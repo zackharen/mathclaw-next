@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
 import { buildLabelNode } from "@/lib/math-display";
 import {
@@ -95,6 +95,7 @@ function normalizeSessionPayload(session) {
         ? session.resolvedStudentVoteSummary
         : null,
     isViewerTurn: Boolean(session.isViewerTurn),
+    groupRedirectTo: typeof session.groupRedirectTo === "string" ? session.groupRedirectTo : null,
   };
 }
 
@@ -878,11 +879,14 @@ export default function DoubleBoardClient({
   const [selectedHistoryUserId, setSelectedHistoryUserId] = useState(null);
   const [hostSetupOpen, setHostSetupOpen] = useState(true);
   const [clockNow, setClockNow] = useState(Date.now());
+  const clockOffsetRef = useRef(0);
+  const dismissDelayRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [studentSettingsEnabled, setStudentSettingsEnabled] = useState(false);
   const [voteOverlayOpen, setVoteOverlayOpen] = useState(false);
   const [podiumOpen, setPodiumOpen] = useState(false);
   const [dismissedTeacherQuestionId, setDismissedTeacherQuestionId] = useState(null);
+  const [redirectPickerOpen, setRedirectPickerOpen] = useState(false);
   const [voteSettings, setVoteSettings] = useState({
     numberMode: "single_digit",
     answerMode: "typed",
@@ -917,8 +921,14 @@ export default function DoubleBoardClient({
         throw new Error(payload.error || "Could not load Double Board.");
       }
       const normalizedSession = normalizeSessionPayload(payload.session);
+      if (normalizedSession?.groupRedirectTo && normalizedSession.groupRedirectTo !== window.location.pathname) {
+        window.location.href = normalizedSession.groupRedirectTo;
+        return null;
+      }
       setSession(normalizedSession);
-      setClockNow(normalizedSession?.serverNowMs ?? Date.now());
+      if (normalizedSession?.serverNowMs) {
+        clockOffsetRef.current = normalizedSession.serverNowMs - Date.now();
+      }
       if (!options.quiet) {
         setFlashMessage("");
       }
@@ -965,7 +975,9 @@ export default function DoubleBoardClient({
       if (payload.session) {
         const normalizedSession = normalizeSessionPayload(payload.session);
         setSession(normalizedSession);
-        setClockNow(normalizedSession?.serverNowMs ?? Date.now());
+        if (normalizedSession?.serverNowMs) {
+          clockOffsetRef.current = normalizedSession.serverNowMs - Date.now();
+        }
         setAnswerMode(normalizedSession?.answerMode || "typed");
         setPlayMode(normalizedSession?.playMode || "free_for_all");
         setTurnAdvanceMode(normalizedSession?.turnAdvanceMode || "until_wrong");
@@ -1154,7 +1166,7 @@ export default function DoubleBoardClient({
   }, [boards.A, boards.B]);
 
   useEffect(() => {
-    const now = Date.now();
+    const now = Date.now() + clockOffsetRef.current;
     const hasCountdown = secondsRemaining(session?.startCountdownEndsAt, now) > 0;
     const hasTurnTimer = secondsRemaining(session?.turnPhaseEndsAt, now) > 0;
     const hasClaims = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()]
@@ -1164,7 +1176,7 @@ export default function DoubleBoardClient({
 
     setClockNow(now);
     const interval = window.setInterval(() => {
-      setClockNow(Date.now());
+      setClockNow(Date.now() + clockOffsetRef.current);
     }, 250);
 
     return () => window.clearInterval(interval);
@@ -1183,24 +1195,42 @@ export default function DoubleBoardClient({
   );
 
   useEffect(() => {
-    if (!selectedQuestion) return;
+    if (!selectedQuestion) {
+      clearTimeout(dismissDelayRef.current);
+      dismissDelayRef.current = null;
+      return;
+    }
 
     const allQuestions = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()].filter(Boolean);
     const freshQuestion = allQuestions.find((question) => question.id === selectedQuestion.id);
     const claimSecondsLeft = secondsRemaining(freshQuestion?.claim?.expiresAt, clockNow);
 
-    if (
+    const shouldClose =
       !freshQuestion ||
       freshQuestion.solved ||
       !canAnswer ||
       ((session?.playMode || playMode) === "one_at_a_time" &&
         session?.activeQuestionId !== freshQuestion.id) ||
       ((session?.playMode || playMode) === "free_for_all" &&
-        (!freshQuestion.claim || freshQuestion.claim.userId !== userId || claimSecondsLeft <= 0))
-    ) {
-      setSelectedQuestion(null);
-      setAnswerValue("");
+        (!freshQuestion.claim || freshQuestion.claim.userId !== userId || claimSecondsLeft <= 0));
+
+    if (shouldClose) {
+      if (!dismissDelayRef.current) {
+        dismissDelayRef.current = setTimeout(() => {
+          dismissDelayRef.current = null;
+          setSelectedQuestion(null);
+          setAnswerValue("");
+        }, 1200);
+      }
+    } else {
+      clearTimeout(dismissDelayRef.current);
+      dismissDelayRef.current = null;
     }
+
+    return () => {
+      clearTimeout(dismissDelayRef.current);
+      dismissDelayRef.current = null;
+    };
   }, [
     boards.A,
     boards.B,
@@ -1610,7 +1640,44 @@ export default function DoubleBoardClient({
                       Next Student
                     </button>
                   ) : null}
+                  {session ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setRedirectPickerOpen((v) => !v)}
+                    >
+                      Move To Next Game
+                    </button>
+                  ) : null}
                 </div>
+                {redirectPickerOpen && session ? (
+                  <div className="lnwRedirectPicker">
+                    <p className="lnwRedirectPickerLabel">Send everyone to:</p>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        await postAction("redirect_group", { redirectTo: "/play/lowest-number-wins" });
+                        window.location.href = "/play/lowest-number-wins";
+                      }}
+                    >
+                      Lowest Number Wins
+                    </button>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        await postAction("redirect_group", { redirectTo: "/play/open-middle" });
+                        window.location.href = "/play/open-middle";
+                      }}
+                    >
+                      Open Middle
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

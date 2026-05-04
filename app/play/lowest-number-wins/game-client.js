@@ -25,6 +25,7 @@ function normalizeSession(raw) {
     picks: Array.isArray(raw.picks) ? raw.picks : null,
     currentRoundResult: raw.currentRoundResult || null,
     viewerPickValue: raw.viewerPickValue != null ? Number(raw.viewerPickValue) : null,
+    groupRedirectTo: typeof raw.groupRedirectTo === "string" ? raw.groupRedirectTo : null,
   };
 }
 
@@ -156,7 +157,10 @@ function ProjectorView({
                 {session.leaderboard.slice(0, 10).map((p) => (
                   <div key={p.userId} className="lnwProjectorLbRow">
                     <span className="lnwProjectorLbRank">#{p.rank}</span>
-                    <span className="lnwProjectorLbName">{p.displayName}</span>
+                    <span className="lnwProjectorLbName">
+                      {p.displayName}
+                      {p.isTeacher && <span className="lnwLbTeacherBadge"> (Teacher)</span>}
+                    </span>
                     <span className="lnwProjectorLbWins">
                       {p.totalWins} win{p.totalWins !== 1 ? "s" : ""}
                     </span>
@@ -274,7 +278,10 @@ function WinsLeaderboard({ session }) {
         {leaderboard.map((p) => (
           <div key={p.userId} className="lnwLbRow">
             <span className="lnwLbRank">#{p.rank}</span>
-            <span className="lnwLbName">{p.displayName}</span>
+            <span className="lnwLbName">
+              {p.displayName}
+              {p.isTeacher && <span className="lnwLbTeacherBadge"> (Teacher)</span>}
+            </span>
             <span className="lnwLbWins">
               {p.totalWins} win{p.totalWins !== 1 ? "s" : ""}
             </span>
@@ -386,6 +393,7 @@ export default function LowestNumberWinsClient({
   const [pickInput, setPickInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [projectorMode, setProjectorMode] = useState(false);
+  const [redirectPickerOpen, setRedirectPickerOpen] = useState(false);
   const [selectedCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const pollingRef = useRef(null);
 
@@ -427,7 +435,14 @@ export default function LowestNumberWinsClient({
         const res = await fetch(`${API_BASE}?${params}`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled) setSession(data.session ? normalizeSession(data.session) : null);
+        if (!cancelled) {
+          const normalized = data.session ? normalizeSession(data.session) : null;
+          if (normalized?.groupRedirectTo && normalized.groupRedirectTo !== window.location.pathname) {
+            window.location.href = normalized.groupRedirectTo;
+            return;
+          }
+          setSession(normalized);
+        }
       } catch {
         if (!cancelled) setSession(null);
       } finally {
@@ -450,7 +465,17 @@ export default function LowestNumberWinsClient({
         const res = await fetch(`${API_BASE}?${params}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data.session) setSession(normalizeSession(data.session));
+        if (data.session) {
+          const normalized = normalizeSession(data.session);
+          if (normalized.groupRedirectTo && normalized.groupRedirectTo !== window.location.pathname) {
+            window.location.href = normalized.groupRedirectTo;
+            return;
+          }
+          setSession(normalized);
+        } else {
+          // Session gone — clear so next tick re-discovers by courseId
+          setSession(null);
+        }
       } catch {
         // ignore
       }
@@ -458,6 +483,40 @@ export default function LowestNumberWinsClient({
 
     return () => clearInterval(pollingRef.current);
   }, [session?.id, session?.status]);
+
+  // Re-fetch by courseId on tab focus / visibility to catch new sessions immediately
+  useEffect(() => {
+    async function refreshByCourseId() {
+      if (!selectedCourseId) return;
+      try {
+        const params = new URLSearchParams({ courseId: selectedCourseId });
+        const res = await fetch(`${API_BASE}?${params}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.session) {
+          const normalized = normalizeSession(data.session);
+          if (normalized.groupRedirectTo && normalized.groupRedirectTo !== window.location.pathname) {
+            window.location.href = normalized.groupRedirectTo;
+            return;
+          }
+          setSession(normalized);
+        } else {
+          setSession(null);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    function onVisible() {
+      if (document.visibilityState === "visible") refreshByCourseId();
+    }
+    window.addEventListener("focus", refreshByCourseId);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refreshByCourseId);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [selectedCourseId]);
 
   async function apiPost(payload) {
     clearError();
@@ -521,6 +580,15 @@ export default function LowestNumberWinsClient({
     if (!window.confirm("End this session? Results will be recorded.")) return;
     try {
       await apiPost({ action: "end", sessionId: session.id });
+    } catch (err) {
+      setActionError(err.message);
+    }
+  }
+
+  async function handleRedirectGroup(dest) {
+    try {
+      await apiPost({ action: "redirect_group", sessionId: session.id, redirectTo: dest });
+      window.location.href = dest;
     } catch (err) {
       setActionError(err.message);
     }
@@ -712,7 +780,17 @@ export default function LowestNumberWinsClient({
                 <button className="btn btnDanger" onClick={handleEnd}>
                   End Session
                 </button>
+                <button className="btn" onClick={() => setRedirectPickerOpen((v) => !v)}>
+                  Move To Next Game
+                </button>
               </div>
+              {redirectPickerOpen && (
+                <div className="lnwRedirectPicker">
+                  <p className="lnwRedirectPickerLabel">Send everyone to:</p>
+                  <button className="btn" onClick={() => handleRedirectGroup("/play/double-board")}>Double Board</button>
+                  <button className="btn" onClick={() => handleRedirectGroup("/play/open-middle")}>Open Middle</button>
+                </div>
+              )}
             </section>
           )}
         </>
@@ -726,12 +804,24 @@ export default function LowestNumberWinsClient({
             {currentRound} round{currentRound !== 1 ? "s" : ""} played.
           </p>
           {canManage && (
-            <button
-              className="btn btnPrimary"
-              onClick={() => setSession(null)}
-            >
-              Start New Session
-            </button>
+            <>
+              <button
+                className="btn btnPrimary"
+                onClick={() => setSession(null)}
+              >
+                Start New Session
+              </button>
+              <button className="btn" onClick={() => setRedirectPickerOpen((v) => !v)}>
+                Move To Next Game
+              </button>
+              {redirectPickerOpen && (
+                <div className="lnwRedirectPicker">
+                  <p className="lnwRedirectPickerLabel">Send everyone to:</p>
+                  <button className="btn" onClick={() => handleRedirectGroup("/play/double-board")}>Double Board</button>
+                  <button className="btn" onClick={() => handleRedirectGroup("/play/open-middle")}>Open Middle</button>
+                </div>
+              )}
+            </>
           )}
         </section>
       )}

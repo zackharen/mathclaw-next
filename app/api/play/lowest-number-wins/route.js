@@ -255,21 +255,43 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     roundHistory.find((r) => r.roundNumber === currentRound) || null;
 
   // Leaderboard: students sorted by total_wins desc then joined_at asc
-  const leaderboard = studentPlayers
-    .map((p, index) => ({
+  const studentLeaderboard = studentPlayers
+    .map((p) => ({
       id: p.id,
       userId: p.user_id,
       displayName: p.display_name,
       totalWins: Number(p.total_wins || 0),
       joinedAt: p.joined_at,
       isPresent: isPlayerPresent(p),
+      isTeacher: false,
     }))
     .sort(
       (a, b) =>
         b.totalWins - a.totalWins ||
         new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
-    )
-    .map((p, index) => ({ ...p, rank: index + 1 }));
+    );
+
+  const teacherWins = Number(metadata.teacherWins || 0);
+  const allLeaderboard = teacherWins > 0
+    ? [
+        {
+          id: null,
+          userId: session.host_teacher_id,
+          displayName: metadata.teacherDisplayName || "Teacher",
+          totalWins: teacherWins,
+          joinedAt: session.created_at,
+          isPresent: true,
+          isTeacher: true,
+        },
+        ...studentLeaderboard,
+      ].sort(
+        (a, b) =>
+          b.totalWins - a.totalWins ||
+          new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime()
+      )
+    : studentLeaderboard;
+
+  const leaderboard = allLeaderboard.map((p, index) => ({ ...p, rank: index + 1 }));
 
   const viewerPlayer = (players || []).find((p) => p.user_id === viewer.user.id) || null;
 
@@ -293,6 +315,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     currentRoundResult,
     roundHistory,
     leaderboard,
+    groupRedirectTo: metadata.groupRedirectTo || null,
     updatedAt: session.updated_at,
   };
 }
@@ -343,6 +366,24 @@ async function recordSessionResults(admin, sessionId) {
         result: wins > 0 ? "win" : "finished",
         totalWins: wins,
         totalRounds,
+      },
+    });
+  }
+
+  const teacherWins = Number(metadata.teacherWins || 0);
+  if (teacherWins > 0) {
+    await admin.from("game_sessions").insert({
+      game_slug: GAME_SLUG,
+      player_id: session.host_teacher_id,
+      course_id: session.course_id,
+      score: teacherWins,
+      result: "win",
+      metadata: {
+        sessionId,
+        totalRounds,
+        totalWins: teacherWins,
+        numberType: session.number_type,
+        isTeacher: true,
       },
     });
   }
@@ -613,31 +654,46 @@ export async function POST(request) {
       for (const p of players || []) playerMap.set(p.user_id, p);
 
       const winnerPlayer = winner ? playerMap.get(winner.user_id) || null : null;
-      const winnerDisplayName = winnerPlayer?.display_name || null;
+      const isTeacherWin = !winnerPlayer;
+      const winnerDisplayName = isTeacherWin ? displayName : (winnerPlayer?.display_name || null);
+      const winnerId = isTeacherWin ? session.host_teacher_id : (winnerPlayer?.user_id || null);
       const winnerValue = winner ? Number(winner.value) : null;
+
+      const metadata =
+        session.metadata && typeof session.metadata === "object" ? session.metadata : {};
 
       const roundResult = {
         roundNumber: currentRound,
         revealedAt: nowIso(),
-        winnerId: winnerPlayer?.user_id || null,
+        winnerId,
         winnerDisplayName,
         winningValue: winnerValue,
         picksCount: (picks || []).length,
+        isTeacherWin,
       };
 
-      const metadata =
-        session.metadata && typeof session.metadata === "object" ? session.metadata : {};
       const existingRounds = Array.isArray(metadata.rounds) ? metadata.rounds : [];
       const nextRounds = [
         ...existingRounds.filter((r) => r.roundNumber !== currentRound),
         roundResult,
       ];
 
+      const nextMetadata = {
+        ...metadata,
+        rounds: nextRounds,
+        ...(isTeacherWin
+          ? {
+              teacherWins: Number(metadata.teacherWins || 0) + 1,
+              teacherDisplayName: displayName,
+            }
+          : {}),
+      };
+
       const { error: updateError } = await admin
         .from("lowest_number_wins_sessions")
         .update({
           status: "revealed",
-          metadata: { ...metadata, rounds: nextRounds },
+          metadata: nextMetadata,
           updated_at: nowIso(),
         })
         .eq("id", session.id);
@@ -646,7 +702,7 @@ export async function POST(request) {
         return NextResponse.json({ error: updateError.message }, { status: 400 });
       }
 
-      // Increment total_wins for winner
+      // Increment total_wins for student winner
       if (winnerPlayer) {
         await admin
           .from("lowest_number_wins_players")
@@ -698,6 +754,28 @@ export async function POST(request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
       await recordSessionResults(admin, session.id);
+      const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+      return NextResponse.json({ session: bundle });
+    }
+
+    if (action === "redirect_group") {
+      if (!canManage) {
+        return NextResponse.json({ error: "Only the host can redirect the group." }, { status: 403 });
+      }
+      const allowed = ["/play/double-board", "/play/open-middle", "/play/lowest-number-wins"];
+      const redirectTo = typeof body.redirectTo === "string" && allowed.includes(body.redirectTo)
+        ? body.redirectTo
+        : null;
+      if (!redirectTo) {
+        return NextResponse.json({ error: "Invalid redirect destination." }, { status: 400 });
+      }
+      const currentMetadata =
+        session.metadata && typeof session.metadata === "object" ? session.metadata : {};
+      const { error } = await admin
+        .from("lowest_number_wins_sessions")
+        .update({ metadata: { ...currentMetadata, groupRedirectTo: redirectTo }, updated_at: nowIso() })
+        .eq("id", session.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
