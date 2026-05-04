@@ -11,6 +11,7 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
    - `/Users/zackarenstein/mathclaw-next/brain/architecture.md`
    - `/Users/zackarenstein/mathclaw-next/brain/conventions.md`
    - `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md`
+   - `/Users/zackarenstein/mathclaw-next/brain/codex_workflows.md`
    - `/Users/zackarenstein/mathclaw-next/brain/file_map.md`
    - `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md`
 2. Use `/Users/zackarenstein/mathclaw-next/brain/feature_context/INDEX.md` to identify the minimum relevant files in `/Users/zackarenstein/mathclaw-next/brain/feature_context/`.
@@ -23,6 +24,7 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 ## Working Rules
 - Preserve existing project conventions, UI patterns, and structure.
 - Follow `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md` before editing code.
+- Use `/Users/zackarenstein/mathclaw-next/brain/codex_workflows.md` to decide when Codex connectors, browser verification, automations, subagents, review mode, skills, artifacts, or permission requests would make the work safer or more complete.
 - Keep edits minimal, precise, and high-signal.
 - Do not invent unsupported features.
 - Unless the user explicitly says otherwise, treat requests to fix/build/change something as requests to carry the change through to the live site, not just local code changes.

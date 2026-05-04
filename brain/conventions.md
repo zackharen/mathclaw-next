@@ -58,6 +58,15 @@
 - Do not stop at local edits or a pushed side branch if the normal project workflow requires promoting the change to the production branch/deployment path.
 - If there is meaningful deployment risk or ambiguity, pause only long enough to clarify the safest path; otherwise assume the user wants the end-to-end production result.
 
+## Codex Operating Convention
+- Load `/brain/codex_workflows.md` during startup and use it before deciding that terminal-only work is enough.
+- Prefer connector/plugin checks over manual dashboard guessing when working with GitHub, Vercel, Supabase, Google Drive, Gmail, Canva, or similar external project surfaces.
+- Prefer browser verification for user-facing UI, game, admin, teacher/student, projector, timer, modal, and responsive-layout changes.
+- Use automations for user-requested reminders, follow-ups, monitors, or scheduled checks instead of leaving recurring work only as memory bullets.
+- Use subagents only when the user explicitly asks for parallel agents/delegation; split work by independent risk area.
+- In review requests, lead with concrete findings and line references.
+- Request narrow permissions when the safest path requires access outside the current sandbox.
+
 ## Command Shortcuts
 
 ### `USH`

@@ -8,7 +8,16 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-02 America/New_York (Admin User Information UI cleanup)
+2026-05-04 America/New_York (Codex workflow guidance)
+
+## What Was Built (2026-05-04 Session)
+- **Codex workflow guidance and missing startup docs restored in the brain** (`brain/codex_workflows.md`, `brain/project_overview.md`, `brain/architecture.md`, `brain/file_map.md`, `brain/feature_context/INDEX.md`, `brain/START_HERE.md`, `brain/conventions.md`):
+  - Added a dedicated Codex Workflows guide covering connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts/documents, and permission-aware work.
+  - Restored concise `project_overview.md`, `architecture.md`, and `file_map.md` files so the `START_HERE.md` startup path no longer points at missing base docs.
+  - Startup now loads `codex_workflows.md` alongside the core brain files.
+  - Restored a minimal `feature_context/INDEX.md` for the available Lowest Number Wins and Open Middle feature-context files.
+  - Conventions now tell future sessions to check whether Codex tools can make work safer or more complete before defaulting to terminal-only work.
+  - This is documentation-only; no app code changed.
 
 ## What Was Built (2026-05-02 Session)
 - **Admin User Information UI cleanup shipped to `main`** (`app/admin/page.js`, `app/admin/actions.js`, `app/globals.css`):
@@ -144,6 +153,8 @@ This file represents the **current state only**. It should stay short enough to 
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
 - Restored `/supabase/migrations_20260424_open_middle.sql`; user applied it successfully in Supabase SQL Editor on 2026-04-28 after running `drop policy if exists ...` cleanup for the pre-existing Open Middle/school policies.
 - Brain policy changed: future coding sessions should load `coding_agent_principles.md` from `START_HERE.md` and use its checklists before editing and before final response.
+- Brain workflow changed: future sessions should load `codex_workflows.md` from `START_HERE.md` and actively consider Codex connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts, and permission requests before defaulting to terminal-only work.
+- Brain docs restored: `project_overview.md`, `architecture.md`, `file_map.md`, and `feature_context/INDEX.md` exist again in concise form.
 - Brain workflow changed: future sessions should check `localhost:3000` during startup, activate the dev server with `npm run dev` only when port 3000 is free, and ask before restarting or changing ports when port 3000 is occupied but unhealthy.
 - Brain docs changed: `future_ideas.md` is now the lightweight future ideas / todo bank and should be loaded only when the user asks for future ideas, backlog, roadmap candidates, todo items, or to reference the bank.
 
@@ -169,6 +180,7 @@ Default startup path (keep minimal):
 - `/Users/zackarenstein/mathclaw-next/brain/architecture.md`
 - `/Users/zackarenstein/mathclaw-next/brain/conventions.md`
 - `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md`
+- `/Users/zackarenstein/mathclaw-next/brain/codex_workflows.md`
 - `/Users/zackarenstein/mathclaw-next/brain/file_map.md`
 - `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md`
 - Then the relevant `/brain/feature_context/*.md` files for the task
@@ -193,7 +205,7 @@ Load only when scope requires:
 - **Supabase SQL editor paste limit** is unreliable for the large curriculum seed. Prefer the terminal-side upload helpers under `scripts/`.
 
 ## Risks That Remain
-- Several startup files referenced by `START_HERE.md` and the handoff (`project_overview.md`, `architecture.md`, `file_map.md`, and `feature_context/INDEX.md`) are not present in the current `/brain` folder snapshot.
+- Restored startup brain files are concise current-orientation docs, not full historical reconstructions of the original deleted files.
 - Full owner login verification is still blocked on either user-provided credentials or saved browser credentials.
 - Soft-deleted accounts (`account_deleted = true`) are now excluded from `/teachers` but other surfaces that list users should be audited for the same issue.
 - Orphaned `profiles` rows (auth user deleted, profile row survives with default `account_type = 'teacher'`) can accumulate over time. The SQL cleanup ran once; consider making it a periodic maintenance task.
