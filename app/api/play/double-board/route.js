@@ -406,7 +406,7 @@ function orderStudentsBySessionMetadata(players, sessionMetadata, options = {}) 
   return ordered;
 }
 
-function buildTurnEligiblePlayers(players = [], classMembers = [], classProfiles = []) {
+function buildTurnEligiblePlayers(players = [], classMembers = [], classProfiles = [], hostTeacherId = null) {
   const profileMap = new Map((classProfiles || []).map((profile) => [profile.id, profile]));
   const studentPlayers = getStudentTurnOrder(players);
 
@@ -417,7 +417,8 @@ function buildTurnEligiblePlayers(players = [], classMembers = [], classProfiles
   const playerMap = new Map(studentPlayers.map((player) => [player.user_id, player]));
   const classMemberIds = (classMembers || [])
     .map((member) => normalizeId(member.profile_id))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((id) => !hostTeacherId || id !== hostTeacherId);
   const classMemberIdSet = new Set(classMemberIds);
   const classTurnPlayers = classMemberIds.map((userId, index) => {
     const player = playerMap.get(userId);
@@ -444,11 +445,15 @@ function buildTurnEligiblePlayers(players = [], classMembers = [], classProfiles
 }
 
 async function loadClassTurnContext(admin, session, players = []) {
+  const hostTeacherId = session?.host_teacher_id || null;
+
   if (!session?.course_id) {
     return {
       classMembers: [],
       classProfiles: [],
-      turnEligiblePlayers: getStudentTurnOrder(players),
+      turnEligiblePlayers: getStudentTurnOrder(players).filter(
+        (player) => !hostTeacherId || player.user_id !== hostTeacherId
+      ),
     };
   }
 
@@ -464,7 +469,7 @@ async function loadClassTurnContext(admin, session, players = []) {
   return {
     classMembers: classMembers || [],
     classProfiles: classProfiles || [],
-    turnEligiblePlayers: buildTurnEligiblePlayers(players, classMembers || [], classProfiles || []),
+    turnEligiblePlayers: buildTurnEligiblePlayers(players, classMembers || [], classProfiles || [], hostTeacherId),
   };
 }
 
@@ -801,11 +806,13 @@ async function ensurePlayer(admin, sessionId, user, displayName, role = "student
     .maybeSingle();
   const nextJoinedAt =
     existingPlayer && isPlayerPresent(existingPlayer) ? existingPlayer.joined_at : nowIso();
+  // Never demote an existing teacher to student (guards against canManage timing issues).
+  const finalRole = existingPlayer?.role === "teacher" && role === "student" ? "teacher" : role;
   const payload = {
     session_id: sessionId,
     user_id: user.id,
     display_name: displayName,
-    role,
+    role: finalRole,
     joined_at: nextJoinedAt,
     updated_at: nowIso(),
   };

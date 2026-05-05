@@ -152,22 +152,23 @@ function ProjectorView({
         {status === "ended" && (
           <div className="lnwProjectorEnded">
             <p className="lnwProjectorBig">Session Ended</p>
-            {session.leaderboard.length > 0 && (
-              <div className="lnwProjectorLeaderboard">
-                {session.leaderboard.slice(0, 10).map((p) => (
-                  <div key={p.userId} className="lnwProjectorLbRow">
-                    <span className="lnwProjectorLbRank">#{p.rank}</span>
-                    <span className="lnwProjectorLbName">
-                      {p.displayName}
-                      {p.isTeacher && <span className="lnwLbTeacherBadge"> (Teacher)</span>}
-                    </span>
-                    <span className="lnwProjectorLbWins">
-                      {p.totalWins} win{p.totalWins !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                ))}
+          </div>
+        )}
+
+        {session.leaderboard.length > 0 && (
+          <div className="lnwProjectorLeaderboard">
+            {session.leaderboard.slice(0, 10).map((p) => (
+              <div key={p.userId} className="lnwProjectorLbRow">
+                <span className="lnwProjectorLbRank">#{p.rank}</span>
+                <span className="lnwProjectorLbName">
+                  {p.displayName}
+                  {p.isTeacher && <span className="lnwLbTeacherBadge"> (Teacher)</span>}
+                </span>
+                <span className="lnwProjectorLbWins">
+                  {p.totalWins} win{p.totalWins !== 1 ? "s" : ""}
+                </span>
               </div>
-            )}
+            ))}
           </div>
         )}
         {status !== "ended" ? (
@@ -826,8 +827,8 @@ export default function LowestNumberWinsClient({
         </section>
       )}
 
-      {/* Leaderboard — shown after first round and not during active picking */}
-      {session.leaderboard.length > 0 && status !== "picking" && (
+      {/* Leaderboard — shown after first round, including during active picking */}
+      {session.leaderboard.length > 0 && (
         <WinsLeaderboard session={session} />
       )}
     </div>

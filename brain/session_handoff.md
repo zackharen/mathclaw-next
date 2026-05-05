@@ -8,7 +8,13 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-04 America/New_York (Double Board + LNW fixes)
+2026-05-05 America/New_York (Double Board until_wrong turn-advance fix)
+
+## What Was Built (2026-05-05 Session — Double Board until_wrong fix)
+- **Double Board until_wrong turn-advance bug fixed and shipped** (`app/api/play/double-board/route.js`, commit `ef6c251`, pushed to `origin/main`):
+  - Root cause: `buildSessionMetadata` used `parseFutureTime` for `turnPhaseEndsAt`, which returns `null` for any past timestamp. When a phase timer expired, the reconcile function saw `turnPhaseEndsAt = null` and mistook an expired timer for a missing timer, calling `startCurrentTurnSelection` (giving the same student a fresh timer) instead of `advanceTurn`.
+  - Fix: added `parseAnyTime` helper (validates ISO format, no future requirement) and swapped it in for `turnPhaseEndsAt` in `buildSessionMetadata`. `parseFutureTime` unchanged everywhere else (start countdown, claim expiry).
+  - Affects both failure modes the teacher reported: wrong-answer submissions where the timer had already expired before the POST landed (reconcile reset same student's turn), and straight timer-expiry (reconcile never advanced).
 
 ## What Was Built (2026-05-04 Session — Double Board + LNW)
 - **7 fixes shipped to `main` and production** (`app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`, `app/play/lowest-number-wins/game-client.js`, `app/api/play/lowest-number-wins/route.js`):
