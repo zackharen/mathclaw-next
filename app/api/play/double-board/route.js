@@ -79,6 +79,11 @@ function parseFutureTime(value) {
   return Number.isFinite(time) && time > Date.now() ? new Date(time).toISOString() : null;
 }
 
+function parseAnyTime(value) {
+  const time = Date.parse(String(value || ""));
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
 function buildSessionSettingsSnapshot(session, sessionMetadata) {
   return {
     numberMode: normalizeDoubleBoardMode(session?.number_mode),
@@ -200,7 +205,7 @@ function buildSessionMetadata(metadata = {}, questions = []) {
     activeTurnUserId: normalizeId(safeMetadata.activeTurnUserId),
     turnQuestionId: normalizeId(safeMetadata.turnQuestionId),
     turnPhase: normalizeTurnPhase(safeMetadata.turnPhase),
-    turnPhaseEndsAt: parseFutureTime(safeMetadata.turnPhaseEndsAt),
+    turnPhaseEndsAt: parseAnyTime(safeMetadata.turnPhaseEndsAt),
     turnUnclaimCount: Math.max(0, Number(safeMetadata.turnUnclaimCount || 0)),
     turnOrderUserIds: Array.isArray(safeMetadata.turnOrderUserIds)
       ? safeMetadata.turnOrderUserIds.map((value) => normalizeId(value)).filter(Boolean)
