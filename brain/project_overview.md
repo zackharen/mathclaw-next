@@ -40,5 +40,6 @@ MathClaw is a Next.js/Supabase math practice and classroom-game app for teachers
 - Current status and next steps: `brain/session_handoff.md`.
 - Code style and product conventions: `brain/conventions.md`.
 - Agent behavior and verification discipline: `brain/coding_agent_principles.md`.
-- Codex tool usage: `brain/codex_workflows.md`.
+- Model-specific workflows: `brain/model_workflows/codex.md` (Codex) and `brain/model_workflows/claude.md` (Claude Code).
+- Multi-agent coordination: `brain/model_workflows/coordination.md`.
 - Feature-specific context: `brain/feature_context/INDEX.md`.

@@ -43,7 +43,7 @@ Use the smallest useful verification ladder:
 1. Static inspection for docs/copy-only changes.
 2. Focused Node tests for shared engines and pure logic.
 3. `npm run build` for route/component/app changes.
-4. Browser verification for UI, responsive layout, live games, modals, timers, and teacher/student/projector flows.
+4. User-facing verification for UI, responsive layout, live games, modals, timers, and teacher/student/projector flows. The method depends on the active model and available tools (see model overlay).
 5. GitHub/Vercel/Supabase connector checks for production, deployment, migration, or environment uncertainty.
 
 ## Deployment Shape

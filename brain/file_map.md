@@ -8,7 +8,9 @@ Use this as a quick routing map. Load specific files only when the task requires
 - `brain/session_handoff.md` - current project state, next steps, known issues, and risks.
 - `brain/conventions.md` - code style, UI patterns, delivery convention, command shortcuts.
 - `brain/coding_agent_principles.md` - agent behavior, assumptions, surgical edits, verification.
-- `brain/codex_workflows.md` - when to use Codex tools beyond terminal-only work.
+- `brain/model_workflows/codex.md` - Codex startup checklist, tool/connector/browser/deployment workflow, always-on coordination rules.
+- `brain/model_workflows/claude.md` - Claude Code startup checklist, operating strengths, verification approach, always-on coordination rules.
+- `brain/model_workflows/coordination.md` - deeper multi-agent protocol, Active File Ownership, Claude→Codex and Codex→Claude handoff formats. Load only for multi-agent/handoff tasks.
 - `brain/feature_context/INDEX.md` - route to the smallest relevant feature-context file.
 - `brain/history.md` - append-only history; load only for timelines or attention-allocation questions.
 - `brain/future_ideas.md` - future ideas bank; load only for backlog/roadmap/todo questions.

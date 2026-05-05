@@ -1,6 +1,13 @@
-# Codex Workflows
+# Codex Workflow
 
-Use this file when a MathClaw session can benefit from Codex capabilities beyond plain code editing. The goal is to treat Codex as a tool-connected engineering workspace, not only as a chat window plus terminal.
+## Startup Checklist
+
+1. Read shared core files (project_overview.md, architecture.md, conventions.md, coding_agent_principles.md, file_map.md, session_handoff.md).
+2. Read this file (model_workflows/codex.md).
+3. Read the Always-On Coordination block below.
+4. Use feature_context/INDEX.md to load only the feature context needed for the task.
+5. Check whether `localhost:3000` is already running. If no process is listening on port 3000, start the local dev server from `/Users/zackarenstein/mathclaw-next` with `npm run dev`. If port 3000 is already occupied, do not start a duplicate server; verify whether it responds at `http://localhost:3000`, report the result, and ask before restarting the process or changing ports.
+6. State: brain files loaded, task goal, files to inspect, files intended for editing.
 
 ## Quick Rule
 
@@ -116,7 +123,16 @@ When a needed file, app, network target, or dashboard is outside the current san
 
 Do not work around missing permission with risky manual steps. If permission is not granted, continue with the safest partial analysis and state the limitation.
 
-## Default MathClaw Verification Ladder
+## Delivery Mechanics
+
+Codex is the default closer for production shipping. When carrying work live:
+- Use GitHub connector for PR status, CI checks, and commit verification.
+- Use Vercel connector for deployment status, build logs, and production URL confirmation.
+- Use Supabase connector for migration verification and schema/RLS checks.
+- Confirm the live URL responds before updating session_handoff.md as shipped.
+- Report the commit hash, deployment ID, and live URL in the handoff update.
+
+## Verification Ladder
 
 Use the smallest ladder that fits the risk:
 1. Static/code inspection for narrow docs or copy changes.
@@ -125,3 +141,14 @@ Use the smallest ladder that fits the risk:
 4. Browser verification for user-facing UI and live classroom flows.
 5. GitHub/Vercel/Supabase connector checks for production shipping, migrations, or deployment uncertainty.
 6. Automation or handoff update for anything that remains intentionally deferred.
+
+## Always-On Coordination Rules
+
+These rules apply in every session, not only when multi-agent work is announced:
+
+- Before editing, state intent: which files will be inspected and which files are expected to change.
+- Check git status and recent diffs before editing, especially if Claude may have been active.
+- Prefer single-owner file sets per task — avoid editing files that belong to an in-progress Claude task.
+- Do not silently overwrite or rewrite another agent's recent work. If file ownership conflicts exist, stop and flag the conflict to the user.
+- If uncertain whether ownership is stale, ask Zack before editing those files.
+- Production promotion and deployment belong to Codex by default. Do not let both agents independently push or promote.

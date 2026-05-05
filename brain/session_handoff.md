@@ -183,13 +183,24 @@ This file represents the **current state only**. It should stay short enough to 
 ## Active Tasks
 - None outstanding from this session.
 
+## Active File Ownership
+- None currently.
+
+<!-- When active, use this format:
+- Owner: [Claude / Codex]
+- Editing: [file paths]
+- Reason: [brief description]
+- Other agents: inspect diff and ask Zack before editing these files
+See brain/model_workflows/coordination.md for lifecycle rules.
+-->
+
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
 - Restored `/supabase/migrations_20260424_open_middle.sql`; user applied it successfully in Supabase SQL Editor on 2026-04-28 after running `drop policy if exists ...` cleanup for the pre-existing Open Middle/school policies.
 - Brain policy changed: future coding sessions should load `coding_agent_principles.md` from `START_HERE.md` and use its checklists before editing and before final response.
-- Brain workflow changed: future sessions should load `codex_workflows.md` from `START_HERE.md` and actively consider Codex connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts, and permission requests before defaulting to terminal-only work.
+- Brain workflow changed: future sessions should load the model-specific overlay from `brain/model_workflows/` (`codex.md` for Codex, `claude.md` for Claude Code) after the shared base files. Codex overlay covers connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts, and permission-aware work.
 - Brain docs restored: `project_overview.md`, `architecture.md`, `file_map.md`, and `feature_context/INDEX.md` exist again in concise form.
-- Brain workflow changed: future sessions should check `localhost:3000` during startup, activate the dev server with `npm run dev` only when port 3000 is free, and ask before restarting or changing ports when port 3000 is occupied but unhealthy.
+- Brain workflow changed: the `localhost:3000` dev server check is now Codex-overlay behavior (see `brain/model_workflows/codex.md` startup checklist), not universal startup behavior. Claude Code does not run the dev server check by default.
 - Brain docs changed: `future_ideas.md` is now the lightweight future ideas / todo bank and should be loaded only when the user asks for future ideas, backlog, roadmap candidates, todo items, or to reference the bank.
 
 ## Next Recommended Steps
@@ -214,10 +225,11 @@ Default startup path (keep minimal):
 - `/Users/zackarenstein/mathclaw-next/brain/architecture.md`
 - `/Users/zackarenstein/mathclaw-next/brain/conventions.md`
 - `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md`
-- `/Users/zackarenstein/mathclaw-next/brain/codex_workflows.md`
 - `/Users/zackarenstein/mathclaw-next/brain/file_map.md`
 - `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md`
+- Then the model overlay: `brain/model_workflows/codex.md` (Codex) or `brain/model_workflows/claude.md` (Claude Code)
 - Then the relevant `/brain/feature_context/*.md` files for the task
+- Also load `brain/model_workflows/coordination.md` when the task involves multi-agent coordination or handoffs
 
 Load only when scope requires:
 - `/Users/zackarenstein/mathclaw-next/CHATGPT_CONTEXT.md` - off-repo context snapshot

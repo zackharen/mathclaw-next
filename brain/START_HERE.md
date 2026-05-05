@@ -2,29 +2,46 @@
 
 Use this file as the single stable entrypoint for new AI conversations.
 
-## Recommended Reusable Prompt
-Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/START_HERE.md` and follow it exactly.
+## Recommended Reusable Prompts
+
+### Codex
+Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/START_HERE.md` and follow it exactly. You are Codex. Load the Codex workflow overlay at `/Users/zackarenstein/mathclaw-next/brain/model_workflows/codex.md`.
+
+### Claude Code
+Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/START_HERE.md` and follow it exactly. You are Claude Code. Load the Claude workflow overlay at `/Users/zackarenstein/mathclaw-next/brain/model_workflows/claude.md`.
+
+### Multi-Agent / Back-And-Forth
+Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/START_HERE.md` and follow it exactly. Load your model-specific workflow overlay. Also load `/Users/zackarenstein/mathclaw-next/brain/model_workflows/coordination.md` because this task involves Codex/Claude coordination.
 
 ## Startup Workflow
-1. Read only these base files first:
+
+1. Read only these shared base files first:
    - `/Users/zackarenstein/mathclaw-next/brain/project_overview.md`
    - `/Users/zackarenstein/mathclaw-next/brain/architecture.md`
    - `/Users/zackarenstein/mathclaw-next/brain/conventions.md`
    - `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md`
-   - `/Users/zackarenstein/mathclaw-next/brain/codex_workflows.md`
    - `/Users/zackarenstein/mathclaw-next/brain/file_map.md`
    - `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md`
-2. Use `/Users/zackarenstein/mathclaw-next/brain/feature_context/INDEX.md` to identify the minimum relevant files in `/Users/zackarenstein/mathclaw-next/brain/feature_context/`.
-3. Load only the feature context files needed for the task.
-4. Avoid loading unrelated context.
-5. Before making code changes, state which brain files were used.
-6. Tell the user which code files you plan to inspect first.
-7. Check whether `localhost:3000` is already running. If no process is listening on port 3000, start the local dev server from `/Users/zackarenstein/mathclaw-next` with `npm run dev`. If port 3000 is already occupied, do not start a duplicate server; verify whether it responds at `http://localhost:3000`, report the result, and ask before restarting the process or changing ports.
+2. Load the active model's workflow overlay:
+   - Codex: `/Users/zackarenstein/mathclaw-next/brain/model_workflows/codex.md`
+   - Claude Code: `/Users/zackarenstein/mathclaw-next/brain/model_workflows/claude.md`
+   - Other agents: read START_HERE.md, then ask which overlay to use if unclear.
+3. If the task involves multiple agents, handoff, critique from the other model, or back-and-forth, also load:
+   - `/Users/zackarenstein/mathclaw-next/brain/model_workflows/coordination.md`
+4. Use `/Users/zackarenstein/mathclaw-next/brain/feature_context/INDEX.md` to identify the minimum relevant files in `/Users/zackarenstein/mathclaw-next/brain/feature_context/`.
+5. Load only the feature context files needed for the task.
+6. Before making code changes, state:
+   - which brain files were used
+   - task goal
+   - assumptions or ambiguity
+   - code files planned for inspection
+   - code files likely to be edited
+7. Follow the active model overlay for dev-server checks, browser verification, connectors, deployment behavior, and model-specific workflow rules.
 
 ## Working Rules
 - Preserve existing project conventions, UI patterns, and structure.
 - Follow `/Users/zackarenstein/mathclaw-next/brain/coding_agent_principles.md` before editing code.
-- Use `/Users/zackarenstein/mathclaw-next/brain/codex_workflows.md` to decide when Codex connectors, browser verification, automations, subagents, review mode, skills, artifacts, or permission requests would make the work safer or more complete.
+- Use your model's workflow overlay to decide when tools, browser verification, automations, subagents, review mode, or permission requests would make the work safer or more complete.
 - Keep edits minimal, precise, and high-signal.
 - Do not invent unsupported features.
 - Unless the user explicitly says otherwise, treat requests to fix/build/change something as requests to carry the change through to the live site, not just local code changes.
@@ -46,7 +63,7 @@ If the user types `vocab`, follow the `vocab` protocol defined in `conventions.m
 If the user types `USH`, update only `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary unless explicitly asked for more.
 
 ## `LU` Rule
-If the user types `LU` followed by notes or requested changes, follow the `LU` protocol defined in `conventions.md` → Command Shortcuts → `LU`: read relevant brain/feature context, ask numbered clarifying questions one at a time, then produce a fully-specified implementation prompt in a code block for a new chat session to execute.
+If the user types `LU` followed by notes or requested changes, follow the `LU` protocol defined in `conventions.md` → Command Shortcuts → `LU`: read relevant brain/feature context, ask numbered clarifying questions one at a time, then produce a fully-specified implementation prompt in a code block for a new chat session to execute. The prompt must specify which model will execute it and include the appropriate model-specific startup instruction (Codex or Claude Code overlay).
 
 ## `USHM` Rule
 If the user types `USHM`, push all local changes live, then update `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` with a concise handoff summary.

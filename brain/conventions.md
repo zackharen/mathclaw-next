@@ -58,14 +58,11 @@
 - Do not stop at local edits or a pushed side branch if the normal project workflow requires promoting the change to the production branch/deployment path.
 - If there is meaningful deployment risk or ambiguity, pause only long enough to clarify the safest path; otherwise assume the user wants the end-to-end production result.
 
-## Codex Operating Convention
-- Load `/brain/codex_workflows.md` during startup and use it before deciding that terminal-only work is enough.
-- Prefer connector/plugin checks over manual dashboard guessing when working with GitHub, Vercel, Supabase, Google Drive, Gmail, Canva, or similar external project surfaces.
-- Prefer browser verification for user-facing UI, game, admin, teacher/student, projector, timer, modal, and responsive-layout changes.
-- Use automations for user-requested reminders, follow-ups, monitors, or scheduled checks instead of leaving recurring work only as memory bullets.
-- Use subagents only when the user explicitly asks for parallel agents/delegation; split work by independent risk area.
-- In review requests, lead with concrete findings and line references.
-- Request narrow permissions when the safest path requires access outside the current sandbox.
+## Verification Convention
+
+UI and live classroom-flow changes require user-facing verification before being considered done. The verification method depends on the active model, available tools, auth access, and risk level. If full verification is blocked, state what was checked and what remains unverified.
+
+Each model's workflow overlay (`brain/model_workflows/codex.md` or `brain/model_workflows/claude.md`) defines the verification methods available to that model.
 
 ## Command Shortcuts
 
@@ -124,7 +121,7 @@ When the user types `LU` followed by a set of notes or requested changes:
 5. Output the final prompt in a **code block** for easy copying.
 
 The prompt must:
-- Open with the standard brain entrypoint instruction (`Use the MathClaw brain entrypoint at /Users/zackarenstein/mathclaw-next/brain/START_HERE.md and follow it exactly.`)
+- Open with the standard brain entrypoint instruction and specify which model will execute it and which overlay to load. Example for Codex: `Use the MathClaw brain entrypoint at /Users/zackarenstein/mathclaw-next/brain/START_HERE.md and follow it exactly. You are Codex. Load the Codex workflow overlay at /Users/zackarenstein/mathclaw-next/brain/model_workflows/codex.md.`
 - List which feature context files to load
 - Describe each change with enough specificity that a new AI session can implement it without needing to ask follow-up questions (include file names, function names, line number hints, and precise behavior)
-- End with a reminder to carry changes live per the delivery convention and update `session_handoff.md`
+- Include verification steps and delivery reminder (carry changes live per delivery convention and update `session_handoff.md`)
