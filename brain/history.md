@@ -242,6 +242,57 @@ Each dated entry should also include a short `Attention Allocation` block when p
 - `Integer Practice` — `medium` — saved-state recovery
 - `Auth/Onboarding` — `light` — login failure diagnosis
 
+## 2026-04-28 to 2026-04-29
+
+- **Group activity banner** shipped (`app/layout.js`, `app/components/GameReadyBanner.js`): site-wide student banner detects active Double Board, LNW, and Open Middle sessions via teacher presence, hides on those game routes, uses most-recent presence when multiple games are active.
+- **Double Board timing and UI fixes** (`app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`): countdown no longer restarts every poll; timer seeds from `serverNowMs`; multiple choice options memoized per question id; student vote results stored without changing live settings; teacher "Your Score" stat card removed; expressions hidden during start countdown.
+- **Double Board one-at-a-time timer hotfix**: turn expiry refetches latest metadata before advancing; eligible turn list built from full enrolled roster + joined students; start countdown fix so first student gets full timer.
+- **Double Board classroom flow** (commit `6310ce2`): 3-second countdown, persistent turn reordering, Next Student throughout live play, Keep Going Until Wrong turn state reset, free-for-all purple lockout, one-at-a-time active question as centered modal, unclaim server action (one unclaim per turn).
+- **LNW improvements**: session payload includes per-student submission status; teacher and projector views show roster with red/green submitted indicators; projector includes teacher controls (Start Round, Reveal, Next Round, End Session).
+- **Admin rollout controls** shipped (commit `4c46cda`): grouped AdminDisclosure stack for Feature Controls and Bulk Update; alphabetical/status sort; shortened rollout labels; navy shade status chips; editable Admin copy fields via Edit Site Text.
+- **USHM command** added to brain docs: push all local changes live, merge to main, deploy, update handoff.
+- **Claude Code settings.json** created at repo root (`.claude/settings.json`): auto-approves Read/Edit/npm/basic git; blocks push, force-reset, Supabase db push/reset, Vercel deploy, rm -rf, sudo.
+- **Admin defaults and collapsible sections**: `/admin` defaults to Bugs and Internal Errors for owner/admin; Diagnostics and Accounts sections all start collapsed; Traffic & App Usage renamed (removes old App Decision panel); Internal Error Log shows display name, two-column grid, 5-week recent window, archive; Bug Reports pluralized, auto-opens, two-column grid, resolved archive.
+- **Admin Sections switcher** shipped: five alphabetized views (Bugs, Editable Site Copy, Feature Rollout, Mastery Settings, User Information), each with `?view=` route.
+- **Mastery Settings view** (`/admin?view=mastery`): Integer Mastery Dashboard moved from diagnostics and reframed as cross-game setting.
+- **School Snapshot** moved inside `accounts` view.
+- **Header chip** shipped: Player Mode, Student Mode, Teacher Mode, Admin Mode; navy shade variants in `app/globals.css`.
+- **Auth metadata cleanup** shipped: `removeLegacySavedGamesFromMetadata` strips legacy `saved_games` on every sign-in and OAuth callback.
+
+### Attention Allocation
+- `Double Board` — `heavy` — live classroom flow, timer sync, UI polish, multiple sessions
+- `LNW` — `medium` — teacher/projector roster, submission status
+- `Admin` — `heavy` — sections switcher, rollout controls, editable copy, layout, defaults, mastery view
+- `Student Arcade Shell` — `light` — ArcadeDisclosure grouping
+- `Brain/Docs` — `medium` — LU command, USHM command, Claude Code settings
+- `Infra/Deploy` — `medium` — multiple production commits, auth metadata cleanup
+
+## 2026-04-29 (Afternoon)
+
+- **Admin UI polish** shipped (`app/admin/page.js`, `app/globals.css`): new `AdminInnerDisclosure` component for nested collapsible sections without outer card wrapper; Diagnostics and Accounts groups wrapped in plain `<div>` to collapse inter-section gaps (grouped disclosure stack pattern).
+- **Hydration error fixed**: `AdminDisclosure` description changed from `<p>` to `<span class="adminSectionDesc">` and `AdminInnerDisclosure` summary uses bare `<h3>`, eliminating invalid HTML that caused browser auto-close and SSR/React tree mismatch.
+- CSS: `.adminSectionSummary p` → `.adminSectionDesc`; `.adminInnerSectionDetails` margin-top; `adminSectionSummary h3/h4` margin reset.
+
+### Attention Allocation
+- `Admin` — `medium` — hydration bugfix, grouped disclosure polish
+
+## 2026-05-02
+
+- **Admin User Information UI cleanup** shipped (`app/admin/page.js`, `app/admin/actions.js`, `app/globals.css`): Search and Bulk Action are two separate titled cards in a shared `.adminCardGroup`; account list rows joined in their own `.adminCardGroup` with dividers; checkboxes moved inside card border; Apply Filters/Clear buttons in row below fields; Deleted Accounts in footer row; class summary text simplified; after-delete redirect preserves open user card.
+
+### Attention Allocation
+- `Admin` — `medium` — User Information UI cleanup
+
+## 2026-05-04
+
+- **7 Double Board + LNW fixes shipped** (commit `11214d5`): `clockOffsetRef` timer fix eliminates stutter and countdown shows 3→2→1; multiple choice for students via `serializeQuestion` answerMode param; wrong-answer turn advancement captures `advanceTurn` return value immediately; 1200ms modal dismiss debounce prevents poll state from kicking students mid-answer; LNW no-winner teacher credit (isTeacherWin, leaderboard badge); LNW session auto-detect resets to courseId discovery on missing session; Move To Next Game button in LNW and Double Board.
+- **Brain startup docs restored**: `brain/codex_workflows.md` (Codex workflow guide), `brain/project_overview.md`, `brain/architecture.md`, `brain/file_map.md`, `brain/feature_context/INDEX.md` all restored. Startup now loads the Codex workflow guide alongside core brain files. Docs-only; no app code changed.
+
+### Attention Allocation
+- `Double Board` — `heavy` — timer, multiple choice, turn advancement, modal, Move To Next Game
+- `LNW` — `medium` — no-winner teacher credit, auto-detect, Move To Next Game
+- `Brain/Docs` — `light` — startup docs and Codex workflow guide restored
+
 ## Earlier — Environments and deployment
 - Set up local MathClaw development env guidance and created a local `.env.local` with the current Supabase project values so the app can boot on `http://localhost:3000`
 - Expanded auth setup docs to cover local, staging, and production environment URLs plus the full required env var set

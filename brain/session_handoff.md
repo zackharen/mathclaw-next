@@ -8,7 +8,7 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-05 America/New_York (Double Board percent multiple-choice distractors fixed)
+2026-05-05 America/New_York (Double Board fixes + brain refactor to model-specific overlays)
 
 ## What Was Built (2026-05-05 Session — Double Board percent multiple-choice distractors)
 - **Double Board Percent Change Multiplier multiple-choice answers fixed** (`lib/question-engine/double-board.js`, `tests/double-board-multiple-choice.test.mjs`):
@@ -32,121 +32,17 @@ This file represents the **current state only**. It should stay short enough to 
   - Fix: added `parseAnyTime` helper (validates ISO format, no future requirement) and swapped it in for `turnPhaseEndsAt` in `buildSessionMetadata`. `parseFutureTime` unchanged everywhere else (start countdown, claim expiry).
   - Affects both failure modes the teacher reported: wrong-answer submissions where the timer had already expired before the POST landed (reconcile reset same student's turn), and straight timer-expiry (reconcile never advanced).
 
-## What Was Built (2026-05-04 Session — Double Board + LNW)
-- **7 fixes shipped to `main` and production** (`app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`, `app/play/lowest-number-wins/game-client.js`, `app/api/play/lowest-number-wins/route.js`):
-  - **Timer fix**: added `clockOffsetRef = useRef(0)` computed from `serverNowMs - Date.now()` on session load. Removed `setClockNow(serverNowMs)` from poll handlers. Timer interval now uses `Date.now() + clockOffsetRef.current` so clockNow tracks estimated server time consistently — no more stutter between two values and countdown now shows 3→2→1 correctly.
-  - **Multiple choice for students**: `serializeQuestion` now accepts `answerMode` param and sets `revealAnswer = true` when `answerMode === "multiple_choice"`, so students receive `correctAnswer` and `buildDoubleBoardMultipleChoiceOptions` can generate choices.
-  - **Wrong-answer turn advancement**: `advanceTurn` return value is now captured and used as `currentSession` before `loadSessionBundle`, so the wrong-answer response immediately reflects the next student's turn.
-  - **Modal dismiss debounce**: 1200ms grace period before clearing `selectedQuestion`, preventing transient poll state from kicking students out mid-answer.
-  - **LNW no-winner → teacher credit**: when reveal finds no unique pick, `isTeacherWin = true`, teacher display name and host ID written to `roundResult`, `metadata.teacherWins` incremented, teacher appears on leaderboard with `(Teacher)` badge.
-  - **LNW session auto-detect**: polling now calls `setSession(null)` when API returns no session for the pinned ID, letting next tick re-discover by courseId. Focus/visibility handler re-fetches by courseId immediately.
-  - **Move To Next Game**: teacher button in LNW (revealed + ended states) and Double Board (teacher panel); sends `redirect_group` action storing `metadata.groupRedirectTo`; all polling clients auto-navigate when they see the field; initial load also checks for redirect.
-  - Commit `11214d5` pushed to `origin/main`; Vercel deployment triggered.
-  - `npm test` 12/12, `npm run build` clean.
-
-## What Was Built (2026-05-04 Session)
-- **Codex workflow guidance and missing startup docs restored in the brain** (`brain/codex_workflows.md`, `brain/project_overview.md`, `brain/architecture.md`, `brain/file_map.md`, `brain/feature_context/INDEX.md`, `brain/START_HERE.md`, `brain/conventions.md`):
-  - Added a dedicated Codex Workflows guide covering connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts/documents, and permission-aware work.
-  - Restored concise `project_overview.md`, `architecture.md`, and `file_map.md` files so the `START_HERE.md` startup path no longer points at missing base docs.
-  - Startup now loads `codex_workflows.md` alongside the core brain files.
-  - Restored a minimal `feature_context/INDEX.md` for the available Lowest Number Wins and Open Middle feature-context files.
-  - Conventions now tell future sessions to check whether Codex tools can make work safer or more complete before defaulting to terminal-only work.
-  - This is documentation-only; no app code changed.
-
-## What Was Built (2026-05-02 Session)
-- **Admin User Information UI cleanup shipped to `main`** (`app/admin/page.js`, `app/admin/actions.js`, `app/globals.css`):
-  - Search and Bulk Action sections are now two separate titled cards ("Search" / "Bulk Action") joined in a single `.adminCardGroup` with a shared outer border, matching the grouped disclosure stack pattern used elsewhere in admin.
-  - Account list rows are joined into their own `.adminCardGroup` with no gap between rows and a top-border divider between each.
-  - Bulk selection checkboxes moved inside the card group border (vertically centered, separated by a right-side divider line).
-  - Apply Filters / Clear buttons live in a row below the filter fields; "Deleted Accounts" moved to a footer row at the bottom of the account list.
-  - Bulk Action help text removed; "Apply to Selected" button moved to its own row below the four bulk fields.
-  - Class ownership/join detail text removed from account row summaries — now shows only class name + School.
-  - After deleting a class, the page redirects to `?classDeleted=1&view=accounts&open={userId}` so User Information stays open and the affected user's card auto-expands.
-
-## What Was Built (2026-04-29 Afternoon Session)
-- **Admin UI polish shipped to `main`** (`app/admin/page.js`, `app/globals.css`):
-  - Edit Site Text Save Text button no longer sits in its own card — it's a plain `ctaRow` div below the form sections.
-  - New `AdminInnerDisclosure` component: same pill-toggle visual as `AdminDisclosure` but without the outer `section.card` wrapper. Used for nested collapsible sections (Resolved Bug Reports, Older Internal Errors) inside the Bugs and Internal Errors view.
-  - Diagnostics and Accounts AdminDisclosure groups wrapped in plain `<div>` so they stack tight like Edit Site Text (one `adminStack` grid item instead of separate items). This is the **grouped disclosure stack** pattern — just wrap sibling `AdminDisclosure` sections in a `<div>` to collapse inter-section gaps.
-  - Fixed hydration error: `AdminDisclosure` description changed from `<p>` to `<span class="adminSectionDesc">` (phrasing content, valid inside `<summary>`); `AdminInnerDisclosure` summary uses bare `<h3>` with no `<div>` wrapper. Both `<p>` and `<div>` inside `<summary>` are invalid HTML and caused browser auto-close behavior that misaligned the SSR DOM from React's expected tree.
-  - CSS: `.adminSectionSummary p` replaced with `.adminSectionDesc`; `.adminInnerSectionDetails` adds `margin-top: 1.25rem`; `adminSectionSummary h3/h4` margin reset added.
-
-## What Was Built (Current Session)
-- **Group activity banner and Double Board fixes shipped to `main` and production** (`app/layout.js`, `app/components/GameReadyBanner.js`, `app/play/double-board/game-client.js`, `app/api/play/double-board/route.js`):
-  - Site-wide student banner now considers Double Board, Lowest Number Wins, and Open Middle, but only when the teacher has a recent player-presence update within 8 seconds. If more than one game is active, the banner uses the most recent teacher presence and hides on all three game routes.
-  - Double Board countdown ticking no longer restarts every poll because claim timer dependencies now use a stable claim key.
-  - Double Board client now seeds timer display from `serverNowMs` returned by the API, avoiding phase timers inflated by client/server clock drift.
-  - Multiple choice options in the student answer modal and teacher popup are memoized per question id so choices do not reshuffle on every render.
-  - Student setting votes now store resolved results without changing live session settings; teachers can explicitly apply the winning vote results.
-  - One-at-a-time `until_wrong` turn advancement now refetches session metadata after wrong-answer cleanup and rotates through all joined students rather than only recently present students.
-  - Teacher center panel no longer shows the always-zero "Your Score" stat card.
-  - Double Board question expressions stay hidden during the start countdown.
-  - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
-  - Deployment: code commit `81f5a5a` (`Fix group activity banners and Double Board timing`) pushed to `origin/main`; GitHub/Vercel status reported "Deployment has completed"; `https://www.mathclaw.com` returned HTTP 200.
-- **Double Board one-at-a-time timer hotfix shipped** (`app/api/play/double-board/route.js`):
-  - Automatic turn expiry now refetches the latest session metadata before advancing, preventing simultaneous stale poll responses from repeatedly refreshing the next student's timer.
-  - Follow-up fix: one-at-a-time turn rotation now builds its eligible turn list from the full enrolled class roster plus joined student players, so an expired timer does not loop back to the same joined student when classmates are enrolled but not yet present in `double_board_players`.
-  - Start countdown fix: the first student's select-tile timer now starts after the 3-second game-start countdown ends, so a 10-second timer gives the first student the full 10 seconds.
-  - Verification before shipping: `npm test` passed 12/12 tests, `git diff --check` passed, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
-
-- **LU command and small UI polish shipped to `main` and production** (`brain/START_HERE.md`, `brain/conventions.md`, `app/admin/page.js`, `app/play/page.js`):
-  - Added the `LU` ("Let's Update") workflow to the brain docs: read relevant context, ask numbered clarifying questions one at a time, then produce a self-contained implementation prompt in a code block for a new chat.
-  - Removed the Admin Feature Rollout bulk-control badge from the Feature Rollout Controls page.
-  - Wrapped the `/play` `ArcadeDisclosure` stack in a plain div, matching the grouped disclosure stack pattern used elsewhere.
-  - Verification before shipping: `git diff --check` passed, `npm test` passed 12/12 tests, and `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
-
-- **Double Board fixes shipped to `main` and production** (`app/api/play/double-board/route.js`, `app/play/double-board/game-client.js`, `app/globals.css`):
-  - Start countdown is now a 3-second server window and the client caps countdown display at 3, so startup shows 3, 2, 1.
-  - One-at-a-time turn reordering now updates the visible list immediately and persists `turnOrderUserIds` without recomputing away the active turn.
-  - Next Student is available throughout live one-at-a-time play and server-side turn advancement now uses the stored list order with per-turn unclaim state reset.
-  - Keep Going Until Wrong wrong answers still advance through `advanceTurn(...)`; turn state now resets cleanly for the next student.
-  - Free-for-all viewer lockouts add `lockedOutOwn` and use the purple locked-out visual.
-  - One-at-a-time active question display is a large centered modal/popup for students and teachers instead of the teacher bottom-right popup.
-  - One-at-a-time unclaim is now a real server action: one unclaim is allowed per student turn, then Back/X is hidden for the next picked question until the turn advances.
-- **Lowest Number Wins improvements shipped to `main` and production** (`app/api/play/lowest-number-wins/route.js`, `app/play/lowest-number-wins/game-client.js`, `app/globals.css`):
-  - Session payload now includes joined student submission status for the current round.
-  - Teacher view and projector view show a joined-student roster with red/green submitted indicators.
-  - Projector view now includes teacher controls: Start Round while waiting, Reveal while picking, Next Round and End Session after reveal.
-- **Verification notes:**
-  - `git diff --check` passed.
-  - `npm test` passed 12/12 tests.
-  - `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
-  - Commit `6310ce2` (`Fix Double Board and Lowest Number Wins flows`) pushed to `origin/main`; GitHub/Vercel status reported "Deployment has completed"; `https://www.mathclaw.com` returned HTTP 200.
-  - `localhost:3000` was occupied by a `node` process but did not respond to `curl`; per startup convention, no restart was attempted without user approval.
-
-- **Admin rollout controls and editable Admin copy shipped to `main` and production** (`app/admin/page.js`, `app/admin/actions.js`, `app/globals.css`, `lib/site-config.js`):
-- **Admin rollout controls and editable Admin copy shipped to `main` and production** (`app/admin/page.js`, `app/admin/actions.js`, `app/globals.css`, `lib/site-config.js`):
-  - Commit `4c46cda` (`Polish admin rollout controls`) pushed to `origin/main`.
-  - GitHub commit status reported Vercel success: "Deployment has completed" for `4c46cda`.
-  - `/admin?view=features` now uses the same admin header card + grouped `AdminDisclosure` stack as the newer admin views: Bulk Update Selected Features and Feature Controls are separate tight-stacked sections.
-  - Feature rollout rows and the bulk action row now use admin-specific CSS classes (`adminFeatureBulkForm`, `adminFeatureControlItem`, `adminFeatureControlList`, `adminFeatureStatusPill`) with black borders, compact spacing, responsive stacking, and the existing navy/white admin button style.
-  - Inner Feature Controls rows now use a grouped-stack treatment too: no row gaps, shared borders, and rounded corners only on the first/last row.
-  - Feature Controls has a sort switch for `Alphabetical` (`featureSort=alpha`) or `Current Status` (`featureSort=status`). Status sort groups Everyone, Teachers, Disabled, with alphabetical order inside each status.
-  - Rollout labels are shortened locally in admin to `Everyone`, `Teachers`, and `Disabled`; this does not change the shared/public `describeSiteAudience(...)` helper.
-  - Status chips use role-chip-inspired navy shades: Everyone light navy, Teachers mid navy, Disabled dark navy.
-  - Edit Site Text → Admin now includes fields for hardcoded Admin-page copy: owner/scoped admin titles, no-school copy, Admin Sections title/description and button labels, Feature Rollout page title/description, Bulk Update section copy, bulk control title/badge/description/button, Feature Controls title/description, sort label/button text, and per-row Save button text.
-  - New metadata defaults/normalization live in `lib/site-config.js`; save wiring lives in `app/admin/actions.js`; the Admin page now reads these values from `siteCopy`.
-- **New brain command added and shipped** (`brain/START_HERE.md`, `brain/conventions.md`):
-  - `USHM` now means: push all local changes live, merge/promote to `main` as needed, deploy/promote to production using the normal MathClaw workflow, then update `session_handoff.md`.
-  - `USHM` is explicit approval for commit/push/deploy, but not for destructive commands such as force pushes, hard resets, or destructive database/schema operations.
-- **Verification/deployment notes:**
-  - `git diff --check` passed before commit.
-  - `npm test` passed 12/12 tests.
-  - `npm run build` completed successfully with the existing Next 16 middleware/proxy warning.
-  - `npm run lint` still fails on pre-existing issues noted in Known Issues (`Date.now()` in `app/admin/page.js`, Comet Typing lint warnings/errors, plus stale `.claude/worktrees` lint noise). These were not introduced by the admin rollout changes.
-  - `https://www.mathclaw.com` returned HTTP 200 from Vercel after deployment.
-- **Claude Code project permissions configured:** `.claude/settings.json` created at repo root and pushed to `main`. Auto-approves Read/Edit/npm/basic git; blocks push, force-reset, Supabase db push/reset, Vercel deploy, rm -rf, sudo. `defaultMode: acceptEdits`. Write scopes: `app/`, `components/`, `lib/`, `public/`, `brain/`, `data/`, `docs/`, `scripts/`, `tests/`. `styles/` dropped (doesn't exist); `supabase/` excluded intentionally (migrations need deliberate edits). `scripts/` Python/mjs files not invoked by npm — add `Bash(node scripts/*)` / `Bash(python3 scripts/*)` allow rules if needed.
-- **Admin layout cleanup is live on `main`:** `app/admin/page.js`, `app/globals.css` changes were already pushed before this session (brain was stale on this).
-- **Admin defaults and collapsible sections:** `/admin` now defaults owner/admin users to Bugs and Internal Errors (`?view=diagnostics`). Diagnostics sections all start collapsed: Traffic & App Usage, Internal Error Log, Bug Reports. `/admin?view=accounts` page-level sections also start collapsed: School Snapshot and User Information.
-- **Traffic & App Usage:** renamed from Performance Spend And App Decision. It keeps the four metric cards, removes the old Current App Decision panel, and stretches Where Students Are Spending Time full width.
-- **Internal Error Log:** cards show the account display name instead of login email, omit course IDs, and render in a two-column newest-first grid on desktop. Recent Internal Errors counts only errors/warnings from the last 5 weeks; older errors move into a collapsed Older Internal Errors section. The query now loads up to 200 log rows so the archive can populate.
-- **Bug Reports:** title is plural, opens automatically after resolve/reopen actions, open reports use the same two-column newest-first grid, and resolved reports live in a collapsed Resolved Bug Reports archive with matching title styling and equal-height grid cells.
-- **Admin Sections switcher shipped to production:** five alphabetized buttons — Bugs and Internal Errors, Editable Site Copy, Feature Rollout Controls, Mastery Settings, User Information. Each has its own `?view=` route. Files: `app/admin/page.js`, `app/admin/actions.js`.
-- **Mastery Settings view** (`/admin?view=mastery`): pulled Integer Mastery Dashboard out of the diagnostics view and reframed it as a cross-game setting for all future adaptive practice games. Mastery save/reset actions now redirect back to `?view=mastery`.
-- **School Snapshot** moved inside the `accounts` view so it changes with the switcher rather than always being visible.
-- **Header chip** shipped: `Player Mode`, `Student Mode`, `Teacher Mode`, `Admin Mode`; Admin wins when `canAccessAdminArea(user)` is true. Navy shade variants in `app/globals.css`.
-- **Auth metadata cleanup** shipped: `lib/auth/session-metadata.js` + `removeLegacySavedGamesFromMetadata` called in `app/auth/callback/route.js` and sign-in form; strips legacy `saved_games` from auth metadata on every sign-in.
-- **All accumulated local changes committed** (double board decimal percents, integer progression engine, locker practice client updates, brain docs) in commit `fa2fae1`.
+## What Was Built (2026-05-05 Session — Brain refactor)
+- **Brain split into shared core + model-specific overlays** (commit `a3749c4`, pushed to `origin/main`):
+  - Created `brain/model_workflows/codex.md`: Codex startup checklist, tool/connector/browser/deployment workflow, always-on coordination rules.
+  - Created `brain/model_workflows/claude.md`: Claude Code startup checklist, operating strengths, verification approach, always-on coordination rules.
+  - Created `brain/model_workflows/coordination.md`: multi-agent ownership protocol, Active File Ownership lifecycle, Claude→Codex LU handoff format, Codex→Claude critique handoff format, conflict handling.
+  - `START_HERE.md` now routes: shared base files → model overlay → optional coordination.md → feature context. Added three reusable startup prompts (Codex, Claude Code, Multi-Agent). Removed unconditional `codex_workflows.md` load and dev server check from shared startup.
+  - `conventions.md`: replaced Codex Operating Convention with model-neutral Verification Convention; updated LU prompt format to include model overlay instruction.
+  - `architecture.md`: neutralized "Browser verification" to "User-facing verification with model overlay reference."
+  - `session_handoff.md`: added Active File Ownership section; pruned older "What Was Built" entries to `history.md`.
+  - `.gitignore`: added `.claude/projects/` and `.claude/worktrees/`.
+  - Docs-only; no app code changed.
 
 ## Current State Of The Project
 - Three account types live in production: `teacher`, `student`, `player` (see `conventions.md` -> Account Types)
@@ -154,7 +50,6 @@ This file represents the **current state only**. It should stay short enough to 
 - The nav brand area shows the horizontal MathClaw logo (`public/mathclaw-logo-nav.png`) as a home-page link; scales responsively by height via `clamp`
 - The homepage (`app/page.js`) is intentionally minimal: banner (if set) + `homeWelcome` heading + MathClaw square logo. User-type-specific widgets will be added incrementally. The welcome text is editable from admin → Editable Site Copy.
 - The `/about` page shows the centered square MathClaw logo above two cells only: "About Us" from Admin `About Us text` / `aboutStory`, and "Mission Statement" from Admin `Mission statement` / `missionStatement`; the cells match height on desktop and stack on mobile.
-- Header chip local work in progress: role chip labels are `Player Mode`, `Student Mode`, `Teacher Mode`, `Admin Mode`, with Admin determined by admin access rather than `account_type`; navy shade variants live in `app/globals.css`. This is local only until the user asks to push live.
 - Admin page is live: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → collapsed School Snapshot + collapsed User Information; `diagnostics` → collapsed Traffic & App Usage, collapsed Internal Error Log, collapsed Bug Reports; `features` → Feature Rollout Controls with grouped admin disclosure formatting, alphabetical/status sorting, short rollout labels, navy shade status chips, and editable Admin copy fields; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator). `/admin` default for owner/admin users is Bugs and Internal Errors.
 - The `/play` page now collapses its main content blocks behind matching disclosure headers, with feedback sections opening automatically when needed; section order is Classes, Group Activities, Fun & Games, Awards & Extra Credit, Create A Math Question
 - Group Activities is a direct 3-column card grid on `/play` with Double Board, Lowest Number Wins, and Open Middle
@@ -171,14 +66,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Local dev boots on `.env.local`; staging uses `.env.staging.local` and the `staging` branch, with a separate Supabase project; `Production` and `Preview` Vercel scopes map to the corresponding Supabase projects
 - Local `.env.local` owner access is set to `zackharen@gmail.com`; if the Admin nav button is missing after this change, restart the existing `localhost:3000` dev server so Next reloads environment variables
 - Admin has a "Clear saved game progress" control on the User Information page
-
-## What Was Built (2026-04-28 Morning Session)
-- Fixed `/teachers` page showing student accounts: added `.eq("account_type", "teacher")` to the primary `profiles` query in `app/teachers/page.js`
-- Fixed `/teachers` page showing soft-deleted accounts: cross-referenced profiles against `auth.admin.listUsers`, filtering `app_metadata.account_deleted = true`
-- Ran SQL to clean orphaned profile rows: set `discoverable = false` for profiles with no matching auth user
-- Alphabetized nav items; Log Out hardcoded last
-- Committed `app/components/GameReadyBanner.js` which was untracked and silently breaking all Vercel production builds
-- Reverted invalid `eslint.ignoreDuringBuilds` key from `next.config.mjs` (not supported in Next.js 16)
+- Brain now uses shared core files + model-specific overlays (`brain/model_workflows/codex.md`, `brain/model_workflows/claude.md`, `brain/model_workflows/coordination.md`); `START_HERE.md` is the routing entrypoint
 
 ## Active Tasks
 - None outstanding from this session.
