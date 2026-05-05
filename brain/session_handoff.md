@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-05 America/New_York (Double Board until_wrong turn-advance fix)
+2026-05-05 America/New_York (Double Board teacher excluded from one-at-a-time turn rotation)
+
+## What Was Built (2026-05-05 Session — Double Board teacher turn exclusion)
+- **Double Board teacher included in one-at-a-time turn rotation fixed** (`app/api/play/double-board/route.js`, commit `56474fe`, pushed to `origin/main`):
+  - Root cause: `buildTurnEligiblePlayers` builds the eligible list from `student_course_memberships`. If the host teacher's profile_id is in that table for their own course, they get a synthetic entry with `role: "student"` and land in the rotation. No guard previously stripped `host_teacher_id` from the eligible list.
+  - Fix 1: `buildTurnEligiblePlayers` now accepts a `hostTeacherId` parameter and filters that ID out of `classMemberIds` before building the list.
+  - Fix 2: `loadClassTurnContext` extracts `session.host_teacher_id` and passes it to `buildTurnEligiblePlayers`; also filters the no-course-id path through `getStudentTurnOrder(...).filter(...)`.
+  - Fix 3: `ensurePlayer` never demotes an existing `role: "teacher"` player to `"student"` on upsert, guarding against edge cases where `canManage` resolves late and the caller passes `"student"` as the role.
 
 ## What Was Built (2026-05-05 Session — Double Board until_wrong fix)
 - **Double Board until_wrong turn-advance bug fixed and shipped** (`app/api/play/double-board/route.js`, commit `ef6c251`, pushed to `origin/main`):
