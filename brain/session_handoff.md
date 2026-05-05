@@ -16,6 +16,7 @@ This file represents the **current state only**. It should stay short enough to 
   - Fix: percent-multiplier multiple choice now always builds four unique scaled choices: the correct multiplier, the opposite-operation multiplier, the decimal version of the percent, and one random valid decimal multiplier in the same answer scale.
   - Covered both whole-percent (`multiplier_hundredths`) and decimal-percent (`multiplier_tenthousandths`) questions, while leaving integer-operation distractors unchanged.
   - Verification: `node --test tests/double-board-multiple-choice.test.mjs`, `npm test` (15/15), `git diff --check`, and `npm run build` all passed. Build still shows the existing Next 16 middleware/proxy warning.
+  - Delivery: commit `f072ff2` (`Fix Double Board percent choices`) pushed to `origin/main`; `git ls-remote origin main` confirmed the remote branch points at `f072ff2`; `https://www.mathclaw.com` returned HTTP 200 from Vercel.
   - Localhost note: port 3000 was occupied by a `node` process but did not respond to `curl`; per startup convention, no restart was attempted without user approval.
 
 ## What Was Built (2026-05-05 Session — Double Board teacher turn exclusion)
