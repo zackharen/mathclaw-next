@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-05 America/New_York (Double Board teacher excluded from one-at-a-time turn rotation)
+2026-05-05 America/New_York (Double Board percent multiple-choice distractors fixed)
+
+## What Was Built (2026-05-05 Session — Double Board percent multiple-choice distractors)
+- **Double Board Percent Change Multiplier multiple-choice answers fixed** (`lib/question-engine/double-board.js`, `tests/double-board-multiple-choice.test.mjs`):
+  - Root cause: the hundredths percent-multiplier branch mixed scaled stored answers with unscaled decimal values, which produced weak or duplicate-looking choices such as `0.00`, `0.01`, `0.01`, `1.94`.
+  - Fix: percent-multiplier multiple choice now always builds four unique scaled choices: the correct multiplier, the opposite-operation multiplier, the decimal version of the percent, and one random valid decimal multiplier in the same answer scale.
+  - Covered both whole-percent (`multiplier_hundredths`) and decimal-percent (`multiplier_tenthousandths`) questions, while leaving integer-operation distractors unchanged.
+  - Verification: `node --test tests/double-board-multiple-choice.test.mjs`, `npm test` (15/15), `git diff --check`, and `npm run build` all passed. Build still shows the existing Next 16 middleware/proxy warning.
+  - Localhost note: port 3000 was occupied by a `node` process but did not respond to `curl`; per startup convention, no restart was attempted without user approval.
 
 ## What Was Built (2026-05-05 Session — Double Board teacher turn exclusion)
 - **Double Board teacher included in one-at-a-time turn rotation fixed** (`app/api/play/double-board/route.js`, commit `56474fe`, pushed to `origin/main`):
