@@ -8,13 +8,20 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-06 America/New_York (Group activity redirect-loop fix)
+2026-05-06 America/New_York (Public page timeout fix)
 
 ## What Was Built (2026-05-06 Session — Group activity redirect loop)
 - **Double Board ↔ Lowest Number Wins redirect ping-pong fixed** (`app/api/play/double-board/route.js`, `app/api/play/lowest-number-wins/route.js`):
   - Root cause: `groupRedirectTo` is stored on each live game session. If a teacher moved the group from Lowest Number Wins to Double Board, then later moved them back, both live sessions could retain opposite redirect instructions and polling would bounce browsers between routes.
   - Fix: each redirect action now clears a stale `groupRedirectTo` value on the destination game's active session for the same course before setting the source game's redirect. Redirect commands now also include `groupRedirectCreatedAt` and are only honored for 60 seconds; old untimestamped redirect values are ignored so already-stuck live sessions stop ping-ponging.
   - Verification: `node --check` on both edited route files, `git diff --check`, and `npm run build` passed. Build still shows the existing Next 16 middleware/proxy warning.
+
+## What Was Built (2026-05-06 Session — Public page timeout fix)
+- **Homepage/About 504 timeout fixed and shipped** (`middleware.js`, `lib/supabase/middleware.js`, `lib/site-config.js`, commit `d8bd130`, pushed to `origin/main`):
+  - Root cause: production public pages `/` and `/about` were hanging on editable site-copy reads; the reported error surfaced as `504 MIDDLEWARE_INVOCATION_TIMEOUT` while public requests still ran auth middleware before rendering.
+  - Fix: middleware now skips Supabase auth lookups for routes that are neither protected nor auth routes; protected/auth middleware auth lookups have a short fallback timeout; editable site-copy/feature-config reads fall back to defaults after a short timeout instead of stranding public pages.
+  - Verification: `node --check` on all edited files, `git diff --check`, `npm test` (15/15), and `npm run build` passed. Build still shows the existing Next 16 middleware/proxy warning.
+  - Delivery: commit `d8bd130` pushed to `origin/main`; `git ls-remote origin main` confirmed the remote branch points at `d8bd130`. Live checks after Vercel deployment: `https://www.mathclaw.com/` returned HTTP 200 in ~1.7s, `/about` returned HTTP 200 in ~1.7s, `/play` returned 307 to sign-in, and `/auth/sign-in` returned HTTP 200.
 
 ## What Was Built (2026-05-05 Session — Double Board percent multiple-choice distractors)
 - **Double Board Percent Change Multiplier multiple-choice answers fixed** (`lib/question-engine/double-board.js`, `tests/double-board-multiple-choice.test.mjs`):
