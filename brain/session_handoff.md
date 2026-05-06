@@ -8,7 +8,26 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-06 America/New_York (Public page timeout fix)
+2026-05-06 America/New_York (Connect 4 Tournament Mode v1)
+
+## What Was Built (2026-05-06 Session — Connect 4 Tournament Mode v1)
+- **Connect 4-only Tournament Mode built and pushed** (`app/play/tournaments/*`, `app/api/play/connect4-tournaments/route.js`, `lib/student-games/connect4-tournaments.js`, `supabase/migrations_20260506_connect4_tournaments.sql`, commit `265c6ab`):
+  - Added a fourth Group Activities card: **Tournaments**. For v1 it routes directly to Connect 4 tournaments; later this can become a game picker.
+  - Teacher flow: open a class-scoped tournament lobby, see present students, generate a random bracket, keep the full bracket sticky at the top, and watch live games in a two-column board wall. Finished games move below newest-first.
+  - Student flow: students open `/play/tournaments`, presence is tracked with the same 8-second window pattern as Double Board, and assigned games appear with a button that opens their Connect 4 match directly.
+  - Bracket logic: creates a power-of-two bracket with random byes. For 9/13/29 players, only the play-in round starts first; later rounds begin automatically after earlier-round games finish. Draws create a replay for the same bracket slot.
+  - Connect 4 deep links now support `/play/connect4?match=<id>` so tournament players do not type invite codes.
+  - Verification: `node --check` on edited route/client files passed; `node --test tests/connect4-tournaments.test.mjs` passed; `npm test` passed (21/21); `git diff --check` passed; `npm run build` passed. Browser/local route check hit expected sign-in redirect. Live checks after push: `https://www.mathclaw.com/play/tournaments` returns 307 to sign-in; `https://www.mathclaw.com/api/play/connect4-tournaments` returns 401 instead of 404, confirming the deployed route is live.
+  - **Important blocker:** Supabase MCP/Vercel MCP app connectors failed during handshakes (`https://chatgpt.com/backend-api/wham/apps` request failure). The production Supabase migration has **not** been confirmed/applied through the connector. Run `supabase/migrations_20260506_connect4_tournaments.sql` in production Supabase before using Tournament Mode with logged-in users.
+
+## What Was Built (2026-05-06 Session — Middleware timeout hardening + auth error display)
+- **Reduced middleware auth timeout and fixed `{}` error on sign-in** (`lib/supabase/middleware.js`, `app/auth/sign-in/sign-in-form.js`, `app/auth/sign-up/sign-up-form.js`, commit `ae2868f`):
+  - Root cause 1: `AUTH_LOOKUP_TIMEOUT_MS` was 1500ms, matching Vercel's edge middleware wall-clock limit exactly — any overhead caused `MIDDLEWARE_INVOCATION_TIMEOUT` even on protected/auth routes after the public-page fix.
+  - Root cause 2: when auth failed (e.g. during a 504), `signInError.message` came back as `"{}"` and was rendered raw in red on the sign-in page.
+  - Fix 1: reduced timeout to 1000ms (500ms margin); made the timeout promise cancellable to eliminate per-request timer leak.
+  - Fix 2: added `friendlyAuthError()` to both sign-in and sign-up forms — normalizes blank or `"{}"` messages to a human-readable fallback.
+  - Verification: `node --check` on all edited files, `npm run build` passed.
+  - Delivery: commit `ae2868f` ready to push to `origin/main` (push was pending user approval at session end).
 
 ## What Was Built (2026-05-06 Session — Group activity redirect loop)
 - **Double Board ↔ Lowest Number Wins redirect ping-pong fixed** (`app/api/play/double-board/route.js`, `app/api/play/lowest-number-wins/route.js`):
@@ -66,6 +85,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Admin page is live: `Admin Sections` sits below the count summary and has five alphabetized views. `accounts` → collapsed School Snapshot + collapsed User Information; `diagnostics` → collapsed Traffic & App Usage, collapsed Internal Error Log, collapsed Bug Reports; `features` → Feature Rollout Controls with grouped admin disclosure formatting, alphabetical/status sorting, short rollout labels, navy shade status chips, and editable Admin copy fields; `site-copy` → Editable Site Copy; `mastery` → Mastery Settings (cross-game adaptive progression rules + simulator). `/admin` default for owner/admin users is Bugs and Internal Errors.
 - The `/play` page now collapses its main content blocks behind matching disclosure headers, with feedback sections opening automatically when needed; section order is Classes, Group Activities, Fun & Games, Awards & Extra Credit, Create A Math Question
 - Group Activities is a direct 3-column card grid on `/play` with Double Board, Lowest Number Wins, and Open Middle
+- Tournament Mode v1 is live in code as a fourth Group Activities option and currently supports Connect 4 only. It requires `supabase/migrations_20260506_connect4_tournaments.sql` to be applied in production Supabase before authenticated use.
 - Fun & Games has three equal-width columns: `#arcade`, `#mathskills`, and `#survivalskills`; Locker Practice belongs under `#survivalskills`
 - Open Middle is in code at `/play/open-middle`, appears under Group Activities, and its Supabase schema/policies were applied successfully in the active Supabase project via SQL Editor
 - `/play/locker-practice` is live on `main`; dial movement, validation, and visual model are all consistent
@@ -97,6 +117,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
+- Created `/supabase/migrations_20260506_connect4_tournaments.sql`; it must be applied to production Supabase before Tournament Mode can be used with logged-in users. Supabase connector application failed in Codex due an app-connector handshake error before the SQL reached the project.
 - Restored `/supabase/migrations_20260424_open_middle.sql`; user applied it successfully in Supabase SQL Editor on 2026-04-28 after running `drop policy if exists ...` cleanup for the pre-existing Open Middle/school policies.
 - Brain policy changed: future coding sessions should load `coding_agent_principles.md` from `START_HERE.md` and use its checklists before editing and before final response.
 - Brain workflow changed: future sessions should load the model-specific overlay from `brain/model_workflows/` (`codex.md` for Codex, `claude.md` for Claude Code) after the shared base files. Codex overlay covers connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts, and permission-aware work.
@@ -108,6 +129,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
 1. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - required before Lowest Number Wins works with real classes.
+2. **Run `migrations_20260506_connect4_tournaments.sql` in production Supabase** - required before Connect 4 Tournament Mode works for authenticated users.
 5. **Run `migrations_20260427_double_board_decimal_percents.sql` in Supabase** before creating live Double Board percent sessions with decimal Column 3 questions.
 6. Playtest `/play/open-middle` live with teacher + student accounts; verify template creation, launch, student join, response autosave, reveal/revise, and session close
 7. Playtest `/play/lowest-number-wins` with real teacher + student accounts after migration is in; verify submission count, reveal, winner, no-winner draw, next round, projector mode, and game_sessions recording
