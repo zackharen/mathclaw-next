@@ -29,6 +29,13 @@ function buildCallbackUrl(origin, { next, accountType, schoolName, joinCode }) {
   return `${origin}/auth/callback?${params.toString()}`;
 }
 
+function friendlyAuthError(err) {
+  if (!err) return "";
+  const msg = typeof err.message === "string" ? err.message.trim() : "";
+  if (!msg || msg === "{}") return "Something went wrong. Please try again.";
+  return msg;
+}
+
 export default function SignUpForm({ schoolOptions = [] }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,7 +101,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
     setActiveMethod("");
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(friendlyAuthError(signUpError));
       return;
     }
 
@@ -134,7 +141,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
 
     if (googleError) {
       setActiveMethod("");
-      setError(googleError.message);
+      setError(friendlyAuthError(googleError));
     }
   }
 

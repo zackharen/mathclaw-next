@@ -7,6 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 import { getAccountTypeForUser, sanitizeNextForAccountType } from "@/lib/auth/account-type";
 import { removeLegacySavedGamesFromMetadata } from "@/lib/auth/session-metadata";
 
+function friendlyAuthError(err) {
+  if (!err) return "";
+  const msg = typeof err.message === "string" ? err.message.trim() : "";
+  if (!msg || msg === "{}" || msg === "{}") return "Sign in failed. Please check your credentials and try again.";
+  return msg;
+}
+
 export default function SignInForm({ redirectTo }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +35,7 @@ export default function SignInForm({ redirectTo }) {
 
     if (signInError) {
       setActiveMethod(null);
-      setError(signInError.message);
+      setError(friendlyAuthError(signInError));
       return;
     }
 
@@ -76,7 +83,7 @@ export default function SignInForm({ redirectTo }) {
 
     if (googleError) {
       setActiveMethod(null);
-      setError(googleError.message);
+      setError(friendlyAuthError(googleError));
     }
   }
 
