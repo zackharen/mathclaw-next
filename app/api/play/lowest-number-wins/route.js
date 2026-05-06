@@ -57,6 +57,29 @@ function canAccessCourse(courses, courseId) {
   return Boolean(getCourseRecord(courses, courseId));
 }
 
+async function clearDestinationGroupRedirect(admin, redirectTo, courseId) {
+  if (!courseId || redirectTo !== "/play/double-board") return;
+
+  const { data: sessions } = await admin
+    .from("double_board_sessions")
+    .select("id, metadata")
+    .eq("course_id", courseId)
+    .in("status", ["waiting", "live"]);
+
+  await Promise.all(
+    (sessions || []).map((session) => {
+      const metadata = session.metadata && typeof session.metadata === "object" ? session.metadata : {};
+      if (!metadata.groupRedirectTo) return null;
+      const nextMetadata = { ...metadata };
+      delete nextMetadata.groupRedirectTo;
+      return admin
+        .from("double_board_sessions")
+        .update({ metadata: nextMetadata, updated_at: nowIso() })
+        .eq("id", session.id);
+    })
+  );
+}
+
 function viewerCanAccessSession(session, courses, user) {
   if (!session) return false;
   if (!session.course_id) return session.host_teacher_id === user.id;
@@ -769,6 +792,7 @@ export async function POST(request) {
       if (!redirectTo) {
         return NextResponse.json({ error: "Invalid redirect destination." }, { status: 400 });
       }
+      await clearDestinationGroupRedirect(admin, redirectTo, session.course_id);
       const currentMetadata =
         session.metadata && typeof session.metadata === "object" ? session.metadata : {};
       const { error } = await admin
