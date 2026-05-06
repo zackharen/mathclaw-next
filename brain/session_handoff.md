@@ -13,7 +13,7 @@ This file represents the **current state only**. It should stay short enough to 
 ## What Was Built (2026-05-06 Session — Group activity redirect loop)
 - **Double Board ↔ Lowest Number Wins redirect ping-pong fixed** (`app/api/play/double-board/route.js`, `app/api/play/lowest-number-wins/route.js`):
   - Root cause: `groupRedirectTo` is stored on each live game session. If a teacher moved the group from Lowest Number Wins to Double Board, then later moved them back, both live sessions could retain opposite redirect instructions and polling would bounce browsers between routes.
-  - Fix: each redirect action now clears a stale `groupRedirectTo` value on the destination game's active session for the same course before setting the source game's redirect.
+  - Fix: each redirect action now clears a stale `groupRedirectTo` value on the destination game's active session for the same course before setting the source game's redirect. Redirect commands now also include `groupRedirectCreatedAt` and are only honored for 60 seconds; old untimestamped redirect values are ignored so already-stuck live sessions stop ping-ponging.
   - Verification: `node --check` on both edited route files, `git diff --check`, and `npm run build` passed. Build still shows the existing Next 16 middleware/proxy warning.
 
 ## What Was Built (2026-05-05 Session — Double Board percent multiple-choice distractors)

@@ -11,6 +11,7 @@ import { upsertGameStats } from "@/lib/student-games/stats";
 
 const GAME_SLUG = "lowest_number_wins";
 const PLAYER_PRESENCE_WINDOW_MS = 8000;
+const GROUP_REDIRECT_WINDOW_MS = 60000;
 
 function nowIso() {
   return new Date().toISOString();
@@ -57,6 +58,13 @@ function canAccessCourse(courses, courseId) {
   return Boolean(getCourseRecord(courses, courseId));
 }
 
+function activeGroupRedirect(metadata) {
+  const redirectTo = typeof metadata?.groupRedirectTo === "string" ? metadata.groupRedirectTo : null;
+  const createdAtMs = Date.parse(String(metadata?.groupRedirectCreatedAt || ""));
+  if (!redirectTo || !Number.isFinite(createdAtMs)) return null;
+  return Date.now() - createdAtMs <= GROUP_REDIRECT_WINDOW_MS ? redirectTo : null;
+}
+
 async function clearDestinationGroupRedirect(admin, redirectTo, courseId) {
   if (!courseId || redirectTo !== "/play/double-board") return;
 
@@ -72,6 +80,7 @@ async function clearDestinationGroupRedirect(admin, redirectTo, courseId) {
       if (!metadata.groupRedirectTo) return null;
       const nextMetadata = { ...metadata };
       delete nextMetadata.groupRedirectTo;
+      delete nextMetadata.groupRedirectCreatedAt;
       return admin
         .from("double_board_sessions")
         .update({ metadata: nextMetadata, updated_at: nowIso() })
@@ -338,7 +347,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     currentRoundResult,
     roundHistory,
     leaderboard,
-    groupRedirectTo: metadata.groupRedirectTo || null,
+    groupRedirectTo: activeGroupRedirect(metadata),
     updatedAt: session.updated_at,
   };
 }
@@ -797,7 +806,10 @@ export async function POST(request) {
         session.metadata && typeof session.metadata === "object" ? session.metadata : {};
       const { error } = await admin
         .from("lowest_number_wins_sessions")
-        .update({ metadata: { ...currentMetadata, groupRedirectTo: redirectTo }, updated_at: nowIso() })
+        .update({
+          metadata: { ...currentMetadata, groupRedirectTo: redirectTo, groupRedirectCreatedAt: nowIso() },
+          updated_at: nowIso(),
+        })
         .eq("id", session.id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });

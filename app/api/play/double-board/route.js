@@ -25,6 +25,7 @@ const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
 const START_COUNTDOWN_SECONDS = 3;
 const PLAYER_PRESENCE_WINDOW_MS = 8000;
+const GROUP_REDIRECT_WINDOW_MS = 60000;
 const TURN_PHASE_SELECT_TILE = "select_tile";
 const TURN_PHASE_ANSWER_QUESTION = "answer_question";
 
@@ -271,6 +272,13 @@ function canAccessCourse(courses, courseId) {
   return Boolean(getCourseRecord(courses, courseId));
 }
 
+function activeGroupRedirect(metadata) {
+  const redirectTo = typeof metadata?.groupRedirectTo === "string" ? metadata.groupRedirectTo : null;
+  const createdAtMs = Date.parse(String(metadata?.groupRedirectCreatedAt || ""));
+  if (!redirectTo || !Number.isFinite(createdAtMs)) return null;
+  return Date.now() - createdAtMs <= GROUP_REDIRECT_WINDOW_MS ? redirectTo : null;
+}
+
 async function clearDestinationGroupRedirect(admin, redirectTo, courseId) {
   if (!courseId || redirectTo !== "/play/lowest-number-wins") return;
 
@@ -286,6 +294,7 @@ async function clearDestinationGroupRedirect(admin, redirectTo, courseId) {
       if (!metadata.groupRedirectTo) return null;
       const nextMetadata = { ...metadata };
       delete nextMetadata.groupRedirectTo;
+      delete nextMetadata.groupRedirectCreatedAt;
       return admin
         .from("lowest_number_wins_sessions")
         .update({ metadata: nextMetadata, updated_at: nowIso() })
@@ -788,7 +797,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     answerHistoryByUser,
     boards,
     reviewItems,
-    groupRedirectTo: sessionMetadata.groupRedirectTo || null,
+    groupRedirectTo: activeGroupRedirect(sessionMetadata),
   };
 }
 
@@ -2338,7 +2347,7 @@ export async function POST(request) {
       const { error: redirectError } = await admin
         .from("double_board_sessions")
         .update({
-          metadata: { ...currentMetadata, groupRedirectTo: redirectTo },
+          metadata: { ...currentMetadata, groupRedirectTo: redirectTo, groupRedirectCreatedAt: nowIso() },
           updated_at: nowIso(),
         })
         .eq("id", currentSession.id);
