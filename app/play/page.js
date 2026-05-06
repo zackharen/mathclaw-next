@@ -35,6 +35,11 @@ function gameHref(slug, courseId) {
   return `/play/${slug}${query}`;
 }
 
+function tournamentHref(courseId) {
+  const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
+  return `/play/tournaments${query}`;
+}
+
 function describeCourseRelationship(relationship) {
   if (relationship === "owner") return "Teacher account";
   if (relationship === "co_teacher") return "Co-teacher access";
@@ -378,6 +383,16 @@ export default async function PlayPage({ searchParams }) {
                 </div>
               </article>
             ))}
+            <article className="card arcadeGameCard" style={{ background: "#fff" }}>
+              <h3>Tournaments</h3>
+              <p>Generate a random Connect 4 bracket from students who are live in the room.</p>
+              <p className="arcadeGameTags">#review, #multiplayer</p>
+              <div className="ctaRow">
+                <Link className="btn" href={tournamentHref(activeCourse?.id || "")}>
+                  Open Tournaments
+                </Link>
+              </div>
+            </article>
           </div>
         </ArcadeDisclosure>
       ) : null}

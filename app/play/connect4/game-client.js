@@ -47,7 +47,7 @@ function turnTone(match, userId) {
   return match.current_turn_id === userId ? "yourTurn" : "theirTurn";
 }
 
-export default function Connect4Client({ courses, userId, initialCourseId = "" }) {
+export default function Connect4Client({ courses, userId, initialCourseId = "", initialMatchId = "" }) {
   const [courseId, setCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const [inviteCode, setInviteCode] = useState("");
   const [match, setMatch] = useState(null);
@@ -103,6 +103,11 @@ export default function Connect4Client({ courses, userId, initialCourseId = "" }
       setMatch(data.match);
     }
   }, []);
+
+  useEffect(() => {
+    if (!initialMatchId) return;
+    refreshMatch(initialMatchId);
+  }, [initialMatchId, refreshMatch]);
 
   async function createMatch() {
     setIsBusy(true);

@@ -21,6 +21,7 @@ export default async function Connect4Page({ searchParams }) {
 
   const params = (await searchParams) || {};
   const requestedCourseId = typeof params.course === "string" ? params.course : "";
+  const initialMatchId = typeof params.match === "string" ? params.match : "";
   const initialCourseId = resolvePreferredCourseId(courses, requestedCourseId);
 
   return (
@@ -29,7 +30,12 @@ export default async function Connect4Page({ searchParams }) {
         <h1>Connect4</h1>
         <p>Create a code, share it, and play another MathClaw user live on the site.</p>
       </section>
-      <Connect4Client courses={courses} userId={user.id} initialCourseId={initialCourseId} />
+      <Connect4Client
+        courses={courses}
+        userId={user.id}
+        initialCourseId={initialCourseId}
+        initialMatchId={initialMatchId}
+      />
     </div>
   );
 }
