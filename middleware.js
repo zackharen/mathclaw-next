@@ -5,7 +5,6 @@ const PROTECTED_PREFIXES = ["/onboarding", "/classes", "/dashboard", "/play"];
 
 export async function middleware(request) {
   try {
-    const { response, user } = await updateSession(request);
     const { pathname, search } = request.nextUrl;
 
     const isProtected = PROTECTED_PREFIXES.some((prefix) =>
@@ -13,6 +12,12 @@ export async function middleware(request) {
     );
 
     const isAuthPath = pathname.startsWith("/auth/sign-in") || pathname.startsWith("/auth/sign-up");
+
+    if (!isProtected && !isAuthPath) {
+      return NextResponse.next({ request });
+    }
+
+    const { response, user } = await updateSession(request);
 
     if (isProtected && !user) {
       const url = request.nextUrl.clone();
