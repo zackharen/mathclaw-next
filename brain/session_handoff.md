@@ -8,7 +8,20 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-07 America/New_York (Connect 4 tournament auto-advance)
+2026-05-07 America/New_York (Connect 4 tournament UX + best-of-3)
+
+## What Was Built (2026-05-07 Session — Connect 4 tournament UX + best-of-3)
+- **Connect 4 Tournament Mode UX and match format behavior updated** (`app/play/tournaments/tournament-client.js`, `app/api/play/connect4-tournaments/route.js`, `lib/student-games/connect4-tournaments.js`, `app/play/connect4/game-client.js`, `app/globals.css`, `tests/connect4-tournaments.test.mjs`):
+  - Teacher tournament dashboard game cards now render 4 columns on desktop, 2 on medium widths, and 1 on mobile.
+  - Teachers now choose match format before bracket generation: **Single game** (default) or **Best 2 of 3**.
+  - The tournament API normalizes match format values and stores the setting in `connect4_tournaments.bracket.matchFormat`; existing tournaments without the field continue as single-game tournaments.
+  - Best-of-3 series state is stored in `connect4_tournaments.bracket.seriesByMatchId`, with each tournament match row's `connect4_match_id` pointing to the current active Connect 4 game. Draws create an uncounted replay; player wins are counted once; a player advances after 2 wins; otherwise a fresh game is created for the same bracket match.
+  - Teacher live/finished cards and the new large-board popup show Red, Yellow, and current turn/status using visible color swatches. The former teacher "Open Full Board" link is now a view-only popup with a large centered Connect 4 board.
+  - Student Connect 4 hides the regular create/join/invite-code controls only for tournament-launched matches where the viewer is one of the players, replacing them with a tournament-focused color/turn card. Regular Connect 4 invite-code flow is unchanged.
+  - Verification passed: `node --check app/play/tournaments/tournament-client.js`; `node --check app/api/play/connect4-tournaments/route.js`; `node --check lib/student-games/connect4-tournaments.js`; `node --check app/play/connect4/game-client.js`; `node --test tests/connect4-tournaments.test.mjs`; `npm test`; `npm run build`; `git diff --check`.
+  - Browser/local route verification: built server on `localhost:3001` redirected `/play/tournaments` and `/play/connect4` to sign-in as expected; `/api/play/connect4-tournaments` and `/api/play/connect4` returned 401 unauthenticated instead of 404. Full authenticated teacher/student tournament UI verification was blocked by lack of an available local authenticated tournament session. `next dev` on port 3000 still emitted the pre-existing `EMFILE: too many open files, watch` issue and served 404 for `/play/tournaments`, so browser verification used `next start --port 3001` after a successful build.
+  - Delivery status: pending commit/push at the moment this handoff entry was written.
+  - Remaining caveat: production Tournament Mode still requires `supabase/migrations_20260506_connect4_tournaments.sql` to be applied before real authenticated use.
 
 ## What Was Built (2026-05-07 Session — Connect 4 tournament auto-advance)
 - **Tournament Connect 4 winners/draw players now stay in flow from the game page** (`app/play/connect4/game-client.js`):

@@ -23,6 +23,25 @@ function matchPlayerName(match, slot) {
   return match.playerTwoName || "TBD";
 }
 
+function turnStatusText(match) {
+  const liveMatch = match?.connect4Match;
+  if (!match) return "";
+  if (match.status === "finished") {
+    if (liveMatch?.metadata?.draw) return "Finished: draw";
+    return match.winnerName ? `Finished: ${match.winnerName} advances` : "Finished";
+  }
+  if (match.status !== "active" || !liveMatch) return statusLabel(match);
+  if (liveMatch.metadata?.draw) return "Draw replay coming";
+  if (liveMatch.status === "finished") {
+    if (liveMatch.winner_id === match.playerOneId) return `${matchPlayerName(match, "one")} won this game`;
+    if (liveMatch.winner_id === match.playerTwoId) return `${matchPlayerName(match, "two")} won this game`;
+    return "Game finished";
+  }
+  if (liveMatch.current_turn_id === match.playerOneId) return `Turn: ${matchPlayerName(match, "one")}`;
+  if (liveMatch.current_turn_id === match.playerTwoId) return `Turn: ${matchPlayerName(match, "two")}`;
+  return "Waiting for turn";
+}
+
 function statusLabel(match) {
   if (match.status === "finished") {
     return match.winnerName ? `${match.winnerName} advances` : "Finished";
@@ -46,6 +65,59 @@ function BoardPreview({ match }) {
           />
         ))
       )}
+    </div>
+  );
+}
+
+function PlayerLegend({ match }) {
+  return (
+    <div className="tournamentPlayerLegend">
+      <span>
+        <i className="red" aria-hidden="true" />
+        Red: <strong>{matchPlayerName(match, "one")}</strong>
+      </span>
+      <span>
+        <i className="yellow" aria-hidden="true" />
+        Yellow: <strong>{matchPlayerName(match, "two")}</strong>
+      </span>
+    </div>
+  );
+}
+
+function LargeBoardModal({ match, onClose }) {
+  if (!match) return null;
+  const board = match.connect4Match?.board || [];
+
+  return (
+    <div className="doubleBoardModalBackdrop" role="presentation" onClick={onClose}>
+      <section
+        className="tournamentBoardModal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tournament-board-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="doubleBoardModalClose" onClick={onClose} aria-label="Close board popup">
+          x
+        </button>
+        <p className="doubleBoardEyebrow">Teacher View</p>
+        <h2 id="tournament-board-modal-title">
+          {matchPlayerName(match, "one")} vs. {matchPlayerName(match, "two")}
+        </h2>
+        <PlayerLegend match={match} />
+        <p className="tournamentTurnLine">{turnStatusText(match)}</p>
+        <div className="tournamentLargeBoard" aria-label="Large Connect 4 board">
+          {board.map((row, rowIndex) =>
+            row.map((value, colIndex) => (
+              <span
+                key={`${rowIndex}-${colIndex}`}
+                className="tournamentLargeBoardCell"
+                style={{ background: cellColor(value) }}
+              />
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -115,7 +187,7 @@ function Bracket({ tournament, matches }) {
   );
 }
 
-function MatchCard({ match, viewerId, canManage }) {
+function MatchCard({ match, viewerId, canManage, onOpenBoard }) {
   const viewerCanPlay = match.playerOneId === viewerId || match.playerTwoId === viewerId;
   const href = match.connect4MatchId ? `/play/connect4?match=${match.connect4MatchId}` : "";
 
@@ -129,6 +201,8 @@ function MatchCard({ match, viewerId, canManage }) {
         {match.status === "active" ? <span className="pill">Live</span> : null}
       </div>
       {match.connect4Match ? <BoardPreview match={match} /> : null}
+      <PlayerLegend match={match} />
+      <p className="tournamentTurnLine">{turnStatusText(match)}</p>
       <div className="ctaRow">
         {viewerCanPlay && href ? (
           <Link className="btn primary" href={href}>
@@ -136,9 +210,9 @@ function MatchCard({ match, viewerId, canManage }) {
           </Link>
         ) : null}
         {canManage && href ? (
-          <Link className="btn" href={href}>
-            Open Full Board
-          </Link>
+          <button className="btn" type="button" onClick={() => onOpenBoard(match)}>
+            Large View
+          </button>
         ) : null}
       </div>
     </article>
@@ -150,6 +224,8 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
   const [payload, setPayload] = useState(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [matchFormat, setMatchFormat] = useState("single_game");
+  const [selectedBoardMatchId, setSelectedBoardMatchId] = useState("");
 
   const tournament = payload?.tournament || null;
   const matches = payload?.matches || [];
@@ -165,6 +241,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
   const completedMatches = matches
     .filter((match) => match.status === "finished")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const selectedBoardMatch = matches.find((match) => match.id === selectedBoardMatchId) || null;
 
   const fetchTournament = useCallback(async () => {
     if (!courseId) return;
@@ -189,6 +266,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
         action,
         courseId,
         tournamentId: tournament?.id || null,
+        matchFormat,
       }),
     });
     const data = await response.json();
@@ -301,6 +379,31 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
         <section className="card">
           <h2>Players In The Lobby</h2>
           <p>{presentParticipants.length} present student{presentParticipants.length === 1 ? "" : "s"}</p>
+          {canManage ? (
+            <div className="tournamentFormatControl">
+              <span>Match format</span>
+              <label>
+                <input
+                  type="radio"
+                  name="matchFormat"
+                  value="single_game"
+                  checked={matchFormat === "single_game"}
+                  onChange={(event) => setMatchFormat(event.target.value)}
+                />
+                Single game
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="matchFormat"
+                  value="best_of_3"
+                  checked={matchFormat === "best_of_3"}
+                  onChange={(event) => setMatchFormat(event.target.value)}
+                />
+                Best 2 of 3
+              </label>
+            </div>
+          ) : null}
           <div className="tournamentParticipantGrid">
             {participants.map((participant) => (
               <div key={participant.id} className={`tournamentParticipant ${participant.isPresent ? "present" : "absent"}`}>
@@ -336,7 +439,13 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
             ) : (
               <div className="tournamentGameGrid">
                 {liveMatches.map((match) => (
-                  <MatchCard key={match.id} match={match} viewerId={userId} canManage />
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    viewerId={userId}
+                    canManage
+                    onOpenBoard={(selectedMatch) => setSelectedBoardMatchId(selectedMatch.id)}
+                  />
                 ))}
               </div>
             )}
@@ -348,12 +457,21 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
             ) : (
               <div className="tournamentGameGrid">
                 {completedMatches.map((match) => (
-                  <MatchCard key={match.id} match={match} viewerId={userId} canManage />
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    viewerId={userId}
+                    canManage
+                    onOpenBoard={(selectedMatch) => setSelectedBoardMatchId(selectedMatch.id)}
+                  />
                 ))}
               </div>
             )}
           </section>
         </>
+      ) : null}
+      {selectedBoardMatch ? (
+        <LargeBoardModal match={selectedBoardMatch} onClose={() => setSelectedBoardMatchId("")} />
       ) : null}
     </div>
   );

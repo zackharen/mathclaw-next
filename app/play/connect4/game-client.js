@@ -67,6 +67,8 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   );
   const isViewerInMatch =
     !!match && (match.player_one_id === userId || match.player_two_id === userId);
+  const showTournamentMatchControls = isTournamentMatch && isViewerInMatch;
+  const showRegularMatchControls = !showTournamentMatchControls;
   const matchId = match?.id || "";
   const matchStatus = match?.status || "";
   const matchWinnerId = match?.winner_id || "";
@@ -109,6 +111,8 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
     if (!moves || !elapsedSeconds) return 0;
     return elapsedSeconds / moves;
   }, [elapsedSeconds, match?.move_count]);
+  const tournamentOpponentColor = yourToken === "R" ? "Yellow" : yourToken === "Y" ? "Red" : "Opponent";
+  const tournamentYourColor = yourToken === "R" ? "Red" : yourToken === "Y" ? "Yellow" : "Viewer";
 
   const refreshMatch = useCallback(async (matchId) => {
     if (!matchId) return;
@@ -324,46 +328,71 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   return (
     <div className="featureGrid">
       <section className="card" style={{ background: "#fff" }}>
-        <h2>Lobby</h2>
-        <p style={{ marginBottom: "0.75rem" }}>
-          Create a match to get an invite code, then share that code with another MathClaw player.
-          If you are joining, paste the code first and then hit Join.
-        </p>
-        <div className="ctaRow">
-          <select
-            className="input"
-            style={{ maxWidth: "16rem" }}
-            value={courseId}
-            onChange={(e) => setCourseId(e.target.value)}
-          >
-            <option value="">No class selected</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
-          <button className="btn primary" type="button" onClick={createMatch} disabled={isBusy}>
-            Create Invite Code
-          </button>
-        </div>
+        <h2>{showTournamentMatchControls ? "Tournament Match" : "Lobby"}</h2>
+        {showRegularMatchControls ? (
+          <>
+            <p style={{ marginBottom: "0.75rem" }}>
+              Create a match to get an invite code, then share that code with another MathClaw player.
+              If you are joining, paste the code first and then hit Join.
+            </p>
+            <div className="ctaRow">
+              <select
+                className="input"
+                style={{ maxWidth: "16rem" }}
+                value={courseId}
+                onChange={(e) => setCourseId(e.target.value)}
+              >
+                <option value="">No class selected</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+              <button className="btn primary" type="button" onClick={createMatch} disabled={isBusy}>
+                Create Invite Code
+              </button>
+            </div>
 
-        <div className="ctaRow">
-          <input
-            className="input"
-            placeholder="Enter invite code"
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-          />
-          <button className="btn" type="button" onClick={joinMatch} disabled={isBusy || !inviteCode}>
-            Join Match
-          </button>
-          <button className="btn" type="button" onClick={() => refreshMatch(match?.id)} disabled={!match?.id}>
-            Refresh Board
-          </button>
-        </div>
+            <div className="ctaRow">
+              <input
+                className="input"
+                placeholder="Enter invite code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              />
+              <button className="btn" type="button" onClick={joinMatch} disabled={isBusy || !inviteCode}>
+                Join Match
+              </button>
+              <button className="btn" type="button" onClick={() => refreshMatch(match?.id)} disabled={!match?.id}>
+                Refresh Board
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="connect4TournamentCard">
+            <p className="connect4TournamentEyebrow">Connect 4 Tournament</p>
+            <h3>You are {tournamentYourColor}</h3>
+            <div className="connect4TournamentLegend">
+              <span>
+                <i className={yourToken === "R" ? "red" : "yellow"} aria-hidden="true" />
+                You
+              </span>
+              <span>
+                <i className={yourToken === "R" ? "yellow" : "red"} aria-hidden="true" />
+                Opponent: {tournamentOpponentColor}
+              </span>
+            </div>
+            <p className="connect4TournamentTurn">{tournamentAdvanceMessage || liveTurnMessage}</p>
+            <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+              <button className="btn" type="button" onClick={() => refreshMatch(match?.id)} disabled={!match?.id}>
+                Refresh Board
+              </button>
+            </div>
+          </div>
+        )}
 
-        {inviteCode ? (
+        {showRegularMatchControls && inviteCode ? (
           <div className="connect4InfoCard">
             <p>
               Invite code: <strong>{inviteCode}</strong>

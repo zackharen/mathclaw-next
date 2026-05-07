@@ -5,6 +5,8 @@ import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import {
   buildInitialTournamentMatches,
   isTournamentParticipantPresent,
+  normalizeTournamentMatchFormat,
+  resolveBestOfThreeSeries,
   shufflePlayers,
   TOURNAMENT_PRESENCE_WINDOW_MS,
 } from "@/lib/student-games/connect4-tournaments";
@@ -165,6 +167,18 @@ async function updateTournamentMatch(admin, matchId, payload) {
   return data;
 }
 
+async function updateTournamentBracket(admin, tournament, bracket) {
+  const { data, error } = await admin
+    .from("connect4_tournaments")
+    .update({ bracket, updated_at: nowIso() })
+    .eq("id", tournament.id)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data || { ...tournament, bracket };
+}
+
 function previousRoundsFinished(matches, roundIndex) {
   return (matches || [])
     .filter((match) => Number(match.round_index) < Number(roundIndex))
@@ -176,6 +190,15 @@ async function syncTournament(admin, tournament) {
 
   let { tournamentMatches, connect4Matches } = await loadTournamentRows(admin, tournament.id);
   const connect4Map = new Map(connect4Matches.map((match) => [match.id, match]));
+  let bracket =
+    tournament.bracket && typeof tournament.bracket === "object"
+      ? { ...tournament.bracket }
+      : {};
+  const matchFormat = normalizeTournamentMatchFormat(bracket.matchFormat);
+  const seriesByMatchId =
+    bracket.seriesByMatchId && typeof bracket.seriesByMatchId === "object"
+      ? { ...bracket.seriesByMatchId }
+      : {};
   let changed = false;
 
   for (const bracketMatch of tournamentMatches) {
@@ -184,7 +207,7 @@ async function syncTournament(admin, tournament) {
     if (!liveMatch || liveMatch.status !== "finished") continue;
 
     const isDraw = Boolean(liveMatch.metadata?.draw);
-    if (isDraw) {
+    if (matchFormat === "single_game" && isDraw) {
       const replay = await createConnect4Match(admin, {
         courseId: tournament.course_id,
         creatorId: tournament.created_by,
@@ -202,11 +225,53 @@ async function syncTournament(admin, tournament) {
       continue;
     }
 
-    Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
-      winner_id: liveMatch.winner_id,
-      status: "finished",
-    }));
+    if (matchFormat === "single_game") {
+      Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
+        winner_id: liveMatch.winner_id,
+        status: "finished",
+      }));
+      changed = true;
+      continue;
+    }
+
+    const seriesResult = resolveBestOfThreeSeries({
+      series: seriesByMatchId[bracketMatch.id],
+      liveMatch,
+      playerOneId: bracketMatch.player_one_id,
+      playerTwoId: bracketMatch.player_two_id,
+    });
+    seriesByMatchId[bracketMatch.id] = seriesResult.series;
+    bracket = {
+      ...bracket,
+      matchFormat,
+      seriesByMatchId,
+    };
+    tournament = await updateTournamentBracket(admin, tournament, bracket);
     changed = true;
+
+    if (seriesResult.action === "series_complete" && seriesResult.winnerId) {
+      Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
+        winner_id: seriesResult.winnerId,
+        status: "finished",
+      }));
+      continue;
+    }
+
+    if (seriesResult.action === "replay_draw" || seriesResult.action === "next_game") {
+      const nextGame = await createConnect4Match(admin, {
+        courseId: tournament.course_id,
+        creatorId: tournament.created_by,
+        playerOneId: bracketMatch.player_one_id,
+        playerTwoId: bracketMatch.player_two_id,
+        tournamentId: tournament.id,
+        tournamentMatchId: bracketMatch.id,
+      });
+      Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
+        connect4_match_id: nextGame.id,
+        status: "active",
+      }));
+      connect4Map.set(nextGame.id, nextGame);
+    }
   }
 
   let propagated = true;
@@ -226,6 +291,7 @@ async function syncTournament(admin, tournament) {
             .update({
               champion_id: bracketMatch.winner_id,
               status: "finished",
+              bracket,
               updated_at: nowIso(),
             })
             .eq("id", tournament.id)
@@ -278,7 +344,7 @@ async function syncTournament(admin, tournament) {
   if (changed && tournament.status !== "finished") {
     const { data } = await admin
       .from("connect4_tournaments")
-      .update({ updated_at: nowIso() })
+      .update({ bracket, updated_at: nowIso() })
       .eq("id", tournament.id)
       .select("*")
       .single();
@@ -381,6 +447,7 @@ export async function POST(request) {
   const action = String(body.action || "");
   const courseId = normalizeId(body.courseId);
   const tournamentId = normalizeId(body.tournamentId);
+  const requestedMatchFormat = normalizeTournamentMatchFormat(body.matchFormat);
 
   try {
     if (action === "create_lobby") {
@@ -397,7 +464,7 @@ export async function POST(request) {
           course_id: courseId,
           created_by: user.id,
           status: "waiting",
-          bracket: { gameSlug: "connect4", rounds: [] },
+          bracket: { gameSlug: "connect4", matchFormat: "single_game", rounds: [], seriesByMatchId: {} },
         })
         .select("*")
         .single();
@@ -512,8 +579,10 @@ export async function POST(request) {
           status: "active",
           bracket: {
             gameSlug: "connect4",
+            matchFormat: requestedMatchFormat,
             bracketSize: bracket.bracketSize,
             rounds: bracket.rounds,
+            seriesByMatchId: {},
           },
           updated_at: nowIso(),
         })
