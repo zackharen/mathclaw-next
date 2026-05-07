@@ -8,7 +8,18 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-07 America/New_York (Connect 4 tournament rematch block)
+2026-05-07 America/New_York (Connect 4 tournament auto-advance)
+
+## What Was Built (2026-05-07 Session — Connect 4 tournament auto-advance)
+- **Tournament Connect 4 winners/draw players now stay in flow from the game page** (`app/play/connect4/game-client.js`):
+  - Finished tournament matches now show a short tournament status message for eligible players.
+  - If the viewer won, the client waits briefly, polls `/api/play/connect4-tournaments?tournamentId=...`, lets the tournament API run `syncTournament()`, and opens the viewer's next active Connect 4 tournament match when one appears.
+  - If the match ended in a draw, both players use the same auto-advance path into the draw replay match once the tournament sync creates it.
+  - If the winner is the champion, the client shows "You won the tournament!" and stops polling instead of redirecting to a missing game.
+  - Losers, teachers/viewers, and non-player observers do not auto-advance. Existing tournament rematch blocking remains intact.
+  - Verification passed: `node --check app/play/connect4/game-client.js`; `node --check app/api/play/connect4-tournaments/route.js`; `node --check app/play/tournaments/tournament-client.js`; `node --test tests/connect4-tournaments.test.mjs`; `npm test`; `npm run build`; `git diff --check`.
+  - Local browser/API verification: dev server initially reproduced the prior local 404 problem while emitting `EMFILE: too many open files, watch`; after restarting the server, `/play/connect4` redirected to sign-in as expected and `/api/play/connect4-tournaments` returned 401 unauthenticated instead of 404. In-app browser reached the sign-in page with no console errors.
+  - Remaining caveat: authenticated multi-student tournament browser verification was blocked by lack of an available local authenticated teacher/student tournament session. Production Tournament Mode still requires `supabase/migrations_20260506_connect4_tournaments.sql` to be applied before real authenticated use.
 
 ## What Was Built (2026-05-07 Session — Connect 4 tournament rematch block)
 - **Blocked regular Connect 4 rematches for tournament-created matches** (`app/play/connect4/game-client.js`, `app/api/play/connect4/route.js`, commit `8ba3fc8`, pushed to `origin/main`):
