@@ -58,6 +58,9 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   const yourToken = useMemo(() => tokenForUser(match, userId), [match, userId]);
   const liveTurnMessage = useMemo(() => turnLabel(match, userId), [match, userId]);
   const liveTurnTone = useMemo(() => turnTone(match, userId), [match, userId]);
+  const isTournamentMatch = Boolean(
+    match?.metadata?.tournamentId || match?.metadata?.tournamentMatchId
+  );
   const canMove =
     !!match &&
     match.status === "active" &&
@@ -65,6 +68,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
     !!yourToken;
   const canRematch =
     !!match &&
+    !isTournamentMatch &&
     match.status === "finished" &&
     !!match.player_one_id &&
     !!match.player_two_id &&

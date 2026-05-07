@@ -389,6 +389,13 @@ export async function POST(request) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
+    if (match.metadata?.tournamentId || match.metadata?.tournamentMatchId) {
+      return NextResponse.json(
+        { error: "Tournament matches cannot be replayed from Connect4." },
+        { status: 400 }
+      );
+    }
+
     const isParticipant =
       match.player_one_id === user.id || match.player_two_id === user.id;
     if (!isParticipant) {
