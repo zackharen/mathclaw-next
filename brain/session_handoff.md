@@ -8,7 +8,16 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-06 America/New_York (Connect 4 Tournament Mode v1)
+2026-05-07 America/New_York (Connect 4 tournament rematch block)
+
+## What Was Built (2026-05-07 Session — Connect 4 tournament rematch block)
+- **Blocked regular Connect 4 rematches for tournament-created matches** (`app/play/connect4/game-client.js`, `app/api/play/connect4/route.js`, commit `8ba3fc8`, pushed to `origin/main`):
+  - Client UI now treats matches with `metadata.tournamentId` or `metadata.tournamentMatchId` as tournament matches and excludes them from `canRematch`, which removes both finished-match buttons: **Play Again** and **Play Again With Same Players**.
+  - The regular `/api/play/connect4` `rematch` action now rejects tournament-created matches before resetting the board, returning HTTP 400 with `{ "error": "Tournament matches cannot be replayed from Connect4." }`.
+  - Tournament-engine draw replay behavior in `app/api/play/connect4-tournaments/route.js` was not changed.
+  - Verification passed: `node --check app/play/connect4/game-client.js`; `node --check app/api/play/connect4/route.js`; `node --test tests/connect4-tournaments.test.mjs`; `npm run build`; `git diff --check`.
+  - Browser/local API verification was blocked: the local dev server started only after network permission, but repeatedly hit `EMFILE: too many open files, watch` and served HTTP 404 for both `/` and `/play/connect4`; authenticated finished-match browser checks also require a logged-in local session and real match data.
+  - Delivery checks: `git ls-remote origin main` confirmed `8ba3fc8d99f4b58b410beb3723bc5ec5b28cc147` on `main`; live `https://www.mathclaw.com/play/connect4` returned 307 to sign-in; live `POST https://www.mathclaw.com/api/play/connect4` returned 401 for unauthenticated requests, confirming the deployed API route is reachable. Vercel connector did not expose a deployment ID for this project; the connector only recommended the Git push path.
 
 ## What Was Built (2026-05-06 Session — Connect 4 Tournament Mode v1)
 - **Connect 4-only Tournament Mode built and pushed** (`app/play/tournaments/*`, `app/api/play/connect4-tournaments/route.js`, `lib/student-games/connect4-tournaments.js`, `supabase/migrations_20260506_connect4_tournaments.sql`, commit `265c6ab`):
