@@ -4,7 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import {
   buildInitialTournamentMatches,
+  deriveBestOfThreeSummary,
   isTournamentParticipantPresent,
+  MATCH_FORMAT_BEST_OF_3,
   normalizeTournamentMatchFormat,
   resolveBestOfThreeSeries,
   shufflePlayers,
@@ -112,7 +114,8 @@ async function fetchTournament(admin, { tournamentId, courseId }) {
   return data || null;
 }
 
-async function loadTournamentRows(admin, tournamentId) {
+async function loadTournamentRows(admin, tournamentOrId) {
+  const tournamentId = typeof tournamentOrId === "string" ? tournamentOrId : tournamentOrId?.id;
   const [{ data: participants }, { data: tournamentMatches }] = await Promise.all([
     admin
       .from("connect4_tournament_participants")
@@ -140,9 +143,25 @@ async function loadTournamentRows(admin, tournamentId) {
     ? await admin.from("profiles").select("id, display_name").in("id", [...profileIds])
     : { data: [] };
 
-  const connect4Ids = (tournamentMatches || [])
-    .map((match) => match.connect4_match_id)
-    .filter(Boolean);
+  const connect4IdSet = new Set(
+    (tournamentMatches || [])
+      .map((match) => match.connect4_match_id)
+      .filter(Boolean)
+  );
+  const bracket =
+    tournamentOrId?.bracket && typeof tournamentOrId.bracket === "object" ? tournamentOrId.bracket : {};
+  const seriesByMatchId =
+    bracket.seriesByMatchId && typeof bracket.seriesByMatchId === "object"
+      ? bracket.seriesByMatchId
+      : {};
+  for (const series of Object.values(seriesByMatchId)) {
+    const games = Array.isArray(series?.games) ? series.games : [];
+    for (const game of games) {
+      if (game?.connect4MatchId) connect4IdSet.add(game.connect4MatchId);
+    }
+  }
+
+  const connect4Ids = [...connect4IdSet];
   const { data: connect4Matches } = connect4Ids.length
     ? await admin.from("connect4_matches").select("*").in("id", connect4Ids)
     : { data: [] };
@@ -188,7 +207,7 @@ function previousRoundsFinished(matches, roundIndex) {
 async function syncTournament(admin, tournament) {
   if (!tournament || tournament.status !== "active") return tournament;
 
-  let { tournamentMatches, connect4Matches } = await loadTournamentRows(admin, tournament.id);
+  let { tournamentMatches, connect4Matches } = await loadTournamentRows(admin, tournament);
   const connect4Map = new Map(connect4Matches.map((match) => [match.id, match]));
   let bracket =
     tournament.bracket && typeof tournament.bracket === "object"
@@ -357,17 +376,51 @@ async function syncTournament(admin, tournament) {
 function buildPayload({ tournament, participants, tournamentMatches, profiles, connect4Matches, viewer }) {
   const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
   const connect4Map = new Map((connect4Matches || []).map((match) => [match.id, normalizeConnect4Match(match)]));
+  const participantNameMap = new Map(
+    (participants || [])
+      .filter((participant) => participant?.user_id)
+      .map((participant) => [
+        participant.user_id,
+        String(participant.display_name || "").trim() || "",
+      ])
+  );
   const canManage = canManageCourse(viewer.courses, tournament.course_id);
   const nowMs = Date.now();
+  const bracket = tournament.bracket && typeof tournament.bracket === "object" ? tournament.bracket : {};
+  const matchFormat = normalizeTournamentMatchFormat(bracket.matchFormat);
+  const seriesByMatchId =
+    bracket.seriesByMatchId && typeof bracket.seriesByMatchId === "object"
+      ? bracket.seriesByMatchId
+      : {};
+  const displayNameFor = (userId) =>
+    participantNameMap.get(userId) || profileMap.get(userId)?.display_name || "";
+  const gamePayloadFor = (game, match) => {
+    const connect4Match = connect4Map.get(game?.connect4MatchId) || null;
+    if (!connect4Match) return null;
+    const winnerName = displayNameFor(game?.winnerId || connect4Match.winner_id) || "";
+    return {
+      connect4MatchId: connect4Match.id,
+      gameNumber: Number(game?.gameNumber || 0) || 1,
+      winnerId: game?.winnerId || connect4Match.winner_id || null,
+      winnerName,
+      board: connect4Match.board,
+      status: connect4Match.status,
+      metadata: connect4Match.metadata || {},
+      draw: Boolean(game?.draw || connect4Match.metadata?.draw),
+      isCurrent: connect4Match.id === match.connect4_match_id,
+      playerOneId: match.player_one_id,
+      playerTwoId: match.player_two_id,
+    };
+  };
 
   return {
     tournament: {
       id: tournament.id,
       courseId: tournament.course_id,
       status: tournament.status,
-      bracket: tournament.bracket || {},
+      bracket,
       championId: tournament.champion_id,
-      championName: profileMap.get(tournament.champion_id)?.display_name || "",
+      championName: displayNameFor(tournament.champion_id) || "",
       createdAt: tournament.created_at,
       updatedAt: tournament.updated_at,
       canManage,
@@ -375,28 +428,82 @@ function buildPayload({ tournament, participants, tournamentMatches, profiles, c
     participants: (participants || []).map((participant) => ({
       id: participant.id,
       userId: participant.user_id,
-      displayName: participant.display_name || profileMap.get(participant.user_id)?.display_name || "Student",
+      displayName: displayNameFor(participant.user_id) || "Student",
       status: participant.status,
       seed: participant.seed,
       isPresent: isTournamentParticipantPresent(participant, nowMs),
       joinedAt: participant.joined_at,
       updatedAt: participant.updated_at,
     })),
-    matches: (tournamentMatches || []).map((match) => ({
-      id: match.id,
-      roundIndex: match.round_index,
-      matchIndex: match.match_index,
-      status: match.status,
-      connect4MatchId: match.connect4_match_id,
-      playerOneId: match.player_one_id,
-      playerTwoId: match.player_two_id,
-      winnerId: match.winner_id,
-      playerOneName: profileMap.get(match.player_one_id)?.display_name || "",
-      playerTwoName: profileMap.get(match.player_two_id)?.display_name || "",
-      winnerName: profileMap.get(match.winner_id)?.display_name || "",
-      updatedAt: match.updated_at,
-      connect4Match: connect4Map.get(match.connect4_match_id) || null,
-    })),
+    matches: (tournamentMatches || []).map((match) => {
+      const playerOneName = displayNameFor(match.player_one_id);
+      const playerTwoName = displayNameFor(match.player_two_id);
+      const isBestOfThreeMatch =
+        matchFormat === MATCH_FORMAT_BEST_OF_3 && match.player_one_id && match.player_two_id;
+      const series = isBestOfThreeMatch ? seriesByMatchId[match.id] : null;
+      const seriesGames = Array.isArray(series?.games)
+        ? series.games.map((game) => gamePayloadFor(game, match)).filter(Boolean)
+        : [];
+      const currentGameInSeries = seriesGames.find((game) => game.isCurrent) || null;
+      if (isBestOfThreeMatch && match.connect4_match_id && !currentGameInSeries) {
+        const currentMatch = connect4Map.get(match.connect4_match_id);
+        if (currentMatch) {
+          seriesGames.push({
+            connect4MatchId: currentMatch.id,
+            gameNumber:
+              deriveBestOfThreeSummary({
+                series,
+                playerOneId: match.player_one_id,
+                playerTwoId: match.player_two_id,
+                playerOneName,
+                playerTwoName,
+                activeConnect4MatchId: match.connect4_match_id,
+                status: match.status,
+              }).gameNumber || 1,
+            winnerId: currentMatch.winner_id || null,
+            winnerName: displayNameFor(currentMatch.winner_id) || "",
+            board: currentMatch.board,
+            status: currentMatch.status,
+            metadata: currentMatch.metadata || {},
+            draw: Boolean(currentMatch.metadata?.draw),
+            isCurrent: true,
+            playerOneId: match.player_one_id,
+            playerTwoId: match.player_two_id,
+          });
+        }
+      }
+      const seriesSummary =
+        isBestOfThreeMatch
+          ? deriveBestOfThreeSummary({
+              series,
+              playerOneId: match.player_one_id,
+              playerTwoId: match.player_two_id,
+              playerOneName,
+              playerTwoName,
+              activeConnect4MatchId: match.connect4_match_id,
+              status: match.status,
+            })
+          : null;
+      return {
+        id: match.id,
+        roundIndex: match.round_index,
+        matchIndex: match.match_index,
+        status: match.status,
+        matchFormat,
+        connect4MatchId: match.connect4_match_id,
+        playerOneId: match.player_one_id,
+        playerTwoId: match.player_two_id,
+        winnerId: match.winner_id,
+        playerOneName,
+        playerTwoName,
+        winnerName: displayNameFor(match.winner_id) || "",
+        updatedAt: match.updated_at,
+        connect4Match: connect4Map.get(match.connect4_match_id) || null,
+        seriesSummary,
+        seriesGames,
+        previousGames: seriesGames.filter((game) => !game.isCurrent),
+      };
+    }),
     viewer: {
       userId: viewer.user.id,
       canManage,
@@ -406,7 +513,7 @@ function buildPayload({ tournament, participants, tournamentMatches, profiles, c
 
 async function loadPayload(admin, tournament, viewer) {
   const syncedTournament = await syncTournament(admin, tournament);
-  const rows = await loadTournamentRows(admin, syncedTournament.id);
+  const rows = await loadTournamentRows(admin, syncedTournament);
   return buildPayload({ tournament: syncedTournament, viewer, ...rows });
 }
 

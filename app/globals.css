@@ -1551,6 +1551,56 @@ details[open] > summary.gameControlsSummary .hideLabel {
   font-weight: 900;
 }
 
+.connect4TournamentSeries {
+  margin: 0.55rem 0 0;
+  color: #12395f;
+  font-weight: 900;
+}
+
+.connect4PreviousGames {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(16, 32, 51, 0.14);
+}
+
+.connect4PreviousGames h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #12395f;
+}
+
+.connect4PreviousGame {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.connect4PreviousGame p {
+  margin: 0;
+  font-weight: 900;
+}
+
+.connect4MiniBoard {
+  --slot: 1.55rem;
+  display: grid;
+  grid-template-columns: repeat(7, var(--slot));
+  gap: 0.18rem;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.35rem;
+  border-radius: 8px;
+  background: var(--navy);
+  overflow: hidden;
+}
+
+.connect4MiniCell {
+  width: var(--slot);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+}
+
 .connect4TurnBanner {
   display: flex;
   flex-wrap: wrap;
@@ -1763,6 +1813,13 @@ details[open] > summary.gameControlsSummary .hideLabel {
   opacity: 0.78;
 }
 
+.tournamentSeriesLine {
+  margin: 0.25rem auto 0.75rem;
+  text-align: center;
+  color: var(--tournament-blue);
+  font-weight: 900;
+}
+
 .tournamentParticipantGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -1882,6 +1939,19 @@ details[open] > summary.gameControlsSummary .hideLabel {
   background: #eef4fb;
   color: #12395f;
   font-weight: 900;
+}
+
+.tournamentSeriesGames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.tournamentSeriesGames .btn {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.86rem;
 }
 
 .tournamentBoardModal {

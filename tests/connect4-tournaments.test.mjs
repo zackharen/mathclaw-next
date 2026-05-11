@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildInitialTournamentMatches,
+  deriveBestOfThreeSummary,
   normalizeTournamentMatchFormat,
   nextPowerOfTwo,
   resolveBestOfThreeSeries,
@@ -89,9 +90,12 @@ test("best of three ignores draws and asks for a replay", () => {
   assert.equal(result.action, "replay_draw");
   assert.deepEqual(result.series.countedMatchIds, []);
   assert.deepEqual(result.series.winsByPlayerId, {});
+  assert.deepEqual(result.series.games, [
+    { connect4MatchId: "connect4-1", gameNumber: 1, winnerId: null, draw: true },
+  ]);
 });
 
-test("best of three needs another game after one player win", () => {
+test("best of three needs game two after one player win and shows a 1-0 score", () => {
   const result = resolveBestOfThreeSeries({
     series: {},
     playerOneId: "player-1",
@@ -106,9 +110,57 @@ test("best of three needs another game after one player win", () => {
   assert.equal(result.action, "next_game");
   assert.deepEqual(result.series.countedMatchIds, ["connect4-1"]);
   assert.equal(result.series.winsByPlayerId["player-1"], 1);
+
+  const summary = deriveBestOfThreeSummary({
+    series: result.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    playerOneName: "Student A",
+    playerTwoName: "Student B",
+    status: "active",
+  });
+  assert.equal(summary.summaryText, "Game 2 · Student A leads 1-0");
+  assert.equal(summary.isComplete, false);
 });
 
-test("best of three completes after a second win and does not double count", () => {
+test("best of three needs game three after split wins and shows a 1-1 score", () => {
+  const first = resolveBestOfThreeSeries({
+    series: {},
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-1",
+      winner_id: "player-1",
+      metadata: { draw: false },
+    },
+  });
+  const second = resolveBestOfThreeSeries({
+    series: first.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-2",
+      winner_id: "player-2",
+      metadata: { draw: false },
+    },
+  });
+
+  assert.equal(second.action, "next_game");
+  assert.equal(second.series.winsByPlayerId["player-1"], 1);
+  assert.equal(second.series.winsByPlayerId["player-2"], 1);
+
+  const summary = deriveBestOfThreeSummary({
+    series: second.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    playerOneName: "Student A",
+    playerTwoName: "Student B",
+    status: "active",
+  });
+  assert.equal(summary.summaryText, "Game 3 · Series tied 1-1");
+});
+
+test("best of three completes 2-0 after a second win and does not double count", () => {
   const result = resolveBestOfThreeSeries({
     series: {
       countedMatchIds: ["connect4-1"],
@@ -141,4 +193,110 @@ test("best of three completes after a second win and does not double count", () 
 
   assert.equal(duplicate.action, "series_complete");
   assert.equal(duplicate.series.winsByPlayerId["player-1"], 2);
+
+  const summary = deriveBestOfThreeSummary({
+    series: duplicate.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    playerOneName: "Student A",
+    playerTwoName: "Student B",
+    status: "finished",
+  });
+  assert.equal(summary.summaryText, "Student A wins series 2-0");
+  assert.equal(summary.isComplete, true);
+});
+
+test("best of three completes 2-1 after split wins", () => {
+  const series = {
+    countedMatchIds: ["connect4-1", "connect4-2"],
+    winsByPlayerId: { "player-1": 1, "player-2": 1 },
+    games: [
+      { connect4MatchId: "connect4-1", gameNumber: 1, winnerId: "player-1", draw: false },
+      { connect4MatchId: "connect4-2", gameNumber: 2, winnerId: "player-2", draw: false },
+    ],
+  };
+  const result = resolveBestOfThreeSeries({
+    series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-3",
+      winner_id: "player-1",
+      metadata: { draw: false },
+    },
+  });
+
+  assert.equal(result.action, "series_complete");
+  assert.equal(result.winnerId, "player-1");
+
+  const summary = deriveBestOfThreeSummary({
+    series: result.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    playerOneName: "Student A",
+    playerTwoName: "Student B",
+    status: "finished",
+  });
+  assert.equal(summary.summaryText, "Student A wins series 2-1");
+});
+
+test("best of three duplicate live match processing does not double-count", () => {
+  const first = resolveBestOfThreeSeries({
+    series: {},
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-1",
+      winner_id: "player-1",
+      metadata: { draw: false },
+    },
+  });
+  const duplicate = resolveBestOfThreeSeries({
+    series: first.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-1",
+      winner_id: "player-1",
+      metadata: { draw: false },
+    },
+  });
+
+  assert.equal(duplicate.action, "next_game");
+  assert.equal(duplicate.series.countedMatchIds.length, 1);
+  assert.equal(duplicate.series.winsByPlayerId["player-1"], 1);
+  assert.equal(duplicate.series.games.length, 1);
+});
+
+test("best of three draw keeps score unchanged and reuses the same game number", () => {
+  const first = resolveBestOfThreeSeries({
+    series: {
+      countedMatchIds: ["connect4-1"],
+      winsByPlayerId: { "player-1": 1 },
+      games: [{ connect4MatchId: "connect4-1", gameNumber: 1, winnerId: "player-1", draw: false }],
+    },
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-2",
+      winner_id: null,
+      metadata: { draw: true },
+    },
+  });
+  const duplicate = resolveBestOfThreeSeries({
+    series: first.series,
+    playerOneId: "player-1",
+    playerTwoId: "player-2",
+    liveMatch: {
+      id: "connect4-2",
+      winner_id: null,
+      metadata: { draw: true },
+    },
+  });
+
+  assert.equal(first.action, "replay_draw");
+  assert.equal(first.series.winsByPlayerId["player-1"], 1);
+  assert.equal(first.series.winsByPlayerId["player-2"] || 0, 0);
+  assert.equal(first.series.games.at(-1).gameNumber, 2);
+  assert.equal(duplicate.series.games.length, first.series.games.length);
 });

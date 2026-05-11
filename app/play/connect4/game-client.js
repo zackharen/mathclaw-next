@@ -48,6 +48,35 @@ function turnTone(match, userId) {
   return match.current_turn_id === userId ? "yourTurn" : "theirTurn";
 }
 
+function readOnlyGameLabel(game) {
+  const prefix = `Game ${game?.gameNumber || 1}`;
+  if (game?.draw) return `${prefix}: draw`;
+  if (game?.winnerName) return `${prefix}: ${game.winnerName} won`;
+  return prefix;
+}
+
+function ReadOnlyTournamentGame({ game }) {
+  const board = game?.board || [];
+  if (!board.length) return null;
+
+  return (
+    <div className="connect4PreviousGame">
+      <p>{readOnlyGameLabel(game)}</p>
+      <div className="connect4MiniBoard" aria-label={`${readOnlyGameLabel(game)} board`}>
+        {board.map((row, rowIndex) =>
+          row.map((value, colIndex) => (
+            <span
+              key={`${game.connect4MatchId}-${rowIndex}-${colIndex}`}
+              className="connect4MiniCell"
+              style={{ background: cellColor(value) }}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Connect4Client({ courses, userId, initialCourseId = "", initialMatchId = "" }) {
   const router = useRouter();
   const [courseId, setCourseId] = useState(initialCourseId || courses[0]?.id || "");
@@ -55,6 +84,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   const [match, setMatch] = useState(null);
   const [status, setStatus] = useState("");
   const [tournamentAdvanceMessage, setTournamentAdvanceMessage] = useState("");
+  const [tournamentContext, setTournamentContext] = useState(null);
   const [isBusy, setIsBusy] = useState(false);
   const [nowTick, setNowTick] = useState(0);
   const redirectedTournamentMatchRef = useRef("");
@@ -73,7 +103,16 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   const matchStatus = match?.status || "";
   const matchWinnerId = match?.winner_id || "";
   const tournamentId = match?.metadata?.tournamentId || "";
+  const tournamentMatchId = match?.metadata?.tournamentMatchId || "";
   const tournamentMatchIsDraw = Boolean(match?.metadata?.draw);
+  const tournamentMatchContext = useMemo(
+    () => (tournamentContext?.matches || []).find((candidate) => candidate.id === tournamentMatchId) || null,
+    [tournamentContext, tournamentMatchId]
+  );
+  const tournamentPreviousGames = useMemo(() => {
+    if (!showTournamentMatchControls || tournamentMatchContext?.matchFormat !== "best_of_3") return [];
+    return (tournamentMatchContext.previousGames || []).filter((game) => game.connect4MatchId !== matchId);
+  }, [matchId, showTournamentMatchControls, tournamentMatchContext]);
   const canMove =
     !!match &&
     match.status === "active" &&
@@ -122,6 +161,19 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
       setMatch(data.match);
     }
   }, []);
+
+  const refreshTournamentContext = useCallback(async () => {
+    if (!tournamentId || !isTournamentMatch || !isViewerInMatch) return null;
+    const response = await fetch(
+      `/api/play/connect4-tournaments?tournamentId=${encodeURIComponent(tournamentId)}`
+    );
+    const data = await response.json();
+    if (response.ok) {
+      setTournamentContext(data);
+      return data;
+    }
+    return null;
+  }, [isTournamentMatch, isViewerInMatch, tournamentId]);
 
   useEffect(() => {
     if (!initialMatchId) return;
@@ -224,6 +276,16 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   }, [match?.id, refreshMatch]);
 
   useEffect(() => {
+    if (!tournamentId || !isTournamentMatch || !isViewerInMatch) {
+      setTournamentContext(null);
+      return undefined;
+    }
+    refreshTournamentContext();
+    const interval = window.setInterval(refreshTournamentContext, 2500);
+    return () => window.clearInterval(interval);
+  }, [isTournamentMatch, isViewerInMatch, refreshTournamentContext, tournamentId]);
+
+  useEffect(() => {
     if (!match || match.status !== "active" || !gameStartedAt) return undefined;
     const interval = window.setInterval(() => {
       setNowTick(Date.now());
@@ -241,8 +303,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
       return undefined;
     }
 
-    const shouldLookForNextMatch = tournamentMatchIsDraw || matchWinnerId === userId;
-    if (!tournamentId || !shouldLookForNextMatch) {
+    if (!tournamentId) {
       setTournamentAdvanceMessage("");
       return undefined;
     }
@@ -253,7 +314,9 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
     setTournamentAdvanceMessage(
       tournamentMatchIsDraw
         ? "Draw. Loading the replay..."
-        : "You won. Loading your next tournament game..."
+        : matchWinnerId === userId
+          ? "Game won. Loading the next game..."
+          : "Game lost. Loading the next game..."
     );
 
     async function checkTournament() {
@@ -265,9 +328,10 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
         if (stopped) return;
 
         if (!response.ok) {
-          setTournamentAdvanceMessage(data.error || "Still looking for your next tournament game...");
+          setTournamentAdvanceMessage(data.error || "Waiting for the next game...");
           return;
         }
+        setTournamentContext(data);
 
         if (data.tournament?.status === "finished" && data.tournament?.championId === userId) {
           setTournamentAdvanceMessage("You won the tournament!");
@@ -275,6 +339,14 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
           return;
         }
 
+        const sameSeriesMatch = (data.matches || []).find((candidate) => candidate.id === tournamentMatchId);
+        const nextSeriesGame =
+          sameSeriesMatch?.status === "active" &&
+          sameSeriesMatch.connect4MatchId &&
+          sameSeriesMatch.connect4MatchId !== matchId &&
+          (sameSeriesMatch.playerOneId === userId || sameSeriesMatch.playerTwoId === userId)
+            ? sameSeriesMatch
+            : null;
         const nextMatch = (data.matches || []).find(
           (candidate) =>
             candidate.status === "active" &&
@@ -282,23 +354,36 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
             candidate.connect4MatchId !== matchId &&
             (candidate.playerOneId === userId || candidate.playerTwoId === userId)
         );
+        const matchToOpen = nextSeriesGame || nextMatch;
 
-        if (nextMatch?.connect4MatchId) {
-          if (redirectedTournamentMatchRef.current === nextMatch.connect4MatchId) return;
-          redirectedTournamentMatchRef.current = nextMatch.connect4MatchId;
+        if (matchToOpen?.connect4MatchId) {
+          if (redirectedTournamentMatchRef.current === matchToOpen.connect4MatchId) return;
+          redirectedTournamentMatchRef.current = matchToOpen.connect4MatchId;
           setTournamentAdvanceMessage("Next tournament game ready. Opening it now...");
-          router.replace(`/play/connect4?match=${encodeURIComponent(nextMatch.connect4MatchId)}`);
+          router.replace(`/play/connect4?match=${encodeURIComponent(matchToOpen.connect4MatchId)}`);
+          return;
+        }
+
+        if (sameSeriesMatch?.seriesSummary?.isComplete || sameSeriesMatch?.status === "finished") {
+          setTournamentAdvanceMessage(matchWinnerId === userId ? "Waiting for the next game..." : "Series finished.");
+          if (matchWinnerId !== userId && interval) window.clearInterval(interval);
+          return;
+        }
+
+        if (data.tournament?.status === "finished") {
+          setTournamentAdvanceMessage("Tournament finished.");
+          if (interval) window.clearInterval(interval);
           return;
         }
 
         setTournamentAdvanceMessage(
           tournamentMatchIsDraw
-            ? "Draw. Waiting for the replay..."
-            : "You won. Waiting for your next matchup..."
+            ? "Draw. Loading the replay..."
+            : "Waiting for the next game..."
         );
       } catch {
         if (!stopped) {
-          setTournamentAdvanceMessage("Still looking for your next tournament game...");
+          setTournamentAdvanceMessage("Waiting for the next game...");
         }
       }
     }
@@ -321,6 +406,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
     matchWinnerId,
     router,
     tournamentId,
+    tournamentMatchId,
     tournamentMatchIsDraw,
     userId,
   ]);
@@ -384,6 +470,9 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
               </span>
             </div>
             <p className="connect4TournamentTurn">{tournamentAdvanceMessage || liveTurnMessage}</p>
+            {tournamentMatchContext?.seriesSummary?.summaryText ? (
+              <p className="connect4TournamentSeries">{tournamentMatchContext.seriesSummary.summaryText}</p>
+            ) : null}
             <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
               <button className="btn" type="button" onClick={() => refreshMatch(match?.id)} disabled={!match?.id}>
                 Refresh Board
@@ -436,6 +525,14 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
           <p style={{ marginTop: "0.75rem", fontWeight: 700 }}>
             {tournamentAdvanceMessage}
           </p>
+        ) : null}
+        {tournamentPreviousGames.length ? (
+          <div className="connect4PreviousGames">
+            <h3>Previous games</h3>
+            {tournamentPreviousGames.map((game) => (
+              <ReadOnlyTournamentGame key={game.connect4MatchId} game={game} />
+            ))}
+          </div>
         ) : null}
       </section>
 

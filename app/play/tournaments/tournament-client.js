@@ -51,6 +51,24 @@ function statusLabel(match) {
   return "Waiting";
 }
 
+function seriesLine(match) {
+  return match?.seriesSummary?.summaryText || "";
+}
+
+function seriesGameLabel(game) {
+  const prefix = `Game ${game?.gameNumber || 1}`;
+  if (game?.draw) return `${prefix}: draw`;
+  if (game?.winnerName) return `${prefix}: ${game.winnerName} won`;
+  return prefix;
+}
+
+function readOnlyGameStatus(match, game) {
+  if (!game) return turnStatusText(match);
+  if (game.draw) return `${seriesGameLabel(game)}.`;
+  if (game.winnerName) return `${seriesGameLabel(game)}.`;
+  return `Game ${game.gameNumber || 1}.`;
+}
+
 function BoardPreview({ match }) {
   const board = match?.connect4Match?.board || [];
 
@@ -84,9 +102,29 @@ function PlayerLegend({ match }) {
   );
 }
 
-function LargeBoardModal({ match, onClose }) {
+function PreviousGameButtons({ match, onOpenBoard }) {
+  const previousGames = match?.previousGames || [];
+  if (!previousGames.length || !onOpenBoard) return null;
+
+  return (
+    <div className="tournamentSeriesGames" aria-label="Previous games">
+      {previousGames.map((game) => (
+        <button
+          key={game.connect4MatchId}
+          type="button"
+          className="btn small"
+          onClick={() => onOpenBoard(match, game)}
+        >
+          Game {game.gameNumber || 1}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LargeBoardModal({ match, game, onClose }) {
   if (!match) return null;
-  const board = match.connect4Match?.board || [];
+  const board = game?.board || match.connect4Match?.board || [];
 
   return (
     <div className="doubleBoardModalBackdrop" role="presentation" onClick={onClose}>
@@ -104,8 +142,9 @@ function LargeBoardModal({ match, onClose }) {
         <h2 id="tournament-board-modal-title">
           {matchPlayerName(match, "one")} vs. {matchPlayerName(match, "two")}
         </h2>
+        {game ? <p className="tournamentSeriesLine">{seriesGameLabel(game)}</p> : null}
         <PlayerLegend match={match} />
-        <p className="tournamentTurnLine">{turnStatusText(match)}</p>
+        <p className="tournamentTurnLine">{readOnlyGameStatus(match, game)}</p>
         <div className="tournamentLargeBoard" aria-label="Large Connect 4 board">
           {board.map((row, rowIndex) =>
             row.map((value, colIndex) => (
@@ -175,7 +214,7 @@ function Bracket({ tournament, matches }) {
                     <div className={match.winnerId === match.playerTwoId ? "winner" : ""}>
                       {matchPlayerName(match, "two")}
                     </div>
-                    <span>{statusLabel(match)}</span>
+                    <span>{seriesLine(match) || statusLabel(match)}</span>
                   </article>
                 ))}
               </div>
@@ -196,13 +235,14 @@ function MatchCard({ match, viewerId, canManage, onOpenBoard }) {
       <div className="tournamentMatchHeader">
         <div>
           <h3>{match.playerOneName || "TBD"} vs. {match.playerTwoName || "TBD"}</h3>
-          <p>{statusLabel(match)}</p>
+          <p>{seriesLine(match) || statusLabel(match)}</p>
         </div>
         {match.status === "active" ? <span className="pill">Live</span> : null}
       </div>
       {match.connect4Match ? <BoardPreview match={match} /> : null}
       <PlayerLegend match={match} />
       <p className="tournamentTurnLine">{turnStatusText(match)}</p>
+      <PreviousGameButtons match={match} onOpenBoard={onOpenBoard} />
       <div className="ctaRow">
         {viewerCanPlay && href ? (
           <Link className="btn primary" href={href}>
@@ -210,7 +250,7 @@ function MatchCard({ match, viewerId, canManage, onOpenBoard }) {
           </Link>
         ) : null}
         {canManage && href ? (
-          <button className="btn" type="button" onClick={() => onOpenBoard(match)}>
+          <button className="btn" type="button" onClick={() => onOpenBoard(match, null)}>
             Large View
           </button>
         ) : null}
@@ -225,7 +265,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [matchFormat, setMatchFormat] = useState("single_game");
-  const [selectedBoardMatchId, setSelectedBoardMatchId] = useState("");
+  const [selectedBoard, setSelectedBoard] = useState(null);
 
   const tournament = payload?.tournament || null;
   const matches = payload?.matches || [];
@@ -241,7 +281,10 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
   const completedMatches = matches
     .filter((match) => match.status === "finished")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  const selectedBoardMatch = matches.find((match) => match.id === selectedBoardMatchId) || null;
+  const selectedBoardMatch = selectedBoard?.matchId
+    ? matches.find((match) => match.id === selectedBoard.matchId) || null
+    : null;
+  const selectedBoardGame = selectedBoard?.game || null;
 
   const fetchTournament = useCallback(async () => {
     if (!courseId) return;
@@ -423,7 +466,13 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
           ) : (
             <div className="tournamentGameGrid">
               {viewerMatches.map((match) => (
-                <MatchCard key={match.id} match={match} viewerId={userId} canManage={false} />
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  viewerId={userId}
+                  canManage={false}
+                  onOpenBoard={(selectedMatch, game) => setSelectedBoard({ matchId: selectedMatch.id, game })}
+                />
               ))}
             </div>
           )}
@@ -444,7 +493,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
                     match={match}
                     viewerId={userId}
                     canManage
-                    onOpenBoard={(selectedMatch) => setSelectedBoardMatchId(selectedMatch.id)}
+                    onOpenBoard={(selectedMatch, game) => setSelectedBoard({ matchId: selectedMatch.id, game })}
                   />
                 ))}
               </div>
@@ -462,7 +511,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
                     match={match}
                     viewerId={userId}
                     canManage
-                    onOpenBoard={(selectedMatch) => setSelectedBoardMatchId(selectedMatch.id)}
+                    onOpenBoard={(selectedMatch, game) => setSelectedBoard({ matchId: selectedMatch.id, game })}
                   />
                 ))}
               </div>
@@ -471,7 +520,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
         </>
       ) : null}
       {selectedBoardMatch ? (
-        <LargeBoardModal match={selectedBoardMatch} onClose={() => setSelectedBoardMatchId("")} />
+        <LargeBoardModal match={selectedBoardMatch} game={selectedBoardGame} onClose={() => setSelectedBoard(null)} />
       ) : null}
     </div>
   );
