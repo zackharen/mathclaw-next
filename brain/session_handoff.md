@@ -8,7 +8,21 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-07 America/New_York (Connect 4 tournament UX + best-of-3)
+2026-05-11 America/New_York (Connect 4 tournament best-of-3 follow-up)
+
+## What Was Built (2026-05-11 Session — Connect 4 tournament best-of-3 follow-up)
+- **Connect 4 Tournament best-2-of-3 behavior fixed and improved** (`app/api/play/connect4-tournaments/route.js`, `lib/student-games/connect4-tournaments.js`, `app/play/tournaments/tournament-client.js`, `app/play/connect4/game-client.js`, `app/globals.css`, `tests/connect4-tournaments.test.mjs`, commit `80e84a0`, pushed to `origin/main`):
+  - Best-of-3 tournament players now both poll after a finished non-final series game. Winners see "Game won. Loading the next game...", losers see "Game lost. Loading the next game...", draws see "Draw. Loading the replay...", and the champion still sees "You won the tournament!" without redirecting.
+  - Losers of a completed series no longer sit on an endless "waiting" message; the game page settles on "Series finished." when no next game belongs to them.
+  - Shared best-of-3 series logic now records draw games as uncounted series games, avoids double-counting duplicate live-match processing, and exports `deriveBestOfThreeSummary()` for structured labels.
+  - Tournament payloads now include best-of-3 summaries plus `seriesGames` / `previousGames` board data from all Connect 4 game IDs stored in the series, not just the current match row's `connect4_match_id`.
+  - Tournament boxes and bracket cards show labels such as "Game 2 · Student A leads 1-0", "Game 3 · Series tied 1-1", and finished series scores. Single-game tournaments and byes do not show best-of-3 labels.
+  - Teacher live/finished cards, student "Your Tournament Games" cards, and the Connect 4 tournament game page can show prior best-of-3 games as read-only boards; prior-game views do not expose Drop buttons or rematch controls.
+  - Tournament match names now prefer `connect4_tournament_participants.display_name`, falling back to profile display names and then "Student", for player names, winners, and champion.
+  - Verification passed: `node --check app/api/play/connect4-tournaments/route.js`; `node --check lib/student-games/connect4-tournaments.js`; `node --check app/play/tournaments/tournament-client.js`; `node --check app/play/connect4/game-client.js`; `node --test tests/connect4-tournaments.test.mjs`; `npm test`; `npm run build`; `git diff --check`.
+  - Local/browser route verification: `next dev` on port 3000 still reproduced the known `EMFILE: too many open files, watch` issue and served 404 for tournament/connect4 routes. Built server on `localhost:3001` returned 307 sign-in redirects for `/play/tournaments` and `/play/connect4`, and `/api/play/connect4-tournaments` returned 401 unauthenticated instead of 404. Full authenticated teacher/student tournament UI verification remains blocked without an available local authenticated tournament session.
+  - Live checks after push: `https://www.mathclaw.com/play/tournaments` returned 307 to sign-in, `https://www.mathclaw.com/play/connect4` returned 307 to sign-in, `https://www.mathclaw.com/api/play/connect4-tournaments` returned 401 unauthenticated, and `git ls-remote origin main` confirmed `80e84a07961fcf5882af8adf263ed999031e2514` on `main`.
+  - Remaining caveat: production Tournament Mode still requires `supabase/migrations_20260506_connect4_tournaments.sql` to be applied before real authenticated use.
 
 ## What Was Built (2026-05-07 Session — Connect 4 tournament UX + best-of-3)
 - **Connect 4 Tournament Mode UX and match format behavior updated** (`app/play/tournaments/tournament-client.js`, `app/api/play/connect4-tournaments/route.js`, `lib/student-games/connect4-tournaments.js`, `app/play/connect4/game-client.js`, `app/globals.css`, `tests/connect4-tournaments.test.mjs`):
