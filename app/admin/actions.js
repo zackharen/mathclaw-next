@@ -64,6 +64,16 @@ function isMissingColumnError(error, columnName) {
   );
 }
 
+function adminReturnPath(formData, fallbackParams = {}) {
+  const rawReturnTo = String(formData.get("return_to") || "").trim();
+  if (rawReturnTo.startsWith("/admin")) {
+    return rawReturnTo;
+  }
+
+  const params = new URLSearchParams({ view: "accounts", ...fallbackParams });
+  return `/admin?${params.toString()}`;
+}
+
 async function getManagedAuthUser(admin, userId) {
   const { data: authUserData, error: getUserError } = await admin.auth.admin.getUserById(userId);
   if (getUserError) {
@@ -189,6 +199,108 @@ async function addUserToClass(admin, userId, courseId, authUser) {
     );
 
   return error || null;
+}
+
+export async function saveAccountSettingsAction(formData) {
+  const { admin, context } = await requireAdminActor();
+
+  const userId = String(formData.get("user_id") || "").trim();
+  const firstName = String(formData.get("first_name") || "").trim();
+  const lastName = String(formData.get("last_name") || "").trim();
+  const displayName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const nickname = String(formData.get("nickname") || "").trim();
+  const selectedSchoolName = String(formData.get("school_name") || "").trim();
+  const newSchoolName = String(formData.get("new_school_name") || "").trim();
+  const schoolName = newSchoolName || selectedSchoolName;
+  const nextType = normalizeAccountType(String(formData.get("account_type") || "teacher").trim());
+  const discoverable = nextType === "teacher" && String(formData.get("discoverable") || "") === "true";
+  const courseId = String(formData.get("course_id") || "").trim();
+  const returnTo = adminReturnPath(formData, { open: userId });
+
+  if (!userId || !displayName) {
+    redirect(`${returnTo}&error=${encodeURIComponent("missing-user")}`);
+  }
+
+  const authUser = await getManagedAuthUser(admin, userId);
+  const profile = await assertUserIsInScope(admin, context, authUser);
+  const currentMetadata = authUser?.user_metadata || {};
+  const currentSchoolName = String(profile?.school_name || authUser?.user_metadata?.school_name || "").trim();
+
+  if (!context.isOwner) {
+    if (schoolName && schoolName !== context.schoolName) {
+      redirect(`${returnTo}&error=${encodeURIComponent("Admins can only assign users to their own school.")}`);
+    }
+    if (currentSchoolName && currentSchoolName !== context.schoolName) {
+      redirect(`${returnTo}&error=${encodeURIComponent("Admins can only edit school assignments in their own school.")}`);
+    }
+  }
+
+  await ensureManagedProfile(admin, authUser);
+
+  const profilePayload = {
+    display_name: displayName,
+    nickname: nickname || null,
+    school_name: schoolName || null,
+    account_type: nextType,
+    discoverable,
+    updated_at: new Date().toISOString(),
+  };
+
+  let profileError = null;
+  const omittedColumns = new Set();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const payload = Object.fromEntries(
+      Object.entries(profilePayload).filter(([key]) => !omittedColumns.has(key))
+    );
+    const result = await admin.from("profiles").update(payload).eq("id", userId);
+    profileError = result.error;
+    if (!profileError) break;
+
+    const missingColumn = ["nickname", "account_type", "discoverable", "updated_at"].find((column) =>
+      isMissingColumnError(profileError, column)
+    );
+    if (!missingColumn || omittedColumns.has(missingColumn)) break;
+    omittedColumns.add(missingColumn);
+  }
+
+  if (profileError) {
+    redirect(`${returnTo}&error=${encodeURIComponent(profileError.message)}`);
+  }
+
+  if (courseId) {
+    await assertCourseIsInScope(admin, context, courseId);
+    const membershipError = await addUserToClass(admin, userId, courseId, authUser);
+    if (membershipError) {
+      redirect(`${returnTo}&error=${encodeURIComponent(membershipError.message)}`);
+    }
+  }
+
+  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      ...currentMetadata,
+      display_name: displayName,
+      full_name: displayName,
+      name: displayName,
+      first_name: firstName || splitDisplayName(displayName).firstName,
+      last_name: lastName || splitDisplayName(displayName).lastName,
+      nickname: nickname || null,
+      school_name: schoolName || null,
+      account_type: nextType,
+      discoverable,
+    },
+  });
+
+  if (authError) {
+    redirect(`${returnTo}&error=${encodeURIComponent(authError.message)}`);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/play");
+  revalidatePath("/teachers");
+  revalidatePath("/");
+
+  const separator = returnTo.includes("?") ? "&" : "?";
+  redirect(`${returnTo}${separator}accountSaved=1`);
 }
 
 async function softDeleteAccount(admin, userId, ownerId, authUser) {

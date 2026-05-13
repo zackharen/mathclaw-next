@@ -1492,6 +1492,22 @@ details[open] > summary.gameControlsSummary .hideLabel {
   background: #f7fafc;
 }
 
+.studentJoinCodePrompt,
+.studentClassCodeCard {
+  border: 2px solid #0b5cab;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #eef6ff;
+}
+
+.studentJoinCodePrompt .fieldHint {
+  display: block;
+  margin-top: 0.35rem;
+  color: #12395f;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .connect4TournamentCard {
   margin-top: 0.75rem;
   border: 2px solid #12395f;
@@ -1663,6 +1679,73 @@ details[open] > summary.gameControlsSummary .hideLabel {
   box-shadow: 0 0 0 4px rgba(47, 143, 69, 0.25);
   transform: scale(1.05);
   background: #57c26d !important;
+}
+
+.connect4ReplayPanel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 2px solid #12395f;
+  border-radius: 12px;
+  background: #f7fafc;
+}
+
+.connect4ReplayHeader {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.connect4ReplayHeader h3 {
+  margin: 0.15rem 0 0;
+}
+
+.connect4ReplayEyebrow {
+  margin: 0;
+  color: #0b5cab;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.connect4ReplaySlider {
+  width: min(100%, 30rem);
+  margin-top: 0.85rem;
+}
+
+.connect4ReplayMove {
+  margin: 0.55rem 0 0;
+  font-weight: 900;
+  color: #12395f;
+}
+
+.connect4ReplayBoard {
+  --slot: clamp(1.7rem, 7vw, 3rem);
+  display: grid;
+  grid-template-columns: repeat(7, var(--slot));
+  gap: 0.28rem;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 0.85rem;
+  padding: 0.5rem;
+  border-radius: 10px;
+  background: var(--navy);
+  overflow: hidden;
+}
+
+.connect4ReplayCell {
+  width: var(--slot);
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+}
+
+.connect4ReplayFallback {
+  margin: 0.6rem 0 0;
+  color: #4b5563;
+  font-weight: 800;
 }
 
 .tournamentShell {
@@ -1983,6 +2066,28 @@ details[open] > summary.gameControlsSummary .hideLabel {
   margin-inline: auto;
   text-align: center;
   font-size: 1.15rem;
+}
+
+.tournamentReplayControls {
+  max-width: 42rem;
+  margin: 0.85rem auto 0;
+  padding: 0.75rem;
+  border: 1px solid #b7c8d8;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.tournamentReplayControls p {
+  margin: 0.4rem 0 0;
+  font-weight: 800;
+  color: #12395f;
+}
+
+.tournamentReplayTopline {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-weight: 900;
 }
 
 .tournamentLargeBoard {
@@ -2920,6 +3025,21 @@ details[open] > summary.adminSectionSummary .hideLabel {
   align-items: end;
 }
 
+.adminAccountSettingsForm {
+  margin-bottom: 1rem;
+}
+
+.adminAccountSettingsGrid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+}
+
+.adminAccountSettingsActions {
+  margin-top: 0.75rem;
+}
+
 .adminSchoolEditGrid {
   display: grid;
   gap: 0.75rem;
@@ -2942,6 +3062,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 @media (max-width: 900px) {
   .adminBulkActionGrid,
+  .adminAccountSettingsGrid,
   .adminSchoolEditGrid {
     grid-template-columns: 1fr;
   }

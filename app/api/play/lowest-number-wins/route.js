@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildDefaultDisplayName,
   getAccountTypeForUser,
+  getPublicDisplayName,
 } from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
@@ -104,10 +105,10 @@ function viewerCanManageSession(session, courses, user, accountType) {
 async function resolveDisplayName(supabase, user) {
   const { data } = await supabase
     .from("profiles")
-    .select("display_name")
+    .select("display_name, nickname")
     .eq("id", user.id)
     .maybeSingle();
-  return String(data?.display_name || buildDefaultDisplayName(user)).trim() || "MathClaw User";
+  return getPublicDisplayName(data, buildDefaultDisplayName(user));
 }
 
 async function ensurePlayer(admin, sessionId, user, displayName, role = "student") {

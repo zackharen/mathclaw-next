@@ -155,7 +155,7 @@ export default function SignUpForm({ schoolOptions = [] }) {
             <p className="authEyebrow">Create Account</p>
             <h1>What kind of account do you want?</h1>
             <p className="authIntroCopy">
-              Pick the path that fits you best. We&apos;ll keep the next step simple.
+              If your teacher gave you a class code, choose Student. You&apos;ll pick your school and can enter the code before you sign in.
             </p>
 
             <div className="accountChoiceGrid" role="radiogroup" aria-label="Account type">
@@ -169,8 +169,8 @@ export default function SignUpForm({ schoolOptions = [] }) {
                 }}
               >
                 <span className="accountChoiceEyebrow">Student</span>
-                <strong>I want to play games</strong>
-                <span>Join a class, save progress, and jump into the Student Arcade.</span>
+                <strong>I am joining a class</strong>
+                <span>Pick your school, ask your teacher for the class code, and jump into the Student Arcade.</span>
               </button>
 
               <button
@@ -265,17 +265,18 @@ export default function SignUpForm({ schoolOptions = [] }) {
                 </label>
 
                 {accountType === "student" ? (
-                  <label>
-                    Join Class With A Code
+                  <label className="studentJoinCodePrompt">
+                    Teacher Class Code
                     <input
                       style={{ ...inputStyle, textTransform: "uppercase", letterSpacing: "0.08em" }}
                       type="text"
                       value={joinCode}
                       onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                      placeholder="Optional teacher code"
+                      placeholder="Ask your teacher for this code"
                       autoComplete="off"
                       spellCheck="false"
                     />
+                    <span className="fieldHint">Not required to create the account, but it is the fastest way into your class.</span>
                   </label>
                 ) : null}
               </div>

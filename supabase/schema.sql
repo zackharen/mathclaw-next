@@ -9,10 +9,11 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null,
+  nickname text,
   school_name text,
   timezone text not null default 'America/New_York',
   discoverable boolean not null default true,
-  account_type text not null default 'teacher' check (account_type in ('teacher', 'student')),
+  account_type text not null default 'teacher' check (account_type in ('teacher', 'student', 'player')),
   school_year_start date,
   school_year_end date,
   created_at timestamptz not null default now(),

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildDefaultDisplayName,
   getAccountTypeForUser,
+  getPublicDisplayName,
 } from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
 import {
@@ -318,11 +319,11 @@ function viewerCanManageSession(session, courses, user, accountType) {
 async function resolveDisplayName(supabase, user) {
   const { data } = await supabase
     .from("profiles")
-    .select("display_name")
+    .select("display_name, nickname")
     .eq("id", user.id)
     .maybeSingle();
 
-  return String(data?.display_name || buildDefaultDisplayName(user)).trim() || "MathClaw User";
+  return getPublicDisplayName(data, buildDefaultDisplayName(user));
 }
 
 function sortQuestionsInBoardOrder(questions) {
@@ -459,7 +460,7 @@ function buildTurnEligiblePlayers(players = [], classMembers = [], classProfiles
     return {
       id: `class-${userId}`,
       user_id: userId,
-      display_name: profileMap.get(userId)?.display_name || "Student",
+      display_name: getPublicDisplayName(profileMap.get(userId), "Student"),
       role: "student",
       score: 0,
       joined_at: new Date(Date.UTC(3000, 0, 1, 0, 0, index)).toISOString(),
@@ -495,7 +496,7 @@ async function loadClassTurnContext(admin, session, players = []) {
     .eq("course_id", session.course_id);
   const classMemberIds = (classMembers || []).map((member) => member.profile_id).filter(Boolean);
   const { data: classProfiles } = classMemberIds.length
-    ? await admin.from("profiles").select("id, display_name").in("id", classMemberIds)
+    ? await admin.from("profiles").select("id, display_name, nickname").in("id", classMemberIds)
     : { data: [] };
 
   return {
@@ -1279,11 +1280,11 @@ async function resolveSolverDisplayName(admin, sessionId, solverUserId) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("display_name")
+    .select("display_name, nickname")
     .eq("id", solverUserId)
     .maybeSingle();
 
-  return String(profile?.display_name || "Someone").trim() || "Someone";
+  return getPublicDisplayName(profile, "Someone");
 }
 
 export async function GET(request) {

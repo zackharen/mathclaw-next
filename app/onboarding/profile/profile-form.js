@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function ProfileForm({
   userId,
   initialDisplayName,
+  initialNickname = "",
   initialSchoolName,
   schoolOptions = [],
   initialTimezone,
@@ -14,7 +15,9 @@ export default function ProfileForm({
   accountType = "teacher",
 }) {
   const isTeacher = accountType === "teacher";
+  const showNickname = accountType === "student" || accountType === "player";
   const [displayName, setDisplayName] = useState(initialDisplayName);
+  const [nickname, setNickname] = useState(initialNickname);
   const initialKnownSchool = schoolOptions.includes(initialSchoolName) ? initialSchoolName : "";
   const [selectedSchoolName, setSelectedSchoolName] = useState(initialKnownSchool);
   const [newSchoolName, setNewSchoolName] = useState(
@@ -39,6 +42,7 @@ export default function ProfileForm({
     const payload = {
       id: userId,
       display_name: displayName.trim(),
+      nickname: showNickname ? nickname.trim() || null : null,
       school_name: resolvedSchoolName || null,
       timezone,
       discoverable: isTeacher ? discoverable : false,
@@ -53,12 +57,26 @@ export default function ProfileForm({
     if (
       upsertError &&
       typeof upsertError.message === "string" &&
+      upsertError.message.includes("nickname")
+    ) {
+      const payloadWithoutNickname = { ...payload };
+      delete payloadWithoutNickname.nickname;
+      const retry = await supabase
+        .from("profiles")
+        .upsert(payloadWithoutNickname, { onConflict: "id" });
+      upsertError = retry.error;
+    }
+
+    if (
+      upsertError &&
+      typeof upsertError.message === "string" &&
       upsertError.message.includes("account_type")
     ) {
       const retry = await supabase.from("profiles").upsert(
         {
           id: userId,
           display_name: displayName.trim(),
+          nickname: showNickname ? nickname.trim() || null : null,
           school_name: resolvedSchoolName || null,
           timezone,
           discoverable: isTeacher ? discoverable : false,
@@ -67,6 +85,25 @@ export default function ProfileForm({
         { onConflict: "id" }
       );
       upsertError = retry.error;
+
+      if (
+        upsertError &&
+        typeof upsertError.message === "string" &&
+        upsertError.message.includes("nickname")
+      ) {
+        const retryWithoutNickname = await supabase.from("profiles").upsert(
+          {
+            id: userId,
+            display_name: displayName.trim(),
+            school_name: resolvedSchoolName || null,
+            timezone,
+            discoverable: isTeacher ? discoverable : false,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+        upsertError = retryWithoutNickname.error;
+      }
     }
 
     // Backward compatibility if DB migration for discoverable has not been run yet.
@@ -78,13 +115,25 @@ export default function ProfileForm({
       const legacyPayload = {
         id: userId,
         display_name: displayName.trim(),
+        nickname: showNickname ? nickname.trim() || null : null,
         school_name: resolvedSchoolName || null,
         timezone,
         updated_at: new Date().toISOString(),
       };
-      const retry = await supabase
+      let retry = await supabase
         .from("profiles")
         .upsert(legacyPayload, { onConflict: "id" });
+      if (
+        retry.error &&
+        typeof retry.error.message === "string" &&
+        retry.error.message.includes("nickname")
+      ) {
+        const legacyWithoutNickname = { ...legacyPayload };
+        delete legacyWithoutNickname.nickname;
+        retry = await supabase
+          .from("profiles")
+          .upsert(legacyWithoutNickname, { onConflict: "id" });
+      }
       upsertError = retry.error;
     }
 
@@ -118,6 +167,19 @@ export default function ProfileForm({
           }
         />
       </label>
+
+      {showNickname ? (
+        <label>
+          Nickname
+          <input
+            className="input"
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="What classmates should see"
+          />
+        </label>
+      ) : null}
 
       <label>
         Existing School

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildBoardSnapshots } from "@/lib/student-games/connect4";
 
 function formatDuration(totalSeconds) {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds || 0));
@@ -74,6 +75,71 @@ function ReadOnlyTournamentGame({ game }) {
         )}
       </div>
     </div>
+  );
+}
+
+function replayMoveLabel(snapshot) {
+  const move = snapshot?.move;
+  if (!move) return "Start of game";
+  const color = move.token === "R" ? "Red" : "Yellow";
+  return `Move ${move.moveNumber}: ${color} dropped in column ${move.column + 1}`;
+}
+
+function Connect4ReplayPanel({ match, redLabel = "Red", yellowLabel = "Yellow" }) {
+  const snapshots = useMemo(
+    () => buildBoardSnapshots(match?.metadata?.moveHistory, match?.board),
+    [match?.board, match?.metadata?.moveHistory]
+  );
+  const [selectedIndex, setSelectedIndex] = useState(Math.max(0, snapshots.length - 1));
+
+  useEffect(() => {
+    setSelectedIndex(Math.max(0, snapshots.length - 1));
+  }, [snapshots.length]);
+
+  if (!match || match.status !== "finished" || !snapshots.length) return null;
+
+  const safeIndex = Math.min(selectedIndex, snapshots.length - 1);
+  const snapshot = snapshots[safeIndex];
+
+  return (
+    <section className="connect4ReplayPanel" aria-label="Connect 4 replay">
+      <div className="connect4ReplayHeader">
+        <div>
+          <p className="connect4ReplayEyebrow">Replay</p>
+          <h3>Move-by-move review</h3>
+        </div>
+        <span className="pill">
+          {safeIndex} / {snapshots.length - 1}
+        </span>
+      </div>
+      <input
+        className="connect4ReplaySlider"
+        type="range"
+        min="0"
+        max={Math.max(0, snapshots.length - 1)}
+        value={safeIndex}
+        onChange={(event) => setSelectedIndex(Number(event.target.value))}
+        aria-label="Replay move"
+      />
+      <p className="connect4ReplayMove">
+        {replayMoveLabel(snapshot)}
+        {snapshot?.move?.token === "R" ? ` · ${redLabel}` : snapshot?.move?.token === "Y" ? ` · ${yellowLabel}` : ""}
+      </p>
+      <div className="connect4ReplayBoard" aria-label="Read-only replay board">
+        {snapshot.board.map((row, rowIndex) =>
+          row.map((value, colIndex) => (
+            <span
+              key={`${safeIndex}-${rowIndex}-${colIndex}`}
+              className="connect4ReplayCell"
+              style={{ background: cellColor(value) }}
+            />
+          ))
+        )}
+      </div>
+      {snapshots.length === 1 ? (
+        <p className="connect4ReplayFallback">This older game only has the final board saved.</p>
+      ) : null}
+    </section>
   );
 }
 
@@ -608,6 +674,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
                 ))
               )}
             </div>
+            <Connect4ReplayPanel match={match} redLabel="Red" yellowLabel="Yellow" />
           </>
         )}
       </section>

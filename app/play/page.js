@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAccountTypeForUser, isStudentAccountType } from "@/lib/auth/account-type";
+import {
+  getAccountTypeForUser,
+  getPublicDisplayName,
+  isStudentAccountType,
+} from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
@@ -164,11 +168,25 @@ export default async function PlayPage({ searchParams }) {
     redirect("/auth/sign-in?redirect=/play");
   }
 
-  const { data: profile } = await supabase
+  let { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, display_name")
+    .select("id, display_name, nickname")
     .eq("id", user.id)
     .maybeSingle();
+
+  if (
+    profileError &&
+    typeof profileError.message === "string" &&
+    profileError.message.includes("nickname")
+  ) {
+    const retry = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    profile = retry.data;
+    profileError = retry.error;
+  }
 
   if (!profile) {
     redirect("/onboarding/profile");
@@ -216,6 +234,8 @@ export default async function PlayPage({ searchParams }) {
   const joinedCourseId = typeof params?.course === "string" ? params.course : "";
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
   const activeCourse = joinedCourse || courses[0] || null;
+  const publicName = getPublicDisplayName(profile, profile?.display_name || "Student");
+  const shouldOpenClasses = hasJoinFeedback || (isStudent && courses.length === 0);
   const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null, {
     viewerAccountType: accountType || "student",
   });
@@ -257,7 +277,7 @@ export default async function PlayPage({ searchParams }) {
       <section className="card">
         <h1>{isStudent ? siteCopy.arcadeStudentTitle : siteCopy.arcadeTeacherTitle}</h1>
         <p>
-          {`Welcome, ${profile.display_name}. ${isStudent ? siteCopy.arcadeStudentDescription : siteCopy.arcadeTeacherDescription}`}
+          {`Welcome, ${publicName}. ${isStudent ? siteCopy.arcadeStudentDescription : siteCopy.arcadeTeacherDescription}`}
         </p>
       </section>
 
@@ -265,18 +285,22 @@ export default async function PlayPage({ searchParams }) {
       <ArcadeDisclosure
         title={siteCopy.arcadeClassesTitle}
         description={siteCopy.arcadeClassesDescription}
-        open={hasJoinFeedback}
+        open={shouldOpenClasses}
       >
             <div className="featureGrid arcadeClassesGrid">
-              <form action={joinClassByCodeAction} className="card" style={{ background: "#fff" }}>
-                <h2>Join A Math Class</h2>
-                <p>Paste a teacher code any time you want to connect this account to a class.</p>
+              <form action={joinClassByCodeAction} className="card studentClassCodeCard" style={{ background: "#fff" }}>
+                <h2>{isStudent && courses.length === 0 ? "Ask Your Teacher For Your Class Code" : "Join A Math Class"}</h2>
+                <p>
+                  {isStudent && courses.length === 0
+                    ? "You are not connected to a class yet. Enter your teacher's code here so MathClaw can show the right class games and assignments."
+                    : "Paste a teacher code any time you want to connect this account to a class."}
+                </p>
                 <div className="ctaRow">
                   <input
                     className="input"
                     style={{ maxWidth: "16rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
                     name="join_code"
-                    placeholder="e.g. 04084F46F9"
+                    placeholder="Ask your teacher for this code"
                     autoComplete="off"
                     spellCheck="false"
                   />

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAccountTypeForUser } from "@/lib/auth/account-type";
+import { getAccountTypeForUser, getPublicDisplayName } from "@/lib/auth/account-type";
 import {
   buildInitialTournamentMatches,
   deriveBestOfThreeSummary,
@@ -13,7 +13,7 @@ import {
   TOURNAMENT_PRESENCE_WINDOW_MS,
 } from "@/lib/student-games/connect4-tournaments";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
-import { emptyBoard, normalizeBoard } from "@/lib/student-games/connect4";
+import { buildBoardSnapshots, emptyBoard, normalizeBoard } from "@/lib/student-games/connect4";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { logInternalEvent } from "@/lib/observability/events";
 
@@ -56,11 +56,11 @@ async function getViewerContext(supabase, user) {
 async function resolveDisplayName(admin, user) {
   const { data } = await admin
     .from("profiles")
-    .select("display_name")
+    .select("display_name, nickname")
     .eq("id", user.id)
     .maybeSingle();
 
-  return String(data?.display_name || user.email || "Student").trim() || "Student";
+  return getPublicDisplayName(data, user.email || "Student");
 }
 
 async function createConnect4Match(admin, { courseId, creatorId, playerOneId, playerTwoId, tournamentId, tournamentMatchId }) {
@@ -82,6 +82,7 @@ async function createConnect4Match(admin, { courseId, creatorId, playerOneId, pl
           gameStartedAt: nowIso(),
           winningCells: [],
           draw: false,
+          moveHistory: [],
           rematch_count: 0,
           tournamentId,
           tournamentMatchId,
@@ -139,9 +140,25 @@ async function loadTournamentRows(admin, tournamentOrId) {
     if (match.winner_id) profileIds.add(match.winner_id);
   }
 
-  const { data: profiles } = profileIds.size
-    ? await admin.from("profiles").select("id, display_name").in("id", [...profileIds])
-    : { data: [] };
+  let profiles = [];
+  if (profileIds.size) {
+    const profileResult = await admin
+      .from("profiles")
+      .select("id, display_name, nickname")
+      .in("id", [...profileIds]);
+    profiles = profileResult.data || [];
+    if (
+      profileResult.error &&
+      typeof profileResult.error.message === "string" &&
+      profileResult.error.message.includes("nickname")
+    ) {
+      const retryProfiles = await admin
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", [...profileIds]);
+      profiles = retryProfiles.data || [];
+    }
+  }
 
   const connect4IdSet = new Set(
     (tournamentMatches || [])
@@ -393,7 +410,7 @@ function buildPayload({ tournament, participants, tournamentMatches, profiles, c
       ? bracket.seriesByMatchId
       : {};
   const displayNameFor = (userId) =>
-    participantNameMap.get(userId) || profileMap.get(userId)?.display_name || "";
+    getPublicDisplayName(profileMap.get(userId), "") || participantNameMap.get(userId) || "";
   const gamePayloadFor = (game, match) => {
     const connect4Match = connect4Map.get(game?.connect4MatchId) || null;
     if (!connect4Match) return null;
@@ -404,6 +421,7 @@ function buildPayload({ tournament, participants, tournamentMatches, profiles, c
       winnerId: game?.winnerId || connect4Match.winner_id || null,
       winnerName,
       board: connect4Match.board,
+      snapshots: buildBoardSnapshots(connect4Match.metadata?.moveHistory, connect4Match.board),
       status: connect4Match.status,
       metadata: connect4Match.metadata || {},
       draw: Boolean(game?.draw || connect4Match.metadata?.draw),
@@ -463,6 +481,7 @@ function buildPayload({ tournament, participants, tournamentMatches, profiles, c
             winnerId: currentMatch.winner_id || null,
             winnerName: displayNameFor(currentMatch.winner_id) || "",
             board: currentMatch.board,
+            snapshots: buildBoardSnapshots(currentMatch.metadata?.moveHistory, currentMatch.board),
             status: currentMatch.status,
             metadata: currentMatch.metadata || {},
             draw: Boolean(currentMatch.metadata?.draw),

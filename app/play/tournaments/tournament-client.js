@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildBoardSnapshots } from "@/lib/student-games/connect4";
 
 function cellColor(value) {
   if (value === "R") return "#cd3b3b";
@@ -102,20 +103,41 @@ function PlayerLegend({ match }) {
   );
 }
 
-function PreviousGameButtons({ match, onOpenBoard }) {
-  const previousGames = match?.previousGames || [];
-  if (!previousGames.length || !onOpenBoard) return null;
+function allReviewableGames(match) {
+  if (match?.seriesGames?.length) return match.seriesGames;
+  if (!match?.connect4Match) return [];
+  return [
+    {
+      connect4MatchId: match.connect4Match.id,
+      gameNumber: 1,
+      winnerId: match.connect4Match.winner_id || null,
+      winnerName: match.winnerName || "",
+      board: match.connect4Match.board || [],
+      snapshots: buildBoardSnapshots(match.connect4Match.metadata?.moveHistory, match.connect4Match.board),
+      status: match.connect4Match.status,
+      metadata: match.connect4Match.metadata || {},
+      draw: Boolean(match.connect4Match.metadata?.draw),
+      isCurrent: true,
+      playerOneId: match.playerOneId,
+      playerTwoId: match.playerTwoId,
+    },
+  ];
+}
+
+function ReviewGameButtons({ match, onOpenBoard }) {
+  const games = allReviewableGames(match);
+  if (!games.length || !onOpenBoard) return null;
 
   return (
-    <div className="tournamentSeriesGames" aria-label="Previous games">
-      {previousGames.map((game) => (
+    <div className="tournamentSeriesGames" aria-label="Review games">
+      {games.map((game) => (
         <button
           key={game.connect4MatchId}
           type="button"
           className="btn small"
           onClick={() => onOpenBoard(match, game)}
         >
-          Game {game.gameNumber || 1}
+          {game.isCurrent ? "Current game" : `Game ${game.gameNumber || 1}`}
         </button>
       ))}
     </div>
@@ -124,7 +146,22 @@ function PreviousGameButtons({ match, onOpenBoard }) {
 
 function LargeBoardModal({ match, game, onClose }) {
   if (!match) return null;
-  const board = game?.board || match.connect4Match?.board || [];
+  const snapshots = game?.snapshots?.length
+    ? game.snapshots
+    : buildBoardSnapshots(
+        (game?.metadata || match.connect4Match?.metadata)?.moveHistory,
+        game?.board || match.connect4Match?.board || []
+      );
+  const [selectedIndex, setSelectedIndex] = useState(Math.max(0, snapshots.length - 1));
+
+  useEffect(() => {
+    setSelectedIndex(Math.max(0, snapshots.length - 1));
+  }, [snapshots.length]);
+
+  const safeIndex = Math.min(selectedIndex, Math.max(0, snapshots.length - 1));
+  const snapshot = snapshots[safeIndex] || { board: game?.board || match.connect4Match?.board || [] };
+  const board = snapshot.board || [];
+  const move = snapshot.move || null;
 
   return (
     <div className="doubleBoardModalBackdrop" role="presentation" onClick={onClose}>
@@ -145,6 +182,27 @@ function LargeBoardModal({ match, game, onClose }) {
         {game ? <p className="tournamentSeriesLine">{seriesGameLabel(game)}</p> : null}
         <PlayerLegend match={match} />
         <p className="tournamentTurnLine">{readOnlyGameStatus(match, game)}</p>
+        <div className="tournamentReplayControls">
+          <div className="tournamentReplayTopline">
+            <strong>Replay</strong>
+            <span>{safeIndex} / {Math.max(0, snapshots.length - 1)}</span>
+          </div>
+          <input
+            className="connect4ReplaySlider"
+            type="range"
+            min="0"
+            max={Math.max(0, snapshots.length - 1)}
+            value={safeIndex}
+            onChange={(event) => setSelectedIndex(Number(event.target.value))}
+            aria-label="Replay move"
+          />
+          <p>
+            {move
+              ? `Move ${move.moveNumber}: ${move.token === "R" ? matchPlayerName(match, "one") : matchPlayerName(match, "two")} dropped in column ${move.column + 1}`
+              : "Start of game"}
+          </p>
+          {snapshots.length === 1 ? <p>This older game only has the final board saved.</p> : null}
+        </div>
         <div className="tournamentLargeBoard" aria-label="Large Connect 4 board">
           {board.map((row, rowIndex) =>
             row.map((value, colIndex) => (
@@ -242,7 +300,7 @@ function MatchCard({ match, viewerId, canManage, onOpenBoard }) {
       {match.connect4Match ? <BoardPreview match={match} /> : null}
       <PlayerLegend match={match} />
       <p className="tournamentTurnLine">{turnStatusText(match)}</p>
-      <PreviousGameButtons match={match} onOpenBoard={onOpenBoard} />
+      <ReviewGameButtons match={match} onOpenBoard={onOpenBoard} />
       <div className="ctaRow">
         {viewerCanPlay && href ? (
           <Link className="btn primary" href={href}>

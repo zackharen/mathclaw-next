@@ -16,13 +16,9 @@ import AccountActionsToggle from "./account-actions-toggle";
 import BulkSelectionControls from "./bulk-selection-controls";
 import MasteryRangeInput from "./mastery-range-input";
 import {
-  updateAccountTypeAction,
   deleteAccountAction,
-  toggleDiscoverableAction,
-  renameAccountAction,
-  updateSchoolNameAction,
+  saveAccountSettingsAction,
   toggleAdminAccessAction,
-  addUserToClassAction,
   clearSavedGameProgressAction,
   bulkAccountAction,
   restoreDeletedAccountAction,
@@ -49,6 +45,7 @@ function formatDate(value) {
 
 function Notice({ searchParams }) {
   const updated = searchParams?.updated === "1";
+  const accountSaved = searchParams?.accountSaved === "1";
   const deleted = searchParams?.deleted === "1";
   const renamed = searchParams?.renamed === "1";
   const restored = searchParams?.restored === "1";
@@ -71,13 +68,14 @@ function Notice({ searchParams }) {
   const bulkSkippedOwners = Number(searchParams?.bulkSkippedOwners || 0);
   const error = searchParams?.error;
 
-  if (!updated && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !gameProgressCleared && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !integerMasteryUpdated && !integerMasteryReset && !error) {
+  if (!updated && !accountSaved && !deleted && !renamed && !restored && !discoverability && !membership && !adminAccess && !passwordReset && !gameProgressCleared && !classDeleted && !bugReport && !schoolUpdated && !bulkAction && !siteFeatureUpdated && !siteFeatureBulkUpdated && !siteCopyUpdated && !integerMasteryUpdated && !integerMasteryReset && !error) {
     return null;
   }
 
   return (
     <div className={`card ${error ? "noticeError" : "noticeSuccess"}`}>
       {updated ? <p>Account type updated.</p> : null}
+      {accountSaved ? <p>Account settings saved.</p> : null}
       {deleted ? <p>Account deleted.</p> : null}
       {renamed ? <p>Display name updated.</p> : null}
       {restored ? <p>Account restored.</p> : null}
@@ -238,6 +236,12 @@ function getDisplayNameWithoutEmail(profile, metadata, fallback = "Unknown user"
     metadata?.name ||
     fallback
   );
+}
+
+function accountTypeLabel(accountType) {
+  if (accountType === "student") return "Student";
+  if (accountType === "player") return "Arcade Player";
+  return "Teacher";
 }
 
 function formatInternalEventTitle(eventKey) {
@@ -438,6 +442,17 @@ function summarizeAccountClasses(item) {
   };
 }
 
+function accountReturnTo(qs, userId) {
+  const params = new URLSearchParams({ view: "accounts", open: userId });
+  for (const key of ["q", "role", "sort", "school"]) {
+    const value = qs?.[key];
+    if (typeof value === "string" && value) {
+      params.set(key, value);
+    }
+  }
+  return `/admin?${params.toString()}`;
+}
+
 export default async function AdminPage({ searchParams }) {
   const qs = (await searchParams) || {};
   const searchQuery = String(qs.q || "").trim().toLowerCase();
@@ -482,10 +497,10 @@ export default async function AdminPage({ searchParams }) {
     const ids = authUsers.map((item) => item.id);
 
     if (ids.length) {
-      const [{ data: profiles }, { data: courses }, { data: memberships }, bugReportResult, eventResult, recentSessionResult, { data: dbSavedProgress }] = await Promise.all([
+      const [profilesResult, { data: courses }, { data: memberships }, bugReportResult, eventResult, recentSessionResult, { data: dbSavedProgress }] = await Promise.all([
         admin
           .from("profiles")
-          .select("id, display_name, school_name, account_type, discoverable, timezone")
+          .select("id, display_name, nickname, school_name, account_type, discoverable, timezone")
           .in("id", ids),
         admin
           .from("courses")
@@ -522,6 +537,18 @@ export default async function AdminPage({ searchParams }) {
       internalEventError = eventResult.error || null;
       recentSessions = recentSessionResult.data || [];
       recentSessionsError = recentSessionResult.error || null;
+      let profiles = profilesResult.data || [];
+      if (
+        profilesResult.error &&
+        typeof profilesResult.error.message === "string" &&
+        profilesResult.error.message.includes("nickname")
+      ) {
+        const retryProfiles = await admin
+          .from("profiles")
+          .select("id, display_name, school_name, account_type, discoverable, timezone")
+          .in("id", ids);
+        profiles = retryProfiles.data || [];
+      }
 
       // Build a map of user_id → Set<game_slug> from the DB table.
       const dbSavedSlugsByUser = new Map();
@@ -600,6 +627,7 @@ export default async function AdminPage({ searchParams }) {
         const profile = profilesById.get(authUser.id) || {};
         const metadata = authUser.user_metadata || {};
         const displayName = getBestDisplayName(profile, metadata, authUser.email, "-");
+        const nickname = String(profile.nickname || metadata.nickname || "").trim();
         const { firstName, lastName } = splitDisplayName(displayName === "-" ? "" : displayName);
         const accountType = profile.account_type || metadata.account_type || "teacher";
         const isOwner = isOwnerUser(authUser);
@@ -647,6 +675,7 @@ export default async function AdminPage({ searchParams }) {
           createdAt: authUser.created_at,
           lastSignInAt: authUser.last_sign_in_at,
           displayName,
+          nickname,
           firstName,
           lastName,
           schoolName: profile.school_name || metadata.school_name || "-",
@@ -696,7 +725,7 @@ export default async function AdminPage({ searchParams }) {
     if (schoolFilter !== "all" && item.schoolName !== schoolFilter) return false;
     if (!searchQuery) return true;
 
-    const haystack = [item.displayName, item.firstName, item.lastName, item.email, item.schoolName, item.id]
+    const haystack = [item.displayName, item.nickname, item.firstName, item.lastName, item.email, item.schoolName, item.id]
       .join(" ")
       .toLowerCase();
 
@@ -729,7 +758,7 @@ export default async function AdminPage({ searchParams }) {
       current.total += 1;
       if (item.accountType === "student") {
         current.students += 1;
-      } else {
+      } else if (item.accountType === "teacher") {
         current.teachers += 1;
       }
       if (item.isAdmin || item.isBootstrapOwner) {
@@ -835,7 +864,7 @@ export default async function AdminPage({ searchParams }) {
           </div>
           <div className="card adminSummaryCard">
             <h3>Teachers</h3>
-            <p className="adminStat">{users.filter((item) => item.accountType !== "student").length}</p>
+            <p className="adminStat">{users.filter((item) => item.accountType === "teacher").length}</p>
           </div>
           {canViewDiagnostics ? (
             <>
@@ -1315,7 +1344,7 @@ export default async function AdminPage({ searchParams }) {
             </AdminDisclosure>
           ) : null}
 
-          <AdminDisclosure title="User Information" open={Boolean(qs.classDeleted)}>
+          <AdminDisclosure title="User Information" open={Boolean(qs.classDeleted || qs.accountSaved || qs.open)}>
         <div className="adminCardGroup adminSearchBulkGroup">
         <div className="adminSearchCard">
           <h3>Search</h3>
@@ -1448,7 +1477,7 @@ export default async function AdminPage({ searchParams }) {
                           </p>
                         </div>
                         <div className="adminBadgeRow">
-                          <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
+                          <span className="adminRoleBadge">{accountTypeLabel(item.accountType)}</span>
                           {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
                         {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
                           <span className="adminSummaryToggleText">
@@ -1465,30 +1494,27 @@ export default async function AdminPage({ searchParams }) {
                           <p>{item.email}</p>
                         </div>
                         <div className="adminBadgeRow">
-                          <span className="adminRoleBadge">{item.accountType === "student" ? "Student" : "Teacher"}</span>
+                          <span className="adminRoleBadge">{accountTypeLabel(item.accountType)}</span>
                           {item.isBootstrapOwner ? <span className="adminRoleBadge">Owner</span> : null}
                           {item.isAdmin && !item.isBootstrapOwner ? <span className="adminRoleBadge">Admin</span> : null}
                         </div>
                       </div>
-                    <form action={renameAccountAction} className="adminRenameForm">
+                    <form action={saveAccountSettingsAction} className="adminAccountSettingsForm">
                       <input type="hidden" name="user_id" value={item.id} />
-                      <div className="adminNameGrid">
+                      <input type="hidden" name="return_to" value={accountReturnTo(qs, item.id)} />
+                      <div className="adminAccountSettingsGrid">
                         <label className="stack">
                           <span>First name</span>
-                          <input className="input" type="text" name="first_name" defaultValue={item.firstName} placeholder="First name" />
+                          <input className="input" type="text" name="first_name" defaultValue={item.firstName} placeholder="First name" required />
                         </label>
                         <label className="stack">
                           <span>Last name</span>
                           <input className="input" type="text" name="last_name" defaultValue={item.lastName} placeholder="Last name" />
                         </label>
-                        <div className="ctaRow adminInlineEditorRow">
-                          <button className="btn ghost" type="submit">Save Name</button>
-                        </div>
-                      </div>
-                    </form>
-                    <form action={updateSchoolNameAction} className="adminRenameForm">
-                      <input type="hidden" name="user_id" value={item.id} />
-                      <div className="adminSchoolEditGrid">
+                        <label className="stack">
+                          <span>Nickname</span>
+                          <input className="input" type="text" name="nickname" defaultValue={item.nickname} placeholder="Public game name" />
+                        </label>
                         <label className="stack">
                           <span>Existing school</span>
                           <select
@@ -1513,14 +1539,41 @@ export default async function AdminPage({ searchParams }) {
                             placeholder="Type a new school name"
                           />
                         </label>
-                        <div className="ctaRow adminInlineEditorRow adminSingleAction">
-                          <button className="btn ghost" type="submit">Save School</button>
-                        </div>
+                        <label className="stack">
+                          <span>Account type</span>
+                          <select className="input" name="account_type" defaultValue={item.accountType}>
+                            <option value="teacher">Teacher</option>
+                            <option value="student">Student</option>
+                            <option value="player">Arcade Player</option>
+                          </select>
+                        </label>
+                        <label className="stack">
+                          <span>Teacher search</span>
+                          <select className="input" name="discoverable" defaultValue={item.discoverable ? "true" : "false"}>
+                            <option value="true">Visible if teacher</option>
+                            <option value="false">Hidden</option>
+                          </select>
+                        </label>
+                        <label className="stack">
+                          <span>Add to class</span>
+                          <select className="input" name="course_id" defaultValue="">
+                            <option value="">No class change</option>
+                            {courseOptions.map((course) => (
+                              <option key={course.id} value={course.id}>
+                                {course.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <div className="ctaRow adminInlineEditorRow adminAccountSettingsActions">
+                        <button className="btn primary" type="submit">Save Account Settings</button>
                       </div>
                     </form>
                     <div className="adminMetaGrid">
                       <p><strong>First:</strong> {item.firstName || "-"}</p>
                       <p><strong>Last:</strong> {item.lastName || "-"}</p>
+                      <p><strong>Nickname:</strong> {item.nickname || "-"}</p>
                       <p><strong>School:</strong> {item.schoolName}</p>
                       <p><strong>Timezone:</strong> {item.timezone}</p>
                       <p><strong>Created:</strong> {formatDate(item.createdAt)}</p>
@@ -1528,7 +1581,7 @@ export default async function AdminPage({ searchParams }) {
                       <p><strong>Sign-in:</strong> {item.providerLabel}</p>
                       <p><strong>Owned classes:</strong> {item.ownedClassCount}</p>
                       <p><strong>Joined classes:</strong> {item.joinedClassCount}</p>
-                      <p><strong>Teacher search:</strong> {item.accountType === "student" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
+                      <p><strong>Teacher search:</strong> {item.accountType !== "teacher" ? "Not applicable" : item.discoverable ? "Visible" : "Hidden"}</p>
                     </div>
                     <p className="adminUserId"><strong>User ID:</strong> {item.id}</p>
                     {item.ownedClasses.length > 0 ? (
@@ -1567,22 +1620,6 @@ export default async function AdminPage({ searchParams }) {
                     ) : (
                       <p className="adminEmptyAssignments"><strong>Assigned classes:</strong> None yet.</p>
                     )}
-                    <form action={addUserToClassAction} className="adminEnrollmentForm">
-                      <input type="hidden" name="user_id" value={item.id} />
-                      <label>
-                        <div className="ctaRow adminInlineEditorRow">
-                          <select className="input" name="course_id" defaultValue="">
-                            <option value="" disabled>Select a class</option>
-                            {courseOptions.map((course) => (
-                              <option key={course.id} value={course.id}>
-                                {course.label}
-                              </option>
-                            ))}
-                          </select>
-                          <button className="btn ghost" type="submit">Add to Class</button>
-                        </div>
-                      </label>
-                    </form>
                     {item.canResetPassword ? (
                       <form action={resetPasswordAction} className="adminRenameForm">
                         <input type="hidden" name="user_id" value={item.id} />
@@ -1634,28 +1671,12 @@ export default async function AdminPage({ searchParams }) {
                         <input type="hidden" name="game_slug" value="integer_practice" />
                         <button className="btn ghost" type="submit">Reset Integer Progress</button>
                       </form>
-                      <form action={updateAccountTypeAction} className="adminInlineForm">
-                        <input type="hidden" name="user_id" value={item.id} />
-                        <input type="hidden" name="account_type" value={item.accountType === "student" ? "teacher" : "student"} />
-                        <button className="btn" type="submit">
-                          Make {item.accountType === "student" ? "Teacher" : "Student"}
-                        </button>
-                      </form>
                       {adminContext.isOwner ? (
                         <form action={toggleAdminAccessAction} className="adminInlineForm">
                           <input type="hidden" name="user_id" value={item.id} />
                           <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
                           <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
                             {item.isBootstrapOwner ? "Owner Access" : item.isAdmin ? "Remove Admin" : "Make Admin"}
-                          </button>
-                        </form>
-                      ) : null}
-                      {item.accountType !== "student" ? (
-                        <form action={toggleDiscoverableAction} className="adminInlineForm">
-                          <input type="hidden" name="user_id" value={item.id} />
-                          <input type="hidden" name="discoverable" value={item.discoverable ? "false" : "true"} />
-                          <button className="btn ghost" type="submit">
-                            {item.discoverable ? "Hide from Search" : "Make Discoverable"}
                           </button>
                         </form>
                       ) : null}

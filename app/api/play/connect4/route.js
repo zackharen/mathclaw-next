@@ -29,6 +29,7 @@ function withNormalizedMatch(match) {
       ...(match.metadata || {}),
       gameStartedAt:
         typeof match.metadata?.gameStartedAt === "string" ? match.metadata.gameStartedAt : null,
+      moveHistory: Array.isArray(match.metadata?.moveHistory) ? match.metadata.moveHistory : [],
       winningCells: Array.isArray(match.metadata?.winningCells)
         ? match.metadata.winningCells
         : [],
@@ -150,6 +151,7 @@ export async function POST(request) {
           metadata: {
             gameStartedAt: null,
             winningCells: [],
+            moveHistory: [],
             draw: false,
             rematch_count: 0,
           },
@@ -230,6 +232,9 @@ export async function POST(request) {
             gameStartedAt: startedAt,
             winningCells: [],
             draw: false,
+            moveHistory: Array.isArray(normalized.metadata?.moveHistory)
+              ? normalized.metadata.moveHistory
+              : [],
           },
           updated_at: startedAt,
         })
@@ -292,9 +297,24 @@ export async function POST(request) {
     const nextTurn =
       winner || draw ? null : user.id === match.player_one_id ? match.player_two_id : match.player_one_id;
 
+    const moveNumber = Number(match.move_count || 0) + 1;
+    const moveHistory = Array.isArray(match.metadata?.moveHistory)
+      ? match.metadata.moveHistory
+      : [];
+    const nextMoveHistory = [
+      ...moveHistory,
+      {
+        column,
+        row,
+        token,
+        playerId: user.id,
+        moveNumber,
+        createdAt: new Date().toISOString(),
+      },
+    ];
     const payload = {
       board,
-      move_count: Number(match.move_count || 0) + 1,
+      move_count: moveNumber,
       current_turn_id: nextTurn,
       winner_id: winner,
       status: winner || draw ? "finished" : "active",
@@ -306,6 +326,7 @@ export async function POST(request) {
             ? match.metadata.gameStartedAt
             : match.created_at,
         draw,
+        moveHistory: nextMoveHistory,
         winningCells: winningLine,
       },
     };
@@ -429,6 +450,7 @@ export async function POST(request) {
         draw: false,
         rematch_count: previousRematchCount + 1,
         winningCells: [],
+        moveHistory: [],
       },
     };
 

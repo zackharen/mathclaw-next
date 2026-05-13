@@ -8,6 +8,7 @@ import {
   saveAnnouncementTemplateAction,
   saveSchoolCalendarAction,
 } from "./actions";
+import { joinClassByCodeAction } from "@/app/play/actions";
 
 function defaultSchoolYearDates() {
   const now = new Date();
@@ -114,7 +115,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   let { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select(
-      "display_name, school_name, timezone, discoverable, school_year_start, school_year_end"
+      "display_name, nickname, school_name, timezone, discoverable, school_year_start, school_year_end"
     )
     .eq("id", user.id)
     .maybeSingle();
@@ -122,7 +123,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   if (
     profileError &&
     typeof profileError.message === "string" &&
-    (profileError.message.includes("school_year_start") ||
+    (profileError.message.includes("nickname") ||
+      profileError.message.includes("school_year_start") ||
       profileError.message.includes("discoverable"))
   ) {
     const retry = await supabase
@@ -134,6 +136,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
     profile = retry.data
         ? {
             ...retry.data,
+            nickname: "",
             discoverable: true,
             school_year_start: defaults.start,
             school_year_end: defaults.end,
@@ -262,6 +265,7 @@ Standards: {standards}`;
         <ProfileForm
           userId={user.id}
           initialDisplayName={profile?.display_name || ""}
+          initialNickname={profile?.nickname || ""}
           initialSchoolName={profile?.school_name || ""}
           schoolOptions={schoolOptions}
           initialTimezone={profile?.timezone || "America/New_York"}
@@ -269,6 +273,30 @@ Standards: {standards}`;
           accountType={accountType}
         />
       </section>
+
+      {accountType === "student" ? (
+        <section className="card studentClassCodeCard">
+          <h2>Join Your Math Class</h2>
+          <p>
+            Ask your teacher for the class code and enter it here. You can save your
+            profile without a code, but joining your class unlocks the right games
+            and assignments.
+          </p>
+          <form action={joinClassByCodeAction} className="ctaRow" style={{ marginTop: "0.75rem" }}>
+            <input
+              className="input"
+              name="join_code"
+              placeholder="Ask your teacher for this code"
+              autoComplete="off"
+              spellCheck="false"
+              style={{ maxWidth: "20rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
+            />
+            <button className="btn primary" type="submit">
+              Join Class
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       {isTeacher ? (
       <section className="card">

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   buildDefaultDisplayName,
   getAccountTypeForUser,
+  getPublicDisplayName,
   isTeacherAccountType,
 } from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
@@ -71,10 +72,10 @@ function canAccessCourse(courses, courseId) {
 async function resolveDisplayName(supabase, user) {
   const { data } = await supabase
     .from("profiles")
-    .select("display_name")
+    .select("display_name, nickname")
     .eq("id", user.id)
     .maybeSingle();
-  return String(data?.display_name || buildDefaultDisplayName(user)).trim() || "MathClaw User";
+  return getPublicDisplayName(data, buildDefaultDisplayName(user));
 }
 
 async function resolveSchoolContext(admin, supabase, user, requestedSchoolName = "") {
