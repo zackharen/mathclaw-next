@@ -8,7 +8,21 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-11 America/New_York (Connect 4 tournament best-of-3 follow-up)
+2026-05-13 America/New_York (student onboarding/admin nicknames/Connect 4 replay)
+
+## What Was Built (2026-05-13 Session — onboarding/admin nicknames/Connect 4 replay)
+- **Student onboarding clarity, admin single-save account editing, public nicknames, and Connect 4 replay scrubbing shipped** (`app/auth/sign-up/sign-up-form.js`, `app/onboarding/profile/*`, `app/play/page.js`, `app/admin/*`, `lib/auth/account-type.js`, group-game APIs, Connect 4 API/client/tournament UI, `app/globals.css`, `supabase/schema.sql`, `supabase/migrations_20260513_profile_nicknames.sql`, `tests/connect4-replay.test.mjs`, commit `1d91bd5`, pushed to `origin/main`):
+  - Student sign-up now explicitly tells students to choose Student when joining a class, pick a school, and ask their teacher for a class code. Class code remains optional but is visually emphasized on sign-up, onboarding profile, and `/play`.
+  - Student `/play` opens the Classes section by default when the student has zero joined classes, with stronger first-login class-code copy.
+  - Added nullable `profiles.nickname` support with production-schema fallbacks. Student/player onboarding can save a nickname; admin account cards show/search nickname while preserving official first/last/display name for admin visibility.
+  - Public game/tournament display names now prefer nickname in high-value live group paths: Connect 4 tournaments, Double Board, Lowest Number Wins, and Open Middle player join/display snapshots.
+  - Admin User Information now has one **Save Account Settings** form per user covering first/last name, nickname, school, account type (`teacher`/`student`/`player`), teacher-search visibility, and optional class assignment. Destructive/sensitive tools remain separate. Saves preserve the same Accounts view, filters, and opened user details with “Account settings saved.”
+  - Connect 4 matches now store compact `metadata.moveHistory` for new games and expose pure replay snapshot helpers. Finished regular/tournament Connect 4 games show read-only move-by-move replay sliders; older games without history fall back to final-board-only display.
+  - Verification passed: requested `node --check` set; `node --test tests/connect4-tournaments.test.mjs`; `node --test tests/connect4-replay.test.mjs`; `npm test`; `npm run build`; `git diff --check`.
+  - Browser/local verification: `next dev` on port 3000 again served 404s while emitting the known `EMFILE: too many open files, watch` issue. Built server on `localhost:3001` rendered `/auth/sign-up` with the new student class-code copy and returned expected unauthenticated redirects for `/onboarding/profile`, `/admin`, `/play/connect4`, and `/play/tournaments`; local Connect 4 APIs returned 401 unauthenticated.
+  - Live checks after push: `https://www.mathclaw.com/play/connect4`, `/play/tournaments`, and `/admin` returned 307 sign-in redirects; `/api/play/connect4` and `/api/play/connect4-tournaments` returned 401 unauthenticated; `git ls-remote origin main` confirmed `1d91bd5e4abb3a94b36e24bb69ffdcf4eade3ec8` on `main`.
+  - Vercel connector note: project listing failed (`Failed to list projects.`), so no deployment ID was available from the connector.
+  - Remaining caveat: apply `supabase/migrations_20260513_profile_nicknames.sql` in production Supabase before nickname persistence is guaranteed. Code has missing-column fallbacks, so older production schema should keep working without nickname storage.
 
 ## What Was Built (2026-05-11 Session — Connect 4 tournament best-of-3 follow-up)
 - **Connect 4 Tournament best-2-of-3 behavior fixed and improved** (`app/api/play/connect4-tournaments/route.js`, `lib/student-games/connect4-tournaments.js`, `app/play/tournaments/tournament-client.js`, `app/play/connect4/game-client.js`, `app/globals.css`, `tests/connect4-tournaments.test.mjs`, commit `80e84a0`, pushed to `origin/main`):
@@ -166,6 +180,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
 - Created `/supabase/migrations_20260506_connect4_tournaments.sql`; it must be applied to production Supabase before Tournament Mode can be used with logged-in users. Supabase connector application failed in Codex due an app-connector handshake error before the SQL reached the project.
+- Created `/supabase/migrations_20260513_profile_nicknames.sql`; it must be applied to production Supabase before student/player nicknames persist in `profiles.nickname`. Code includes fallbacks for schemas where the column is not present.
 - Restored `/supabase/migrations_20260424_open_middle.sql`; user applied it successfully in Supabase SQL Editor on 2026-04-28 after running `drop policy if exists ...` cleanup for the pre-existing Open Middle/school policies.
 - Brain policy changed: future coding sessions should load `coding_agent_principles.md` from `START_HERE.md` and use its checklists before editing and before final response.
 - Brain workflow changed: future sessions should load the model-specific overlay from `brain/model_workflows/` (`codex.md` for Codex, `claude.md` for Claude Code) after the shared base files. Codex overlay covers connectors/plugins, browser verification, automations, subagents, review mode, skills, artifacts, and permission-aware work.
