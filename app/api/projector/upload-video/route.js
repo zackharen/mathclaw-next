@@ -17,7 +17,6 @@ export const maxDuration = 60;
 const execFileAsync = promisify(execFile);
 const BUCKET = "projector-videos";
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
-const MAX_VIDEO_STORAGE_LIMIT = "75MB";
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -60,14 +59,13 @@ async function ensureVideoBucket(admin) {
   if (!getError) {
     const { error: updateError } = await admin.storage.updateBucket(BUCKET, {
       public: true,
-      fileSizeLimit: MAX_VIDEO_STORAGE_LIMIT,
+      fileSizeLimit: null,
     });
     return updateError || null;
   }
 
   const { error: createError } = await admin.storage.createBucket(BUCKET, {
     public: true,
-    fileSizeLimit: MAX_VIDEO_STORAGE_LIMIT,
   });
 
   if (createError && !/already exists/i.test(createError.message || "")) return createError;

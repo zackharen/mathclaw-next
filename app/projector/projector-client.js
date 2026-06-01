@@ -182,7 +182,9 @@ export default function ProjectorClient({ session }) {
         }),
       });
       const preparePayload = await prepareResponse.json();
-      if (!prepareResponse.ok) throw new Error(preparePayload.error || "Could not start the upload.");
+      if (!prepareResponse.ok) {
+        throw new Error(preparePayload.error || "Could not prepare the recording upload.");
+      }
 
       const supabase = createClient();
       const { error: uploadError } = await supabase.storage
@@ -190,7 +192,9 @@ export default function ProjectorClient({ session }) {
         .uploadToSignedUrl(preparePayload.path, preparePayload.token, file, {
           contentType: file.type || "video/quicktime",
         });
-      if (uploadError) throw new Error(uploadError.message);
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
       setMessage("Converting recording to projector video...");
       const convertResponse = await fetch("/api/projector/upload-video", {
@@ -199,7 +203,9 @@ export default function ProjectorClient({ session }) {
         body: JSON.stringify({ action: "convert", path: preparePayload.path }),
       });
       const convertPayload = await convertResponse.json();
-      if (!convertResponse.ok) throw new Error(convertPayload.error || "Could not convert the recording.");
+      if (!convertResponse.ok) {
+        throw new Error(convertPayload.error || "Could not convert the recording.");
+      }
 
       setVideoUploadUrl(convertPayload.url);
       setVideoFileName(file.name);
