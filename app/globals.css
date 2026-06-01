@@ -7196,6 +7196,42 @@ details[open] > summary.adminSectionSummary .hideLabel {
   top: 1rem;
 }
 
+.projectorTargetPicker {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.projectorTargetButtons {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(4, minmax(0, 1fr));
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.projectorTargetButtons button {
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.7rem 0.35rem;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorTargetButtons button:last-child {
+  border-right: 0;
+}
+
+.projectorTargetButtons button.isActive {
+  background: var(--navy);
+  color: #fff;
+}
+
 .projectorDashboard .field,
 .projectorScreenJoin .field {
   display: grid;

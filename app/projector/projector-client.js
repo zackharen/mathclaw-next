@@ -229,17 +229,28 @@ export default function ProjectorClient({ session }) {
         </section>
 
         <aside className="projectorComposer">
-          <label className="field">
+          <div className="projectorTargetPicker" aria-label="Send target">
             <span>Send to</span>
-            <select value={target} onChange={(event) => setTarget(event.target.value)}>
-              <option value="all">All screens</option>
+            <div className="projectorTargetButtons">
+              <button
+                className={target === "all" ? "isActive" : ""}
+                type="button"
+                onClick={() => setTarget("all")}
+              >
+                All
+              </button>
               {SCREEN_IDS.map((screenId) => (
-                <option value={screenId} key={screenId}>
-                  Screen {screenId}
-                </option>
+                <button
+                  className={target === screenId ? "isActive" : ""}
+                  key={screenId}
+                  type="button"
+                  onClick={() => setTarget(screenId)}
+                >
+                  {screenId}
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
 
           <div className="projectorTabs" role="tablist" aria-label="Content type">
             {["latex", "image", "video"].map((tab) => (
