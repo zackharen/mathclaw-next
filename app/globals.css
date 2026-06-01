@@ -7183,7 +7183,12 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-size: clamp(1.15rem, 2vw, 2.2rem);
 }
 
-.projectorThumbMedia,
+.projectorThumbMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .projectorComposerPreview img,
 .projectorComposerPreview video {
   max-width: 100%;
