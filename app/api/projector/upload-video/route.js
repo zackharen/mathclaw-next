@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -98,6 +98,22 @@ async function blobToBuffer(blob) {
   return Buffer.from(await blob.arrayBuffer());
 }
 
+async function resolveFfmpegPath() {
+  const candidates = [
+    ffmpegPath,
+    path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg"),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {}
+  }
+
+  throw new Error(`ffmpeg binary not found. Tried: ${candidates.join(", ")}`);
+}
+
 function ffmpegErrorMessage(error) {
   const stderr = String(error?.stderr || "").trim();
   const finalLine = stderr
@@ -127,9 +143,10 @@ async function convertBufferToPublicUrl(admin, user, inputBuffer) {
 
   try {
     await writeFile(inputPath, inputBuffer);
-    await chmod(ffmpegPath, 0o755).catch(() => {});
+    const executableFfmpegPath = await resolveFfmpegPath();
+    await chmod(executableFfmpegPath, 0o755).catch(() => {});
     await execFileAsync(
-      ffmpegPath,
+      executableFfmpegPath,
       [
         "-i",
         inputPath,
