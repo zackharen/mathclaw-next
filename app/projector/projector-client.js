@@ -8,6 +8,7 @@ const MATHCLAW_ORIGIN = "https://mathclaw.com";
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
+const DIRECT_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
@@ -171,6 +172,26 @@ export default function ProjectorClient({ session }) {
     setUploadingVideo(true);
     setMessage("Uploading recording...");
     try {
+      if (file.size <= DIRECT_VIDEO_UPLOAD_BYTES) {
+        const formData = new FormData();
+        formData.append("file", file);
+        setMessage("Converting recording to projector video...");
+        const directResponse = await fetch("/api/projector/upload-video", {
+          method: "POST",
+          body: formData,
+        });
+        const directPayload = await directResponse.json();
+        if (!directResponse.ok) {
+          throw new Error(directPayload.error || "Could not convert the recording.");
+        }
+
+        setVideoUploadUrl(directPayload.url);
+        setVideoFileName(file.name);
+        setUrl("");
+        setMessage("Recording is ready to send.");
+        return;
+      }
+
       const prepareResponse = await fetch("/api/projector/upload-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

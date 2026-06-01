@@ -17,6 +17,7 @@ export const maxDuration = 60;
 const execFileAsync = promisify(execFile);
 const BUCKET = "projector-videos";
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
+const DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -97,19 +98,26 @@ async function blobToBuffer(blob) {
   return Buffer.from(await blob.arrayBuffer());
 }
 
-async function convertVideo(admin, user, body) {
+function ffmpegErrorMessage(error) {
+  const stderr = String(error?.stderr || "").trim();
+  const finalLine = stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-1)[0];
+
+  if (error?.killed) return "That recording took too long to convert. Try a shorter clip.";
+  if (finalLine) return `Could not convert that recording: ${finalLine}`;
+  return "Could not convert that recording. Try an MP4, MOV, or WebM screen recording.";
+}
+
+async function convertBufferToPublicUrl(admin, user, inputBuffer) {
   if (!ffmpegPath) return jsonError("Video conversion is not available on this server.", 500);
 
-  const rawPath = String(body.path || "");
-  if (!rawPath.startsWith(`raw/${user.id}/`)) return jsonError("That upload was not found.", 404);
+  if (!inputBuffer.length) return jsonError("The uploaded recording was empty. Choose the file again.", 400);
 
   const bucketError = await ensureVideoBucket(admin);
   if (bucketError) return jsonError(bucketError.message, 500);
-
-  const { data: rawBlob, error: downloadError } = await admin.storage.from(BUCKET).download(rawPath);
-  if (downloadError || !rawBlob) {
-    return jsonError(downloadError?.message || "Could not read the uploaded recording.", 500);
-  }
 
   const workDir = path.join(tmpdir(), `projector-video-${randomUUID()}`);
   await mkdir(workDir, { recursive: true });
@@ -117,7 +125,7 @@ async function convertVideo(admin, user, body) {
   const outputPath = path.join(workDir, "output.mp4");
 
   try {
-    await writeFile(inputPath, await blobToBuffer(rawBlob));
+    await writeFile(inputPath, inputBuffer);
     await execFileAsync(
       ffmpegPath,
       [
@@ -154,25 +162,57 @@ async function convertVideo(admin, user, body) {
 
     if (uploadError) return jsonError(uploadError.message, 500);
 
-    await admin.storage.from(BUCKET).remove([rawPath]);
     const { data } = admin.storage.from(BUCKET).getPublicUrl(convertedPath);
     return NextResponse.json({ url: data.publicUrl });
   } catch (error) {
-    return jsonError(
-      error?.killed
-        ? "That recording took too long to convert. Try a shorter clip."
-        : "Could not convert that recording. Try an MP4, MOV, or WebM screen recording.",
-      500
-    );
+    return jsonError(ffmpegErrorMessage(error), 500);
   } finally {
     await Promise.allSettled([unlink(inputPath), unlink(outputPath)]);
   }
+}
+
+async function convertVideo(admin, user, body) {
+  const rawPath = String(body.path || "");
+  if (!rawPath.startsWith(`raw/${user.id}/`)) return jsonError("That upload was not found.", 404);
+
+  const bucketError = await ensureVideoBucket(admin);
+  if (bucketError) return jsonError(bucketError.message, 500);
+
+  const { data: rawBlob, error: downloadError } = await admin.storage.from(BUCKET).download(rawPath);
+  if (downloadError || !rawBlob) {
+    return jsonError(downloadError?.message || "Could not read the uploaded recording.", 500);
+  }
+
+  const response = await convertBufferToPublicUrl(admin, user, await blobToBuffer(rawBlob));
+  if (response.ok) await admin.storage.from(BUCKET).remove([rawPath]);
+  return response;
+}
+
+async function uploadAndConvertVideo(admin, user, request) {
+  const formData = await request.formData();
+  const file = formData.get("file");
+  if (!file || typeof file.arrayBuffer !== "function") {
+    return jsonError("Choose a screen recording to upload.");
+  }
+  if (file.size > DIRECT_UPLOAD_BYTES) {
+    return jsonError("That recording needs the large-file uploader. Choose the file again.");
+  }
+
+  const bucketError = await ensureVideoBucket(admin);
+  if (bucketError) return jsonError(bucketError.message, 500);
+
+  return convertBufferToPublicUrl(admin, user, await blobToBuffer(file));
 }
 
 export async function POST(request) {
   const admin = createAdminClient();
   const context = await getTeacherContext(admin);
   if (context.error) return context.error;
+
+  const contentType = request.headers.get("content-type") || "";
+  if (contentType.includes("multipart/form-data")) {
+    return uploadAndConvertVideo(admin, context.user, request);
+  }
 
   const body = await request.json().catch(() => ({}));
   if (body.action === "prepare") return prepareUpload(admin, context.user, body);
