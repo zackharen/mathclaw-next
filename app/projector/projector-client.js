@@ -93,6 +93,18 @@ export default function ProjectorClient({ session }) {
   const screenTokens = session.screen_tokens || {};
   const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
 
+  async function refetchScreenState(screenId) {
+    const token = screenTokens[screenId];
+    if (!token) return;
+    const response = await fetch(`/api/projector?token=${encodeURIComponent(token)}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return;
+    setScreenStates((current) => ({
+      ...current,
+      [screenId]: payload.state || null,
+    }));
+  }
+
   useEffect(() => {
     ensureKatexAssets();
   }, []);
@@ -104,6 +116,10 @@ export default function ProjectorClient({ session }) {
       .on("broadcast", { event: "screen-updated" }, ({ payload }) => {
         const screenId = String(payload?.screenId || "");
         if (!SCREEN_IDS.includes(screenId)) return;
+        if (payload?.refetch) {
+          refetchScreenState(screenId);
+          return;
+        }
         setScreenStates((current) => ({
           ...current,
           [screenId]: payload?.type ? { type: payload.type, content: payload.content || "" } : null,
@@ -114,7 +130,7 @@ export default function ProjectorClient({ session }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session.id]);
+  }, [session.id, screenTokens]);
 
   async function copyUrl(screenId) {
     const screenUrl = `${MATHCLAW_ORIGIN}/projector/screen?token=${screenTokens[screenId]}`;

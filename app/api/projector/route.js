@@ -67,6 +67,17 @@ async function broadcastScreenUpdates(admin, sessionId, payloads) {
   }
 }
 
+function buildBroadcastPayload(screenId, state) {
+  if (state.type === "image") {
+    return { screenId, type: state.type, refetch: true };
+  }
+  return {
+    screenId,
+    type: state.type,
+    content: state.content,
+  };
+}
+
 async function getTeacherSession(admin, supabase) {
   const {
     data: { user },
@@ -181,11 +192,7 @@ export async function POST(request) {
   await broadcastScreenUpdates(
     admin,
     context.session.id,
-    screenIds.map((screenId) => ({
-      screenId,
-      type: state.type,
-      content: state.content,
-    }))
+    screenIds.map((screenId) => buildBroadcastPayload(screenId, state))
   );
 
   return NextResponse.json({ ok: true });

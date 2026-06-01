@@ -125,6 +125,10 @@ export default function ScreenClient() {
       .channel(`projector-session-${sessionId}`)
       .on("broadcast", { event: "screen-updated" }, ({ payload }) => {
         if (String(payload?.screenId) !== String(screenNumber)) return;
+        if (payload?.refetch) {
+          loadScreen();
+          return;
+        }
         setState(payload?.type ? { type: payload.type, content: payload.content || "" } : null);
       })
       .subscribe((nextStatus) => {
@@ -138,7 +142,7 @@ export default function ScreenClient() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [reconnectKey, sessionId, screenNumber]);
+  }, [loadScreen, reconnectKey, sessionId, screenNumber]);
 
   async function resolvePin(event) {
     event.preventDefault();
