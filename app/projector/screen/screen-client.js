@@ -177,16 +177,21 @@ export default function ScreenClient() {
               placeholder="123456"
             />
           </label>
-          <label className="field">
+          <div className="projectorJoinScreenPicker" aria-label="Screen number">
             <span>Screen number</span>
-            <select value={screenNumber} onChange={(event) => setScreenNumber(event.target.value)}>
+            <div className="projectorJoinScreenButtons">
               {SCREEN_IDS.map((screenId) => (
-                <option value={screenId} key={screenId}>
+                <button
+                  className={screenNumber === screenId ? "isActive" : ""}
+                  key={screenId}
+                  type="button"
+                  onClick={() => setScreenNumber(screenId)}
+                >
                   Screen {screenId}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
           <button className="btn" type="submit">
             Connect
           </button>

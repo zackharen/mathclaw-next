@@ -7240,6 +7240,37 @@ details[open] > summary.adminSectionSummary .hideLabel {
   color: var(--navy);
 }
 
+.projectorJoinScreenPicker {
+  display: grid;
+  gap: 0.5rem;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.projectorJoinScreenButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.projectorJoinScreenButtons button {
+  min-height: 4.25rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fa;
+  color: var(--navy);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorJoinScreenButtons button.isActive {
+  background: var(--navy);
+  color: #fff;
+  box-shadow: inset 0 0 0 3px #8fbce0;
+}
+
 .projectorDashboard input,
 .projectorDashboard select,
 .projectorDashboard textarea,
