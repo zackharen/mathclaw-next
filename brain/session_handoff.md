@@ -8,7 +8,17 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-05-13 America/New_York (student onboarding/admin nicknames/Connect 4 replay)
+2026-06-01 America/New_York (Projector Party)
+
+## What Was Built (2026-06-01 Session — Projector Party)
+- **Projector Party built for MathClaw** (`app/projector/*`, `app/api/projector/route.js`, `app/layout.js`, `app/globals.css`, `supabase/migrations_20260601_projector_sessions.sql`, local implementation commit `bd2273c`):
+  - Added teacher-only `/projector` with one persistent projector session per teacher, 6-digit room PIN, four screen tokens, a 2x2 screen dashboard, per-screen copyable `https://mathclaw.com/projector/screen?token=...` URLs, and composer controls for LaTeX, images/GIFs, and hosted video URLs.
+  - Added public `/projector/screen` receiver with PIN + screen number resolution or direct token connection, fullscreen dark-stage rendering, KaTeX display, centered image/GIF/video rendering, and reconnecting Supabase Broadcast subscription.
+  - Added `/api/projector` for public token/PIN resolution and authenticated teacher push/clear actions. Teacher actions update `projector_sessions.screen_states` and broadcast `screen-updated` events on `projector-session-<sessionId>`.
+  - Added teacher nav item `Projector` after `Classes`.
+  - Production Supabase migration `projector_sessions` was applied through the Supabase connector to project `mathclaw-prod` / `ruaaznacaywngewxyged` and returned `success: true`. A follow-up migration-list call requested connector reauthentication, so migration-list verification did not complete; project health lookup still returned `ACTIVE_HEALTHY`.
+  - Verification passed: `node --check` on all new Projector JS files; `npm run build`; `git diff --check`; built local server route checks for `/projector` unauthenticated redirect and public `/projector/screen` PIN-entry render.
+  - Verification caveat: full authenticated teacher dashboard and live two-tab realtime screen testing were not completed locally because there was no available authenticated local teacher session and the local Supabase schema did not have the new table before production migration application.
 
 ## What Was Built (2026-05-13 Session — onboarding/admin nicknames/Connect 4 replay)
 - **Student onboarding clarity, admin single-save account editing, public nicknames, and Connect 4 replay scrubbing shipped** (`app/auth/sign-up/sign-up-form.js`, `app/onboarding/profile/*`, `app/play/page.js`, `app/admin/*`, `lib/auth/account-type.js`, group-game APIs, Connect 4 API/client/tournament UI, `app/globals.css`, `supabase/schema.sql`, `supabase/migrations_20260513_profile_nicknames.sql`, `tests/connect4-replay.test.mjs`, commit `1d91bd5`, pushed to `origin/main`):
@@ -157,6 +167,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Arcade supports both `student` (class required) and `player` (class optional) entry paths
 - Integer Practice is a large adaptive system with its own progression engine, Node tests, owner-managed global mastery tuning, and compact aggregate saved progress
 - Double Board supports integer operations, percent-change multipliers, and Mixed Review, with a live classroom flow including turn reordering, student-voted settings, per-student lockouts, score-sorted class roster ranking, roster presence colors, synced timers, teacher next-student control, podium end-state, and projector fullscreen. Percent Change Multipliers Column 3 uses 2-decimal percents and ten-thousandths answer scaling.
+- Projector Party is in code at `/projector` for teachers and `/projector/screen` for public display screens. It uses Supabase Realtime Broadcast over `projector-session-<sessionId>` and stores non-sensitive screen states in `projector_sessions`.
 - Saved-state for Integer Practice and 2048 now lives in the `saved_game_progress` DB table; legacy auth-metadata `saved_games` was bulk-preserved into the DB table and removed from auth metadata
 - Local dev boots on `.env.local`; staging uses `.env.staging.local` and the `staging` branch, with a separate Supabase project; `Production` and `Preview` Vercel scopes map to the corresponding Supabase projects
 - Local `.env.local` owner access is set to `zackharen@gmail.com`; if the Admin nav button is missing after this change, restart the existing `localhost:3000` dev server so Next reloads environment variables
@@ -178,6 +189,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 -->
 
 ## Migrations Or Policy Changes Made
+- Created `/supabase/migrations_20260601_projector_sessions.sql` and applied it to production Supabase project `mathclaw-prod` (`ruaaznacaywngewxyged`) on 2026-06-01 via the Supabase connector. The apply call returned `success: true`; follow-up migration listing was blocked by connector reauthentication.
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
 - Created `/supabase/migrations_20260506_connect4_tournaments.sql`; it must be applied to production Supabase before Tournament Mode can be used with logged-in users. Supabase connector application failed in Codex due an app-connector handshake error before the SQL reached the project.
 - Created `/supabase/migrations_20260513_profile_nicknames.sql`; it must be applied to production Supabase before student/player nicknames persist in `profiles.nickname`. Code includes fallbacks for schemas where the column is not present.
