@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -108,6 +108,7 @@ function ffmpegErrorMessage(error) {
 
   if (error?.killed) return "That recording took too long to convert. Try a shorter clip.";
   if (finalLine) return `Could not convert that recording: ${finalLine}`;
+  if (error?.message) return `Could not convert that recording: ${error.message}`;
   return "Could not convert that recording. Try an MP4, MOV, or WebM screen recording.";
 }
 
@@ -126,6 +127,7 @@ async function convertBufferToPublicUrl(admin, user, inputBuffer) {
 
   try {
     await writeFile(inputPath, inputBuffer);
+    await chmod(ffmpegPath, 0o755).catch(() => {});
     await execFileAsync(
       ffmpegPath,
       [
