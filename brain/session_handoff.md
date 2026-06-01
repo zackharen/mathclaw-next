@@ -11,13 +11,13 @@ This file represents the **current state only**. It should stay short enough to 
 2026-06-01 America/New_York (Projector Party)
 
 ## What Was Built (2026-06-01 Session — Projector Party)
-- **Projector Party built for MathClaw** (`app/projector/*`, `app/api/projector/route.js`, `app/layout.js`, `app/globals.css`, `supabase/migrations_20260601_projector_sessions.sql`, local implementation commit `bd2273c`):
+- **Projector Party built and pushed for MathClaw** (`app/projector/*`, `app/api/projector/route.js`, `app/layout.js`, `app/globals.css`, `supabase/migrations_20260601_projector_sessions.sql`, implementation commit `bd2273c`, handoff commit `f4260bd`, pushed to `origin/main`):
   - Added teacher-only `/projector` with one persistent projector session per teacher, 6-digit room PIN, four screen tokens, a 2x2 screen dashboard, per-screen copyable `https://mathclaw.com/projector/screen?token=...` URLs, and composer controls for LaTeX, images/GIFs, and hosted video URLs.
   - Added public `/projector/screen` receiver with PIN + screen number resolution or direct token connection, fullscreen dark-stage rendering, KaTeX display, centered image/GIF/video rendering, and reconnecting Supabase Broadcast subscription.
   - Added `/api/projector` for public token/PIN resolution and authenticated teacher push/clear actions. Teacher actions update `projector_sessions.screen_states` and broadcast `screen-updated` events on `projector-session-<sessionId>`.
   - Added teacher nav item `Projector` after `Classes`.
   - Production Supabase migration `projector_sessions` was applied through the Supabase connector to project `mathclaw-prod` / `ruaaznacaywngewxyged` and returned `success: true`. A follow-up migration-list call requested connector reauthentication, so migration-list verification did not complete; project health lookup still returned `ACTIVE_HEALTHY`.
-  - Verification passed: `node --check` on all new Projector JS files; `npm run build`; `git diff --check`; built local server route checks for `/projector` unauthenticated redirect and public `/projector/screen` PIN-entry render.
+  - Verification passed: `node --check` on all new Projector JS files; `npm run build`; `git diff --check`; built local server route checks for `/projector` unauthenticated redirect and public `/projector/screen` PIN-entry render. Live checks after push: `https://www.mathclaw.com/projector` returned 307 to sign-in, `https://www.mathclaw.com/projector/screen` returned 200 with the PIN-entry form, and `https://www.mathclaw.com/api/projector?action=resolve&pin=123456&screenNumber=1` returned the expected 404 not-found JSON instead of a missing-table error.
   - Verification caveat: full authenticated teacher dashboard and live two-tab realtime screen testing were not completed locally because there was no available authenticated local teacher session and the local Supabase schema did not have the new table before production migration application.
 
 ## What Was Built (2026-05-13 Session — onboarding/admin nicknames/Connect 4 replay)
