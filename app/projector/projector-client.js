@@ -59,6 +59,9 @@ function ProjectorLatex({ content, className = "" }) {
 
 function renderContent(state, compact = false) {
   if (!state) return <span className="projectorEmpty">empty</span>;
+  if (state.type === "text") {
+    return <div className={compact ? "projectorTextThumb" : "projectorTextDisplay"}>{state.content}</div>;
+  }
   if (state.type === "latex") {
     return <ProjectorLatex content={state.content} className={compact ? "projectorLatexThumb" : ""} />;
   }
@@ -79,7 +82,8 @@ function renderContent(state, compact = false) {
 export default function ProjectorClient({ session }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [target, setTarget] = useState("all");
-  const [type, setType] = useState("latex");
+  const [type, setType] = useState("text");
+  const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
   const [url, setUrl] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
@@ -137,7 +141,8 @@ export default function ProjectorClient({ session }) {
   async function sendContent() {
     setSending(true);
     setMessage("");
-    const content = type === "latex" ? latex : type === "image" ? imageDataUrl || url : url;
+    const content =
+      type === "text" ? text : type === "latex" ? latex : type === "image" ? imageDataUrl || url : url;
 
     try {
       const response = await fetch("/api/projector", {
@@ -253,7 +258,7 @@ export default function ProjectorClient({ session }) {
           </div>
 
           <div className="projectorTabs" role="tablist" aria-label="Content type">
-            {["latex", "image", "video"].map((tab) => (
+            {["text", "latex", "image", "video"].map((tab) => (
               <button
                 className={type === tab ? "isActive" : ""}
                 key={tab}
@@ -264,6 +269,18 @@ export default function ProjectorClient({ session }) {
               </button>
             ))}
           </div>
+
+          {type === "text" ? (
+            <>
+              <label className="field">
+                <span>Text</span>
+                <textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} />
+              </label>
+              <div className="projectorComposerPreview">
+                <div className="projectorTextPreview">{text || "Text preview"}</div>
+              </div>
+            </>
+          ) : null}
 
           {type === "latex" ? (
             <>

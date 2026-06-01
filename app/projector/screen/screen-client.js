@@ -60,6 +60,7 @@ function LatexDisplay({ content }) {
 
 function ScreenContent({ state }) {
   if (!state) return <div className="projectorWaiting">waiting for content</div>;
+  if (state.type === "text") return <div className="projectorScreenText">{state.content}</div>;
   if (state.type === "latex") return <LatexDisplay content={state.content} />;
   if (state.type === "image" || isGif(state.content)) {
     return <img className="projectorScreenMedia" src={state.content} alt="" />;

@@ -6,7 +6,7 @@ import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-
 export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = ["1", "2", "3", "4"];
-const CONTENT_TYPES = new Set(["latex", "image", "video"]);
+const CONTENT_TYPES = new Set(["text", "latex", "image", "video"]);
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });

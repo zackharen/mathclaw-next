@@ -7163,6 +7163,26 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-size: clamp(1.1rem, 2vw, 2rem);
 }
 
+.projectorTextThumb,
+.projectorTextDisplay,
+.projectorTextPreview {
+  width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 900;
+}
+
+.projectorTextThumb {
+  font-size: clamp(1.1rem, 2vw, 2rem);
+}
+
+.projectorTextPreview {
+  color: var(--navy);
+  font-size: clamp(1.15rem, 2vw, 2.2rem);
+}
+
 .projectorThumbMedia,
 .projectorComposerPreview img,
 .projectorComposerPreview video {
@@ -7291,7 +7311,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorTabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 2px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -7418,6 +7438,18 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   width: 100%;
   text-align: center;
   font-size: clamp(28px, 5vw, 72px);
+  color: #fff;
+}
+
+.projectorScreenText {
+  width: min(100%, 72rem);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: clamp(32px, 6vw, 86px);
+  font-weight: 900;
+  line-height: 1.12;
   color: #fff;
 }
 
