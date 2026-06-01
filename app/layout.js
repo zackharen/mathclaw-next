@@ -163,6 +163,7 @@ export default async function RootLayout({ children }) {
       ...(canAccessAdmin ? [{ href: "/admin", label: "Admin" }] : []),
       { href: "/play", label: "Arcade" },
       { href: "/classes", label: "Classes" },
+      { href: "/projector", label: "Projector" },
       { href: "/dashboard", label: "Dashboard" },
       { href: "/onboarding/profile", label: "Profile" },
       { href: "/report-bug", label: "Report Bug" },
