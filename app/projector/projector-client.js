@@ -7,6 +7,7 @@ const SCREEN_IDS = ["1", "2", "3", "4"];
 const MATHCLAW_ORIGIN = "https://mathclaw.com";
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
+const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
 
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
@@ -87,8 +88,11 @@ export default function ProjectorClient({ session }) {
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
   const [url, setUrl] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
+  const [videoUploadUrl, setVideoUploadUrl] = useState("");
+  const [videoFileName, setVideoFileName] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const screenTokens = session.screen_tokens || {};
   const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
@@ -154,11 +158,71 @@ export default function ProjectorClient({ session }) {
     reader.readAsDataURL(file);
   }
 
+  async function onVideoFileChange(event) {
+    const file = event.target.files?.[0];
+    setVideoUploadUrl("");
+    setVideoFileName("");
+    if (!file) return;
+    if (file.size > MAX_VIDEO_BYTES) {
+      setMessage("That recording is over 75MB. Try a shorter clip.");
+      return;
+    }
+
+    setUploadingVideo(true);
+    setMessage("Uploading recording...");
+    try {
+      const prepareResponse = await fetch("/api/projector/upload-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "prepare",
+          fileName: file.name,
+          contentType: file.type || "video/quicktime",
+          size: file.size,
+        }),
+      });
+      const preparePayload = await prepareResponse.json();
+      if (!prepareResponse.ok) throw new Error(preparePayload.error || "Could not start the upload.");
+
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from(preparePayload.bucket)
+        .uploadToSignedUrl(preparePayload.path, preparePayload.token, file, {
+          contentType: file.type || "video/quicktime",
+        });
+      if (uploadError) throw new Error(uploadError.message);
+
+      setMessage("Converting recording to projector video...");
+      const convertResponse = await fetch("/api/projector/upload-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "convert", path: preparePayload.path }),
+      });
+      const convertPayload = await convertResponse.json();
+      if (!convertResponse.ok) throw new Error(convertPayload.error || "Could not convert the recording.");
+
+      setVideoUploadUrl(convertPayload.url);
+      setVideoFileName(file.name);
+      setUrl("");
+      setMessage("Recording is ready to send.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+
   async function sendContent() {
     setSending(true);
     setMessage("");
     const content =
-      type === "text" ? text : type === "latex" ? latex : type === "image" ? imageDataUrl || url : url;
+      type === "text"
+        ? text
+        : type === "latex"
+          ? latex
+          : type === "image"
+            ? imageDataUrl || url
+            : videoUploadUrl || url;
 
     try {
       const response = await fetch("/api/projector", {
@@ -331,32 +395,44 @@ export default function ProjectorClient({ session }) {
               <label className="field">
                 <span>Video upload</span>
                 <input
-                  accept="video/mp4"
+                  accept="video/*,.mov,.m4v,.webm"
                   type="file"
-                  onChange={() => setMessage("For this version, paste a hosted MP4 URL instead of uploading video.")}
+                  onChange={onVideoFileChange}
+                  disabled={uploadingVideo}
                 />
               </label>
+              {videoFileName ? <p className="projectorUploadNote">Ready: {videoFileName}</p> : null}
               <label className="field">
                 <span>Video or GIF URL</span>
-                <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://.../video.mp4" />
+                <input
+                  value={url}
+                  onChange={(event) => {
+                    setUrl(event.target.value);
+                    setVideoUploadUrl("");
+                    setVideoFileName("");
+                  }}
+                  placeholder="https://.../video.mp4"
+                />
               </label>
               <div className="projectorComposerPreview">
-                {url && /\.gif(\?|#|$)/i.test(url) ? (
-                  <img src={url} alt="" />
-                ) : url ? (
-                  <video src={url} autoPlay loop muted playsInline />
+                {(videoUploadUrl || url) && /\.gif(\?|#|$)/i.test(videoUploadUrl || url) ? (
+                  <img src={videoUploadUrl || url} alt="" />
+                ) : videoUploadUrl || url ? (
+                  <video src={videoUploadUrl || url} autoPlay loop muted playsInline />
+                ) : uploadingVideo ? (
+                  "Converting recording..."
                 ) : (
-                  "Paste a hosted MP4 or GIF URL"
+                  "Upload a screen recording or paste a hosted MP4/GIF URL"
                 )}
               </div>
             </>
           ) : null}
 
           <div className="projectorActions">
-            <button className="btn" type="button" onClick={sendContent} disabled={sending}>
+            <button className="btn" type="button" onClick={sendContent} disabled={sending || uploadingVideo}>
               Send
             </button>
-            <button className="btn secondary" type="button" onClick={clearScreens} disabled={sending}>
+            <button className="btn secondary" type="button" onClick={clearScreens} disabled={sending || uploadingVideo}>
               Clear
             </button>
           </div>

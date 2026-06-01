@@ -7356,6 +7356,13 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-weight: 800;
 }
 
+.projectorUploadNote {
+  margin: -0.35rem 0 0;
+  color: var(--navy);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .projectorActions {
   display: grid;
   grid-template-columns: 1fr 1fr;
