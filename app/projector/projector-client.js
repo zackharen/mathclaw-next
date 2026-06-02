@@ -148,7 +148,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
   const [folders, setFolders] = useState(sceneFolders);
-  const [openFolderIds, setOpenFolderIds] = useState(new Set(["uncategorized"]));
+  const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [openPanels, setOpenPanels] = useState({ screens: true, scenes: false, library: false });
   const [target, setTarget] = useState("all");
@@ -819,16 +819,18 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               const isOpen = openFolderIds.has("uncategorized");
               return (
                 <div className="projectorSceneFolderSection">
-                  <button
-                    className="projectorSceneFolderToggle"
-                    type="button"
-                    onClick={() => toggleFolder("uncategorized")}
-                    aria-expanded={isOpen}
-                  >
-                    <span>Uncategorized</span>
-                    <span>{uncatScenes.length}</span>
-                    <strong>{isOpen ? "▲" : "▼"}</strong>
-                  </button>
+                  <div className="projectorSceneFolderHeader">
+                    <button
+                      className="projectorSceneFolderToggle"
+                      type="button"
+                      onClick={() => toggleFolder("uncategorized")}
+                      aria-expanded={isOpen}
+                    >
+                      <span>Uncategorized</span>
+                      <span className="projectorFolderCount">{uncatScenes.length}</span>
+                      <strong>{isOpen ? "▲" : "▼"}</strong>
+                    </button>
+                  </div>
                   {isOpen ? (
                     <div className="projectorLibraryList">
                       {uncatScenes.length ? (
@@ -886,16 +888,27 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               const isOpen = openFolderIds.has(folder.id);
               return (
                 <div className="projectorSceneFolderSection" key={folder.id}>
-                  <button
-                    className="projectorSceneFolderToggle"
-                    type="button"
-                    onClick={() => toggleFolder(folder.id)}
-                    aria-expanded={isOpen}
-                  >
-                    <span>{folder.title}</span>
-                    <span>{folderScenes.length}</span>
-                    <strong>{isOpen ? "▲" : "▼"}</strong>
-                  </button>
+                  <div className="projectorSceneFolderHeader">
+                    <button
+                      className="projectorSceneFolderToggle"
+                      type="button"
+                      onClick={() => toggleFolder(folder.id)}
+                      aria-expanded={isOpen}
+                    >
+                      <span>{folder.title}</span>
+                      <span className="projectorFolderCount">{folderScenes.length}</span>
+                      <strong>{isOpen ? "▲" : "▼"}</strong>
+                    </button>
+                    <button
+                      className="projectorSceneFolderDelete"
+                      type="button"
+                      onClick={() => deleteSceneFolder(folder.id)}
+                      disabled={savingScene}
+                      aria-label={`Delete folder ${folder.title}`}
+                    >
+                      D
+                    </button>
+                  </div>
                   {isOpen ? (
                     <div className="projectorLibraryList">
                       {folderScenes.length ? (
@@ -943,15 +956,6 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                       )}
                     </div>
                   ) : null}
-                  <button
-                    className="projectorLibraryDelete"
-                    type="button"
-                    onClick={() => deleteSceneFolder(folder.id)}
-                    disabled={savingScene}
-                    aria-label={`Delete folder ${folder.title}`}
-                  >
-                    Delete Folder
-                  </button>
                 </div>
               );
             })}
