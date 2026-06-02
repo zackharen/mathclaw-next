@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-02 America/New_York (Projector Scene Library folders)
+2026-06-02 America/New_York (Projector video upload reliability)
+
+## What Was Built (2026-06-02 Session — Projector video upload reliability)
+- **Projector video upload failure handling improved** (`app/api/projector/upload-video/route.js`, `app/projector/projector-client.js`):
+  - Investigated failing teacher upload `Screen Recording 2026-06-02 at 9.34.00 AM.mov`: 25MB, 8.19s, 1916x948, about 53fps, about 25.8 Mbps, H.264/AAC QuickTime. The file is short but unusually dense, making the prior full-quality transcode likely to hit the serverless conversion timeout path.
+  - Projector video conversion now targets projector-friendly output: max 1280px width, 30fps, H.264 `veryfast`, CRF 28, yuv420p, AAC audio, and faststart MP4. This should convert high-bitrate screen recordings much faster while keeping classroom display quality reasonable.
+  - Dashboard video upload fetches now tolerate non-JSON platform/server error bodies and show a normal "Could not convert..." style message instead of raw `Unexpected token ... is not valid JSON`.
+  - Verification passed: `node --check app/api/projector/upload-video/route.js`; `node --check app/projector/projector-client.js`; `git diff --check`; `npm run build`.
+  - Verification caveat: direct local ffmpeg timing and local route testing were blocked by sandbox execution/server-binding restrictions; authenticated production upload of the specific teacher file still needs a live retry after deployment.
 
 ## What Was Built (2026-06-02 Session — Projector Scene Library folders)
 - **Projector Room Setup folders implemented locally and production migration applied** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/api/projector/route.js`, `app/globals.css`, `supabase/migrations_20260602_projector_scene_folders.sql`):

@@ -93,6 +93,19 @@ function toLibraryState(item) {
   };
 }
 
+async function readJsonResponse(response, fallbackMessage) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text().catch(() => "");
+  const cleanText = text.replace(/\s+/g, " ").trim();
+  return {
+    error: cleanText ? `${fallbackMessage} ${cleanText.slice(0, 120)}` : fallbackMessage,
+  };
+}
+
 function sceneFilledCount(scene) {
   return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
 }
@@ -442,7 +455,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           method: "POST",
           body: formData,
         });
-        const directPayload = await directResponse.json();
+        const directPayload = await readJsonResponse(directResponse, "Could not convert the recording.");
         if (!directResponse.ok) {
           throw new Error(directPayload.error || "Could not convert the recording.");
         }
@@ -464,7 +477,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           size: file.size,
         }),
       });
-      const preparePayload = await prepareResponse.json();
+      const preparePayload = await readJsonResponse(prepareResponse, "Could not prepare the recording upload.");
       if (!prepareResponse.ok) {
         throw new Error(preparePayload.error || "Could not prepare the recording upload.");
       }
@@ -485,7 +498,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "convert", path: preparePayload.path }),
       });
-      const convertPayload = await convertResponse.json();
+      const convertPayload = await readJsonResponse(convertResponse, "Could not convert the recording.");
       if (!convertResponse.ok) {
         throw new Error(convertPayload.error || "Could not convert the recording.");
       }
