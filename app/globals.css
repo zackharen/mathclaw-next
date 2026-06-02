@@ -7286,7 +7286,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorSceneItem {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.45rem;
   align-items: stretch;
 }
@@ -7362,6 +7362,114 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorSceneThumb .projectorEmpty {
   font-size: 0.55rem;
+}
+
+.projectorSceneFolderCreator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.projectorSceneFolderFilters {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+
+.projectorSceneFolderFilters button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  border: 2px solid #c8d6df;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorSceneFolderFilters button.isActive {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.projectorSceneFolderFilters button span {
+  min-width: 1.4rem;
+  border-radius: 999px;
+  background: rgba(147, 165, 180, 0.18);
+  padding: 0.02rem 0.35rem;
+  text-align: center;
+}
+
+.projectorSceneControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.projectorSceneControls label {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--navy);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.projectorSceneControls select {
+  width: 100%;
+  min-width: 0;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.projectorSceneFolderList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.projectorSceneFolderList span {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid #c8d6df;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.25rem 0.35rem 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.projectorSceneFolderList button {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #fff0f0;
+  color: #7c1f1f;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .projectorLibraryDelete {

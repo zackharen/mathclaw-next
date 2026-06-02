@@ -11,6 +11,7 @@ const LIBRARY_TITLE_LIMIT = 80;
 const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
 const SCENE_TITLE_LIMIT = 80;
 const SCENE_STATE_LIMIT = 24 * 1024 * 1024;
+const SCENE_FOLDER_TITLE_LIMIT = 60;
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -58,6 +59,15 @@ function normalizeSceneTitle(title) {
   return safeTitle || "Saved room setup";
 }
 
+function normalizeSceneFolderTitle(title) {
+  return String(title || "").trim().replace(/\s+/g, " ").slice(0, SCENE_FOLDER_TITLE_LIMIT);
+}
+
+function normalizeSceneFolderId(value) {
+  const folderId = String(value || "").trim();
+  return isUuid(folderId) ? folderId : null;
+}
+
 function normalizeLibraryItem(row) {
   return {
     id: row.id,
@@ -73,7 +83,17 @@ function normalizeSceneItem(row) {
   return {
     id: row.id,
     title: row.title,
+    folder_id: row.folder_id || null,
     screen_states: normalizeSceneStates(row.screen_states),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function normalizeSceneFolder(row) {
+  return {
+    id: row.id,
+    title: row.title,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -196,17 +216,50 @@ async function listLibrary(admin, teacherId) {
 async function listScenes(admin, teacherId) {
   const { data, error } = await admin
     .from("projector_scene_library_items")
-    .select("id, title, screen_states, created_at, updated_at")
+    .select("id, title, folder_id, screen_states, created_at, updated_at")
     .eq("teacher_id", teacherId)
     .order("updated_at", { ascending: false })
     .limit(40);
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return NextResponse.json({ scenes: [] });
+    if (error.code === "42703" || error.code === "PGRST204") {
+      const { data: fallbackData, error: fallbackError } = await admin
+        .from("projector_scene_library_items")
+        .select("id, title, screen_states, created_at, updated_at")
+        .eq("teacher_id", teacherId)
+        .order("updated_at", { ascending: false })
+        .limit(40);
+
+      if (fallbackError) {
+        if (fallbackError.code === "42P01" || fallbackError.code === "PGRST205") {
+          return NextResponse.json({ scenes: [] });
+        }
+        return jsonError(fallbackError.message, 500);
+      }
+      return NextResponse.json({ scenes: (fallbackData || []).map(normalizeSceneItem), folders: [] });
+    }
     return jsonError(error.message, 500);
   }
 
-  return NextResponse.json({ scenes: (data || []).map(normalizeSceneItem) });
+  const { data: folderData, error: folderError } = await admin
+    .from("projector_scene_folders")
+    .select("id, title, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(80);
+
+  if (folderError) {
+    if (folderError.code === "42P01" || folderError.code === "PGRST205") {
+      return NextResponse.json({ scenes: (data || []).map(normalizeSceneItem), folders: [] });
+    }
+    return jsonError(folderError.message, 500);
+  }
+
+  return NextResponse.json({
+    scenes: (data || []).map(normalizeSceneItem),
+    folders: (folderData || []).map(normalizeSceneFolder),
+  });
 }
 
 async function saveLibraryItem(admin, teacherId, body) {
@@ -246,14 +299,33 @@ async function saveScene(admin, teacherId, session, body) {
   }
 
   const title = normalizeSceneTitle(body.title);
+  const folderId = normalizeSceneFolderId(body.folderId);
+  if (folderId) {
+    const { data: folder, error: folderError } = await admin
+      .from("projector_scene_folders")
+      .select("id")
+      .eq("id", folderId)
+      .eq("teacher_id", teacherId)
+      .maybeSingle();
+
+    if (folderError) {
+      if (folderError.code === "42P01" || folderError.code === "PGRST205") {
+        return jsonError("Projector scene folders are not set up yet.", 503);
+      }
+      return jsonError(folderError.message, 500);
+    }
+    if (!folder) return jsonError("Choose one of your room setup folders.");
+  }
+
   const { data, error } = await admin
     .from("projector_scene_library_items")
     .insert({
       teacher_id: teacherId,
       title,
+      folder_id: folderId,
       screen_states: screenStates,
     })
-    .select("id, title, screen_states, created_at, updated_at")
+    .select("id, title, folder_id, screen_states, created_at, updated_at")
     .single();
 
   if (error) {
@@ -264,6 +336,26 @@ async function saveScene(admin, teacherId, session, body) {
   }
 
   return NextResponse.json({ scene: normalizeSceneItem(data) });
+}
+
+async function createSceneFolder(admin, teacherId, body) {
+  const title = normalizeSceneFolderTitle(body.title);
+  if (!title) return jsonError("Name the folder before saving it.");
+
+  const { data, error } = await admin
+    .from("projector_scene_folders")
+    .insert({ teacher_id: teacherId, title })
+    .select("id, title, created_at, updated_at")
+    .single();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector scene folders are not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ folder: normalizeSceneFolder(data) });
 }
 
 async function deleteLibraryItem(admin, teacherId, body) {
@@ -284,6 +376,86 @@ async function deleteLibraryItem(admin, teacherId, body) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+async function deleteSceneFolder(admin, teacherId, body) {
+  const folderId = normalizeSceneFolderId(body.folderId);
+  if (!folderId) return jsonError("Choose a folder to delete.");
+
+  const { error: clearError } = await admin
+    .from("projector_scene_library_items")
+    .update({ folder_id: null, updated_at: new Date().toISOString() })
+    .eq("teacher_id", teacherId)
+    .eq("folder_id", folderId);
+
+  if (clearError) {
+    if (clearError.code === "42P01" || clearError.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    if (clearError.code === "42703" || clearError.code === "PGRST204") {
+      return jsonError("Projector scene folders are not set up yet.", 503);
+    }
+    return jsonError(clearError.message, 500);
+  }
+
+  const { error } = await admin
+    .from("projector_scene_folders")
+    .delete()
+    .eq("id", folderId)
+    .eq("teacher_id", teacherId);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector scene folders are not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+async function updateSceneFolder(admin, teacherId, body) {
+  const sceneId = String(body.sceneId || "");
+  if (!isUuid(sceneId)) return jsonError("Choose a saved room setup to move.");
+  const folderId = normalizeSceneFolderId(body.folderId);
+
+  if (folderId) {
+    const { data: folder, error: folderError } = await admin
+      .from("projector_scene_folders")
+      .select("id")
+      .eq("id", folderId)
+      .eq("teacher_id", teacherId)
+      .maybeSingle();
+
+    if (folderError) {
+      if (folderError.code === "42P01" || folderError.code === "PGRST205") {
+        return jsonError("Projector scene folders are not set up yet.", 503);
+      }
+      return jsonError(folderError.message, 500);
+    }
+    if (!folder) return jsonError("Choose one of your room setup folders.");
+  }
+
+  const { data, error } = await admin
+    .from("projector_scene_library_items")
+    .update({ folder_id: folderId, updated_at: new Date().toISOString() })
+    .eq("id", sceneId)
+    .eq("teacher_id", teacherId)
+    .select("id, title, folder_id, screen_states, created_at, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    if (error.code === "42703" || error.code === "PGRST204") {
+      return jsonError("Projector scene folders are not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+  if (!data) return jsonError("Saved room setup not found.", 404);
+
+  return NextResponse.json({ scene: normalizeSceneItem(data) });
 }
 
 async function deleteScene(admin, teacherId, body) {
@@ -402,6 +574,18 @@ export async function POST(request) {
 
   if (body?.action === "delete-library-item") {
     return deleteLibraryItem(admin, context.user.id, body);
+  }
+
+  if (body?.action === "create-scene-folder") {
+    return createSceneFolder(admin, context.user.id, body);
+  }
+
+  if (body?.action === "delete-scene-folder") {
+    return deleteSceneFolder(admin, context.user.id, body);
+  }
+
+  if (body?.action === "update-scene-folder") {
+    return updateSceneFolder(admin, context.user.id, body);
   }
 
   if (body?.action === "save-scene") {

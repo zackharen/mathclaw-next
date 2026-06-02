@@ -97,10 +97,17 @@ function sceneFilledCount(scene) {
   return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
 }
 
-export default function ProjectorClient({ session, libraryItems = [], sceneItems = [] }) {
+function sceneFolderLabel(scene, folders) {
+  if (!scene?.folder_id) return "Uncategorized";
+  return folders.find((folder) => folder.id === scene.folder_id)?.title || "Folder";
+}
+
+export default function ProjectorClient({ session, libraryItems = [], sceneItems = [], sceneFolders = [] }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
+  const [folders, setFolders] = useState(sceneFolders);
+  const [selectedSceneFolder, setSelectedSceneFolder] = useState("all");
   const [target, setTarget] = useState("all");
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
@@ -108,6 +115,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [url, setUrl] = useState("");
   const [libraryTitle, setLibraryTitle] = useState("");
   const [sceneTitle, setSceneTitle] = useState("");
+  const [sceneFolderId, setSceneFolderId] = useState("");
+  const [newFolderTitle, setNewFolderTitle] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [videoUploadUrl, setVideoUploadUrl] = useState("");
   const [videoFileName, setVideoFileName] = useState("");
@@ -119,6 +128,13 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
   const screenTokens = session.screen_tokens || {};
   const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
+  const filteredScenes = useMemo(() => {
+    if (selectedSceneFolder === "all") return scenes;
+    if (selectedSceneFolder === "uncategorized") {
+      return scenes.filter((scene) => !scene.folder_id);
+    }
+    return scenes.filter((scene) => scene.folder_id === selectedSceneFolder);
+  }, [scenes, selectedSceneFolder]);
 
   async function refetchScreenState(screenId) {
     const token = screenTokens[screenId];
@@ -252,6 +268,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         body: JSON.stringify({
           action: "save-scene",
           title: sceneTitle,
+          folderId: sceneFolderId,
         }),
       });
       const payload = await response.json();
@@ -260,6 +277,78 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       setScenes((current) => [payload.scene, ...current.filter((scene) => scene.id !== payload.scene.id)]);
       setSceneTitle(payload.scene.title || "");
       setMessage(`Saved "${payload.scene.title}" as a room setup.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  async function createSceneFolder() {
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create-scene-folder", title: newFolderTitle }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not create that folder.");
+
+      setFolders((current) => [payload.folder, ...current.filter((folder) => folder.id !== payload.folder.id)]);
+      setSelectedSceneFolder(payload.folder.id);
+      setSceneFolderId(payload.folder.id);
+      setNewFolderTitle("");
+      setMessage(`Created folder "${payload.folder.title}".`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  async function deleteSceneFolder(folderId) {
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const folder = folders.find((item) => item.id === folderId);
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-scene-folder", folderId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not delete that folder.");
+
+      setFolders((current) => current.filter((item) => item.id !== folderId));
+      setScenes((current) =>
+        current.map((scene) => (scene.folder_id === folderId ? { ...scene, folder_id: null } : scene))
+      );
+      if (selectedSceneFolder === folderId) setSelectedSceneFolder("all");
+      if (sceneFolderId === folderId) setSceneFolderId("");
+      setMessage(`Deleted "${folder?.title || "folder"}". Room setups moved to Uncategorized.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  async function updateSceneFolder(sceneId, folderId) {
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-scene-folder", sceneId, folderId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not move that room setup.");
+
+      setScenes((current) => current.map((scene) => (scene.id === sceneId ? payload.scene : scene)));
+      setMessage(`Moved "${payload.scene.title}" to ${sceneFolderLabel(payload.scene, folders)}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -508,6 +597,46 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               </div>
               <span>{scenes.length}</span>
             </div>
+            <div className="projectorSceneFolderCreator">
+              <label className="field">
+                <span>New folder</span>
+                <input
+                  value={newFolderTitle}
+                  onChange={(event) => setNewFolderTitle(event.target.value)}
+                  placeholder="Period 1, Warmups, Escape Room..."
+                  maxLength={60}
+                />
+              </label>
+              <button className="btn secondary" type="button" onClick={createSceneFolder} disabled={savingScene}>
+                Add Folder
+              </button>
+            </div>
+            <div className="projectorSceneFolderFilters" aria-label="Room setup folders">
+              <button
+                className={selectedSceneFolder === "all" ? "isActive" : ""}
+                type="button"
+                onClick={() => setSelectedSceneFolder("all")}
+              >
+                All <span>{scenes.length}</span>
+              </button>
+              <button
+                className={selectedSceneFolder === "uncategorized" ? "isActive" : ""}
+                type="button"
+                onClick={() => setSelectedSceneFolder("uncategorized")}
+              >
+                Uncategorized <span>{scenes.filter((scene) => !scene.folder_id).length}</span>
+              </button>
+              {folders.map((folder) => (
+                <button
+                  className={selectedSceneFolder === folder.id ? "isActive" : ""}
+                  key={folder.id}
+                  type="button"
+                  onClick={() => setSelectedSceneFolder(folder.id)}
+                >
+                  {folder.title} <span>{scenes.filter((scene) => scene.folder_id === folder.id).length}</span>
+                </button>
+              ))}
+            </div>
             <label className="field">
               <span>Save current screens as</span>
               <input
@@ -516,6 +645,17 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 placeholder="Start of Class, Exit Ticket..."
                 maxLength={80}
               />
+            </label>
+            <label className="field">
+              <span>Folder</span>
+              <select value={sceneFolderId} onChange={(event) => setSceneFolderId(event.target.value)}>
+                <option value="">Uncategorized</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.title}
+                  </option>
+                ))}
+              </select>
             </label>
             <button
               className="btn secondary"
@@ -526,13 +666,15 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               Save Room Setup
             </button>
             <div className="projectorLibraryList">
-              {scenes.length ? (
-                scenes.map((scene) => (
+              {filteredScenes.length ? (
+                filteredScenes.map((scene) => (
                   <article className="projectorSceneItem" key={scene.id}>
                     <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
                       <span>
                         <strong>{scene.title}</strong>
-                        <em>{sceneFilledCount(scene)} of 4 screens filled</em>
+                        <em>
+                          {sceneFolderLabel(scene, folders)} - {sceneFilledCount(scene)} of 4 screens filled
+                        </em>
                       </span>
                       <span className="projectorSceneThumb" aria-hidden="true">
                         {SCREEN_IDS.map((screenId) => (
@@ -540,21 +682,57 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                         ))}
                       </span>
                     </button>
-                    <button
-                      className="projectorLibraryDelete"
-                      type="button"
-                      onClick={() => deleteScene(scene.id)}
-                      disabled={savingScene}
-                      aria-label={`Delete ${scene.title}`}
-                    >
-                      Delete
-                    </button>
+                    <div className="projectorSceneControls">
+                      <label>
+                        <span>Folder</span>
+                        <select
+                          value={scene.folder_id || ""}
+                          onChange={(event) => updateSceneFolder(scene.id, event.target.value)}
+                          disabled={savingScene}
+                        >
+                          <option value="">Uncategorized</option>
+                          {folders.map((folder) => (
+                            <option key={folder.id} value={folder.id}>
+                              {folder.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        className="projectorLibraryDelete"
+                        type="button"
+                        onClick={() => deleteScene(scene.id)}
+                        disabled={savingScene}
+                        aria-label={`Delete ${scene.title}`}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </article>
                 ))
+              ) : scenes.length ? (
+                <p className="projectorLibraryEmpty">No room setups in this folder yet.</p>
               ) : (
                 <p className="projectorLibraryEmpty">Save the current four-screen arrangement as a room setup.</p>
               )}
             </div>
+            {folders.length ? (
+              <div className="projectorSceneFolderList">
+                {folders.map((folder) => (
+                  <span key={folder.id}>
+                    {folder.title}
+                    <button
+                      type="button"
+                      onClick={() => deleteSceneFolder(folder.id)}
+                      disabled={savingScene}
+                      aria-label={`Delete folder ${folder.title}`}
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           <section className="projectorLibrary" aria-label="Saved projector items">

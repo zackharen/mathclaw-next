@@ -70,10 +70,40 @@ async function loadLibraryItems(supabase, teacherId) {
 async function loadSceneItems(supabase, teacherId) {
   const { data, error } = await supabase
     .from("projector_scene_library_items")
-    .select("id, title, screen_states, created_at, updated_at")
+    .select("id, title, folder_id, screen_states, created_at, updated_at")
     .eq("teacher_id", teacherId)
     .order("updated_at", { ascending: false })
     .limit(40);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return [];
+    if (error.code === "42703" || error.code === "PGRST204") {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("projector_scene_library_items")
+        .select("id, title, screen_states, created_at, updated_at")
+        .eq("teacher_id", teacherId)
+        .order("updated_at", { ascending: false })
+        .limit(40);
+
+      if (fallbackError) {
+        if (fallbackError.code === "42P01" || fallbackError.code === "PGRST205") return [];
+        throw new Error(fallbackError.message);
+      }
+      return fallbackData || [];
+    }
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
+async function loadSceneFolders(supabase, teacherId) {
+  const { data, error } = await supabase
+    .from("projector_scene_folders")
+    .select("id, title, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(80);
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return [];
@@ -109,6 +139,14 @@ export default async function ProjectorPage() {
   const session = existingSession || (await createUniquePinSession(supabase, user.id));
   const libraryItems = await loadLibraryItems(supabase, user.id);
   const sceneItems = await loadSceneItems(supabase, user.id);
+  const sceneFolders = await loadSceneFolders(supabase, user.id);
 
-  return <ProjectorClient session={session} libraryItems={libraryItems} sceneItems={sceneItems} />;
+  return (
+    <ProjectorClient
+      session={session}
+      libraryItems={libraryItems}
+      sceneItems={sceneItems}
+      sceneFolders={sceneFolders}
+    />
+  );
 }
