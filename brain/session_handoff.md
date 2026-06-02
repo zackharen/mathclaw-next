@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-02 America/New_York (Projector video upload reliability)
+2026-06-02 America/New_York (Projector video even-dimension fix)
+
+## What Was Built (2026-06-02 Session — Projector video even-dimension fix)
+- **Projector video conversion fixed for high-bitrate ReplayKit MOV with odd scaled height** (`app/api/projector/upload-video/route.js`):
+  - Root cause for the 9:34 AM recording failure: the projector-friendly scale settings converted the 1916x948 clip to `1280x633`; H.264/libx264 requires even dimensions, so ffmpeg failed with `height not divisible by 2`, but the UI only showed the generic final line `Conversion failed!`.
+  - Fix: changed the ffmpeg scale expression to force both output width and height to even numbers while avoiding upscaling. The failing clip now converts locally to `1280x632` and about 1.5MB.
+  - Improved ffmpeg error extraction so future failures prefer meaningful lines like `height not divisible by 2`, `Invalid argument`, or encoder-open errors instead of the generic final `Conversion failed!`.
+  - Verification passed: local ffmpeg conversion of `/Users/zackarenstein/Desktop/Screen Recording 2026-06-02 at 9.34.00 AM.mov`; `node --check app/api/projector/upload-video/route.js`; `git diff --check`; `npm run build`.
 
 ## What Was Built (2026-06-02 Session — Projector video upload reliability)
 - **Projector video upload failure handling improved** (`app/api/projector/upload-video/route.js`, `app/projector/projector-client.js`):

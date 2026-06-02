@@ -116,14 +116,16 @@ async function resolveFfmpegPath() {
 
 function ffmpegErrorMessage(error) {
   const stderr = String(error?.stderr || "").trim();
-  const finalLine = stderr
+  const lines = stderr
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(-1)[0];
+    .filter(Boolean);
+  const meaningfulLine =
+    lines.find((line) => /not divisible|Invalid argument|Could not open encoder|Error while opening encoder/i.test(line)) ||
+    lines.filter((line) => !/^Conversion failed!?$/i.test(line)).slice(-1)[0];
 
   if (error?.killed) return "That recording took too long to convert. Try a shorter clip.";
-  if (finalLine) return `Could not convert that recording: ${finalLine}`;
+  if (meaningfulLine) return `Could not convert that recording: ${meaningfulLine}`;
   if (error?.message) return `Could not convert that recording: ${error.message}`;
   return "Could not convert that recording. Try an MP4, MOV, or WebM screen recording.";
 }
@@ -161,7 +163,7 @@ async function convertBufferToPublicUrl(admin, user, inputBuffer) {
         "-crf",
         "28",
         "-vf",
-        "scale=w='min(1280,iw)':h=-2:force_original_aspect_ratio=decrease,fps=30",
+        "scale=w='trunc(min(1280,iw)/2)*2':h='trunc(ih*min(1280/iw,1)/2)*2',fps=30",
         "-pix_fmt",
         "yuv420p",
         "-c:a",
