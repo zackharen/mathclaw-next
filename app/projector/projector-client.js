@@ -122,12 +122,34 @@ function sceneFolderLabel(scene, folders) {
   return folders.find((folder) => folder.id === scene.folder_id)?.title || "Folder";
 }
 
+function SidebarPanel({ ariaLabel, children, className = "", count, eyebrow, onToggle, open, title }) {
+  return (
+    <section className={`projectorLibrary ${className}`} aria-label={ariaLabel || title}>
+      <button
+        className="projectorLibraryHeader projectorPanelToggle"
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+      >
+        <div>
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+          <h2>{title}</h2>
+        </div>
+        <span className="projectorPanelCount">{count}</span>
+        <strong className="projectorPanelChevron">{open ? "Hide" : "Show"}</strong>
+      </button>
+      {open ? <div className="projectorPanelBody">{children}</div> : null}
+    </section>
+  );
+}
+
 export default function ProjectorClient({ session, libraryItems = [], sceneItems = [], sceneFolders = [] }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
   const [folders, setFolders] = useState(sceneFolders);
   const [selectedSceneFolder, setSelectedSceneFolder] = useState("all");
+  const [openPanels, setOpenPanels] = useState({ screens: true, scenes: false, library: false });
   const [target, setTarget] = useState("all");
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
@@ -173,6 +195,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       ...current,
       [screenId]: payload.state || null,
     }));
+  }
+
+  function togglePanel(panelName) {
+    setOpenPanels((current) => ({ ...current, [panelName]: !current[panelName] }));
   }
 
   useEffect(() => {
@@ -618,14 +644,46 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         </section>
 
         <aside className="projectorComposer">
-          <section className="projectorLibrary projectorSceneLibrary" aria-label="Saved room setups">
-            <div className="projectorLibraryHeader">
-              <div>
-                <p className="eyebrow">Scenes</p>
-                <h2>Room setups</h2>
+          <SidebarPanel
+            ariaLabel="Screen selection"
+            count={target === "all" ? "All" : target}
+            eyebrow="Controls"
+            onToggle={() => togglePanel("screens")}
+            open={openPanels.screens}
+            title="Screen selection"
+          >
+            <div className="projectorTargetPicker" aria-label="Screen selection">
+              <div className="projectorTargetButtons">
+                <button
+                  className={target === "all" ? "isActive" : ""}
+                  type="button"
+                  onClick={() => setTarget("all")}
+                >
+                  All
+                </button>
+                {SCREEN_IDS.map((screenId) => (
+                  <button
+                    className={target === screenId ? "isActive" : ""}
+                    key={screenId}
+                    type="button"
+                    onClick={() => setTarget(screenId)}
+                  >
+                    {screenId}
+                  </button>
+                ))}
               </div>
-              <span>{scenes.length}</span>
             </div>
+          </SidebarPanel>
+
+          <SidebarPanel
+            ariaLabel="Saved room setups"
+            className="projectorSceneLibrary"
+            count={scenes.length}
+            eyebrow="Scenes"
+            onToggle={() => togglePanel("scenes")}
+            open={openPanels.scenes}
+            title="Room setups"
+          >
             <div className="projectorSceneFolderCreator">
               <label className="field">
                 <span>New folder</span>
@@ -762,16 +820,16 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 ))}
               </div>
             ) : null}
-          </section>
+          </SidebarPanel>
 
-          <section className="projectorLibrary" aria-label="Saved projector items">
-            <div className="projectorLibraryHeader">
-              <div>
-                <p className="eyebrow">Library</p>
-                <h2>Saved items</h2>
-              </div>
-              <span>{library.length}</span>
-            </div>
+          <SidebarPanel
+            ariaLabel="Saved projector items"
+            count={library.length}
+            eyebrow="Library"
+            onToggle={() => togglePanel("library")}
+            open={openPanels.library}
+            title="Saved items"
+          >
             <label className="field">
               <span>Save current item as</span>
               <input
@@ -815,30 +873,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 <p className="projectorLibraryEmpty">Save questions, announcements, images, and videos here.</p>
               )}
             </div>
-          </section>
-
-          <div className="projectorTargetPicker" aria-label="Send target">
-            <span>Send to</span>
-            <div className="projectorTargetButtons">
-              <button
-                className={target === "all" ? "isActive" : ""}
-                type="button"
-                onClick={() => setTarget("all")}
-              >
-                All
-              </button>
-              {SCREEN_IDS.map((screenId) => (
-                <button
-                  className={target === screenId ? "isActive" : ""}
-                  key={screenId}
-                  type="button"
-                  onClick={() => setTarget(screenId)}
-                >
-                  {screenId}
-                </button>
-              ))}
-            </div>
-          </div>
+          </SidebarPanel>
 
           <div className="projectorTabs" role="tablist" aria-label="Content type">
             {["text", "latex", "image", "video"].map((tab) => (

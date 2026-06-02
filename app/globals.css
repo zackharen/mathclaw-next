@@ -7238,12 +7238,22 @@ details[open] > summary.adminSectionSummary .hideLabel {
   color: var(--navy);
 }
 
+.projectorPanelToggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
 .projectorLibraryHeader h2 {
   margin: 0;
   font-size: 1.15rem;
 }
 
-.projectorLibraryHeader span {
+.projectorLibraryHeader .projectorPanelCount {
   min-width: 2rem;
   border: 1px solid #93a5b4;
   border-radius: 999px;
@@ -7251,6 +7261,22 @@ details[open] > summary.adminSectionSummary .hideLabel {
   padding: 0.15rem 0.5rem;
   text-align: center;
   font-weight: 900;
+}
+
+.projectorPanelChevron {
+  border: 1px solid #c8d6df;
+  border-radius: 999px;
+  background: #fff;
+  color: #51606d;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.projectorPanelBody {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .projectorLibraryList {
