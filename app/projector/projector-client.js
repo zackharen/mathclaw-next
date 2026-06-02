@@ -71,6 +71,13 @@ function renderContent(state, compact = false) {
     return <img src={state.content} alt="" className="projectorThumbMedia" />;
   }
   if (state.type === "video") {
+    if (compact) {
+      return (
+        <span className="projectorVideoThumb">
+          {/\.gif(\?|#|$)/i.test(state.content || "") ? "GIF" : "Video"}
+        </span>
+      );
+    }
     if (/\.gif(\?|#|$)/i.test(state.content || "")) {
       return <img src={state.content} alt="" className="projectorThumbMedia" />;
     }
