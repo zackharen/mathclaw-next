@@ -17,6 +17,7 @@ This file represents the **current state only**. It should stay short enough to 
   - `/api/projector?action=scenes` now returns both scenes and folders; `POST /api/projector` supports `create-scene-folder`, `delete-scene-folder`, and `update-scene-folder`. Deleting a folder first moves its scenes to Uncategorized, then deletes the folder.
   - The Projector dashboard Room Setups panel now lets teachers create folders for classes/situations, filter room setups by folder, save a room setup into a folder, move an existing setup between folders, and delete folders.
   - Verification passed: `node --check app/projector/page.js`; `node --check app/projector/projector-client.js`; `node --check app/api/projector/route.js`; `git diff --check`; `npm run build`; Supabase migration apply returned `success: true`; production migration list confirmed `projector_scene_folders`.
+  - Delivery: implementation commit `411b76e` pushed to `origin/main`; `git ls-remote origin main` confirmed `411b76ef25d7221c9c50db72af3830fdc2fc6ace`. Live checks after push: `https://www.mathclaw.com/projector` returned 307 to sign-in and `https://www.mathclaw.com/api/projector?action=scenes` returned the expected 401 teacher sign-in guard.
   - Verification caveat: authenticated teacher UI/browser testing was not completed because the sandbox again blocked local server binding to `127.0.0.1:3001` with `EPERM`.
 
 ## What Was Built (2026-06-02 Session — Projector Scene Library)
