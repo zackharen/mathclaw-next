@@ -7300,7 +7300,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorLibraryItem {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.45rem;
   align-items: stretch;
 }
@@ -7575,6 +7575,65 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-size: 0.8rem;
   font-weight: 900;
   cursor: pointer;
+}
+
+.projectorLibraryRename {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fb;
+  color: var(--ink);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLibraryItemActions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.projectorLibraryRenameForm {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.45rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fb;
+  padding: 0.55rem;
+}
+
+.projectorLibraryRenameActions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.projectorLibraryCategoryFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.projectorLibraryCategoryFilters button {
+  border: 2px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.projectorLibraryCategoryFilters button.isActive {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
 }
 
 .projectorLibraryEmpty {

@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = ["1", "2", "3", "4"];
 const CONTENT_TYPES = new Set(["text", "latex", "image", "video"]);
+const LIBRARY_CATEGORIES = new Set(["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"]);
 const LIBRARY_TITLE_LIMIT = 80;
 const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
 const SCENE_TITLE_LIMIT = 80;
@@ -74,6 +75,7 @@ function normalizeLibraryItem(row) {
     title: row.title,
     content_type: row.content_type,
     content: row.content,
+    category: row.category || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -200,13 +202,23 @@ async function resolvePin(admin, pin, screenNumber) {
 async function listLibrary(admin, teacherId) {
   const { data, error } = await admin
     .from("projector_library_items")
-    .select("id, title, content_type, content, created_at, updated_at")
+    .select("id, title, content_type, content, category, created_at, updated_at")
     .eq("teacher_id", teacherId)
     .order("updated_at", { ascending: false })
     .limit(60);
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return NextResponse.json({ items: [] });
+    if (error.code === "42703" || error.code === "PGRST204") {
+      const { data: fallback, error: fallbackError } = await admin
+        .from("projector_library_items")
+        .select("id, title, content_type, content, created_at, updated_at")
+        .eq("teacher_id", teacherId)
+        .order("updated_at", { ascending: false })
+        .limit(60);
+      if (fallbackError) return jsonError(fallbackError.message, 500);
+      return NextResponse.json({ items: (fallback || []).map(normalizeLibraryItem) });
+    }
     return jsonError(error.message, 500);
   }
 
@@ -270,6 +282,8 @@ async function saveLibraryItem(admin, teacherId, body) {
   }
 
   const title = normalizeLibraryTitle(body.title, state);
+  const category = LIBRARY_CATEGORIES.has(body.category) ? body.category : null;
+
   const { data, error } = await admin
     .from("projector_library_items")
     .insert({
@@ -277,16 +291,64 @@ async function saveLibraryItem(admin, teacherId, body) {
       title,
       content_type: state.type,
       content: state.content,
+      ...(category ? { category } : {}),
     })
-    .select("id, title, content_type, content, created_at, updated_at")
+    .select("id, title, content_type, content, category, created_at, updated_at")
     .single();
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") {
       return jsonError("Projector library is not set up yet.", 503);
     }
+    if (error.code === "42703" || error.code === "PGRST204") {
+      const { data: fallback, error: fallbackError } = await admin
+        .from("projector_library_items")
+        .insert({ teacher_id: teacherId, title, content_type: state.type, content: state.content })
+        .select("id, title, content_type, content, created_at, updated_at")
+        .single();
+      if (fallbackError) return jsonError(fallbackError.message, 500);
+      return NextResponse.json({ item: normalizeLibraryItem(fallback) });
+    }
     return jsonError(error.message, 500);
   }
+
+  return NextResponse.json({ item: normalizeLibraryItem(data) });
+}
+
+async function renameLibraryItem(admin, teacherId, body) {
+  const itemId = String(body.itemId || "");
+  if (!isUuid(itemId)) return jsonError("Choose a saved item to rename.");
+
+  const title = String(body.title || "").trim().replace(/\s+/g, " ").slice(0, LIBRARY_TITLE_LIMIT);
+  if (!title) return jsonError("Enter a name for this item.");
+
+  const category = LIBRARY_CATEGORIES.has(body.category) ? body.category : null;
+
+  const { data, error } = await admin
+    .from("projector_library_items")
+    .update({ title, category, updated_at: new Date().toISOString() })
+    .eq("id", itemId)
+    .eq("teacher_id", teacherId)
+    .select("id, title, content_type, content, category, created_at, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return jsonError("Projector library is not set up yet.", 503);
+    if (error.code === "42703" || error.code === "PGRST204") {
+      const { data: fallback, error: fallbackError } = await admin
+        .from("projector_library_items")
+        .update({ title, updated_at: new Date().toISOString() })
+        .eq("id", itemId)
+        .eq("teacher_id", teacherId)
+        .select("id, title, content_type, content, created_at, updated_at")
+        .maybeSingle();
+      if (fallbackError) return jsonError(fallbackError.message, 500);
+      if (!fallback) return jsonError("Saved item not found.", 404);
+      return NextResponse.json({ item: normalizeLibraryItem(fallback) });
+    }
+    return jsonError(error.message, 500);
+  }
+  if (!data) return jsonError("Saved item not found.", 404);
 
   return NextResponse.json({ item: normalizeLibraryItem(data) });
 }
@@ -574,6 +636,10 @@ export async function POST(request) {
 
   if (body?.action === "delete-library-item") {
     return deleteLibraryItem(admin, context.user.id, body);
+  }
+
+  if (body?.action === "rename-library-item") {
+    return renameLibraryItem(admin, context.user.id, body);
   }
 
   if (body?.action === "create-scene-folder") {

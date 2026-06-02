@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const SCREEN_IDS = ["1", "2", "3", "4"];
+const LIBRARY_CATEGORIES = ["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"];
 const MATHCLAW_ORIGIN = "https://mathclaw.com";
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -157,6 +158,12 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
   const [url, setUrl] = useState("");
   const [libraryTitle, setLibraryTitle] = useState("");
+  const [libraryCategory, setLibraryCategory] = useState("");
+  const [libraryCategoryFilter, setLibraryCategoryFilter] = useState("");
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [renamingItemId, setRenamingItemId] = useState(null);
+  const [renamingItemTitle, setRenamingItemTitle] = useState("");
+  const [renamingItemCategory, setRenamingItemCategory] = useState("");
   const [sceneTitle, setSceneTitle] = useState("");
   const [sceneFolderId, setSceneFolderId] = useState("");
   const [newFolderTitle, setNewFolderTitle] = useState("");
@@ -178,6 +185,16 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       ),
     [folders]
   );
+  const filteredLibrary = useMemo(() => {
+    let items = library;
+    if (libraryCategoryFilter) items = items.filter((item) => item.category === libraryCategoryFilter);
+    if (librarySearch.trim()) {
+      const query = librarySearch.trim().toLowerCase();
+      items = items.filter((item) => item.title.toLowerCase().includes(query));
+    }
+    return items;
+  }, [library, libraryCategoryFilter, librarySearch]);
+
   function toggleFolder(folderId) {
     setOpenFolderIds((current) => {
       const next = new Set(current);
@@ -246,10 +263,32 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     return videoUploadUrl || url;
   }
 
+  async function renameLibraryItem(itemId, title, category) {
+    setSavingLibrary(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename-library-item", itemId, title, category }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not rename that item.");
+      setLibrary((current) => current.map((item) => (item.id === itemId ? payload.item : item)));
+      setRenamingItemId(null);
+      setMessage(`Renamed to "${payload.item.title}".`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingLibrary(false);
+    }
+  }
+
   function loadLibraryItem(item) {
     const nextType = item.content_type;
     setType(nextType);
     setLibraryTitle(item.title || "");
+    setLibraryCategory(item.category || "");
     setUrl("");
     setImageDataUrl("");
     setVideoUploadUrl("");
@@ -280,6 +319,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           title: libraryTitle,
           type,
           content: currentComposerContent(),
+          category: libraryCategory,
         }),
       });
       const payload = await response.json();
@@ -1033,6 +1073,15 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 maxLength={80}
               />
             </label>
+            <label className="field">
+              <span>Category</span>
+              <select value={libraryCategory} onChange={(event) => setLibraryCategory(event.target.value)}>
+                <option value="">No Category</option>
+                {LIBRARY_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </label>
             <button
               className="btn secondary"
               type="button"
@@ -1041,30 +1090,125 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             >
               Save To Library
             </button>
-            <div className="projectorLibraryList">
-              {library.length ? (
-                library.map((item) => (
-                  <article className="projectorLibraryItem" key={item.id}>
-                    <button type="button" onClick={() => loadLibraryItem(item)}>
-                      <span>
-                        <strong>{item.title}</strong>
-                        <em>{libraryTypeLabel(item)}</em>
-                      </span>
-                      <span className="projectorLibraryThumb">{renderContent(toLibraryState(item), true)}</span>
-                    </button>
+
+            {library.length > 0 ? (
+              <>
+                <label className="field">
+                  <span>Search</span>
+                  <input
+                    value={librarySearch}
+                    onChange={(event) => setLibrarySearch(event.target.value)}
+                    placeholder="Search saved items..."
+                  />
+                </label>
+                <div className="projectorLibraryCategoryFilters">
+                  <button
+                    className={libraryCategoryFilter === "" ? "isActive" : ""}
+                    type="button"
+                    onClick={() => setLibraryCategoryFilter("")}
+                  >
+                    All
+                  </button>
+                  {LIBRARY_CATEGORIES.map((cat) => (
                     <button
-                      className="projectorLibraryDelete"
+                      className={libraryCategoryFilter === cat ? "isActive" : ""}
+                      key={cat}
                       type="button"
-                      onClick={() => deleteLibraryItem(item.id)}
-                      disabled={savingLibrary}
-                      aria-label={`Delete ${item.title}`}
+                      onClick={() => setLibraryCategoryFilter(libraryCategoryFilter === cat ? "" : cat)}
                     >
-                      Delete
+                      {cat}
                     </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            <div className="projectorLibraryList">
+              {filteredLibrary.length ? (
+                filteredLibrary.map((item) => (
+                  <article className="projectorLibraryItem" key={item.id}>
+                    {renamingItemId === item.id ? (
+                      <div className="projectorLibraryRenameForm">
+                        <label className="field">
+                          <span>Name</span>
+                          <input
+                            value={renamingItemTitle}
+                            onChange={(event) => setRenamingItemTitle(event.target.value)}
+                            maxLength={80}
+                            autoFocus
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Category</span>
+                          <select value={renamingItemCategory} onChange={(event) => setRenamingItemCategory(event.target.value)}>
+                            <option value="">No Category</option>
+                            {LIBRARY_CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="projectorLibraryRenameActions">
+                          <button
+                            className="btn secondary"
+                            type="button"
+                            onClick={() => renameLibraryItem(item.id, renamingItemTitle, renamingItemCategory)}
+                            disabled={savingLibrary || !renamingItemTitle.trim()}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn secondary"
+                            type="button"
+                            onClick={() => setRenamingItemId(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => loadLibraryItem(item)}>
+                        <span>
+                          <strong>{item.title}</strong>
+                          <em>
+                            {item.category ? `${item.category} · ` : ""}
+                            {libraryTypeLabel(item)}
+                          </em>
+                        </span>
+                        <span className="projectorLibraryThumb">{renderContent(toLibraryState(item), true)}</span>
+                      </button>
+                    )}
+                    {renamingItemId !== item.id ? (
+                      <div className="projectorLibraryItemActions">
+                        <button
+                          className="projectorLibraryRename"
+                          type="button"
+                          onClick={() => {
+                            setRenamingItemId(item.id);
+                            setRenamingItemTitle(item.title || "");
+                            setRenamingItemCategory(item.category || "");
+                          }}
+                          disabled={savingLibrary}
+                          aria-label={`Rename ${item.title}`}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          className="projectorLibraryDelete"
+                          type="button"
+                          onClick={() => deleteLibraryItem(item.id)}
+                          disabled={savingLibrary}
+                          aria-label={`Delete ${item.title}`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ) : null}
                   </article>
                 ))
+              ) : library.length ? (
+                <p className="projectorLibraryEmpty">No items match your search.</p>
               ) : (
-                <p className="projectorLibraryEmpty">Save Questions, Announcements, Images, And Videos Here.</p>
+                <p className="projectorLibraryEmpty">Save single items here — questions, word walls, images, videos. Use Scenes above to save full room layouts.</p>
               )}
             </div>
           </SidebarPanel>
