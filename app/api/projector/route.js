@@ -600,6 +600,31 @@ export async function POST(request) {
     return loadScene(admin, context.user.id, context.session, body);
   }
 
+  if (body?.action === "rotate-screens") {
+    const current = context.session.screen_states && typeof context.session.screen_states === "object"
+      ? context.session.screen_states
+      : {};
+    // 1→2, 2→3, 3→4, 4→1
+    const rotated = {
+      "1": current["4"] || null,
+      "2": current["1"] || null,
+      "3": current["2"] || null,
+      "4": current["3"] || null,
+    };
+    const { error } = await admin
+      .from("projector_sessions")
+      .update({ screen_states: rotated, updated_at: new Date().toISOString() })
+      .eq("id", context.session.id)
+      .eq("teacher_id", context.user.id);
+    if (error) return jsonError(error.message, 500);
+    await broadcastScreenUpdates(
+      admin,
+      context.session.id,
+      SCREEN_IDS.map((screenId) => buildBroadcastPayload(screenId, rotated[screenId]))
+    );
+    return NextResponse.json({ screenStates: rotated });
+  }
+
   const screenIds = normalizeScreenIds(body.screenIds);
   const state = normalizeState(body.type, body.content);
 

@@ -586,6 +586,26 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     }
   }
 
+  async function rotateScreens() {
+    setSending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rotate-screens" }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not rotate screens.");
+      setScreenStates(payload.screenStates || {});
+      setMessage("Screens rotated.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function clearScreens() {
     setSending(true);
     setMessage("");
@@ -628,25 +648,32 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       </section>
 
       <div className="projectorLayout">
-        <section className="projectorGrid" aria-label="Projector screens">
-          {SCREEN_IDS.map((screenId) => (
-            <article className="projectorScreenCard" key={screenId}>
-              <div className="projectorScreenCardHeader">
-                <strong>Screen {screenId}</strong>
-                <span>{screenStates?.[screenId]?.type || "empty"}</span>
-              </div>
-              <div className="projectorScreenPreview">
-                {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
-              </div>
-              <div className="projectorScreenUrl">
-                <code>{`${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`}</code>
-                <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
-                  Copy
-                </button>
-              </div>
-            </article>
-          ))}
-        </section>
+        <div className="projectorGridColumn">
+          <section className="projectorGrid" aria-label="Projector screens">
+            {SCREEN_IDS.map((screenId) => (
+              <article className="projectorScreenCard" key={screenId}>
+                <div className="projectorScreenCardHeader">
+                  <strong>Screen {screenId}</strong>
+                  <span>{screenStates?.[screenId]?.type || "empty"}</span>
+                </div>
+                <div className="projectorScreenPreview">
+                  {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
+                </div>
+                <div className="projectorScreenUrl">
+                  <code>{`${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`}</code>
+                  <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))}
+          </section>
+          <div className="projectorRotateRow">
+            <button className="btn secondary" type="button" onClick={rotateScreens} disabled={sending}>
+              ↻ Rotate Screens
+            </button>
+          </div>
+        </div>
 
         <aside className="projectorComposer">
           <SidebarPanel
