@@ -81,18 +81,33 @@ function renderContent(state, compact = false) {
   return <span className="projectorEmpty">empty</span>;
 }
 
-export default function ProjectorClient({ session }) {
+function libraryTypeLabel(item) {
+  const type = item?.content_type || item?.type || "";
+  return type === "latex" ? "LaTeX" : type ? type[0].toUpperCase() + type.slice(1) : "Item";
+}
+
+function toLibraryState(item) {
+  return {
+    type: item.content_type,
+    content: item.content,
+  };
+}
+
+export default function ProjectorClient({ session, libraryItems = [] }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
+  const [library, setLibrary] = useState(libraryItems);
   const [target, setTarget] = useState("all");
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
   const [url, setUrl] = useState("");
+  const [libraryTitle, setLibraryTitle] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [videoUploadUrl, setVideoUploadUrl] = useState("");
   const [videoFileName, setVideoFileName] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [savingLibrary, setSavingLibrary] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const screenTokens = session.screen_tokens || {};
@@ -141,6 +156,83 @@ export default function ProjectorClient({ session }) {
     const screenUrl = `${MATHCLAW_ORIGIN}/projector/screen?token=${screenTokens[screenId]}`;
     await navigator.clipboard.writeText(screenUrl);
     setMessage(`Screen ${screenId} URL copied.`);
+  }
+
+  function currentComposerContent() {
+    if (type === "text") return text;
+    if (type === "latex") return latex;
+    if (type === "image") return imageDataUrl || url;
+    return videoUploadUrl || url;
+  }
+
+  function loadLibraryItem(item) {
+    const nextType = item.content_type;
+    setType(nextType);
+    setLibraryTitle(item.title || "");
+    setUrl("");
+    setImageDataUrl("");
+    setVideoUploadUrl("");
+    setVideoFileName("");
+
+    if (nextType === "text") setText(item.content || "");
+    if (nextType === "latex") setLatex(item.content || "");
+    if (nextType === "image") {
+      if (String(item.content || "").startsWith("data:")) {
+        setImageDataUrl(item.content || "");
+      } else {
+        setUrl(item.content || "");
+      }
+    }
+    if (nextType === "video") setUrl(item.content || "");
+    setMessage(`Loaded "${item.title}" into the composer.`);
+  }
+
+  async function saveLibraryItem() {
+    setSavingLibrary(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-library-item",
+          title: libraryTitle,
+          type,
+          content: currentComposerContent(),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not save that item.");
+
+      setLibrary((current) => [payload.item, ...current.filter((item) => item.id !== payload.item.id)]);
+      setLibraryTitle(payload.item.title || "");
+      setMessage(`Saved "${payload.item.title}" to your library.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingLibrary(false);
+    }
+  }
+
+  async function deleteLibraryItem(itemId) {
+    setSavingLibrary(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-library-item", itemId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not delete that item.");
+
+      setLibrary((current) => current.filter((item) => item.id !== itemId));
+      setMessage("Saved item deleted.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingLibrary(false);
+    }
   }
 
   function onImageFileChange(event) {
@@ -242,14 +334,7 @@ export default function ProjectorClient({ session }) {
   async function sendContent() {
     setSending(true);
     setMessage("");
-    const content =
-      type === "text"
-        ? text
-        : type === "latex"
-          ? latex
-          : type === "image"
-            ? imageDataUrl || url
-            : videoUploadUrl || url;
+    const content = currentComposerContent();
 
     try {
       const response = await fetch("/api/projector", {
@@ -341,6 +426,59 @@ export default function ProjectorClient({ session }) {
         </section>
 
         <aside className="projectorComposer">
+          <section className="projectorLibrary" aria-label="Saved projector items">
+            <div className="projectorLibraryHeader">
+              <div>
+                <p className="eyebrow">Library</p>
+                <h2>Saved items</h2>
+              </div>
+              <span>{library.length}</span>
+            </div>
+            <label className="field">
+              <span>Save current item as</span>
+              <input
+                value={libraryTitle}
+                onChange={(event) => setLibraryTitle(event.target.value)}
+                placeholder="Warmup question, word wall..."
+                maxLength={80}
+              />
+            </label>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={saveLibraryItem}
+              disabled={savingLibrary || uploadingVideo}
+            >
+              Save to Library
+            </button>
+            <div className="projectorLibraryList">
+              {library.length ? (
+                library.map((item) => (
+                  <article className="projectorLibraryItem" key={item.id}>
+                    <button type="button" onClick={() => loadLibraryItem(item)}>
+                      <span>
+                        <strong>{item.title}</strong>
+                        <em>{libraryTypeLabel(item)}</em>
+                      </span>
+                      <span className="projectorLibraryThumb">{renderContent(toLibraryState(item), true)}</span>
+                    </button>
+                    <button
+                      className="projectorLibraryDelete"
+                      type="button"
+                      onClick={() => deleteLibraryItem(item.id)}
+                      disabled={savingLibrary}
+                      aria-label={`Delete ${item.title}`}
+                    >
+                      Delete
+                    </button>
+                  </article>
+                ))
+              ) : (
+                <p className="projectorLibraryEmpty">Save questions, announcements, images, and videos here.</p>
+              )}
+            </div>
+          </section>
+
           <div className="projectorTargetPicker" aria-label="Send target">
             <span>Send to</span>
             <div className="projectorTargetButtons">

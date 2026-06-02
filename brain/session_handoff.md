@@ -8,7 +8,17 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-01 America/New_York (Projector Party)
+2026-06-01 America/New_York (Projector Library v1)
+
+## What Was Built (2026-06-01 Session — Projector Library v1)
+- **Projector saved library v1 implemented locally** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/api/projector/route.js`, `app/globals.css`, `supabase/migrations_20260601_projector_library_items.sql`):
+  - Added teacher-owned `projector_library_items` table migration for saved Projector content items (`text`, `latex`, `image`, `video`) with RLS limiting each teacher to their own library. Applied to production Supabase project `mathclaw-prod` / `ruaaznacaywngewxyged`; migration list showed `projector_library_items` at version `20260602000202`.
+  - `/projector` now loads up to 60 saved library items for the signed-in teacher, with a missing-table fallback so the page does not break before the migration is applied.
+  - `/api/projector?action=library` lists saved items for authenticated teachers; `POST /api/projector` now supports `save-library-item` and `delete-library-item` actions behind the existing teacher gate.
+  - The Projector dashboard composer now has a compact **Library / Saved items** panel. Teachers can name the current composer content, save it, load saved content back into the composer, preview saved items, and delete saved items.
+  - Loading a saved item fills the composer only; teachers still choose target screen(s) and press Send, preserving the current classroom control flow.
+  - Verification passed: `node --check app/projector/page.js`; `node --check app/projector/projector-client.js`; `node --check app/api/projector/route.js`; `git diff --check`; `npm run build`; built-server route checks on `localhost:3001` confirmed `/projector` redirects unauthenticated users, `/api/projector?action=library` returns 401 unauthenticated, and `/projector/screen` renders the public connect screen.
+  - Verification caveat: authenticated teacher save/load/delete UI was not browser-tested because no authenticated local teacher session was available in this run. Dev server on port 3000 still showed the known `EMFILE: too many open files, watch` issue, so route checks used `next start --port 3001` after a successful build.
 
 ## What Was Built (2026-06-01 Session — Projector Party)
 - **Projector Party built and pushed for MathClaw** (`app/projector/*`, `app/api/projector/route.js`, `app/layout.js`, `app/globals.css`, `supabase/migrations_20260601_projector_sessions.sql`, implementation commit `bd2273c`, handoff commit `f4260bd`, pushed to `origin/main`):
@@ -177,7 +187,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Arcade supports both `student` (class required) and `player` (class optional) entry paths
 - Integer Practice is a large adaptive system with its own progression engine, Node tests, owner-managed global mastery tuning, and compact aggregate saved progress
 - Double Board supports integer operations, percent-change multipliers, and Mixed Review, with a live classroom flow including turn reordering, student-voted settings, per-student lockouts, score-sorted class roster ranking, roster presence colors, synced timers, teacher next-student control, podium end-state, and projector fullscreen. Percent Change Multipliers Column 3 uses 2-decimal percents and ten-thousandths answer scaling.
-- Projector Party is in code at `/projector` for teachers and `/projector/screen` for public display screens. It uses Supabase Realtime Broadcast over `projector-session-<sessionId>` and stores non-sensitive screen states in `projector_sessions`.
+- Projector Party is in code at `/projector` for teachers and `/projector/screen` for public display screens. It uses Supabase Realtime Broadcast over `projector-session-<sessionId>` and stores non-sensitive screen states in `projector_sessions`. Projector Library v1 is implemented for saved reusable text/LaTeX/image/video items; production Supabase migration `projector_library_items` was applied successfully on 2026-06-01.
 - Saved-state for Integer Practice and 2048 now lives in the `saved_game_progress` DB table; legacy auth-metadata `saved_games` was bulk-preserved into the DB table and removed from auth metadata
 - Local dev boots on `.env.local`; staging uses `.env.staging.local` and the `staging` branch, with a separate Supabase project; `Production` and `Preview` Vercel scopes map to the corresponding Supabase projects
 - Local `.env.local` owner access is set to `zackharen@gmail.com`; if the Admin nav button is missing after this change, restart the existing `localhost:3000` dev server so Next reloads environment variables
@@ -200,6 +210,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 
 ## Migrations Or Policy Changes Made
 - Created `/supabase/migrations_20260601_projector_sessions.sql` and applied it to production Supabase project `mathclaw-prod` (`ruaaznacaywngewxyged`) on 2026-06-01 via the Supabase connector. The apply call returned `success: true`; follow-up migration listing was blocked by connector reauthentication.
+- Created `/supabase/migrations_20260601_projector_library_items.sql` and applied it to production Supabase project `mathclaw-prod` (`ruaaznacaywngewxyged`) on 2026-06-01 via the Supabase connector. The apply call returned `success: true`; migration list verification showed `projector_library_items` at version `20260602000202`.
 - Created `/supabase/migrations_20260427_double_board_decimal_percents.sql`; it must be applied to Supabase before decimal Percent Change Multipliers Column 3 questions can be stored in live sessions.
 - Created `/supabase/migrations_20260506_connect4_tournaments.sql`; it must be applied to production Supabase before Tournament Mode can be used with logged-in users. Supabase connector application failed in Codex due an app-connector handshake error before the SQL reached the project.
 - Created `/supabase/migrations_20260513_profile_nicknames.sql`; it must be applied to production Supabase before student/player nicknames persist in `profiles.nickname`. Code includes fallbacks for schemas where the column is not present.

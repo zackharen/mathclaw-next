@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = ["1", "2", "3", "4"];
 const CONTENT_TYPES = new Set(["text", "latex", "image", "video"]);
+const LIBRARY_TITLE_LIMIT = 80;
+const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -29,6 +31,32 @@ function normalizeState(type, content) {
   if (type === "video" && safeContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(safeContent)) return null;
   return { type, content: safeContent };
+}
+
+function normalizeLibraryTitle(title, state) {
+  const safeTitle = String(title || "").trim().replace(/\s+/g, " ").slice(0, LIBRARY_TITLE_LIMIT);
+  if (safeTitle) return safeTitle;
+  if (state.type === "latex") return "Saved LaTeX";
+  if (state.type === "image") return "Saved image";
+  if (state.type === "video") return "Saved video";
+  return state.content.slice(0, LIBRARY_TITLE_LIMIT) || "Saved text";
+}
+
+function normalizeLibraryItem(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    content_type: row.content_type,
+    content: row.content,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "")
+  );
 }
 
 function findScreenNumberForToken(screenTokens, token) {
@@ -122,6 +150,71 @@ async function resolvePin(admin, pin, screenNumber) {
   return NextResponse.json({ token });
 }
 
+async function listLibrary(admin, teacherId) {
+  const { data, error } = await admin
+    .from("projector_library_items")
+    .select("id, title, content_type, content, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(60);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return NextResponse.json({ items: [] });
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ items: (data || []).map(normalizeLibraryItem) });
+}
+
+async function saveLibraryItem(admin, teacherId, body) {
+  const state = normalizeState(body.type, body.content);
+  if (!state) return jsonError("Add content before saving.");
+  if (state.content.length > LIBRARY_CONTENT_LIMIT) {
+    return jsonError("That item is too large to save. Try a shorter video URL or smaller image.");
+  }
+
+  const title = normalizeLibraryTitle(body.title, state);
+  const { data, error } = await admin
+    .from("projector_library_items")
+    .insert({
+      teacher_id: teacherId,
+      title,
+      content_type: state.type,
+      content: state.content,
+    })
+    .select("id, title, content_type, content, created_at, updated_at")
+    .single();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector library is not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ item: normalizeLibraryItem(data) });
+}
+
+async function deleteLibraryItem(admin, teacherId, body) {
+  const itemId = String(body.itemId || "");
+  if (!isUuid(itemId)) return jsonError("Choose a saved item to delete.");
+
+  const { error } = await admin
+    .from("projector_library_items")
+    .delete()
+    .eq("id", itemId)
+    .eq("teacher_id", teacherId);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector library is not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
@@ -129,6 +222,13 @@ export async function GET(request) {
 
   if (action === "resolve") {
     return resolvePin(admin, searchParams.get("pin"), searchParams.get("screenNumber"));
+  }
+
+  if (action === "library") {
+    const supabase = await createClient();
+    const context = await getTeacherSession(admin, supabase);
+    if (context.error) return context.error;
+    return listLibrary(admin, context.user.id);
   }
 
   const token = String(searchParams.get("token") || "").trim();
@@ -160,6 +260,14 @@ export async function POST(request) {
   const supabase = await createClient();
   const context = await getTeacherSession(admin, supabase);
   if (context.error) return context.error;
+
+  if (body?.action === "save-library-item") {
+    return saveLibraryItem(admin, context.user.id, body);
+  }
+
+  if (body?.action === "delete-library-item") {
+    return deleteLibraryItem(admin, context.user.id, body);
+  }
 
   const screenIds = normalizeScreenIds(body.screenIds);
   const state = normalizeState(body.type, body.content);

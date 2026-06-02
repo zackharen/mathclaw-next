@@ -51,6 +51,22 @@ async function createUniquePinSession(supabase, teacherId) {
   throw new Error("Could not create a unique projector PIN.");
 }
 
+async function loadLibraryItems(supabase, teacherId) {
+  const { data, error } = await supabase
+    .from("projector_library_items")
+    .select("id, title, content_type, content, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(60);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return [];
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
 export default async function ProjectorPage() {
   const supabase = await createClient();
   const {
@@ -75,6 +91,7 @@ export default async function ProjectorPage() {
   if (error) throw new Error(error.message);
 
   const session = existingSession || (await createUniquePinSession(supabase, user.id));
+  const libraryItems = await loadLibraryItems(supabase, user.id);
 
-  return <ProjectorClient session={session} />;
+  return <ProjectorClient session={session} libraryItems={libraryItems} />;
 }

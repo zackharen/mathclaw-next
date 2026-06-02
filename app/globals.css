@@ -7221,6 +7221,127 @@ details[open] > summary.adminSectionSummary .hideLabel {
   top: 1rem;
 }
 
+.projectorLibrary {
+  display: grid;
+  gap: 0.75rem;
+  border: 2px solid #d3dee7;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 0.85rem;
+}
+
+.projectorLibraryHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--navy);
+}
+
+.projectorLibraryHeader h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.projectorLibraryHeader span {
+  min-width: 2rem;
+  border: 1px solid #93a5b4;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.15rem 0.5rem;
+  text-align: center;
+  font-weight: 900;
+}
+
+.projectorLibraryList {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.projectorLibraryItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.projectorLibraryItem > button:first-child {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5rem;
+  gap: 0.55rem;
+  align-items: center;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.45rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projectorLibraryItem strong,
+.projectorLibraryItem em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectorLibraryItem strong {
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.projectorLibraryItem em {
+  color: #51606d;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.projectorLibraryThumb {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #0a0a0a;
+  color: #fff;
+  padding: 0.3rem;
+}
+
+.projectorLibraryThumb .projectorTextThumb,
+.projectorLibraryThumb .projectorLatexThumb {
+  font-size: 0.85rem;
+}
+
+.projectorLibraryDelete {
+  border: 2px solid #d6b3b3;
+  border-radius: 8px;
+  background: #fff6f6;
+  color: #7c1f1f;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLibraryEmpty {
+  margin: 0;
+  border: 2px dashed #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: #51606d;
+  padding: 0.75rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .projectorTargetPicker {
   display: grid;
   gap: 0.45rem;
