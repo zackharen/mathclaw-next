@@ -7372,19 +7372,19 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 .projectorSceneFolderFilters {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
-  overflow-x: auto;
-  padding-bottom: 0.1rem;
 }
 
 .projectorSceneFolderFilters button {
-  flex: 0 0 auto;
-  display: inline-flex;
+  min-width: 0;
+  display: flex;
   gap: 0.35rem;
   align-items: center;
+  justify-content: space-between;
   border: 2px solid #c8d6df;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #fff;
   color: var(--navy);
   padding: 0.35rem 0.55rem;
@@ -7392,6 +7392,8 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-size: 0.78rem;
   font-weight: 900;
   cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .projectorSceneFolderFilters button.isActive {

@@ -128,6 +128,13 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
   const screenTokens = session.screen_tokens || {};
   const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
+  const sortedFolders = useMemo(
+    () =>
+      [...folders].sort((left, right) =>
+        String(left.title || "").localeCompare(String(right.title || ""), undefined, { sensitivity: "base" })
+      ),
+    [folders]
+  );
   const filteredScenes = useMemo(() => {
     if (selectedSceneFolder === "all") return scenes;
     if (selectedSceneFolder === "uncategorized") {
@@ -626,7 +633,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               >
                 Uncategorized <span>{scenes.filter((scene) => !scene.folder_id).length}</span>
               </button>
-              {folders.map((folder) => (
+              {sortedFolders.map((folder) => (
                 <button
                   className={selectedSceneFolder === folder.id ? "isActive" : ""}
                   key={folder.id}
