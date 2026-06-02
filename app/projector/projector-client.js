@@ -93,21 +93,28 @@ function toLibraryState(item) {
   };
 }
 
-export default function ProjectorClient({ session, libraryItems = [] }) {
+function sceneFilledCount(scene) {
+  return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
+}
+
+export default function ProjectorClient({ session, libraryItems = [], sceneItems = [] }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [library, setLibrary] = useState(libraryItems);
+  const [scenes, setScenes] = useState(sceneItems);
   const [target, setTarget] = useState("all");
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
   const [url, setUrl] = useState("");
   const [libraryTitle, setLibraryTitle] = useState("");
+  const [sceneTitle, setSceneTitle] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [videoUploadUrl, setVideoUploadUrl] = useState("");
   const [videoFileName, setVideoFileName] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
+  const [savingScene, setSavingScene] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
 
   const screenTokens = session.screen_tokens || {};
@@ -232,6 +239,73 @@ export default function ProjectorClient({ session, libraryItems = [] }) {
       setMessage(error.message);
     } finally {
       setSavingLibrary(false);
+    }
+  }
+
+  async function saveScene() {
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-scene",
+          title: sceneTitle,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not save that room setup.");
+
+      setScenes((current) => [payload.scene, ...current.filter((scene) => scene.id !== payload.scene.id)]);
+      setSceneTitle(payload.scene.title || "");
+      setMessage(`Saved "${payload.scene.title}" as a room setup.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  async function loadScene(scene) {
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "load-scene", sceneId: scene.id }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
+
+      setScreenStates(payload.screenStates || scene.screen_states || {});
+      setMessage(`Loaded "${payload.title || scene.title}" to all screens.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  async function deleteScene(sceneId) {
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-scene", sceneId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not delete that room setup.");
+
+      setScenes((current) => current.filter((scene) => scene.id !== sceneId));
+      setMessage("Room setup deleted.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
     }
   }
 
@@ -426,6 +500,63 @@ export default function ProjectorClient({ session, libraryItems = [] }) {
         </section>
 
         <aside className="projectorComposer">
+          <section className="projectorLibrary projectorSceneLibrary" aria-label="Saved room setups">
+            <div className="projectorLibraryHeader">
+              <div>
+                <p className="eyebrow">Scenes</p>
+                <h2>Room setups</h2>
+              </div>
+              <span>{scenes.length}</span>
+            </div>
+            <label className="field">
+              <span>Save current screens as</span>
+              <input
+                value={sceneTitle}
+                onChange={(event) => setSceneTitle(event.target.value)}
+                placeholder="Start of Class, Exit Ticket..."
+                maxLength={80}
+              />
+            </label>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={saveScene}
+              disabled={savingScene}
+            >
+              Save Room Setup
+            </button>
+            <div className="projectorLibraryList">
+              {scenes.length ? (
+                scenes.map((scene) => (
+                  <article className="projectorSceneItem" key={scene.id}>
+                    <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
+                      <span>
+                        <strong>{scene.title}</strong>
+                        <em>{sceneFilledCount(scene)} of 4 screens filled</em>
+                      </span>
+                      <span className="projectorSceneThumb" aria-hidden="true">
+                        {SCREEN_IDS.map((screenId) => (
+                          <span key={screenId}>{renderContent(scene.screen_states?.[screenId], true)}</span>
+                        ))}
+                      </span>
+                    </button>
+                    <button
+                      className="projectorLibraryDelete"
+                      type="button"
+                      onClick={() => deleteScene(scene.id)}
+                      disabled={savingScene}
+                      aria-label={`Delete ${scene.title}`}
+                    >
+                      Delete
+                    </button>
+                  </article>
+                ))
+              ) : (
+                <p className="projectorLibraryEmpty">Save the current four-screen arrangement as a room setup.</p>
+              )}
+            </div>
+          </section>
+
           <section className="projectorLibrary" aria-label="Saved projector items">
             <div className="projectorLibraryHeader">
               <div>

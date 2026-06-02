@@ -67,6 +67,22 @@ async function loadLibraryItems(supabase, teacherId) {
   return data || [];
 }
 
+async function loadSceneItems(supabase, teacherId) {
+  const { data, error } = await supabase
+    .from("projector_scene_library_items")
+    .select("id, title, screen_states, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(40);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return [];
+    throw new Error(error.message);
+  }
+
+  return data || [];
+}
+
 export default async function ProjectorPage() {
   const supabase = await createClient();
   const {
@@ -92,6 +108,7 @@ export default async function ProjectorPage() {
 
   const session = existingSession || (await createUniquePinSession(supabase, user.id));
   const libraryItems = await loadLibraryItems(supabase, user.id);
+  const sceneItems = await loadSceneItems(supabase, user.id);
 
-  return <ProjectorClient session={session} libraryItems={libraryItems} />;
+  return <ProjectorClient session={session} libraryItems={libraryItems} sceneItems={sceneItems} />;
 }

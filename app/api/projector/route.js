@@ -9,6 +9,8 @@ const SCREEN_IDS = ["1", "2", "3", "4"];
 const CONTENT_TYPES = new Set(["text", "latex", "image", "video"]);
 const LIBRARY_TITLE_LIMIT = 80;
 const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
+const SCENE_TITLE_LIMIT = 80;
+const SCENE_STATE_LIMIT = 24 * 1024 * 1024;
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -33,6 +35,15 @@ function normalizeState(type, content) {
   return { type, content: safeContent };
 }
 
+function normalizeSceneStates(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return SCREEN_IDS.reduce((states, screenId) => {
+    const state = source[screenId];
+    states[screenId] = state ? normalizeState(state.type, state.content) : null;
+    return states;
+  }, {});
+}
+
 function normalizeLibraryTitle(title, state) {
   const safeTitle = String(title || "").trim().replace(/\s+/g, " ").slice(0, LIBRARY_TITLE_LIMIT);
   if (safeTitle) return safeTitle;
@@ -42,12 +53,27 @@ function normalizeLibraryTitle(title, state) {
   return state.content.slice(0, LIBRARY_TITLE_LIMIT) || "Saved text";
 }
 
+function normalizeSceneTitle(title) {
+  const safeTitle = String(title || "").trim().replace(/\s+/g, " ").slice(0, SCENE_TITLE_LIMIT);
+  return safeTitle || "Saved room setup";
+}
+
 function normalizeLibraryItem(row) {
   return {
     id: row.id,
     title: row.title,
     content_type: row.content_type,
     content: row.content,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function normalizeSceneItem(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    screen_states: normalizeSceneStates(row.screen_states),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -96,6 +122,7 @@ async function broadcastScreenUpdates(admin, sessionId, payloads) {
 }
 
 function buildBroadcastPayload(screenId, state) {
+  if (!state) return { screenId, type: null, content: null };
   if (state.type === "image") {
     return { screenId, type: state.type, refetch: true };
   }
@@ -166,6 +193,22 @@ async function listLibrary(admin, teacherId) {
   return NextResponse.json({ items: (data || []).map(normalizeLibraryItem) });
 }
 
+async function listScenes(admin, teacherId) {
+  const { data, error } = await admin
+    .from("projector_scene_library_items")
+    .select("id, title, screen_states, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(40);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return NextResponse.json({ scenes: [] });
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ scenes: (data || []).map(normalizeSceneItem) });
+}
+
 async function saveLibraryItem(admin, teacherId, body) {
   const state = normalizeState(body.type, body.content);
   if (!state) return jsonError("Add content before saving.");
@@ -195,6 +238,34 @@ async function saveLibraryItem(admin, teacherId, body) {
   return NextResponse.json({ item: normalizeLibraryItem(data) });
 }
 
+async function saveScene(admin, teacherId, session, body) {
+  const screenStates = normalizeSceneStates(session.screen_states);
+  const serialized = JSON.stringify(screenStates);
+  if (serialized.length > SCENE_STATE_LIMIT) {
+    return jsonError("That room setup is too large to save. Try smaller images or shorter media URLs.");
+  }
+
+  const title = normalizeSceneTitle(body.title);
+  const { data, error } = await admin
+    .from("projector_scene_library_items")
+    .insert({
+      teacher_id: teacherId,
+      title,
+      screen_states: screenStates,
+    })
+    .select("id, title, screen_states, created_at, updated_at")
+    .single();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ scene: normalizeSceneItem(data) });
+}
+
 async function deleteLibraryItem(admin, teacherId, body) {
   const itemId = String(body.itemId || "");
   if (!isUuid(itemId)) return jsonError("Choose a saved item to delete.");
@@ -215,6 +286,63 @@ async function deleteLibraryItem(admin, teacherId, body) {
   return NextResponse.json({ ok: true });
 }
 
+async function deleteScene(admin, teacherId, body) {
+  const sceneId = String(body.sceneId || "");
+  if (!isUuid(sceneId)) return jsonError("Choose a saved room setup to delete.");
+
+  const { error } = await admin
+    .from("projector_scene_library_items")
+    .delete()
+    .eq("id", sceneId)
+    .eq("teacher_id", teacherId);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+async function loadScene(admin, teacherId, session, body) {
+  const sceneId = String(body.sceneId || "");
+  if (!isUuid(sceneId)) return jsonError("Choose a saved room setup to load.");
+
+  const { data: scene, error: sceneError } = await admin
+    .from("projector_scene_library_items")
+    .select("id, title, screen_states")
+    .eq("id", sceneId)
+    .eq("teacher_id", teacherId)
+    .maybeSingle();
+
+  if (sceneError) {
+    if (sceneError.code === "42P01" || sceneError.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    return jsonError(sceneError.message, 500);
+  }
+  if (!scene) return jsonError("Saved room setup not found.", 404);
+
+  const screenStates = normalizeSceneStates(scene.screen_states);
+  const { error: updateError } = await admin
+    .from("projector_sessions")
+    .update({ screen_states: screenStates, updated_at: new Date().toISOString() })
+    .eq("id", session.id)
+    .eq("teacher_id", teacherId);
+
+  if (updateError) return jsonError(updateError.message, 500);
+
+  await broadcastScreenUpdates(
+    admin,
+    session.id,
+    SCREEN_IDS.map((screenId) => buildBroadcastPayload(screenId, screenStates[screenId]))
+  );
+
+  return NextResponse.json({ ok: true, title: scene.title, screenStates });
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
@@ -229,6 +357,13 @@ export async function GET(request) {
     const context = await getTeacherSession(admin, supabase);
     if (context.error) return context.error;
     return listLibrary(admin, context.user.id);
+  }
+
+  if (action === "scenes") {
+    const supabase = await createClient();
+    const context = await getTeacherSession(admin, supabase);
+    if (context.error) return context.error;
+    return listScenes(admin, context.user.id);
   }
 
   const token = String(searchParams.get("token") || "").trim();
@@ -267,6 +402,18 @@ export async function POST(request) {
 
   if (body?.action === "delete-library-item") {
     return deleteLibraryItem(admin, context.user.id, body);
+  }
+
+  if (body?.action === "save-scene") {
+    return saveScene(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "delete-scene") {
+    return deleteScene(admin, context.user.id, body);
+  }
+
+  if (body?.action === "load-scene") {
+    return loadScene(admin, context.user.id, context.session, body);
   }
 
   const screenIds = normalizeScreenIds(body.screenIds);

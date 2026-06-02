@@ -7268,7 +7268,8 @@ details[open] > summary.adminSectionSummary .hideLabel {
   align-items: stretch;
 }
 
-.projectorLibraryItem > button:first-child {
+.projectorLibraryItem > button:first-child,
+.projectorSceneItem > button:first-child {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 4.5rem;
@@ -7283,20 +7284,35 @@ details[open] > summary.adminSectionSummary .hideLabel {
   cursor: pointer;
 }
 
+.projectorSceneItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.projectorSceneItem > button:first-child {
+  grid-template-columns: minmax(0, 1fr) 6rem;
+}
+
 .projectorLibraryItem strong,
-.projectorLibraryItem em {
+.projectorLibraryItem em,
+.projectorSceneItem strong,
+.projectorSceneItem em {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.projectorLibraryItem strong {
+.projectorLibraryItem strong,
+.projectorSceneItem strong {
   color: var(--navy);
   font-size: 0.95rem;
 }
 
-.projectorLibraryItem em {
+.projectorLibraryItem em,
+.projectorSceneItem em {
   color: #51606d;
   font-size: 0.78rem;
   font-style: normal;
@@ -7314,9 +7330,38 @@ details[open] > summary.adminSectionSummary .hideLabel {
   padding: 0.3rem;
 }
 
+.projectorSceneThumb {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #0a0a0a;
+  padding: 2px;
+}
+
+.projectorSceneThumb > span {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #111;
+  color: #fff;
+  padding: 0.12rem;
+}
+
 .projectorLibraryThumb .projectorTextThumb,
-.projectorLibraryThumb .projectorLatexThumb {
+.projectorLibraryThumb .projectorLatexThumb,
+.projectorSceneThumb .projectorTextThumb,
+.projectorSceneThumb .projectorLatexThumb {
   font-size: 0.85rem;
+}
+
+.projectorSceneThumb .projectorEmpty {
+  font-size: 0.55rem;
 }
 
 .projectorLibraryDelete {
