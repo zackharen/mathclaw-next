@@ -7747,6 +7747,10 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   position: relative;
 }
 
+.projectorScreenStage.hasMedia {
+  padding: 0;
+}
+
 .projectorStatusDot {
   position: fixed;
   top: 1rem;
@@ -7806,8 +7810,8 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 .projectorScreenMedia {
-  max-width: 100%;
-  max-height: 80vh;
+  width: 100vw;
+  height: 100vh;
   object-fit: contain;
 }
 
@@ -7857,5 +7861,9 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
   .projectorScreenStage {
     padding: 2rem 1rem;
+  }
+
+  .projectorScreenStage.hasMedia {
+    padding: 0;
   }
 }

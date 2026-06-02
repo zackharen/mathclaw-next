@@ -233,7 +233,11 @@ export default function ScreenClient() {
   }
 
   return (
-    <main className="projectorScreenStage">
+    <main
+      className={`projectorScreenStage ${
+        state?.type === "image" || state?.type === "video" ? "hasMedia" : ""
+      }`}
+    >
       <div className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
       <button className="projectorFullscreenButton" type="button" onClick={toggleFullscreen}>
         {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
