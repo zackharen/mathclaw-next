@@ -59,7 +59,7 @@ function ProjectorLatex({ content, className = "" }) {
   return <div ref={ref} className={className} />;
 }
 
-function renderContent(state, compact = false) {
+function renderContent(state, compact = false, options = {}) {
   if (!state) return <span className="projectorEmpty">empty</span>;
   if (state.type === "text") {
     return <div className={compact ? "projectorTextThumb" : "projectorTextDisplay"}>{state.content}</div>;
@@ -71,7 +71,7 @@ function renderContent(state, compact = false) {
     return <img src={state.content} alt="" className="projectorThumbMedia" />;
   }
   if (state.type === "video") {
-    if (compact) {
+    if (compact && !options.playCompactVideo) {
       return (
         <span className="projectorVideoThumb">
           {/\.gif(\?|#|$)/i.test(state.content || "") ? "GIF" : "Video"}
@@ -604,7 +604,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 <strong>Screen {screenId}</strong>
                 <span>{screenStates?.[screenId]?.type || "empty"}</span>
               </div>
-              <div className="projectorScreenPreview">{renderContent(screenStates?.[screenId], true)}</div>
+              <div className="projectorScreenPreview">
+                {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
+              </div>
               <div className="projectorScreenUrl">
                 <code>{`${MATHCLAW_ORIGIN}/projector/screen?token=${screenTokens[screenId]}`}</code>
                 <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
