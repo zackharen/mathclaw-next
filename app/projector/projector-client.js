@@ -380,7 +380,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       );
       if (selectedSceneFolder === folderId) setSelectedSceneFolder("all");
       if (sceneFolderId === folderId) setSceneFolderId("");
-      setMessage(`Deleted "${folder?.title || "folder"}". Room setups moved to Uncategorized.`);
+      setMessage(`Deleted "${folder?.title || "Folder"}". Room Setups Moved To Uncategorized.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -645,14 +645,14 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
         <aside className="projectorComposer">
           <SidebarPanel
-            ariaLabel="Screen selection"
+            ariaLabel="Screen Selection"
             count={target === "all" ? "All" : target}
             eyebrow="Controls"
             onToggle={() => togglePanel("screens")}
             open={openPanels.screens}
-            title="Screen selection"
+            title="Screen Selection"
           >
-            <div className="projectorTargetPicker" aria-label="Screen selection">
+            <div className="projectorTargetPicker" aria-label="Screen Selection">
               <div className="projectorTargetButtons">
                 <button
                   className={target === "all" ? "isActive" : ""}
@@ -673,20 +673,32 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 ))}
               </div>
             </div>
+            <div className="projectorTabs" role="tablist" aria-label="Content Type">
+              {["text", "latex", "image", "video"].map((tab) => (
+                <button
+                  className={type === tab ? "isActive" : ""}
+                  key={tab}
+                  type="button"
+                  onClick={() => setType(tab)}
+                >
+                  {tab === "latex" ? "LaTeX" : tab[0].toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
           </SidebarPanel>
 
           <SidebarPanel
-            ariaLabel="Saved room setups"
+            ariaLabel="Saved Room Setups"
             className="projectorSceneLibrary"
             count={scenes.length}
             eyebrow="Scenes"
             onToggle={() => togglePanel("scenes")}
             open={openPanels.scenes}
-            title="Room setups"
+            title="Room Setups"
           >
             <div className="projectorSceneFolderCreator">
               <label className="field">
-                <span>New folder</span>
+                <span>New Folder</span>
                 <input
                   value={newFolderTitle}
                   onChange={(event) => setNewFolderTitle(event.target.value)}
@@ -698,7 +710,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 Add Folder
               </button>
             </div>
-            <div className="projectorSceneFolderFilters" aria-label="Room setup folders">
+            <div className="projectorSceneFolderFilters" aria-label="Room Setup Folders">
               <button
                 className={selectedSceneFolder === "all" ? "isActive" : ""}
                 type="button"
@@ -725,7 +737,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               ))}
             </div>
             <label className="field">
-              <span>Save current screens as</span>
+              <span>Save Current Screens As</span>
               <input
                 value={sceneTitle}
                 onChange={(event) => setSceneTitle(event.target.value)}
@@ -760,7 +772,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                       <span>
                         <strong>{scene.title}</strong>
                         <em>
-                          {sceneFolderLabel(scene, folders)} - {sceneFilledCount(scene)} of 4 screens filled
+                          {sceneFolderLabel(scene, folders)} - {sceneFilledCount(scene)} Of 4 Screens Filled
                         </em>
                       </span>
                       <span className="projectorSceneThumb" aria-hidden="true">
@@ -798,9 +810,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   </article>
                 ))
               ) : scenes.length ? (
-                <p className="projectorLibraryEmpty">No room setups in this folder yet.</p>
+                <p className="projectorLibraryEmpty">No Room Setups In This Folder Yet.</p>
               ) : (
-                <p className="projectorLibraryEmpty">Save the current four-screen arrangement as a room setup.</p>
+                <p className="projectorLibraryEmpty">Save The Current Four-Screen Arrangement As A Room Setup.</p>
               )}
             </div>
             {folders.length ? (
@@ -823,15 +835,15 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           </SidebarPanel>
 
           <SidebarPanel
-            ariaLabel="Saved projector items"
+            ariaLabel="Saved Projector Items"
             count={library.length}
             eyebrow="Library"
             onToggle={() => togglePanel("library")}
             open={openPanels.library}
-            title="Saved items"
+            title="Saved Items"
           >
             <label className="field">
-              <span>Save current item as</span>
+              <span>Save Current Item As</span>
               <input
                 value={libraryTitle}
                 onChange={(event) => setLibraryTitle(event.target.value)}
@@ -845,7 +857,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               onClick={saveLibraryItem}
               disabled={savingLibrary || uploadingVideo}
             >
-              Save to Library
+              Save To Library
             </button>
             <div className="projectorLibraryList">
               {library.length ? (
@@ -870,23 +882,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   </article>
                 ))
               ) : (
-                <p className="projectorLibraryEmpty">Save questions, announcements, images, and videos here.</p>
+                <p className="projectorLibraryEmpty">Save Questions, Announcements, Images, And Videos Here.</p>
               )}
             </div>
           </SidebarPanel>
-
-          <div className="projectorTabs" role="tablist" aria-label="Content type">
-            {["text", "latex", "image", "video"].map((tab) => (
-              <button
-                className={type === tab ? "isActive" : ""}
-                key={tab}
-                type="button"
-                onClick={() => setType(tab)}
-              >
-                {tab === "latex" ? "LaTeX" : tab[0].toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
 
           {type === "text" ? (
             <>
@@ -895,7 +894,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 <textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} />
               </label>
               <div className="projectorComposerPreview">
-                <div className="projectorTextPreview">{text || "Text preview"}</div>
+                <div className="projectorTextPreview">{text || "Text Preview"}</div>
               </div>
             </>
           ) : null}
@@ -915,7 +914,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           {type === "image" ? (
             <>
               <label className="field">
-                <span>Image upload</span>
+                <span>Image Upload</span>
                 <input accept="image/*" type="file" onChange={onImageFileChange} />
               </label>
               <label className="field">
@@ -923,7 +922,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." />
               </label>
               <div className="projectorComposerPreview">
-                {imageDataUrl || url ? <img src={imageDataUrl || url} alt="" /> : "No image selected"}
+                {imageDataUrl || url ? <img src={imageDataUrl || url} alt="" /> : "No Image Selected"}
               </div>
             </>
           ) : null}
@@ -931,7 +930,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           {type === "video" ? (
             <>
               <label className="field">
-                <span>Video upload</span>
+                <span>Video Upload</span>
                 <input
                   accept="video/*,.mov,.m4v,.webm"
                   type="file"
@@ -958,9 +957,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 ) : videoUploadUrl || url ? (
                   <video src={videoUploadUrl || url} autoPlay loop muted playsInline />
                 ) : uploadingVideo ? (
-                  "Converting recording..."
+                  "Converting Recording..."
                 ) : (
-                  "Upload a screen recording or paste a hosted MP4/GIF URL"
+                  "Upload a Screen Recording or Paste a Hosted MP4/GIF URL"
                 )}
               </div>
             </>
