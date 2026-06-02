@@ -7612,6 +7612,30 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   background: #3ddc84;
 }
 
+.projectorFullscreenButton {
+  position: fixed;
+  top: 0.8rem;
+  right: 0.8rem;
+  z-index: 5;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.62);
+  color: #fff;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 900;
+  cursor: pointer;
+  opacity: 0.46;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.projectorFullscreenButton:hover,
+.projectorFullscreenButton:focus-visible {
+  background: rgba(16, 18, 20, 0.9);
+  opacity: 1;
+}
+
 .projectorScreenLatex {
   width: 100%;
   text-align: center;

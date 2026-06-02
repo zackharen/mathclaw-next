@@ -89,6 +89,7 @@ export default function ScreenClient() {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
   const [reconnectKey, setReconnectKey] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     ensureKatexAssets();
@@ -117,6 +118,18 @@ export default function ScreenClient() {
   useEffect(() => {
     loadScreen();
   }, [loadScreen, reconnectKey]);
+
+  useEffect(() => {
+    function syncFullscreenState() {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    }
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionId || !screenNumber) return undefined;
@@ -165,6 +178,19 @@ export default function ScreenClient() {
     }
   }
 
+  async function toggleFullscreen() {
+    setMessage("");
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      setMessage("Fullscreen is not available in this browser.");
+    }
+  }
+
   if (!token) {
     return (
       <main className="projectorScreenJoin">
@@ -209,6 +235,9 @@ export default function ScreenClient() {
   return (
     <main className="projectorScreenStage">
       <div className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
+      <button className="projectorFullscreenButton" type="button" onClick={toggleFullscreen}>
+        {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+      </button>
       <ScreenContent state={state} />
       {message ? <div className="projectorScreenError">{message}</div> : null}
     </main>
