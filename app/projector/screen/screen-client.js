@@ -80,8 +80,8 @@ function ScreenContent({ state }) {
   return <div className="projectorWaiting">waiting for content</div>;
 }
 
-export default function ScreenClient() {
-  const [token, setToken] = useState("");
+export default function ScreenClient({ initialToken = null }) {
+  const [token, setToken] = useState(initialToken || "");
   const [pin, setPin] = useState("");
   const [screenNumber, setScreenNumber] = useState("1");
   const [sessionId, setSessionId] = useState("");
@@ -93,9 +93,11 @@ export default function ScreenClient() {
 
   useEffect(() => {
     ensureKatexAssets();
-    const params = new URLSearchParams(window.location.search);
-    setToken(String(params.get("token") || "").trim());
-  }, []);
+    if (!initialToken) {
+      const params = new URLSearchParams(window.location.search);
+      setToken(String(params.get("token") || "").trim());
+    }
+  }, [initialToken]);
 
   const loadScreen = useCallback(async () => {
     if (!token) return;

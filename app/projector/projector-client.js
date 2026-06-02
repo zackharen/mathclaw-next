@@ -229,7 +229,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   }, [session.id, screenTokens]);
 
   async function copyUrl(screenId) {
-    const screenUrl = `${MATHCLAW_ORIGIN}/projector/screen?token=${screenTokens[screenId]}`;
+    const screenUrl = `${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`;
     await navigator.clipboard.writeText(screenUrl);
     setMessage(`Screen ${screenId} URL copied.`);
   }
@@ -634,7 +634,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
               </div>
               <div className="projectorScreenUrl">
-                <code>{`${MATHCLAW_ORIGIN}/projector/screen?token=${screenTokens[screenId]}`}</code>
+                <code>{`${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`}</code>
                 <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
                   Copy
                 </button>
