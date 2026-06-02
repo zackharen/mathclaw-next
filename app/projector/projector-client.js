@@ -685,6 +685,94 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 </button>
               ))}
             </div>
+
+            {type === "text" ? (
+              <>
+                <label className="field">
+                  <span>Text</span>
+                  <textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} />
+                </label>
+                <div className="projectorComposerPreview">
+                  <div className="projectorTextPreview">{text || "Text Preview"}</div>
+                </div>
+              </>
+            ) : null}
+
+            {type === "latex" ? (
+              <>
+                <label className="field">
+                  <span>LaTeX</span>
+                  <textarea value={latex} onChange={(event) => setLatex(event.target.value)} rows={5} />
+                </label>
+                <div className="projectorComposerPreview">
+                  <ProjectorLatex content={latex} />
+                </div>
+              </>
+            ) : null}
+
+            {type === "image" ? (
+              <>
+                <label className="field">
+                  <span>Image Upload</span>
+                  <input accept="image/*" type="file" onChange={onImageFileChange} />
+                </label>
+                <label className="field">
+                  <span>Image URL</span>
+                  <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." />
+                </label>
+                <div className="projectorComposerPreview">
+                  {imageDataUrl || url ? <img src={imageDataUrl || url} alt="" /> : "No Image Selected"}
+                </div>
+              </>
+            ) : null}
+
+            {type === "video" ? (
+              <>
+                <label className="field">
+                  <span>Video Upload</span>
+                  <input
+                    accept="video/*,.mov,.m4v,.webm"
+                    type="file"
+                    onChange={onVideoFileChange}
+                    disabled={uploadingVideo}
+                  />
+                </label>
+                {videoFileName ? <p className="projectorUploadNote">Ready: {videoFileName}</p> : null}
+                <label className="field">
+                  <span>Video or GIF URL</span>
+                  <input
+                    value={url}
+                    onChange={(event) => {
+                      setUrl(event.target.value);
+                      setVideoUploadUrl("");
+                      setVideoFileName("");
+                    }}
+                    placeholder="https://.../video.mp4"
+                  />
+                </label>
+                <div className="projectorComposerPreview">
+                  {(videoUploadUrl || url) && /\.gif(\?|#|$)/i.test(videoUploadUrl || url) ? (
+                    <img src={videoUploadUrl || url} alt="" />
+                  ) : videoUploadUrl || url ? (
+                    <video src={videoUploadUrl || url} autoPlay loop muted playsInline />
+                  ) : uploadingVideo ? (
+                    "Converting Recording..."
+                  ) : (
+                    "Upload a Screen Recording or Paste a Hosted MP4/GIF URL"
+                  )}
+                </div>
+              </>
+            ) : null}
+
+            <div className="projectorActions">
+              <button className="btn" type="button" onClick={sendContent} disabled={sending || uploadingVideo}>
+                Send
+              </button>
+              <button className="btn secondary" type="button" onClick={clearScreens} disabled={sending || uploadingVideo}>
+                Clear
+              </button>
+            </div>
+            {message ? <p className="projectorMessage">{message}</p> : null}
           </SidebarPanel>
 
           <SidebarPanel
@@ -887,93 +975,6 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             </div>
           </SidebarPanel>
 
-          {type === "text" ? (
-            <>
-              <label className="field">
-                <span>Text</span>
-                <textarea value={text} onChange={(event) => setText(event.target.value)} rows={5} />
-              </label>
-              <div className="projectorComposerPreview">
-                <div className="projectorTextPreview">{text || "Text Preview"}</div>
-              </div>
-            </>
-          ) : null}
-
-          {type === "latex" ? (
-            <>
-              <label className="field">
-                <span>LaTeX</span>
-                <textarea value={latex} onChange={(event) => setLatex(event.target.value)} rows={5} />
-              </label>
-              <div className="projectorComposerPreview">
-                <ProjectorLatex content={latex} />
-              </div>
-            </>
-          ) : null}
-
-          {type === "image" ? (
-            <>
-              <label className="field">
-                <span>Image Upload</span>
-                <input accept="image/*" type="file" onChange={onImageFileChange} />
-              </label>
-              <label className="field">
-                <span>Image URL</span>
-                <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." />
-              </label>
-              <div className="projectorComposerPreview">
-                {imageDataUrl || url ? <img src={imageDataUrl || url} alt="" /> : "No Image Selected"}
-              </div>
-            </>
-          ) : null}
-
-          {type === "video" ? (
-            <>
-              <label className="field">
-                <span>Video Upload</span>
-                <input
-                  accept="video/*,.mov,.m4v,.webm"
-                  type="file"
-                  onChange={onVideoFileChange}
-                  disabled={uploadingVideo}
-                />
-              </label>
-              {videoFileName ? <p className="projectorUploadNote">Ready: {videoFileName}</p> : null}
-              <label className="field">
-                <span>Video or GIF URL</span>
-                <input
-                  value={url}
-                  onChange={(event) => {
-                    setUrl(event.target.value);
-                    setVideoUploadUrl("");
-                    setVideoFileName("");
-                  }}
-                  placeholder="https://.../video.mp4"
-                />
-              </label>
-              <div className="projectorComposerPreview">
-                {(videoUploadUrl || url) && /\.gif(\?|#|$)/i.test(videoUploadUrl || url) ? (
-                  <img src={videoUploadUrl || url} alt="" />
-                ) : videoUploadUrl || url ? (
-                  <video src={videoUploadUrl || url} autoPlay loop muted playsInline />
-                ) : uploadingVideo ? (
-                  "Converting Recording..."
-                ) : (
-                  "Upload a Screen Recording or Paste a Hosted MP4/GIF URL"
-                )}
-              </div>
-            </>
-          ) : null}
-
-          <div className="projectorActions">
-            <button className="btn" type="button" onClick={sendContent} disabled={sending || uploadingVideo}>
-              Send
-            </button>
-            <button className="btn secondary" type="button" onClick={clearScreens} disabled={sending || uploadingVideo}>
-              Clear
-            </button>
-          </div>
-          {message ? <p className="projectorMessage">{message}</p> : null}
         </aside>
       </div>
     </div>
