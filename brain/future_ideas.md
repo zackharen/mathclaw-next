@@ -6,6 +6,26 @@ Load this file only when the user asks about future ideas, backlog, roadmap cand
 
 ## Game And Classroom Ideas
 
+### Projector Classroom Display System
+- Product direction: grow Projector from a send-to-screen tool into a classroom display operating system for projectors, TVs, iPads, desktops, laptops, and side-room displays controlled from one teacher dashboard.
+- Current foundation: Projector Party is live with four screens, PIN/token screen connection, text/LaTeX/image/video sending, projector-friendly screen-recording conversion, fullscreen receiver controls, full-viewport media display, Projector Library v1 for saving single reusable content items, and Scene Library / Room Setups for saving full four-screen arrangements.
+- Built: **Scene Library / Room Setups** saves the full current arrangement of all screens as one reusable scene and restores it later. Example scenes: `Start of Class`, `Group Work`, `Exit Ticket`, `Escape Room Clue 1`.
+- Built: **Room Setup folders** let teachers organize saved room setups by class or situation. Folder filters show as a two-column alphabetical list.
+- Built: **Dashboard sidebar cleanup** has collapsible **Screen Selection**, **Room Setups**, and **Saved Items** sections. Screen Selection sits at the top, opens by default, and contains both screen targeting and content type selection.
+- Built: **Saved thumbnail behavior** keeps videos/GIFs from autoplaying in tiny saved-item and room-setup thumbnails while allowing videos to play in the four live dashboard screen previews and actual projector screens.
+- Priority 1, **Saved Item Library polish**: add edit/rename, search/filter, categories or activity types (`Questions`, `Activities`, `Word Walls`, `Data Walls`, `News`, `Announcements`), and clearer language so saved single items and full room setups feel distinct.
+- Priority 2, **Playlists / Timed Rotations**: group saved items or scenes into timed rotations per screen or across all screens. Teachers should choose interval timing and target screens.
+- Priority 3, **Screen Profiles**: let teachers rename/configure screens as real room devices such as `Main Projector`, `Side Room TV`, `iPad Table 1`, or `Teacher Laptop`, with optional display type (`projector`, `tablet`, `desktop`, `camera device`).
+- Priority 4, **Schedule-Based Display Rules**: attach scenes/playlists/content to periods or time blocks so displays automatically show information relevant to the current class.
+- Priority 5, **Camera Upload Queue**: camera-capable devices can upload student work to a teacher-approved queue, then the teacher sends selected work to the main projector or a specific screen.
+- Priority 6, **Assessment Mode**: focused display mode for prompts, timers, response status, and anonymized class results; eventually connect to MathClaw game/session data.
+- Priority 7, **Room Layout / Screen Map**: arrange screens visually to match the room, enabling animated activities that move around the space and clearer side-room orchestration.
+- Priority 8, **Launch Games To Screens**: send games or game states to selected displays, such as leaderboard on main projector, puzzle clue on side-room display, and group challenges on tablets.
+- Priority 9, **Desmos-Style Graph Display**: start with simple function input and graph/table projection before attempting full Desmos-level behavior.
+- Priority 10, **AI Problem / Explanation Generator**: teacher prompts AI for a specific group need, reviews the generated example/problem/explanation, then sends it to a target screen. Keep teacher approval in the loop.
+- Priority 11, **Escape Room Builder**: special mode for timed reveals, side-room clues, group-specific screens, and room-map-driven puzzle flow. Build after scenes, screen profiles, and timed rotations exist.
+- Priority 12, **Chromecast / Hardware Casting**: useful setup convenience, but lower software priority because `/projector/screen` already works on browser-based displays.
+
 ### Tournaments
 - Host tournaments across MathClaw games with automatic bracket generation and round progression.
 - **Connect 4** is the obvious starting point — traditional 1v1 bracket, players join via code, teacher advances rounds, projector-friendly bracket view.
