@@ -7178,6 +7178,48 @@ details[open] > summary.adminSectionSummary .hideLabel {
   margin-block: 0.12em;
 }
 
+.projectorContentStack {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  place-items: stretch;
+}
+
+.projectorContentStack.isCompact {
+  gap: 0.25rem;
+}
+
+.projectorContentBody {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.projectorTopTextDisplay,
+.projectorTopTextThumb {
+  width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.projectorTopTextDisplay {
+  color: var(--navy);
+  font-size: clamp(1.05rem, 2vw, 2rem);
+}
+
+.projectorTopTextThumb {
+  color: #fff;
+  font-size: clamp(0.82rem, 1.4vw, 1.25rem);
+}
+
 .projectorTextThumb,
 .projectorTextDisplay,
 .projectorTextPreview {
@@ -7772,6 +7814,26 @@ details[open] > summary.adminSectionSummary .hideLabel {
   color: #fff;
 }
 
+.projectorTopTextControls {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.projectorCheckboxRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.projectorCheckboxRow input {
+  width: auto;
+  min-width: 1rem;
+  accent-color: var(--navy);
+}
+
 .projectorComposerPreview {
   min-height: 9rem;
   display: grid;
@@ -7914,6 +7976,43 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   text-align: center;
   font-size: clamp(28px, 5vw, 72px);
   color: #fff;
+}
+
+.projectorScreenStack {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(0.7rem, 2vw, 1.4rem);
+  padding: clamp(1rem, 3vw, 3rem);
+  box-sizing: border-box;
+}
+
+.projectorScreenTopText {
+  width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(30px, 5vw, 78px);
+  font-weight: 900;
+  line-height: 1.08;
+  color: #fff;
+}
+
+.projectorScreenBody {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.projectorScreenBody .projectorScreenMedia {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .projectorScreenText {

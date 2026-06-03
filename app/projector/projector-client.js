@@ -98,7 +98,12 @@ function ProjectorLatex({ content, className = "" }) {
   return <div ref={ref} className={className} />;
 }
 
-function renderContent(state, compact = false, options = {}) {
+function renderTopText(state, compact = false) {
+  if (!state?.topText || state.type === "text") return null;
+  return <div className={compact ? "projectorTopTextThumb" : "projectorTopTextDisplay"}>{state.topText}</div>;
+}
+
+function renderContentBody(state, compact = false, options = {}) {
   if (!state) return <span className="projectorEmpty">empty</span>;
   if (state.type === "text") {
     return <div className={compact ? "projectorTextThumb" : "projectorTextDisplay"}>{state.content}</div>;
@@ -125,6 +130,18 @@ function renderContent(state, compact = false, options = {}) {
     );
   }
   return <span className="projectorEmpty">empty</span>;
+}
+
+function renderContent(state, compact = false, options = {}) {
+  const topText = renderTopText(state, compact);
+  const body = renderContentBody(state, compact, options);
+  if (!topText) return body;
+  return (
+    <div className={compact ? "projectorContentStack isCompact" : "projectorContentStack"}>
+      {topText}
+      <div className="projectorContentBody">{body}</div>
+    </div>
+  );
 }
 
 function libraryTypeLabel(item) {
@@ -194,6 +211,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
+  const [showTopText, setShowTopText] = useState(false);
+  const [topText, setTopText] = useState("");
   const [url, setUrl] = useState("");
   const [libraryTitle, setLibraryTitle] = useState("");
   const [libraryCategory, setLibraryCategory] = useState("");
@@ -278,7 +297,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         }
         setScreenStates((current) => ({
           ...current,
-          [screenId]: payload?.type ? { type: payload.type, content: payload.content || "" } : null,
+          [screenId]: payload?.type
+            ? { type: payload.type, content: payload.content || "", topText: payload.topText || "" }
+            : null,
         }));
       })
       .subscribe();
@@ -299,6 +320,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     if (type === "latex") return latex;
     if (type === "image") return imageDataUrl || url;
     return videoUploadUrl || url;
+  }
+
+  function currentComposerTopText() {
+    return type !== "text" && showTopText ? topText : "";
   }
 
   async function renameLibraryItem(itemId, title, category) {
@@ -331,6 +356,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     setImageDataUrl("");
     setVideoUploadUrl("");
     setVideoFileName("");
+    setShowTopText(Boolean(item.topText));
+    setTopText(item.topText || "");
 
     if (nextType === "text") setText(item.content || "");
     if (nextType === "latex") setLatex(item.content || "");
@@ -634,6 +661,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     setSending(true);
     setMessage("");
     const content = currentComposerContent();
+    const nextTopText = currentComposerTopText();
 
     try {
       const response = await fetch("/api/projector", {
@@ -644,6 +672,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           screenIds: targetScreenIds,
           type,
           content,
+          topText: nextTopText,
         }),
       });
       const payload = await response.json();
@@ -652,7 +681,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       setScreenStates((current) => {
         const next = { ...current };
         targetScreenIds.forEach((screenId) => {
-          next[screenId] = { type, content };
+          next[screenId] = nextTopText ? { type, content, topText: nextTopText } : { type, content };
         });
         return next;
       });
@@ -796,6 +825,30 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               ))}
             </div>
 
+            {type !== "text" ? (
+              <div className="projectorTopTextControls">
+                <label className="projectorCheckboxRow">
+                  <input
+                    type="checkbox"
+                    checked={showTopText}
+                    onChange={(event) => setShowTopText(event.target.checked)}
+                  />
+                  <span>Text?</span>
+                </label>
+                {showTopText ? (
+                  <label className="field">
+                    <span>Top Text</span>
+                    <textarea
+                      value={topText}
+                      onChange={(event) => setTopText(event.target.value)}
+                      rows={2}
+                      maxLength={500}
+                    />
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+
             {type === "text" ? (
               <>
                 <label className="field">
@@ -815,7 +868,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   <textarea value={latex} onChange={(event) => setLatex(event.target.value)} rows={5} />
                 </label>
                 <div className="projectorComposerPreview">
-                  <ProjectorLatex content={latex} />
+                  {renderContent({ type, content: latex, topText: currentComposerTopText() })}
                 </div>
               </>
             ) : null}
@@ -831,7 +884,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." />
                 </label>
                 <div className="projectorComposerPreview">
-                  {imageDataUrl || url ? <img src={imageDataUrl || url} alt="" /> : "No Image Selected"}
+                  {imageDataUrl || url
+                    ? renderContent({ type, content: imageDataUrl || url, topText: currentComposerTopText() })
+                    : "No Image Selected"}
                 </div>
               </>
             ) : null}
@@ -862,9 +917,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 </label>
                 <div className="projectorComposerPreview">
                   {(videoUploadUrl || url) && /\.gif(\?|#|$)/i.test(videoUploadUrl || url) ? (
-                    <img src={videoUploadUrl || url} alt="" />
+                    renderContent({ type, content: videoUploadUrl || url, topText: currentComposerTopText() })
                   ) : videoUploadUrl || url ? (
-                    <video src={videoUploadUrl || url} autoPlay loop muted playsInline />
+                    renderContent({ type, content: videoUploadUrl || url, topText: currentComposerTopText() })
                   ) : uploadingVideo ? (
                     "Converting Recording..."
                   ) : (

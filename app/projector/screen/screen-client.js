@@ -96,7 +96,7 @@ function LatexDisplay({ content }) {
   return <div ref={ref} className="projectorScreenLatex" />;
 }
 
-function ScreenContent({ state }) {
+function ScreenContentBody({ state }) {
   if (!state) return <div className="projectorWaiting">waiting for content</div>;
   if (state.type === "text") return <div className="projectorScreenText">{state.content}</div>;
   if (state.type === "latex") return <LatexDisplay content={state.content} />;
@@ -116,6 +116,18 @@ function ScreenContent({ state }) {
     );
   }
   return <div className="projectorWaiting">waiting for content</div>;
+}
+
+function ScreenContent({ state }) {
+  if (!state?.topText || state.type === "text") return <ScreenContentBody state={state} />;
+  return (
+    <div className="projectorScreenStack">
+      <div className="projectorScreenTopText">{state.topText}</div>
+      <div className="projectorScreenBody">
+        <ScreenContentBody state={state} />
+      </div>
+    </div>
+  );
 }
 
 export default function ScreenClient({ initialToken = null }) {
@@ -182,7 +194,11 @@ export default function ScreenClient({ initialToken = null }) {
           loadScreen();
           return;
         }
-        setState(payload?.type ? { type: payload.type, content: payload.content || "" } : null);
+        setState(
+          payload?.type
+            ? { type: payload.type, content: payload.content || "", topText: payload.topText || "" }
+            : null
+        );
       })
       .subscribe((nextStatus) => {
         if (nextStatus === "SUBSCRIBED") setStatus("connected");

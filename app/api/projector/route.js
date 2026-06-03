@@ -13,6 +13,7 @@ const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
 const SCENE_TITLE_LIMIT = 80;
 const SCENE_STATE_LIMIT = 24 * 1024 * 1024;
 const SCENE_FOLDER_TITLE_LIMIT = 60;
+const TOP_TEXT_LIMIT = 500;
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -28,21 +29,27 @@ function normalizeScreenIds(value) {
   return [...new Set(value.map(normalizeScreenNumber).filter(Boolean))];
 }
 
-function normalizeState(type, content) {
+function normalizeTopText(type, topText) {
+  if (type === "text") return "";
+  return String(topText || "").trim().slice(0, TOP_TEXT_LIMIT);
+}
+
+function normalizeState(type, content, topText = "") {
   if (!CONTENT_TYPES.has(type)) return null;
   const rawContent = String(content || "");
   const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
   if (!safeContent.trim()) return null;
   if (type === "video" && safeContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(safeContent)) return null;
-  return { type, content: safeContent };
+  const safeTopText = normalizeTopText(type, topText);
+  return safeTopText ? { type, content: safeContent, topText: safeTopText } : { type, content: safeContent };
 }
 
 function normalizeSceneStates(value) {
   const source = value && typeof value === "object" ? value : {};
   return SCREEN_IDS.reduce((states, screenId) => {
     const state = source[screenId];
-    states[screenId] = state ? normalizeState(state.type, state.content) : null;
+    states[screenId] = state ? normalizeState(state.type, state.content, state.topText) : null;
     return states;
   }, {});
 }
@@ -153,6 +160,7 @@ function buildBroadcastPayload(screenId, state) {
     screenId,
     type: state.type,
     content: state.content,
+    topText: state.topText || "",
   };
 }
 
@@ -693,7 +701,7 @@ export async function POST(request) {
   }
 
   const screenIds = normalizeScreenIds(body.screenIds);
-  const state = normalizeState(body.type, body.content);
+  const state = normalizeState(body.type, body.content, body.topText);
 
   if (!screenIds.length) return jsonError("Choose at least one screen.");
   if (!state) {
