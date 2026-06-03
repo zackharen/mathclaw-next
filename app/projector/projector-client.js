@@ -26,6 +26,33 @@ function ensureKatexAssets() {
   document.head.appendChild(script);
 }
 
+function isEscapedLatexCharacter(source, index) {
+  let slashCount = 0;
+  for (let i = index - 1; i >= 0 && source[i] === "\\"; i -= 1) slashCount += 1;
+  return slashCount % 2 === 1;
+}
+
+function isExponentStart(character) {
+  return Boolean(character && /[A-Za-z0-9{\\]/.test(character));
+}
+
+function normalizeLatexLineForDisplay(line) {
+  let normalized = "";
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === "%" && !isEscapedLatexCharacter(line, index)) {
+      normalized += "\\%";
+    } else if (character === "↑") {
+      normalized += "\\uparrow ";
+    } else if (character === "^" && !isExponentStart(line[index + 1])) {
+      normalized += "\\uparrow ";
+    } else {
+      normalized += character;
+    }
+  }
+  return normalized;
+}
+
 function renderLatex(element, content) {
   if (!element) return;
   const lines = String(content || "").split(/\r?\n/);
@@ -39,7 +66,7 @@ function renderLatex(element, content) {
       const row = document.createElement("div");
       row.className = "projectorLatexLine";
       if (line.trim()) {
-        window.katex.render(line, row, {
+        window.katex.render(normalizeLatexLineForDisplay(line), row, {
           throwOnError: false,
           displayMode: true,
         });
