@@ -679,13 +679,20 @@ export async function POST(request) {
     const current = context.session.screen_states && typeof context.session.screen_states === "object"
       ? context.session.screen_states
       : {};
-    // 1→2, 2→3, 3→4, 4→1
-    const rotated = {
-      "1": current["4"] || null,
-      "2": current["1"] || null,
-      "3": current["2"] || null,
-      "4": current["3"] || null,
-    };
+    const rotateBackward = body.direction === "backward";
+    const rotated = rotateBackward
+      ? {
+          "1": current["2"] || null,
+          "2": current["3"] || null,
+          "3": current["4"] || null,
+          "4": current["1"] || null,
+        }
+      : {
+          "1": current["4"] || null,
+          "2": current["1"] || null,
+          "3": current["2"] || null,
+          "4": current["3"] || null,
+        };
     const { error } = await admin
       .from("projector_sessions")
       .update({ screen_states: rotated, updated_at: new Date().toISOString() })

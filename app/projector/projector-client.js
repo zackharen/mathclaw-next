@@ -326,6 +326,40 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     return type !== "text" && showTopText ? topText : "";
   }
 
+  function editScreenContent(screenId) {
+    const state = screenStates?.[screenId];
+    if (!state?.type) {
+      setMessage(`Screen ${screenId} is empty.`);
+      return;
+    }
+
+    setTarget(screenId);
+    setType(state.type);
+    setShowTopText(Boolean(state.topText));
+    setTopText(state.topText || "");
+    setUrl("");
+    setImageDataUrl("");
+    setVideoUploadUrl("");
+    setVideoFileName("");
+    setOpenPanels((current) => ({ ...current, screens: true }));
+
+    if (state.type === "text") {
+      setText(state.content || "");
+    } else if (state.type === "latex") {
+      setLatex(state.content || "");
+    } else if (state.type === "image") {
+      if (String(state.content || "").startsWith("data:")) {
+        setImageDataUrl(state.content || "");
+      } else {
+        setUrl(state.content || "");
+      }
+    } else if (state.type === "video") {
+      setUrl(state.content || "");
+    }
+
+    setMessage(`Loaded screen ${screenId} into the composer.`);
+  }
+
   async function renameLibraryItem(itemId, title, category) {
     setSavingLibrary(true);
     setMessage("");
@@ -693,19 +727,19 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     }
   }
 
-  async function rotateScreens() {
+  async function rotateScreens(direction = "forward") {
     setSending(true);
     setMessage("");
     try {
       const response = await fetch("/api/projector", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "rotate-screens" }),
+        body: JSON.stringify({ action: "rotate-screens", direction }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not rotate screens.");
       setScreenStates(payload.screenStates || {});
-      setMessage("Screens rotated.");
+      setMessage(direction === "backward" ? "Screens rotated left." : "Screens rotated right.");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -760,7 +794,17 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             {SCREEN_IDS.map((screenId) => (
               <article className="projectorScreenCard" key={screenId}>
                 <div className="projectorScreenCardHeader">
-                  <strong>Screen {screenId}</strong>
+                  <div className="projectorScreenTitleRow">
+                    <strong>Screen {screenId}</strong>
+                    <button
+                      className="projectorScreenEdit"
+                      type="button"
+                      onClick={() => editScreenContent(screenId)}
+                      disabled={!screenStates?.[screenId]?.type}
+                    >
+                      Edit
+                    </button>
+                  </div>
                   <span>{screenStates?.[screenId]?.type || "empty"}</span>
                 </div>
                 <div className="projectorScreenPreview">
@@ -776,8 +820,11 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             ))}
           </section>
           <div className="projectorRotateRow">
-            <button className="btn secondary" type="button" onClick={rotateScreens} disabled={sending}>
-              ↻ Rotate Screens
+            <button className="btn secondary" type="button" onClick={() => rotateScreens("backward")} disabled={sending}>
+              ↶ Rotate Left
+            </button>
+            <button className="btn secondary" type="button" onClick={() => rotateScreens("forward")} disabled={sending}>
+              ↷ Rotate Right
             </button>
           </div>
         </div>

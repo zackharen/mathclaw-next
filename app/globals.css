@@ -7111,7 +7111,9 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorRotateRow {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 0.75rem;
 }
 
 .projectorScreenCard,
@@ -7136,9 +7138,33 @@ details[open] > summary.adminSectionSummary .hideLabel {
   gap: 0.75rem;
 }
 
+.projectorScreenTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
 .projectorScreenCardHeader strong,
 .projectorScreenCardHeader span {
   overflow-wrap: anywhere;
+}
+
+.projectorScreenEdit {
+  border: 1px solid #93a5b4;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.18rem 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorScreenEdit:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .projectorScreenCardHeader span {
