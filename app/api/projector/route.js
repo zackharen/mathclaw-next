@@ -30,8 +30,9 @@ function normalizeScreenIds(value) {
 
 function normalizeState(type, content) {
   if (!CONTENT_TYPES.has(type)) return null;
-  const safeContent = String(content || "").trim();
-  if (!safeContent) return null;
+  const rawContent = String(content || "");
+  const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
+  if (!safeContent.trim()) return null;
   if (type === "video" && safeContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(safeContent)) return null;
   return { type, content: safeContent };

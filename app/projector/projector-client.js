@@ -28,14 +28,25 @@ function ensureKatexAssets() {
 
 function renderLatex(element, content) {
   if (!element) return;
+  const lines = String(content || "").split(/\r?\n/);
   if (!window.katex) {
     element.textContent = content || "";
     return;
   }
   try {
-    window.katex.render(content || "", element, {
-      throwOnError: false,
-      displayMode: true,
+    element.replaceChildren();
+    lines.forEach((line) => {
+      const row = document.createElement("div");
+      row.className = "projectorLatexLine";
+      if (line.trim()) {
+        window.katex.render(line, row, {
+          throwOnError: false,
+          displayMode: true,
+        });
+      } else {
+        row.appendChild(document.createElement("br"));
+      }
+      element.appendChild(row);
     });
   } catch {
     element.textContent = content || "";

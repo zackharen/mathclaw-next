@@ -32,14 +32,25 @@ function LatexDisplay({ content }) {
     ensureKatexAssets();
     const render = () => {
       if (!ref.current) return;
+      const lines = String(content || "").split(/\r?\n/);
       if (!window.katex) {
         ref.current.textContent = content || "";
         return;
       }
       try {
-        window.katex.render(content || "", ref.current, {
-          throwOnError: false,
-          displayMode: true,
+        ref.current.replaceChildren();
+        lines.forEach((line) => {
+          const row = document.createElement("div");
+          row.className = "projectorLatexLine";
+          if (line.trim()) {
+            window.katex.render(line, row, {
+              throwOnError: false,
+              displayMode: true,
+            });
+          } else {
+            row.appendChild(document.createElement("br"));
+          }
+          ref.current.appendChild(row);
         });
       } catch {
         ref.current.textContent = content || "";

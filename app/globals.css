@@ -7174,6 +7174,10 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-size: clamp(1.1rem, 2vw, 2rem);
 }
 
+.projectorLatexLine {
+  margin-block: 0.12em;
+}
+
 .projectorTextThumb,
 .projectorTextDisplay,
 .projectorTextPreview {
