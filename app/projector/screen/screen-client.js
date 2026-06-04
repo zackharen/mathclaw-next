@@ -137,17 +137,19 @@ function LatexDisplay({ content }) {
 function normalizeQuestionPayload(parsed) {
   const prompt = String(parsed.prompt || "");
   const promptType = parsed.promptType === "latex" ? "latex" : "text";
+  const mode = parsed.mode === "fill_blank" ? "fill_blank" : "multiple_choice";
   const options = Array.isArray(parsed.options)
     ? parsed.options.slice(0, 4).map((option) => String(option || ""))
     : [];
   const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
   const question = {
+    mode,
     prompt,
     promptType,
     options,
     correctIndex: correctIndex >= 0 && correctIndex < 4 ? correctIndex : null,
   };
-  const hasQuestion = Boolean(prompt.trim() || options.some((option) => option.trim()));
+  const hasQuestion = Boolean(mode === "fill_blank" || prompt.trim() || options.some((option) => option.trim()));
   return hasQuestion ? question : null;
 }
 
@@ -181,13 +183,14 @@ function QuestionDisplay({ question }) {
     .map((option, index) => ({ index, option }))
     .filter((item) => item.option.trim());
   return (
-    <div className="projectorScreenQuestionCard">
+    <div className={`projectorScreenQuestionCard ${question.mode === "fill_blank" ? "isFillBlank" : ""}`}>
       {question.prompt.trim() ? (
         <div className="projectorScreenQuestionPrompt">
           {question.promptType === "latex" ? <LatexDisplay content={question.prompt} /> : <span>{question.prompt}</span>}
         </div>
       ) : null}
-      {filledOptions.length ? (
+      {question.mode === "fill_blank" ? <div className="projectorScreenFillBlankLine" aria-hidden="true" /> : null}
+      {question.mode !== "fill_blank" && filledOptions.length ? (
         <div className="projectorScreenQuestionOptions">
           {filledOptions.map(({ index, option }) => (
             <div
@@ -232,7 +235,7 @@ function ScreenContentBody({ state }) {
 
 function ScreenContent({ state }) {
   const question = parseQuestionContent(state?.content);
-  const hasBodyContent = Boolean(displayContent(state?.content).trim());
+  const hasBodyContent = Boolean(displayContent(state?.content).trim()) && !(question && state?.type === "text");
   if (!state?.topText && !question) return <ScreenContentBody state={state} />;
   if (question && !state?.topText && !hasBodyContent) return <QuestionDisplay question={question} />;
   return (

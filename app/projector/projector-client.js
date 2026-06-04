@@ -139,17 +139,19 @@ function ProjectorLatex({ content, className = "" }) {
 function normalizeQuestionPayload(parsed) {
   const prompt = String(parsed.prompt || "");
   const promptType = parsed.promptType === "latex" ? "latex" : "text";
+  const mode = parsed.mode === "fill_blank" ? "fill_blank" : "multiple_choice";
   const options = Array.isArray(parsed.options)
     ? parsed.options.slice(0, 4).map((option) => String(option || ""))
     : [];
   const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
   const question = {
+    mode,
     prompt,
     promptType,
     options,
     correctIndex: correctIndex >= 0 && correctIndex < 4 ? correctIndex : null,
   };
-  const hasQuestion = Boolean(prompt.trim() || options.some((option) => option.trim()));
+  const hasQuestion = Boolean(mode === "fill_blank" || prompt.trim() || options.some((option) => option.trim()));
   return hasQuestion ? question : null;
 }
 
@@ -182,15 +184,20 @@ function questionForState(state) {
   return state?.question || parseQuestionContent(state?.content);
 }
 
-function buildQuestionContent({ content = "", correctIndex, options, prompt, promptType }) {
+function buildQuestionContent({ content = "", correctIndex, mode, options, prompt, promptType }) {
+  const safeMode = mode === "fill_blank" ? "fill_blank" : "multiple_choice";
   const safeOptions = options.slice(0, 4).map((option) => String(option || "").trim());
-  const safeCorrectIndex = Number.isInteger(correctIndex) && safeOptions[correctIndex] ? correctIndex : null;
+  const safeCorrectIndex =
+    safeMode === "multiple_choice" && Number.isInteger(correctIndex) && safeOptions[correctIndex]
+      ? correctIndex
+      : null;
   return `${QUESTION_CONTENT_PREFIX}${JSON.stringify({
     content: String(content || ""),
     question: {
+      mode: safeMode,
       prompt: String(prompt || "").trim(),
       promptType: promptType === "latex" ? "latex" : "text",
-      options: safeOptions,
+      options: safeMode === "multiple_choice" ? safeOptions : [],
       correctIndex: safeCorrectIndex,
     },
   })}`;
@@ -202,7 +209,12 @@ function QuestionDisplay({ question, compact = false }) {
     .map((option, index) => ({ index, option }))
     .filter((item) => item.option.trim());
   return (
-    <div className={compact ? "projectorQuestionCard isCompact" : "projectorQuestionCard"}>
+    <div
+      className={[
+        compact ? "projectorQuestionCard isCompact" : "projectorQuestionCard",
+        question.mode === "fill_blank" ? "isFillBlank" : "",
+      ].filter(Boolean).join(" ")}
+    >
       {question.prompt.trim() ? (
         <div className="projectorQuestionPrompt">
           {question.promptType === "latex" ? (
@@ -212,7 +224,8 @@ function QuestionDisplay({ question, compact = false }) {
           )}
         </div>
       ) : null}
-      {filledOptions.length ? (
+      {question.mode === "fill_blank" ? <div className="projectorFillBlankLine" aria-hidden="true" /> : null}
+      {question.mode !== "fill_blank" && filledOptions.length ? (
         <div className="projectorQuestionOptions">
           {filledOptions.map(({ index, option }) => (
             <div
@@ -269,7 +282,7 @@ function renderContent(state, compact = false, options = {}) {
   const topText = renderTopText(state, compact);
   const body = renderContentBody(state, compact, options);
   const question = questionForState(state);
-  const hasBodyContent = Boolean(displayContent(state?.content).trim());
+  const hasBodyContent = Boolean(displayContent(state?.content).trim()) && !(question && state?.type === "text");
   if (!topText && !question) return body;
   if (question && !topText && !hasBodyContent) return <QuestionDisplay question={question} compact={compact} />;
   return (
@@ -353,7 +366,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [questionPrompt, setQuestionPrompt] = useState("Which expression is equivalent to 3(x + 4)?");
   const [questionOptions, setQuestionOptions] = useState(["3x + 12", "3x + 4", "x + 12", "7x"]);
   const [questionCorrectIndex, setQuestionCorrectIndex] = useState("");
-  const [showQuestion, setShowQuestion] = useState(false);
+  const [questionMode, setQuestionMode] = useState("");
   const [showTopText, setShowTopText] = useState(false);
   const [topText, setTopText] = useState("");
   const [url, setUrl] = useState("");
@@ -475,9 +488,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   function currentComposerState() {
     const rawContent = currentComposerContent();
     if (!rawContent) return null;
-    const content = showQuestion
+    const content = questionMode
       ? buildQuestionContent({
           content: rawContent,
+          mode: questionMode,
           prompt: questionPrompt,
           promptType: questionPromptType,
           options: questionOptions,
@@ -496,7 +510,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   function loadQuestionContent(content) {
     const question = parseQuestionContent(content);
     if (!question) return false;
-    setShowQuestion(true);
+    setQuestionMode(question.mode || "multiple_choice");
     setQuestionPromptType(question.promptType);
     setQuestionPrompt(question.prompt);
     setQuestionOptions(QUESTION_OPTION_LABELS.map((_, index) => question.options[index] || ""));
@@ -538,7 +552,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
     const rawContent = displayContent(state.content);
     const loadedQuestion = loadQuestionContent(state.content);
-    if (!loadedQuestion) setShowQuestion(false);
+    if (!loadedQuestion) setQuestionMode("");
     if (state.type === "text") {
       setText(rawContent || "");
     } else if (state.type === "latex") {
@@ -591,7 +605,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     const rawContent = displayContent(item.content);
     const loadedQuestion = loadQuestionContent(item.content);
     setType(nextType);
-    if (!loadedQuestion) setShowQuestion(false);
+    if (!loadedQuestion) setQuestionMode("");
     if (nextType === "text") setText(rawContent || "");
     if (nextType === "latex") setLatex(rawContent || "");
     if (nextType === "image") {
@@ -617,7 +631,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
           title: libraryTitle,
           type,
           content: currentComposerState()?.content || "",
-          category: showQuestion ? "Questions" : libraryCategory,
+          category: questionMode ? "Questions" : libraryCategory,
         }),
       });
       const payload = await response.json();
@@ -1134,14 +1148,24 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 </button>
               ) : null}
               <button
-                className={showQuestion ? "isActive" : ""}
+                className={questionMode === "fill_blank" ? "isActive" : ""}
                 type="button"
                 onClick={() => {
-                  setShowQuestion((current) => !current);
-                  setLibraryCategory((current) => (!showQuestion && !current ? "Questions" : current));
+                  setQuestionMode((current) => (current === "fill_blank" ? "" : "fill_blank"));
+                  setLibraryCategory((current) => (!questionMode && !current ? "Questions" : current));
                 }}
               >
-                Question
+                Fill In The Blank
+              </button>
+              <button
+                className={questionMode === "multiple_choice" ? "isActive" : ""}
+                type="button"
+                onClick={() => {
+                  setQuestionMode((current) => (current === "multiple_choice" ? "" : "multiple_choice"));
+                  setLibraryCategory((current) => (!questionMode && !current ? "Questions" : current));
+                }}
+              >
+                Multiple Choice
               </button>
             </div>
 
@@ -1157,7 +1181,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               </label>
             ) : null}
 
-            {showQuestion ? (
+            {questionMode ? (
               <div className="projectorQuestionBuilder">
                 <label className="field">
                   <span>Question Prompt</span>
@@ -1175,32 +1199,36 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                     <option value="latex">LaTeX</option>
                   </select>
                 </label>
-                <div className="projectorQuestionBuilderOptions">
-                  {QUESTION_OPTION_LABELS.map((label, index) => (
-                    <label className="field" key={label}>
-                      <span>Choice {label}</span>
-                      <input
-                        value={questionOptions[index]}
-                        onChange={(event) => updateQuestionOption(index, event.target.value)}
-                        placeholder={`Choice ${label}`}
-                      />
+                {questionMode === "multiple_choice" ? (
+                  <>
+                    <div className="projectorQuestionBuilderOptions">
+                      {QUESTION_OPTION_LABELS.map((label, index) => (
+                        <label className="field" key={label}>
+                          <span>Choice {label}</span>
+                          <input
+                            value={questionOptions[index]}
+                            onChange={(event) => updateQuestionOption(index, event.target.value)}
+                            placeholder={`Choice ${label}`}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <label className="field">
+                      <span>Correct Answer</span>
+                      <select
+                        value={questionCorrectIndex}
+                        onChange={(event) => setQuestionCorrectIndex(event.target.value)}
+                      >
+                        <option value="">No answer marked</option>
+                        {QUESTION_OPTION_LABELS.map((label, index) => (
+                          <option key={label} value={index} disabled={!questionOptions[index].trim()}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
                     </label>
-                  ))}
-                </div>
-                <label className="field">
-                  <span>Correct Answer</span>
-                  <select
-                    value={questionCorrectIndex}
-                    onChange={(event) => setQuestionCorrectIndex(event.target.value)}
-                  >
-                    <option value="">No answer marked</option>
-                    {QUESTION_OPTION_LABELS.map((label, index) => (
-                      <option key={label} value={index} disabled={!questionOptions[index].trim()}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  </>
+                ) : null}
               </div>
             ) : null}
 

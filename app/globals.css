@@ -7364,6 +7364,19 @@ details[open] > summary.adminSectionSummary .hideLabel {
   display: none;
 }
 
+.projectorFillBlankLine {
+  width: min(100%, 32rem);
+  height: 0.35rem;
+  justify-self: center;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+.projectorQuestionCard.isCompact .projectorFillBlankLine {
+  height: 0.16rem;
+}
+
 .projectorThumbMedia {
   width: 100%;
   height: 100%;
@@ -8301,6 +8314,14 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   background: #bbf7d0;
   color: #14532d;
   font-size: clamp(0.8rem, 1.3vw, 1.2rem);
+}
+
+.projectorScreenFillBlankLine {
+  width: min(82vw, 54rem);
+  height: clamp(0.35rem, 0.9vw, 0.75rem);
+  justify-self: center;
+  border-radius: 999px;
+  background: #fff;
 }
 
 .projectorScreenMedia {
