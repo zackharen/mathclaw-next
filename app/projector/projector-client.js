@@ -268,7 +268,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [savingLibrary, setSavingLibrary] = useState(false);
   const [savingScene, setSavingScene] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [imageDragActive, setImageDragActive] = useState(false);
   const latexTextareaRef = useRef(null);
+  const imageDragDepthRef = useRef(0);
 
   const screenTokens = session.screen_tokens || {};
   const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
@@ -646,20 +648,71 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     }
   }
 
-  function onImageFileChange(event) {
-    const file = event.target.files?.[0];
+  function processImageFile(file) {
     setImageDataUrl("");
-    if (!file) return;
+    if (!file) {
+      setMessage("Drop an image file or choose one from your Mac.");
+      return;
+    }
+    if (!file.type?.startsWith("image/")) {
+      setMessage("That does not look like an image file.");
+      return;
+    }
     if (file.size > 5 * 1024 * 1024) {
       setMessage("That image is over 5MB. Choose a smaller image.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setMessage("Heads up: images over 2MB can feel slower on classroom Wi-Fi.");
+      setMessage("Image ready. Heads up: images over 2MB can feel slower on classroom Wi-Fi.");
+    } else {
+      setMessage("Image ready to send.");
     }
     const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(String(reader.result || ""));
+    reader.onload = () => {
+      setImageDataUrl(String(reader.result || ""));
+      setUrl("");
+    };
     reader.readAsDataURL(file);
+  }
+
+  function onImageFileChange(event) {
+    processImageFile(event.target.files?.[0]);
+    event.target.value = "";
+  }
+
+  function hasDraggedFiles(event) {
+    return Array.from(event.dataTransfer?.types || []).includes("Files");
+  }
+
+  function onImageDragEnter(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!hasDraggedFiles(event)) return;
+    imageDragDepthRef.current += 1;
+    setImageDragActive(true);
+  }
+
+  function onImageDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    if (hasDraggedFiles(event)) setImageDragActive(true);
+  }
+
+  function onImageDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    imageDragDepthRef.current = Math.max(0, imageDragDepthRef.current - 1);
+    if (imageDragDepthRef.current === 0) setImageDragActive(false);
+  }
+
+  function onImageDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    imageDragDepthRef.current = 0;
+    setImageDragActive(false);
+    const file = Array.from(event.dataTransfer?.files || []).find((item) => item.type?.startsWith("image/"));
+    processImageFile(file);
   }
 
   async function onVideoFileChange(event) {
@@ -1002,10 +1055,23 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   <span>Image URL</span>
                   <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://..." />
                 </label>
-                <div className="projectorComposerPreview">
+                <div
+                  className={`projectorComposerPreview projectorImageDropZone ${
+                    imageDragActive ? "isDragActive" : ""
+                  }`}
+                  onDragEnter={onImageDragEnter}
+                  onDragOver={onImageDragOver}
+                  onDragLeave={onImageDragLeave}
+                  onDrop={onImageDrop}
+                >
                   {imageDataUrl || url
                     ? renderContent({ type, content: imageDataUrl || url, topText: currentComposerTopText() })
-                    : "No Image Selected"}
+                    : (
+                      <span className="projectorImageDropHint">
+                        Drop Image Here
+                        <small>or choose a file above</small>
+                      </span>
+                    )}
                 </div>
               </>
             ) : null}

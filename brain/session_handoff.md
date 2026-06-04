@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-04 America/New_York (Projector LaTeX arrow spacing)
+2026-06-04 America/New_York (Projector image drag-and-drop)
+
+## What Was Built (2026-06-04 Session — Projector image drag-and-drop)
+- **Projector Image mode now accepts dragged image files** (`app/projector/projector-client.js`, `app/globals.css`):
+  - The Image composer preview is now a visible drop zone. Teachers can drag a Mac screenshot thumbnail or image file into the box to load it, then send it through the existing Projector flow.
+  - Dropped images reuse the same file validation as the file picker: image-only, 5MB max, and a classroom Wi-Fi warning for images over 2MB.
+  - Accepted dropped/file-picked images clear the Image URL field so the composer uses the dropped image unambiguously.
+  - Verification passed: `node --check app/projector/projector-client.js`; `git diff --check`; `npm run build`.
+  - Verification caveat: direct browser drag/drop testing was blocked because the sandbox would not bind local servers (`EPERM` on ports 3000 and 3001), and no authenticated teacher browser session was available.
 
 ## What Was Built (2026-06-04 Session — Projector LaTeX arrow spacing)
 - **Projector LaTeX now shows typed spacing around arrows** (`app/projector/projector-client.js`, `app/projector/screen/screen-client.js`):
