@@ -232,6 +232,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [savingLibrary, setSavingLibrary] = useState(false);
   const [savingScene, setSavingScene] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const latexTextareaRef = useRef(null);
 
   const screenTokens = session.screen_tokens || {};
   const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
@@ -324,6 +325,20 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
   function currentComposerTopText() {
     return type !== "text" && showTopText ? topText : "";
+  }
+
+  function insertLatexSnippet(snippet, cursorOffset = snippet.length) {
+    const textarea = latexTextareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? latex.length;
+    const selectionEnd = textarea?.selectionEnd ?? latex.length;
+    const nextLatex = `${latex.slice(0, selectionStart)}${snippet}${latex.slice(selectionEnd)}`;
+    setLatex(nextLatex);
+    window.requestAnimationFrame(() => {
+      if (!latexTextareaRef.current) return;
+      const nextCursor = selectionStart + cursorOffset;
+      latexTextareaRef.current.focus();
+      latexTextareaRef.current.setSelectionRange(nextCursor, nextCursor);
+    });
   }
 
   function editScreenContent(screenId) {
@@ -911,8 +926,29 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             {type === "latex" ? (
               <>
                 <label className="field">
-                  <span>LaTeX</span>
-                  <textarea value={latex} onChange={(event) => setLatex(event.target.value)} rows={5} />
+                  <span className="projectorLatexLabelRow">
+                    <span>LaTeX</span>
+                    <span className="projectorLatexInsertButtons" aria-label="LaTeX helpers">
+                      <button type="button" onClick={() => insertLatexSnippet("\\frac{}{}", 6)}>
+                        Fraction
+                      </button>
+                      <button type="button" onClick={() => insertLatexSnippet("\\sqrt{}", 6)}>
+                        Sqrt
+                      </button>
+                      <button type="button" onClick={() => insertLatexSnippet("\\uparrow ")}>
+                        Up
+                      </button>
+                      <button type="button" onClick={() => insertLatexSnippet("\\downarrow ")}>
+                        Down
+                      </button>
+                    </span>
+                  </span>
+                  <textarea
+                    ref={latexTextareaRef}
+                    value={latex}
+                    onChange={(event) => setLatex(event.target.value)}
+                    rows={5}
+                  />
                 </label>
                 <div className="projectorComposerPreview">
                   {renderContent({ type, content: latex, topText: currentComposerTopText() })}

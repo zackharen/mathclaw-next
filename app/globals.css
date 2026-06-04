@@ -7770,6 +7770,38 @@ details[open] > summary.adminSectionSummary .hideLabel {
   color: var(--navy);
 }
 
+.projectorLatexLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.projectorLatexInsertButtons {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.projectorLatexInsertButtons button {
+  border: 1px solid #93a5b4;
+  border-radius: 6px;
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.22rem 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLatexInsertButtons button:hover,
+.projectorLatexInsertButtons button:focus-visible {
+  background: #edf5fa;
+}
+
 .projectorJoinScreenPicker {
   display: grid;
   gap: 0.5rem;
