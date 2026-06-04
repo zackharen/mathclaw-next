@@ -8,11 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-04 America/New_York (Projector reveal answer)
+2026-06-04 America/New_York (Projector question visual cleanup)
 
 ## Current State For Fresh Chat
 - Recent work has focused on the **Projector** tool. The latest shipped Projector Question Builder commit on `main` is `421c000 Add projector question builder`; follow-up work turned Question into composer modes instead of its own media tab and added per-screen answer reveal controls.
-- Projector Question Builder now uses `Fill In The Blank` and `Multiple Choice` buttons beside the `Top Text` toggle. The selected Text, LaTeX, Image, or Video content is the question prompt; there is no separate prompt field unless `Top Text` is turned on. Multiple Choice supports up to four answers, an optional marked answer, centered answer text, and Text/LaTeX answer format. Fill In The Blank supports an optional answer key, Text/LaTeX answer format, and a classroom-sized blank line. Answers are hidden by default on dashboard previews and public projector screens; each question screen card has a `Reveal Answer` / `Hide Answer` button. Text-mode questions suppress the redundant base text display below the question. Questions save/send inside the existing `content` field, so no Supabase migration is required.
+- Projector Question Builder now uses `Fill In The Blank` and `Multiple Choice` buttons beside the `Top Text` toggle. The selected Text, LaTeX, Image, or Video content is the question prompt; there is no separate prompt field unless `Top Text` is turned on. Multiple Choice supports up to four answers, an optional marked answer, centered option cards/answer text, and Text/LaTeX answer format with fraction bars preserved. Fill In The Blank supports an optional answer key, Text/LaTeX answer format, and a classroom-sized blank line. Answers are hidden by default on dashboard previews and public projector screens; each question screen card has a `Reveal Answer` / `Hide Answer` button. Text-mode questions suppress the redundant base text display below the question. Questions save/send inside the existing `content` field, so no Supabase migration is required.
 - Projector Image mode now has a drag-and-drop drop zone in the composer preview. Dragged screenshots/image files use the same client-side data URL path as the existing file picker.
 - Recent Projector changes also include: LaTeX newlines/spaces, percent and arrow rendering, optional top text for media, screen edit buttons, left/right rotation, top-text media containment on public screens and dashboard previews, and LaTeX helper buttons.
 - Latest local verification: `node --check` on changed Projector JS/page files passed; `git diff --check` passed; `npm run build` passed; built server on `localhost:3001` returned 307 for unauthenticated `/projector` and 200 for `/projector/screen`.
@@ -24,7 +24,8 @@ This file represents the **current state only**. It should stay short enough to 
   - Added `Fill In The Blank` and `Multiple Choice` composer buttons for all content modes. Either mode can turn Text, LaTeX, Image, or Video content into a question, with the selected content acting as the prompt.
   - Removed the separate `Question Prompt` field. `Top Text` is now the only extra text field when the teacher wants text above the selected content.
   - Multiple Choice supports four A-D answer choices, an optional marked correct answer, and Text/LaTeX answer format. Fill In The Blank supports an optional answer key, Text/LaTeX answer format, and renders a large blank answer line.
-  - Multiple Choice answer text is centered in dashboard previews and public projector screens.
+  - Multiple Choice option groups are centered, and answer content is centered within each option card while keeping A-D badges pinned to the left.
+  - LaTeX answer-option styling now targets only direct child answer wrappers, preserving KaTeX internals so fraction bars render inside Multiple Choice answers.
   - Marked Multiple Choice answers and Fill In The Blank answer keys are hidden by default. Dashboard question screen cards now show a `Reveal Answer` / `Hide Answer` button under the screen preview.
   - Reveal state is stored per screen in `projector_sessions.screen_states`, broadcasts to connected projector screens, and resets when the teacher sends new content to that screen. This uses the existing screen-state JSON and requires no Supabase migration.
   - `/api/projector` now supports a `reveal-answer` action that toggles the current question screen's reveal state and broadcasts the updated state.

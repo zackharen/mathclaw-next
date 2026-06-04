@@ -7299,6 +7299,8 @@ details[open] > summary.adminSectionSummary .hideLabel {
 .projectorQuestionOptions {
   display: grid;
   gap: 0.45rem;
+  width: min(100%, 34rem);
+  justify-self: center;
 }
 
 .projectorQuestionCard.isCompact .projectorQuestionOptions {
@@ -7306,14 +7308,16 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 .projectorQuestionOption {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
   align-items: center;
+  justify-items: center;
   border: 2px solid #c8d6df;
   border-radius: 8px;
   background: #fff;
-  padding: 0.45rem 0.55rem;
+  padding: 0.45rem 3rem;
   color: var(--ink);
   font-weight: 900;
   text-align: center;
@@ -7321,12 +7325,16 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorQuestionCard.isCompact .projectorQuestionOption {
   border-width: 1px;
-  padding: 0.12rem 0.22rem;
+  padding: 0.12rem 1.4rem;
   font-size: 0.58rem;
 }
 
 .projectorQuestionOption strong,
 .projectorScreenQuestionOption strong {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   width: 1.6rem;
@@ -7338,22 +7346,23 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 .projectorQuestionCard.isCompact .projectorQuestionOption strong {
+  left: 0.22rem;
   width: 1rem;
   height: 1rem;
   font-size: 0.52rem;
 }
 
-.projectorQuestionOption span,
+.projectorQuestionOption > span,
 .projectorQuestionAnswerLatex,
-.projectorScreenQuestionOption span,
-.projectorScreenQuestionOption .projectorScreenLatex {
+.projectorScreenQuestionOption > span,
+.projectorScreenQuestionOption > .projectorScreenLatex {
   min-width: 0;
   overflow-wrap: anywhere;
   justify-self: center;
 }
 
 .projectorQuestionAnswerLatex,
-.projectorScreenQuestionOption .projectorScreenLatex {
+.projectorScreenQuestionOption > .projectorScreenLatex {
   width: auto;
   color: inherit;
   font-size: inherit;
@@ -7367,6 +7376,10 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorQuestionOption em,
 .projectorScreenQuestionOption em {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
   border-radius: 999px;
   background: #e8f6ed;
   color: #176337;
@@ -8317,25 +8330,30 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
 .projectorScreenQuestionOptions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(min(26rem, 100%), 1fr));
   gap: clamp(0.7rem, 1.4vw, 1.25rem);
+  width: min(88vw, 62rem);
+  justify-self: center;
 }
 
 .projectorScreenQuestionOption {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(0.6rem, 1.2vw, 1rem);
   align-items: center;
+  justify-items: center;
   border: 3px solid rgba(255, 255, 255, 0.7);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.1);
-  padding: clamp(0.65rem, 1.5vw, 1.2rem);
+  padding: clamp(0.65rem, 1.5vw, 1.2rem) clamp(4rem, 7vw, 7rem);
   font-size: clamp(1.4rem, 3vw, 3.6rem);
   font-weight: 900;
   text-align: center;
 }
 
 .projectorScreenQuestionOption strong {
+  left: clamp(0.65rem, 1.5vw, 1.2rem);
   width: clamp(2.2rem, 4vw, 4.4rem);
   height: clamp(2.2rem, 4vw, 4.4rem);
   background: #fff;
@@ -8344,6 +8362,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 .projectorScreenQuestionOption em {
+  right: clamp(0.65rem, 1.5vw, 1.2rem);
   background: #bbf7d0;
   color: #14532d;
   font-size: clamp(0.8rem, 1.3vw, 1.2rem);
