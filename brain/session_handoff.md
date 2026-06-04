@@ -11,8 +11,8 @@ This file represents the **current state only**. It should stay short enough to 
 2026-06-04 America/New_York (Projector Question Builder)
 
 ## Current State For Fresh Chat
-- Recent work has focused on the **Projector** tool. The latest shipped commit on `main` before the Question Builder work was `5f88a14 Add projector image drag drop`.
-- Projector Question Builder has been implemented locally: teachers can use a new Question composer tab with text/LaTeX prompt, up to four multiple-choice options, and an optional marked answer. Questions save/send through the existing `text` content path with category `Questions`, so no new Supabase migration is required.
+- Recent work has focused on the **Projector** tool. The latest shipped Projector implementation commit on `main` is `421c000 Add projector question builder`.
+- Projector Question Builder is shipped: teachers can use a new Question composer tab with text/LaTeX prompt, up to four multiple-choice options, and an optional marked answer. Questions save/send through the existing `text` content path with category `Questions`, so no new Supabase migration is required.
 - Projector Image mode now has a drag-and-drop drop zone in the composer preview. Dragged screenshots/image files use the same client-side data URL path as the existing file picker.
 - Recent Projector changes also include: LaTeX newlines/spaces, percent and arrow rendering, optional top text for media, screen edit buttons, left/right rotation, top-text media containment on public screens and dashboard previews, and LaTeX helper buttons.
 - Latest local verification: `node --check` on changed Projector JS/page files passed; `git diff --check` passed; `npm run build` passed; built server on `localhost:3001` returned 307 for unauthenticated `/projector` and 200 for `/projector/screen`.
