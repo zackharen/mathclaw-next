@@ -8,11 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-04 America/New_York (Projector question modes)
+2026-06-04 America/New_York (Projector question answer cleanup)
 
 ## Current State For Fresh Chat
 - Recent work has focused on the **Projector** tool. The latest shipped Projector Question Builder commit on `main` is `421c000 Add projector question builder`; follow-up work turned Question into composer modes instead of its own media tab.
-- Projector Question Builder now uses `Fill In The Blank` and `Multiple Choice` buttons beside the `Top Text` toggle. Teachers can turn any Text, LaTeX, Image, or Video item into a question. Multiple Choice supports up to four options and an optional marked answer; Fill In The Blank renders a classroom-sized blank line. Text-mode questions suppress the redundant base text display below the question. Questions save/send inside the existing `content` field, so no Supabase migration is required.
+- Projector Question Builder now uses `Fill In The Blank` and `Multiple Choice` buttons beside the `Top Text` toggle. The selected Text, LaTeX, Image, or Video content is the question prompt; there is no separate prompt field unless `Top Text` is turned on. Multiple Choice supports up to four answers, an optional marked answer, and Text/LaTeX answer format. Fill In The Blank supports an optional answer key, Text/LaTeX answer format, and a classroom-sized blank line. Text-mode questions suppress the redundant base text display below the question. Questions save/send inside the existing `content` field, so no Supabase migration is required.
 - Projector Image mode now has a drag-and-drop drop zone in the composer preview. Dragged screenshots/image files use the same client-side data URL path as the existing file picker.
 - Recent Projector changes also include: LaTeX newlines/spaces, percent and arrow rendering, optional top text for media, screen edit buttons, left/right rotation, top-text media containment on public screens and dashboard previews, and LaTeX helper buttons.
 - Latest local verification: `node --check` on changed Projector JS/page files passed; `git diff --check` passed; `npm run build` passed; built server on `localhost:3001` returned 307 for unauthenticated `/projector` and 200 for `/projector/screen`.
@@ -21,8 +21,9 @@ This file represents the **current state only**. It should stay short enough to 
 
 ## What Was Built (2026-06-04 Session — Projector Question Builder)
 - **Projector saved-item Question Builder implemented without a migration** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/projector/screen/screen-client.js`, `app/api/projector/route.js`, `app/globals.css`):
-  - Added `Fill In The Blank` and `Multiple Choice` composer buttons for all content modes. Either mode can turn Text, LaTeX, Image, or Video content into a question.
-  - Multiple Choice supports optional prompt, four A-D answer choices, and an optional marked correct answer. Fill In The Blank supports an optional prompt and renders a large blank answer line.
+  - Added `Fill In The Blank` and `Multiple Choice` composer buttons for all content modes. Either mode can turn Text, LaTeX, Image, or Video content into a question, with the selected content acting as the prompt.
+  - Removed the separate `Question Prompt` field. `Top Text` is now the only extra text field when the teacher wants text above the selected content.
+  - Multiple Choice supports four A-D answer choices, an optional marked correct answer, and Text/LaTeX answer format. Fill In The Blank supports an optional answer key, Text/LaTeX answer format, and renders a large blank answer line.
   - Replaced the checkbox-style controls with engaged buttons for `Top Text`, `Fill In The Blank`, and `Multiple Choice`, matching the existing Projector control style.
   - Text-mode questions suppress the redundant base text content in previews and public screens, leaving the question card itself as the visible content.
   - Question metadata is encoded inside the existing saved/sent `content` field and unwrapped by dashboard previews, screen cards, saved-item thumbnails, public projector screens, and API validation. This keeps the current `projector_library_items.content_type` check constraint unchanged.

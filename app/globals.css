@@ -7343,9 +7343,24 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 .projectorQuestionOption span,
-.projectorScreenQuestionOption span {
+.projectorQuestionAnswerLatex,
+.projectorScreenQuestionOption span,
+.projectorScreenQuestionOption .projectorScreenLatex {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.projectorQuestionAnswerLatex,
+.projectorScreenQuestionOption .projectorScreenLatex {
+  width: auto;
+  color: inherit;
+  font-size: inherit;
+  text-align: left;
+}
+
+.projectorQuestionAnswerLatex .projectorLatexLine,
+.projectorScreenQuestionOption .projectorLatexLine {
+  margin-block: 0;
 }
 
 .projectorQuestionOption em,

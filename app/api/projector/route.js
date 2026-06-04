@@ -30,8 +30,8 @@ function normalizeScreenIds(value) {
   return [...new Set(value.map(normalizeScreenNumber).filter(Boolean))];
 }
 
-function normalizeTopText(type, topText) {
-  if (type === "text") return "";
+function normalizeTopText(type, topText, content = "") {
+  if (type === "text" && !String(content || "").startsWith(QUESTION_CONTENT_PREFIX)) return "";
   return String(topText || "").trim().slice(0, TOP_TEXT_LIMIT);
 }
 
@@ -54,7 +54,7 @@ function normalizeState(type, content, topText = "") {
   const mediaContent = displayContent(safeContent).trim();
   if (type === "video" && mediaContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(mediaContent)) return null;
-  const safeTopText = normalizeTopText(type, topText);
+  const safeTopText = normalizeTopText(type, topText, safeContent);
   return safeTopText ? { type, content: safeContent, topText: safeTopText } : { type, content: safeContent };
 }
 

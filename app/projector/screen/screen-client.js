@@ -138,11 +138,14 @@ function normalizeQuestionPayload(parsed) {
   const prompt = String(parsed.prompt || "");
   const promptType = parsed.promptType === "latex" ? "latex" : "text";
   const mode = parsed.mode === "fill_blank" ? "fill_blank" : "multiple_choice";
+  const answerType = parsed.answerType === "latex" ? "latex" : "text";
   const options = Array.isArray(parsed.options)
     ? parsed.options.slice(0, 4).map((option) => String(option || ""))
     : [];
   const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
   const question = {
+    answerType,
+    fillBlankAnswer: String(parsed.fillBlankAnswer || ""),
     mode,
     prompt,
     promptType,
@@ -178,15 +181,22 @@ function displayContent(content) {
   return payload ? payload.content : String(content || "");
 }
 
-function QuestionDisplay({ question }) {
+function QuestionAnswer({ children, latex }) {
+  if (latex) return <LatexDisplay content={children} />;
+  return <span>{children}</span>;
+}
+
+function QuestionDisplay({ promptContent = "", promptType = "text", question }) {
   const filledOptions = question.options
     .map((option, index) => ({ index, option }))
     .filter((item) => item.option.trim());
+  const prompt = String(promptContent || question.prompt || "");
+  const safePromptType = promptType === "latex" ? "latex" : question.promptType;
   return (
     <div className={`projectorScreenQuestionCard ${question.mode === "fill_blank" ? "isFillBlank" : ""}`}>
-      {question.prompt.trim() ? (
+      {prompt.trim() ? (
         <div className="projectorScreenQuestionPrompt">
-          {question.promptType === "latex" ? <LatexDisplay content={question.prompt} /> : <span>{question.prompt}</span>}
+          {safePromptType === "latex" ? <LatexDisplay content={prompt} /> : <span>{prompt}</span>}
         </div>
       ) : null}
       {question.mode === "fill_blank" ? <div className="projectorScreenFillBlankLine" aria-hidden="true" /> : null}
@@ -198,7 +208,7 @@ function QuestionDisplay({ question }) {
               key={index}
             >
               <strong>{QUESTION_OPTION_LABELS[index]}</strong>
-              <span>{option}</span>
+              <QuestionAnswer latex={question.answerType === "latex"}>{option}</QuestionAnswer>
               {question.correctIndex === index ? <em>Answer</em> : null}
             </div>
           ))}
@@ -235,9 +245,12 @@ function ScreenContentBody({ state }) {
 
 function ScreenContent({ state }) {
   const question = parseQuestionContent(state?.content);
-  const hasBodyContent = Boolean(displayContent(state?.content).trim()) && !(question && state?.type === "text");
+  const promptContent = displayContent(state?.content);
+  const hasBodyContent = Boolean(promptContent.trim()) && !(question && state?.type === "text");
   if (!state?.topText && !question) return <ScreenContentBody state={state} />;
-  if (question && !state?.topText && !hasBodyContent) return <QuestionDisplay question={question} />;
+  if (question && !state?.topText && !hasBodyContent) {
+    return <QuestionDisplay promptContent={state?.type === "text" ? promptContent : ""} promptType={state?.type} question={question} />;
+  }
   return (
     <div className="projectorScreenStack">
       {state?.topText ? <div className="projectorScreenTopText">{state.topText}</div> : null}
@@ -246,7 +259,13 @@ function ScreenContent({ state }) {
           <ScreenContentBody state={state} />
         </div>
       ) : null}
-      {question ? <QuestionDisplay question={question} /> : null}
+      {question ? (
+        <QuestionDisplay
+          promptContent={state?.type === "text" ? promptContent : ""}
+          promptType={state?.type}
+          question={question}
+        />
+      ) : null}
     </div>
   );
 }

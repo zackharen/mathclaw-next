@@ -140,11 +140,14 @@ function normalizeQuestionPayload(parsed) {
   const prompt = String(parsed.prompt || "");
   const promptType = parsed.promptType === "latex" ? "latex" : "text";
   const mode = parsed.mode === "fill_blank" ? "fill_blank" : "multiple_choice";
+  const answerType = parsed.answerType === "latex" ? "latex" : "text";
   const options = Array.isArray(parsed.options)
     ? parsed.options.slice(0, 4).map((option) => String(option || ""))
     : [];
   const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
   const question = {
+    answerType,
+    fillBlankAnswer: String(parsed.fillBlankAnswer || ""),
     mode,
     prompt,
     promptType,
@@ -184,8 +187,18 @@ function questionForState(state) {
   return state?.question || parseQuestionContent(state?.content);
 }
 
-function buildQuestionContent({ content = "", correctIndex, mode, options, prompt, promptType }) {
+function buildQuestionContent({
+  answerType,
+  content = "",
+  correctIndex,
+  fillBlankAnswer,
+  mode,
+  options,
+  prompt,
+  promptType,
+}) {
   const safeMode = mode === "fill_blank" ? "fill_blank" : "multiple_choice";
+  const safeAnswerType = answerType === "latex" ? "latex" : "text";
   const safeOptions = options.slice(0, 4).map((option) => String(option || "").trim());
   const safeCorrectIndex =
     safeMode === "multiple_choice" && Number.isInteger(correctIndex) && safeOptions[correctIndex]
@@ -194,6 +207,8 @@ function buildQuestionContent({ content = "", correctIndex, mode, options, promp
   return `${QUESTION_CONTENT_PREFIX}${JSON.stringify({
     content: String(content || ""),
     question: {
+      answerType: safeAnswerType,
+      fillBlankAnswer: safeMode === "fill_blank" ? String(fillBlankAnswer || "").trim() : "",
       mode: safeMode,
       prompt: String(prompt || "").trim(),
       promptType: promptType === "latex" ? "latex" : "text",
@@ -203,11 +218,18 @@ function buildQuestionContent({ content = "", correctIndex, mode, options, promp
   })}`;
 }
 
-function QuestionDisplay({ question, compact = false }) {
+function QuestionAnswer({ children, latex }) {
+  if (latex) return <ProjectorLatex content={children} className="projectorQuestionAnswerLatex" />;
+  return <span>{children}</span>;
+}
+
+function QuestionDisplay({ promptContent = "", promptType = "text", question, compact = false }) {
   if (!question) return null;
   const filledOptions = question.options
     .map((option, index) => ({ index, option }))
     .filter((item) => item.option.trim());
+  const prompt = String(promptContent || question.prompt || "");
+  const safePromptType = promptType === "latex" ? "latex" : question.promptType;
   return (
     <div
       className={[
@@ -215,12 +237,12 @@ function QuestionDisplay({ question, compact = false }) {
         question.mode === "fill_blank" ? "isFillBlank" : "",
       ].filter(Boolean).join(" ")}
     >
-      {question.prompt.trim() ? (
+      {prompt.trim() ? (
         <div className="projectorQuestionPrompt">
-          {question.promptType === "latex" ? (
-            <ProjectorLatex content={question.prompt} />
+          {safePromptType === "latex" ? (
+            <ProjectorLatex content={prompt} />
           ) : (
-            <span>{question.prompt}</span>
+            <span>{prompt}</span>
           )}
         </div>
       ) : null}
@@ -233,7 +255,7 @@ function QuestionDisplay({ question, compact = false }) {
               key={index}
             >
               <strong>{QUESTION_OPTION_LABELS[index]}</strong>
-              <span>{option}</span>
+              <QuestionAnswer latex={question.answerType === "latex"}>{option}</QuestionAnswer>
               {question.correctIndex === index ? <em>Answer</em> : null}
             </div>
           ))}
@@ -244,7 +266,7 @@ function QuestionDisplay({ question, compact = false }) {
 }
 
 function renderTopText(state, compact = false) {
-  if (!state?.topText || state.type === "text") return null;
+  if (!state?.topText || (state.type === "text" && !questionForState(state))) return null;
   return <div className={compact ? "projectorTopTextThumb" : "projectorTopTextDisplay"}>{state.topText}</div>;
 }
 
@@ -282,14 +304,31 @@ function renderContent(state, compact = false, options = {}) {
   const topText = renderTopText(state, compact);
   const body = renderContentBody(state, compact, options);
   const question = questionForState(state);
-  const hasBodyContent = Boolean(displayContent(state?.content).trim()) && !(question && state?.type === "text");
+  const promptContent = displayContent(state?.content);
+  const hasBodyContent = Boolean(promptContent.trim()) && !(question && state?.type === "text");
   if (!topText && !question) return body;
-  if (question && !topText && !hasBodyContent) return <QuestionDisplay question={question} compact={compact} />;
+  if (question && !topText && !hasBodyContent) {
+    return (
+      <QuestionDisplay
+        promptContent={state?.type === "text" ? promptContent : ""}
+        promptType={state?.type}
+        question={question}
+        compact={compact}
+      />
+    );
+  }
   return (
     <div className={compact ? "projectorContentStack isCompact" : "projectorContentStack"}>
       {topText}
       {hasBodyContent ? <div className="projectorContentBody">{body}</div> : null}
-      {question ? <QuestionDisplay question={question} compact={compact} /> : null}
+      {question ? (
+        <QuestionDisplay
+          promptContent={state?.type === "text" ? promptContent : ""}
+          promptType={state?.type}
+          question={question}
+          compact={compact}
+        />
+      ) : null}
     </div>
   );
 }
@@ -362,8 +401,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
-  const [questionPromptType, setQuestionPromptType] = useState("text");
-  const [questionPrompt, setQuestionPrompt] = useState("Which expression is equivalent to 3(x + 4)?");
+  const [questionAnswerType, setQuestionAnswerType] = useState("text");
+  const [fillBlankAnswer, setFillBlankAnswer] = useState("");
   const [questionOptions, setQuestionOptions] = useState(["3x + 12", "3x + 4", "x + 12", "7x"]);
   const [questionCorrectIndex, setQuestionCorrectIndex] = useState("");
   const [questionMode, setQuestionMode] = useState("");
@@ -482,7 +521,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   }
 
   function currentComposerTopText() {
-    return type !== "text" && showTopText ? topText : "";
+    return (type !== "text" || questionMode) && showTopText ? topText : "";
   }
 
   function currentComposerState() {
@@ -490,10 +529,12 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     if (!rawContent) return null;
     const content = questionMode
       ? buildQuestionContent({
+          answerType: questionAnswerType,
           content: rawContent,
           mode: questionMode,
-          prompt: questionPrompt,
-          promptType: questionPromptType,
+          fillBlankAnswer,
+          prompt: "",
+          promptType: "text",
           options: questionOptions,
           correctIndex: questionCorrectIndex === "" ? null : Number(questionCorrectIndex),
         })
@@ -511,8 +552,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     const question = parseQuestionContent(content);
     if (!question) return false;
     setQuestionMode(question.mode || "multiple_choice");
-    setQuestionPromptType(question.promptType);
-    setQuestionPrompt(question.prompt);
+    setQuestionAnswerType(question.answerType || "text");
+    setFillBlankAnswer(question.fillBlankAnswer || "");
     setQuestionOptions(QUESTION_OPTION_LABELS.map((_, index) => question.options[index] || ""));
     setQuestionCorrectIndex(question.correctIndex === null ? "" : String(question.correctIndex));
     setLibraryCategory("Questions");
@@ -1138,7 +1179,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             </div>
 
             <div className="projectorComposerToggles" aria-label="Composer options">
-              {type !== "text" ? (
+              {type !== "text" || questionMode ? (
                 <button
                   className={showTopText ? "isActive" : ""}
                   type="button"
@@ -1169,7 +1210,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               </button>
             </div>
 
-            {type !== "text" && showTopText ? (
+            {(type !== "text" || questionMode) && showTopText ? (
               <label className="field">
                 <span>Top Text</span>
                 <textarea
@@ -1184,17 +1225,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
             {questionMode ? (
               <div className="projectorQuestionBuilder">
                 <label className="field">
-                  <span>Question Prompt</span>
-                  <textarea
-                    value={questionPrompt}
-                    onChange={(event) => setQuestionPrompt(event.target.value)}
-                    rows={3}
-                    placeholder={questionPromptType === "latex" ? "\\frac{3}{4} + \\frac{1}{8}" : "Optional prompt..."}
-                  />
-                </label>
-                <label className="field">
-                  <span>Prompt Type</span>
-                  <select value={questionPromptType} onChange={(event) => setQuestionPromptType(event.target.value)}>
+                  <span>Answer Format</span>
+                  <select value={questionAnswerType} onChange={(event) => setQuestionAnswerType(event.target.value)}>
                     <option value="text">Text</option>
                     <option value="latex">LaTeX</option>
                   </select>
@@ -1228,6 +1260,16 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                       </select>
                     </label>
                   </>
+                ) : null}
+                {questionMode === "fill_blank" ? (
+                  <label className="field">
+                    <span>Answer</span>
+                    <input
+                      value={fillBlankAnswer}
+                      onChange={(event) => setFillBlankAnswer(event.target.value)}
+                      placeholder={questionAnswerType === "latex" ? "\\frac{3}{4}" : "Optional answer key"}
+                    />
+                  </label>
                 ) : null}
               </div>
             ) : null}
