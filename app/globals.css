@@ -7215,11 +7215,13 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 .projectorContentStack.isCompact {
-  gap: 0.25rem;
+  gap: 0.18rem;
 }
 
 .projectorContentBody {
+  position: relative;
   min-height: 0;
+  min-width: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -7243,7 +7245,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 
 .projectorTopTextThumb {
   color: #fff;
-  font-size: clamp(0.82rem, 1.4vw, 1.25rem);
+  font-size: clamp(0.68rem, 1vw, 1rem);
 }
 
 .projectorTextThumb,
@@ -7270,6 +7272,11 @@ details[open] > summary.adminSectionSummary .hideLabel {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.projectorContentBody .projectorThumbMedia {
+  position: absolute;
+  inset: 0;
 }
 
 .projectorComposerPreview img,
