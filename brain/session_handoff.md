@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-03 America/New_York (Projector top-text media containment)
+2026-06-03 America/New_York (Projector top-text media hard containment)
+
+## What Was Built (2026-06-03 Session — Projector top-text media hard containment)
+- **Projector images with top text now use a hard bounded media box** (`app/globals.css`):
+  - Further reduced public screen top-text font size.
+  - Made the top-text media body a positioned bounded container and inset image/video media to `100% × 100%` with `object-fit: contain`, preventing images from exceeding the remaining screen area.
+  - Verification passed: `git diff --check`; `npm run build`; built server route checks confirmed `/projector/screen` returns 200 and unauthenticated `/projector` redirects to sign-in.
+  - Verification caveat: authenticated/live projector visual replay with teacher-sent sample media was not browser-tested because no local authenticated teacher session was available.
 
 ## What Was Built (2026-06-03 Session — Projector top-text media containment)
 - **Projector top text no longer crowds/crops image media on public screens** (`app/globals.css`):
