@@ -14,6 +14,7 @@ const SCENE_TITLE_LIMIT = 80;
 const SCENE_STATE_LIMIT = 24 * 1024 * 1024;
 const SCENE_FOLDER_TITLE_LIMIT = 60;
 const TOP_TEXT_LIMIT = 500;
+const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -34,13 +35,25 @@ function normalizeTopText(type, topText) {
   return String(topText || "").trim().slice(0, TOP_TEXT_LIMIT);
 }
 
+function displayContent(content) {
+  const source = String(content || "");
+  if (!source.startsWith(QUESTION_CONTENT_PREFIX)) return source;
+  try {
+    const parsed = JSON.parse(source.slice(QUESTION_CONTENT_PREFIX.length));
+    return typeof parsed.content === "string" ? parsed.content : "";
+  } catch {
+    return source;
+  }
+}
+
 function normalizeState(type, content, topText = "") {
   if (!CONTENT_TYPES.has(type)) return null;
   const rawContent = String(content || "");
   const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
   if (!safeContent.trim()) return null;
-  if (type === "video" && safeContent.startsWith("data:")) return null;
-  if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(safeContent)) return null;
+  const mediaContent = displayContent(safeContent).trim();
+  if (type === "video" && mediaContent.startsWith("data:")) return null;
+  if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(mediaContent)) return null;
   const safeTopText = normalizeTopText(type, topText);
   return safeTopText ? { type, content: safeContent, topText: safeTopText } : { type, content: safeContent };
 }

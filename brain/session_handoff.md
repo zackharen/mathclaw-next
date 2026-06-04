@@ -8,11 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-04 America/New_York (Projector Question Builder)
+2026-06-04 America/New_York (Projector Question toggle)
 
 ## Current State For Fresh Chat
-- Recent work has focused on the **Projector** tool. The latest shipped Projector implementation commit on `main` is `421c000 Add projector question builder`.
-- Projector Question Builder is shipped: teachers can use a new Question composer tab with text/LaTeX prompt, up to four multiple-choice options, and an optional marked answer. Questions save/send through the existing `text` content path with category `Questions`, so no new Supabase migration is required.
+- Recent work has focused on the **Projector** tool. The latest shipped Projector Question Builder commit on `main` is `421c000 Add projector question builder`; the current local follow-up turns Question into a composer toggle instead of its own media tab.
+- Projector Question Builder now uses a `Question` toggle beside the `Top Text` toggle. Teachers can turn any Text, LaTeX, Image, or Video item into a question with an optional text/LaTeX prompt, up to four multiple-choice options, and an optional marked answer. Questions save/send inside the existing `content` field, so no Supabase migration is required.
 - Projector Image mode now has a drag-and-drop drop zone in the composer preview. Dragged screenshots/image files use the same client-side data URL path as the existing file picker.
 - Recent Projector changes also include: LaTeX newlines/spaces, percent and arrow rendering, optional top text for media, screen edit buttons, left/right rotation, top-text media containment on public screens and dashboard previews, and LaTeX helper buttons.
 - Latest local verification: `node --check` on changed Projector JS/page files passed; `git diff --check` passed; `npm run build` passed; built server on `localhost:3001` returned 307 for unauthenticated `/projector` and 200 for `/projector/screen`.
@@ -20,12 +20,12 @@ This file represents the **current state only**. It should stay short enough to 
 - Local repo caveat: `.claude/settings.json` and `brain/future_ideas.md` have unrelated uncommitted changes. Do not revert or stage them unless Zack explicitly asks.
 
 ## What Was Built (2026-06-04 Session — Projector Question Builder)
-- **Projector saved-item Question Builder implemented without a migration** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/projector/screen/screen-client.js`, `app/globals.css`):
-  - Added a `Question` composer tab for text or LaTeX prompts, four A-D answer choices, and an optional marked correct answer.
-  - Questions save/send as existing `text` content with the `Questions` category and a small structured payload, so the current `projector_library_items.content_type` check constraint does not need to change.
-  - Dashboard previews, screen cards, saved-item thumbnails, and public projector screens parse that structured payload and render classroom-readable question cards instead of raw JSON.
+- **Projector saved-item Question Builder implemented without a migration** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/projector/screen/screen-client.js`, `app/api/projector/route.js`, `app/globals.css`):
+  - Added a `Question` composer toggle for all content modes. It can turn Text, LaTeX, Image, or Video content into a question with optional prompt, four A-D answer choices, and an optional marked correct answer.
+  - Replaced the checkbox-style controls with engaged buttons for `Top Text` and `Question`, matching the existing Projector control style.
+  - Question metadata is encoded inside the existing saved/sent `content` field and unwrapped by dashboard previews, screen cards, saved-item thumbnails, public projector screens, and API validation. This keeps the current `projector_library_items.content_type` check constraint unchanged.
   - `/projector` now loads saved-item `category` on initial server render with the same missing-column fallback pattern used by the API.
-  - Verification passed: `node --check app/projector/projector-client.js`; `node --check app/projector/screen/screen-client.js`; `node --check app/projector/page.js`; `git diff --check`; `npm run build`; built server route checks confirmed `/projector/screen` returns 200 and unauthenticated `/projector` redirects to sign-in.
+  - Verification passed: `node --check app/projector/projector-client.js`; `node --check app/projector/screen/screen-client.js`; `node --check app/projector/page.js`; `node --check app/api/projector/route.js`; `git diff --check`; `npm run build`; built server route checks confirmed `/projector/screen` returns 200 and unauthenticated `/projector` redirects to sign-in.
   - Verification caveat: direct authenticated teacher dashboard creation/save/send was not browser-tested because no local authenticated teacher session was available. Local `next dev` still hit the known `EMFILE` watcher problem and served 404s, so route verification used `next start --port 3001`.
 
 ## What Was Built (2026-06-04 Session — Projector image drag-and-drop)

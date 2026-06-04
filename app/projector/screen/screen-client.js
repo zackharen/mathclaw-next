@@ -134,27 +134,46 @@ function LatexDisplay({ content }) {
   return <div ref={ref} className="projectorScreenLatex" />;
 }
 
-function parseQuestionContent(content) {
+function normalizeQuestionPayload(parsed) {
+  const prompt = String(parsed.prompt || "");
+  const promptType = parsed.promptType === "latex" ? "latex" : "text";
+  const options = Array.isArray(parsed.options)
+    ? parsed.options.slice(0, 4).map((option) => String(option || ""))
+    : [];
+  const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
+  const question = {
+    prompt,
+    promptType,
+    options,
+    correctIndex: correctIndex >= 0 && correctIndex < 4 ? correctIndex : null,
+  };
+  const hasQuestion = Boolean(prompt.trim() || options.some((option) => option.trim()));
+  return hasQuestion ? question : null;
+}
+
+function parseQuestionPayload(content) {
   const source = String(content || "");
   if (!source.startsWith(QUESTION_CONTENT_PREFIX)) return null;
   try {
     const parsed = JSON.parse(source.slice(QUESTION_CONTENT_PREFIX.length));
-    const prompt = String(parsed.prompt || "");
-    const promptType = parsed.promptType === "latex" ? "latex" : "text";
-    const options = Array.isArray(parsed.options)
-      ? parsed.options.slice(0, 4).map((option) => String(option || ""))
-      : [];
-    const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
-    if (!prompt.trim()) return null;
+    const question = normalizeQuestionPayload(parsed.question || parsed);
+    if (!question) return null;
     return {
-      prompt,
-      promptType,
-      options,
-      correctIndex: correctIndex >= 0 && correctIndex < 4 ? correctIndex : null,
+      content: typeof parsed.content === "string" ? parsed.content : "",
+      question,
     };
   } catch {
     return null;
   }
+}
+
+function parseQuestionContent(content) {
+  return parseQuestionPayload(content)?.question || null;
+}
+
+function displayContent(content) {
+  const payload = parseQuestionPayload(content);
+  return payload ? payload.content : String(content || "");
 }
 
 function QuestionDisplay({ question }) {
@@ -163,9 +182,11 @@ function QuestionDisplay({ question }) {
     .filter((item) => item.option.trim());
   return (
     <div className="projectorScreenQuestionCard">
-      <div className="projectorScreenQuestionPrompt">
-        {question.promptType === "latex" ? <LatexDisplay content={question.prompt} /> : <span>{question.prompt}</span>}
-      </div>
+      {question.prompt.trim() ? (
+        <div className="projectorScreenQuestionPrompt">
+          {question.promptType === "latex" ? <LatexDisplay content={question.prompt} /> : <span>{question.prompt}</span>}
+        </div>
+      ) : null}
       {filledOptions.length ? (
         <div className="projectorScreenQuestionOptions">
           {filledOptions.map(({ index, option }) => (
@@ -186,20 +207,19 @@ function QuestionDisplay({ question }) {
 
 function ScreenContentBody({ state }) {
   if (!state) return <div className="projectorWaiting">waiting for content</div>;
+  const content = displayContent(state.content);
   if (state.type === "text") {
-    const question = parseQuestionContent(state.content);
-    if (question) return <QuestionDisplay question={question} />;
-    return <div className="projectorScreenText">{state.content}</div>;
+    return <div className="projectorScreenText">{content}</div>;
   }
-  if (state.type === "latex") return <LatexDisplay content={state.content} />;
-  if (state.type === "image" || isGif(state.content)) {
-    return <img className="projectorScreenMedia" src={state.content} alt="" />;
+  if (state.type === "latex") return <LatexDisplay content={content} />;
+  if (state.type === "image" || isGif(content)) {
+    return <img className="projectorScreenMedia" src={content} alt="" />;
   }
   if (state.type === "video") {
     return (
       <video
         className="projectorScreenMedia"
-        src={state.content}
+        src={content}
         autoPlay
         loop
         muted
@@ -211,13 +231,19 @@ function ScreenContentBody({ state }) {
 }
 
 function ScreenContent({ state }) {
-  if (!state?.topText || state.type === "text") return <ScreenContentBody state={state} />;
+  const question = parseQuestionContent(state?.content);
+  const hasBodyContent = Boolean(displayContent(state?.content).trim());
+  if (!state?.topText && !question) return <ScreenContentBody state={state} />;
+  if (question && !state?.topText && !hasBodyContent) return <QuestionDisplay question={question} />;
   return (
     <div className="projectorScreenStack">
-      <div className="projectorScreenTopText">{state.topText}</div>
-      <div className="projectorScreenBody">
-        <ScreenContentBody state={state} />
-      </div>
+      {state?.topText ? <div className="projectorScreenTopText">{state.topText}</div> : null}
+      {hasBodyContent ? (
+        <div className="projectorScreenBody">
+          <ScreenContentBody state={state} />
+        </div>
+      ) : null}
+      {question ? <QuestionDisplay question={question} /> : null}
     </div>
   );
 }
