@@ -46,7 +46,11 @@ function displayContent(content) {
   }
 }
 
-function normalizeState(type, content, topText = "") {
+function isQuestionContent(content) {
+  return String(content || "").startsWith(QUESTION_CONTENT_PREFIX);
+}
+
+function normalizeState(type, content, topText = "", revealAnswer = false) {
   if (!CONTENT_TYPES.has(type)) return null;
   const rawContent = String(content || "");
   const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
@@ -55,14 +59,19 @@ function normalizeState(type, content, topText = "") {
   if (type === "video" && mediaContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(mediaContent)) return null;
   const safeTopText = normalizeTopText(type, topText, safeContent);
-  return safeTopText ? { type, content: safeContent, topText: safeTopText } : { type, content: safeContent };
+  return {
+    type,
+    content: safeContent,
+    ...(safeTopText ? { topText: safeTopText } : {}),
+    ...(isQuestionContent(safeContent) && revealAnswer ? { revealAnswer: true } : {}),
+  };
 }
 
 function normalizeSceneStates(value) {
   const source = value && typeof value === "object" ? value : {};
   return SCREEN_IDS.reduce((states, screenId) => {
     const state = source[screenId];
-    states[screenId] = state ? normalizeState(state.type, state.content, state.topText) : null;
+    states[screenId] = state ? normalizeState(state.type, state.content, state.topText, state.revealAnswer) : null;
     return states;
   }, {});
 }
@@ -174,6 +183,7 @@ function buildBroadcastPayload(screenId, state) {
     type: state.type,
     content: state.content,
     topText: state.topText || "",
+    revealAnswer: Boolean(state.revealAnswer),
   };
 }
 
@@ -688,6 +698,33 @@ export async function POST(request) {
     return loadScene(admin, context.user.id, context.session, body);
   }
 
+  if (body?.action === "reveal-answer") {
+    const screenId = normalizeScreenNumber(body.screenId);
+    if (!screenId) return jsonError("Choose screen 1, 2, 3, or 4.");
+    const current = context.session.screen_states && typeof context.session.screen_states === "object"
+      ? context.session.screen_states
+      : {};
+    const currentState = normalizeState(
+      current[screenId]?.type,
+      current[screenId]?.content,
+      current[screenId]?.topText,
+      current[screenId]?.revealAnswer
+    );
+    if (!currentState || !isQuestionContent(currentState.content)) {
+      return jsonError("That screen does not have a question to reveal.");
+    }
+    const nextState = { ...currentState, revealAnswer: !currentState.revealAnswer };
+    const nextStates = { ...current, [screenId]: nextState };
+    const { error } = await admin
+      .from("projector_sessions")
+      .update({ screen_states: nextStates, updated_at: new Date().toISOString() })
+      .eq("id", context.session.id)
+      .eq("teacher_id", context.user.id);
+    if (error) return jsonError(error.message, 500);
+    await broadcastScreenUpdates(admin, context.session.id, [buildBroadcastPayload(screenId, nextState)]);
+    return NextResponse.json({ screenId, state: nextState });
+  }
+
   if (body?.action === "rotate-screens") {
     const current = context.session.screen_states && typeof context.session.screen_states === "object"
       ? context.session.screen_states
@@ -721,7 +758,7 @@ export async function POST(request) {
   }
 
   const screenIds = normalizeScreenIds(body.screenIds);
-  const state = normalizeState(body.type, body.content, body.topText);
+  const state = normalizeState(body.type, body.content, body.topText, false);
 
   if (!screenIds.length) return jsonError("Choose at least one screen.");
   if (!state) {

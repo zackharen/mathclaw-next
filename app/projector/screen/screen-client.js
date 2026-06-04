@@ -186,7 +186,7 @@ function QuestionAnswer({ children, latex }) {
   return <span>{children}</span>;
 }
 
-function QuestionDisplay({ promptContent = "", promptType = "text", question }) {
+function QuestionDisplay({ promptContent = "", promptType = "text", question, revealAnswer = false }) {
   const filledOptions = question.options
     .map((option, index) => ({ index, option }))
     .filter((item) => item.option.trim());
@@ -209,9 +209,14 @@ function QuestionDisplay({ promptContent = "", promptType = "text", question }) 
             >
               <strong>{QUESTION_OPTION_LABELS[index]}</strong>
               <QuestionAnswer latex={question.answerType === "latex"}>{option}</QuestionAnswer>
-              {question.correctIndex === index ? <em>Answer</em> : null}
+              {revealAnswer && question.correctIndex === index ? <em>Answer</em> : null}
             </div>
           ))}
+        </div>
+      ) : null}
+      {revealAnswer && question.mode === "fill_blank" && question.fillBlankAnswer.trim() ? (
+        <div className="projectorScreenFillBlankAnswer">
+          <QuestionAnswer latex={question.answerType === "latex"}>{question.fillBlankAnswer}</QuestionAnswer>
         </div>
       ) : null}
     </div>
@@ -249,7 +254,14 @@ function ScreenContent({ state }) {
   const hasBodyContent = Boolean(promptContent.trim()) && !(question && state?.type === "text");
   if (!state?.topText && !question) return <ScreenContentBody state={state} />;
   if (question && !state?.topText && !hasBodyContent) {
-    return <QuestionDisplay promptContent={state?.type === "text" ? promptContent : ""} promptType={state?.type} question={question} />;
+    return (
+      <QuestionDisplay
+        promptContent={state?.type === "text" ? promptContent : ""}
+        promptType={state?.type}
+        question={question}
+        revealAnswer={Boolean(state?.revealAnswer)}
+      />
+    );
   }
   return (
     <div className="projectorScreenStack">
@@ -264,6 +276,7 @@ function ScreenContent({ state }) {
           promptContent={state?.type === "text" ? promptContent : ""}
           promptType={state?.type}
           question={question}
+          revealAnswer={Boolean(state?.revealAnswer)}
         />
       ) : null}
     </div>
@@ -336,7 +349,12 @@ export default function ScreenClient({ initialToken = null }) {
         }
         setState(
           payload?.type
-            ? { type: payload.type, content: payload.content || "", topText: payload.topText || "" }
+            ? {
+                type: payload.type,
+                content: payload.content || "",
+                topText: payload.topText || "",
+                revealAnswer: Boolean(payload.revealAnswer),
+              }
             : null
         );
       })

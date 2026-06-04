@@ -223,7 +223,7 @@ function QuestionAnswer({ children, latex }) {
   return <span>{children}</span>;
 }
 
-function QuestionDisplay({ promptContent = "", promptType = "text", question, compact = false }) {
+function QuestionDisplay({ promptContent = "", promptType = "text", question, compact = false, revealAnswer = false }) {
   if (!question) return null;
   const filledOptions = question.options
     .map((option, index) => ({ index, option }))
@@ -256,9 +256,14 @@ function QuestionDisplay({ promptContent = "", promptType = "text", question, co
             >
               <strong>{QUESTION_OPTION_LABELS[index]}</strong>
               <QuestionAnswer latex={question.answerType === "latex"}>{option}</QuestionAnswer>
-              {question.correctIndex === index ? <em>Answer</em> : null}
+              {revealAnswer && question.correctIndex === index ? <em>Answer</em> : null}
             </div>
           ))}
+        </div>
+      ) : null}
+      {revealAnswer && question.mode === "fill_blank" && question.fillBlankAnswer.trim() ? (
+        <div className="projectorFillBlankAnswer">
+          <QuestionAnswer latex={question.answerType === "latex"}>{question.fillBlankAnswer}</QuestionAnswer>
         </div>
       ) : null}
     </div>
@@ -314,6 +319,7 @@ function renderContent(state, compact = false, options = {}) {
         promptType={state?.type}
         question={question}
         compact={compact}
+        revealAnswer={Boolean(state?.revealAnswer)}
       />
     );
   }
@@ -327,6 +333,7 @@ function renderContent(state, compact = false, options = {}) {
           promptType={state?.type}
           question={question}
           compact={compact}
+          revealAnswer={Boolean(state?.revealAnswer)}
         />
       ) : null}
     </div>
@@ -496,7 +503,12 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         setScreenStates((current) => ({
           ...current,
           [screenId]: payload?.type
-            ? { type: payload.type, content: payload.content || "", topText: payload.topText || "" }
+            ? {
+                type: payload.type,
+                content: payload.content || "",
+                topText: payload.topText || "",
+                revealAnswer: Boolean(payload.revealAnswer),
+              }
             : null,
         }));
       })
@@ -546,6 +558,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
   function updateQuestionOption(index, value) {
     setQuestionOptions((current) => current.map((option, optionIndex) => (optionIndex === index ? value : option)));
+  }
+
+  function isQuestionState(state) {
+    return Boolean(questionForState(state));
   }
 
   function loadQuestionContent(content) {
@@ -1053,6 +1069,26 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     }
   }
 
+  async function toggleRevealAnswer(screenId) {
+    setSending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reveal-answer", screenId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not reveal that answer.");
+      setScreenStates((current) => ({ ...current, [screenId]: payload.state || current[screenId] || null }));
+      setMessage(payload.state?.revealAnswer ? `Screen ${screenId} answer revealed.` : `Screen ${screenId} answer hidden.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function clearScreens() {
     setSending(true);
     setMessage("");
@@ -1116,6 +1152,16 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 <div className="projectorScreenPreview">
                   {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
                 </div>
+                {isQuestionState(screenStates?.[screenId]) ? (
+                  <button
+                    className="btn secondary projectorRevealAnswerButton"
+                    type="button"
+                    onClick={() => toggleRevealAnswer(screenId)}
+                    disabled={sending}
+                  >
+                    {screenStates?.[screenId]?.revealAnswer ? "Hide Answer" : "Reveal Answer"}
+                  </button>
+                ) : null}
                 <div className="projectorScreenUrl">
                   <code>{`${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`}</code>
                   <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
