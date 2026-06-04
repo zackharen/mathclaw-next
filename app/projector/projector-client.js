@@ -36,16 +36,52 @@ function isExponentStart(character) {
   return Boolean(character && /[A-Za-z0-9{\\]/.test(character));
 }
 
+function isArrowTokenStart(source, index) {
+  return (
+    source.startsWith("\\uparrow", index) ||
+    source.startsWith("\\downarrow", index) ||
+    source[index] === "↑" ||
+    source[index] === "↓" ||
+    (source[index] === "^" && !isExponentStart(source[index + 1]))
+  );
+}
+
+function visibleLatexSpaces(count) {
+  return "\\;".repeat(Math.min(count, 4));
+}
+
 function normalizeLatexLineForDisplay(line) {
   let normalized = "";
   for (let index = 0; index < line.length; index += 1) {
     const character = line[index];
-    if (character === "%" && !isEscapedLatexCharacter(line, index)) {
+    if (character === " ") {
+      let end = index;
+      while (line[end] === " ") end += 1;
+      normalized += isArrowTokenStart(line, end) ? visibleLatexSpaces(end - index) : line.slice(index, end);
+      index = end - 1;
+    } else if (line.startsWith("\\uparrow", index) || line.startsWith("\\downarrow", index)) {
+      const command = line.startsWith("\\uparrow", index) ? "\\uparrow" : "\\downarrow";
+      let end = index + command.length;
+      while (line[end] === " ") end += 1;
+      normalized += `${command}${visibleLatexSpaces(end - index - command.length)}`;
+      index = end - 1;
+    } else if (character === "%" && !isEscapedLatexCharacter(line, index)) {
       normalized += "\\%";
     } else if (character === "↑") {
-      normalized += "\\uparrow ";
+      let end = index + 1;
+      while (line[end] === " ") end += 1;
+      normalized += `\\uparrow${visibleLatexSpaces(end - index - 1)}`;
+      index = end - 1;
+    } else if (character === "↓") {
+      let end = index + 1;
+      while (line[end] === " ") end += 1;
+      normalized += `\\downarrow${visibleLatexSpaces(end - index - 1)}`;
+      index = end - 1;
     } else if (character === "^" && !isExponentStart(line[index + 1])) {
-      normalized += "\\uparrow ";
+      let end = index + 1;
+      while (line[end] === " ") end += 1;
+      normalized += `\\uparrow${visibleLatexSpaces(end - index - 1)}`;
+      index = end - 1;
     } else {
       normalized += character;
     }
@@ -935,10 +971,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                       <button type="button" onClick={() => insertLatexSnippet("\\sqrt{}", 6)}>
                         Sqrt
                       </button>
-                      <button type="button" onClick={() => insertLatexSnippet("\\uparrow ")}>
+                      <button type="button" onClick={() => insertLatexSnippet("\\uparrow\\;")}>
                         Up
                       </button>
-                      <button type="button" onClick={() => insertLatexSnippet("\\downarrow ")}>
+                      <button type="button" onClick={() => insertLatexSnippet("\\downarrow\\;")}>
                         Down
                       </button>
                     </span>
