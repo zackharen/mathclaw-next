@@ -54,13 +54,27 @@ async function createUniquePinSession(supabase, teacherId) {
 async function loadLibraryItems(supabase, teacherId) {
   const { data, error } = await supabase
     .from("projector_library_items")
-    .select("id, title, content_type, content, created_at, updated_at")
+    .select("id, title, content_type, content, category, created_at, updated_at")
     .eq("teacher_id", teacherId)
     .order("updated_at", { ascending: false })
     .limit(60);
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return [];
+    if (error.code === "42703" || error.code === "PGRST204") {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("projector_library_items")
+        .select("id, title, content_type, content, created_at, updated_at")
+        .eq("teacher_id", teacherId)
+        .order("updated_at", { ascending: false })
+        .limit(60);
+
+      if (fallbackError) {
+        if (fallbackError.code === "42P01" || fallbackError.code === "PGRST205") return [];
+        throw new Error(fallbackError.message);
+      }
+      return fallbackData || [];
+    }
     throw new Error(error.message);
   }
 

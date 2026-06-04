@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 const SCREEN_IDS = ["1", "2", "3", "4"];
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
+const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
+const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
@@ -132,9 +134,63 @@ function LatexDisplay({ content }) {
   return <div ref={ref} className="projectorScreenLatex" />;
 }
 
+function parseQuestionContent(content) {
+  const source = String(content || "");
+  if (!source.startsWith(QUESTION_CONTENT_PREFIX)) return null;
+  try {
+    const parsed = JSON.parse(source.slice(QUESTION_CONTENT_PREFIX.length));
+    const prompt = String(parsed.prompt || "");
+    const promptType = parsed.promptType === "latex" ? "latex" : "text";
+    const options = Array.isArray(parsed.options)
+      ? parsed.options.slice(0, 4).map((option) => String(option || ""))
+      : [];
+    const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
+    if (!prompt.trim()) return null;
+    return {
+      prompt,
+      promptType,
+      options,
+      correctIndex: correctIndex >= 0 && correctIndex < 4 ? correctIndex : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function QuestionDisplay({ question }) {
+  const filledOptions = question.options
+    .map((option, index) => ({ index, option }))
+    .filter((item) => item.option.trim());
+  return (
+    <div className="projectorScreenQuestionCard">
+      <div className="projectorScreenQuestionPrompt">
+        {question.promptType === "latex" ? <LatexDisplay content={question.prompt} /> : <span>{question.prompt}</span>}
+      </div>
+      {filledOptions.length ? (
+        <div className="projectorScreenQuestionOptions">
+          {filledOptions.map(({ index, option }) => (
+            <div
+              className={question.correctIndex === index ? "projectorScreenQuestionOption isCorrect" : "projectorScreenQuestionOption"}
+              key={index}
+            >
+              <strong>{QUESTION_OPTION_LABELS[index]}</strong>
+              <span>{option}</span>
+              {question.correctIndex === index ? <em>Answer</em> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ScreenContentBody({ state }) {
   if (!state) return <div className="projectorWaiting">waiting for content</div>;
-  if (state.type === "text") return <div className="projectorScreenText">{state.content}</div>;
+  if (state.type === "text") {
+    const question = parseQuestionContent(state.content);
+    if (question) return <QuestionDisplay question={question} />;
+    return <div className="projectorScreenText">{state.content}</div>;
+  }
   if (state.type === "latex") return <LatexDisplay content={state.content} />;
   if (state.type === "image" || isGif(state.content)) {
     return <img className="projectorScreenMedia" src={state.content} alt="" />;

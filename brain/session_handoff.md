@@ -8,7 +8,25 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-04 America/New_York (Projector image drag-and-drop)
+2026-06-04 America/New_York (Projector Question Builder)
+
+## Current State For Fresh Chat
+- Recent work has focused on the **Projector** tool. The latest shipped commit on `main` before the Question Builder work was `5f88a14 Add projector image drag drop`.
+- Projector Question Builder has been implemented locally: teachers can use a new Question composer tab with text/LaTeX prompt, up to four multiple-choice options, and an optional marked answer. Questions save/send through the existing `text` content path with category `Questions`, so no new Supabase migration is required.
+- Projector Image mode now has a drag-and-drop drop zone in the composer preview. Dragged screenshots/image files use the same client-side data URL path as the existing file picker.
+- Recent Projector changes also include: LaTeX newlines/spaces, percent and arrow rendering, optional top text for media, screen edit buttons, left/right rotation, top-text media containment on public screens and dashboard previews, and LaTeX helper buttons.
+- Latest local verification: `node --check` on changed Projector JS/page files passed; `git diff --check` passed; `npm run build` passed; built server on `localhost:3001` returned 307 for unauthenticated `/projector` and 200 for `/projector/screen`.
+- Local verification caveat: authenticated teacher UI/browser testing has repeatedly been blocked by lack of a local signed-in teacher session. In the latest run, `next dev` also reproduced the known local `EMFILE` watcher warnings and served 404s, so route checks used `next start --port 3001` after a successful build.
+- Local repo caveat: `.claude/settings.json` and `brain/future_ideas.md` have unrelated uncommitted changes. Do not revert or stage them unless Zack explicitly asks.
+
+## What Was Built (2026-06-04 Session — Projector Question Builder)
+- **Projector saved-item Question Builder implemented without a migration** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/projector/screen/screen-client.js`, `app/globals.css`):
+  - Added a `Question` composer tab for text or LaTeX prompts, four A-D answer choices, and an optional marked correct answer.
+  - Questions save/send as existing `text` content with the `Questions` category and a small structured payload, so the current `projector_library_items.content_type` check constraint does not need to change.
+  - Dashboard previews, screen cards, saved-item thumbnails, and public projector screens parse that structured payload and render classroom-readable question cards instead of raw JSON.
+  - `/projector` now loads saved-item `category` on initial server render with the same missing-column fallback pattern used by the API.
+  - Verification passed: `node --check app/projector/projector-client.js`; `node --check app/projector/screen/screen-client.js`; `node --check app/projector/page.js`; `git diff --check`; `npm run build`; built server route checks confirmed `/projector/screen` returns 200 and unauthenticated `/projector` redirects to sign-in.
+  - Verification caveat: direct authenticated teacher dashboard creation/save/send was not browser-tested because no local authenticated teacher session was available. Local `next dev` still hit the known `EMFILE` watcher problem and served 404s, so route verification used `next start --port 3001`.
 
 ## What Was Built (2026-06-04 Session — Projector image drag-and-drop)
 - **Projector Image mode now accepts dragged image files** (`app/projector/projector-client.js`, `app/globals.css`):
@@ -368,7 +386,7 @@ Prune completed items from this list when rewriting this file. Order is rough pr
 
 1. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - required before Lowest Number Wins works with real classes.
 2. **Run `migrations_20260506_connect4_tournaments.sql` in production Supabase** - required before Connect 4 Tournament Mode works for authenticated users.
-3. **Projector next build: Question Builder** — the `Questions` category needs a purpose-built composer: prompt (LaTeX or text), up to 4 multiple-choice options, optional correct answer marked. `Word Walls` need a multi-term input that renders as a grid on the projector screen. `Data Walls` need a structured data display. The other 3 categories (`Activities`, `News`, `Announcements`) are fine with the existing composer. Load `brain/future_ideas.md` → "Projector Classroom Display System" before implementing.
+3. **Projector next build: Word Walls / Data Walls** — `Word Walls` need a multi-term input that renders as a grid on the projector screen. `Data Walls` need a structured data display. The other 3 categories (`Activities`, `News`, `Announcements`) are fine with the existing composer. Load `brain/future_ideas.md` → "Projector Classroom Display System" before implementing.
 3a. **Projector next build: Playlists / Timed Rotations** - group saved items or scenes into timed rotations per screen or across all screens. Load `brain/future_ideas.md` -> "Projector Classroom Display System" before implementing.
 5. **Run `migrations_20260427_double_board_decimal_percents.sql` in Supabase** before creating live Double Board percent sessions with decimal Column 3 questions.
 6. Playtest `/play/open-middle` live with teacher + student accounts; verify template creation, launch, student join, response autosave, reveal/revise, and session close

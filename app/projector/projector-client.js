@@ -10,6 +10,8 @@ const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
 const DIRECT_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
+const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
+const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
@@ -134,6 +136,72 @@ function ProjectorLatex({ content, className = "" }) {
   return <div ref={ref} className={className} />;
 }
 
+function parseQuestionContent(content) {
+  const source = String(content || "");
+  if (!source.startsWith(QUESTION_CONTENT_PREFIX)) return null;
+  try {
+    const parsed = JSON.parse(source.slice(QUESTION_CONTENT_PREFIX.length));
+    const prompt = String(parsed.prompt || "");
+    const promptType = parsed.promptType === "latex" ? "latex" : "text";
+    const options = Array.isArray(parsed.options)
+      ? parsed.options.slice(0, 4).map((option) => String(option || ""))
+      : [];
+    const correctIndex = Number.isInteger(parsed.correctIndex) ? parsed.correctIndex : null;
+    if (!prompt.trim()) return null;
+    return {
+      prompt,
+      promptType,
+      options,
+      correctIndex: correctIndex >= 0 && correctIndex < 4 ? correctIndex : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildQuestionContent({ correctIndex, options, prompt, promptType }) {
+  const safeOptions = options.slice(0, 4).map((option) => String(option || "").trim());
+  const safeCorrectIndex = Number.isInteger(correctIndex) && safeOptions[correctIndex] ? correctIndex : null;
+  return `${QUESTION_CONTENT_PREFIX}${JSON.stringify({
+    prompt: String(prompt || "").trim(),
+    promptType: promptType === "latex" ? "latex" : "text",
+    options: safeOptions,
+    correctIndex: safeCorrectIndex,
+  })}`;
+}
+
+function QuestionDisplay({ question, compact = false }) {
+  if (!question) return null;
+  const filledOptions = question.options
+    .map((option, index) => ({ index, option }))
+    .filter((item) => item.option.trim());
+  return (
+    <div className={compact ? "projectorQuestionCard isCompact" : "projectorQuestionCard"}>
+      <div className="projectorQuestionPrompt">
+        {question.promptType === "latex" ? (
+          <ProjectorLatex content={question.prompt} />
+        ) : (
+          <span>{question.prompt}</span>
+        )}
+      </div>
+      {filledOptions.length ? (
+        <div className="projectorQuestionOptions">
+          {filledOptions.map(({ index, option }) => (
+            <div
+              className={question.correctIndex === index ? "projectorQuestionOption isCorrect" : "projectorQuestionOption"}
+              key={index}
+            >
+              <strong>{QUESTION_OPTION_LABELS[index]}</strong>
+              <span>{option}</span>
+              {question.correctIndex === index ? <em>Answer</em> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function renderTopText(state, compact = false) {
   if (!state?.topText || state.type === "text") return null;
   return <div className={compact ? "projectorTopTextThumb" : "projectorTopTextDisplay"}>{state.topText}</div>;
@@ -142,6 +210,8 @@ function renderTopText(state, compact = false) {
 function renderContentBody(state, compact = false, options = {}) {
   if (!state) return <span className="projectorEmpty">empty</span>;
   if (state.type === "text") {
+    const question = parseQuestionContent(state.content);
+    if (question) return <QuestionDisplay question={question} compact={compact} />;
     return <div className={compact ? "projectorTextThumb" : "projectorTextDisplay"}>{state.content}</div>;
   }
   if (state.type === "latex") {
@@ -181,6 +251,7 @@ function renderContent(state, compact = false, options = {}) {
 }
 
 function libraryTypeLabel(item) {
+  if (item?.category === "Questions" && parseQuestionContent(item.content)) return "Question";
   const type = item?.content_type || item?.type || "";
   return type === "latex" ? "LaTeX" : type ? type[0].toUpperCase() + type.slice(1) : "Item";
 }
@@ -247,6 +318,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
+  const [questionPromptType, setQuestionPromptType] = useState("text");
+  const [questionPrompt, setQuestionPrompt] = useState("Which expression is equivalent to 3(x + 4)?");
+  const [questionOptions, setQuestionOptions] = useState(["3x + 12", "3x + 4", "x + 12", "7x"]);
+  const [questionCorrectIndex, setQuestionCorrectIndex] = useState("");
   const [showTopText, setShowTopText] = useState(false);
   const [topText, setTopText] = useState("");
   const [url, setUrl] = useState("");
@@ -357,12 +432,51 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   function currentComposerContent() {
     if (type === "text") return text;
     if (type === "latex") return latex;
+    if (type === "question") {
+      if (!questionPrompt.trim()) return "";
+      return buildQuestionContent({
+        prompt: questionPrompt,
+        promptType: questionPromptType,
+        options: questionOptions,
+        correctIndex: questionCorrectIndex === "" ? null : Number(questionCorrectIndex),
+      });
+    }
     if (type === "image") return imageDataUrl || url;
     return videoUploadUrl || url;
   }
 
   function currentComposerTopText() {
-    return type !== "text" && showTopText ? topText : "";
+    return type !== "text" && type !== "question" && showTopText ? topText : "";
+  }
+
+  function apiContentType() {
+    return type === "question" ? "text" : type;
+  }
+
+  function currentComposerState() {
+    const content = currentComposerContent();
+    if (!content) return null;
+    const nextType = apiContentType();
+    const nextTopText = currentComposerTopText();
+    return nextTopText ? { type: nextType, content, topText: nextTopText } : { type: nextType, content };
+  }
+
+  function updateQuestionOption(index, value) {
+    setQuestionOptions((current) => current.map((option, optionIndex) => (optionIndex === index ? value : option)));
+  }
+
+  function loadQuestionContent(content) {
+    const question = parseQuestionContent(content);
+    if (!question) return false;
+    setType("question");
+    setQuestionPromptType(question.promptType);
+    setQuestionPrompt(question.prompt);
+    setQuestionOptions(QUESTION_OPTION_LABELS.map((_, index) => question.options[index] || ""));
+    setQuestionCorrectIndex(question.correctIndex === null ? "" : String(question.correctIndex));
+    setLibraryCategory("Questions");
+    setShowTopText(false);
+    setTopText("");
+    return true;
   }
 
   function insertLatexSnippet(snippet, cursorOffset = snippet.length) {
@@ -396,7 +510,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     setVideoFileName("");
     setOpenPanels((current) => ({ ...current, screens: true }));
 
-    if (state.type === "text") {
+    const loadedQuestion = state.type === "text" ? loadQuestionContent(state.content) : false;
+    if (state.type === "text" && !loadedQuestion) {
       setText(state.content || "");
     } else if (state.type === "latex") {
       setLatex(state.content || "");
@@ -436,7 +551,6 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
 
   function loadLibraryItem(item) {
     const nextType = item.content_type;
-    setType(nextType);
     setLibraryTitle(item.title || "");
     setLibraryCategory(item.category || "");
     setUrl("");
@@ -446,7 +560,11 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     setShowTopText(Boolean(item.topText));
     setTopText(item.topText || "");
 
-    if (nextType === "text") setText(item.content || "");
+    const loadedQuestion = nextType === "text" ? loadQuestionContent(item.content) : false;
+    if (!loadedQuestion) {
+      setType(nextType);
+    }
+    if (nextType === "text" && !loadedQuestion) setText(item.content || "");
     if (nextType === "latex") setLatex(item.content || "");
     if (nextType === "image") {
       if (String(item.content || "").startsWith("data:")) {
@@ -469,9 +587,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         body: JSON.stringify({
           action: "save-library-item",
           title: libraryTitle,
-          type,
+          type: apiContentType(),
           content: currentComposerContent(),
-          category: libraryCategory,
+          category: type === "question" ? "Questions" : libraryCategory,
         }),
       });
       const payload = await response.json();
@@ -800,6 +918,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
     setMessage("");
     const content = currentComposerContent();
     const nextTopText = currentComposerTopText();
+    const nextType = apiContentType();
 
     try {
       const response = await fetch("/api/projector", {
@@ -808,7 +927,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
         body: JSON.stringify({
           action: "push",
           screenIds: targetScreenIds,
-          type,
+          type: nextType,
           content,
           topText: nextTopText,
         }),
@@ -819,7 +938,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       setScreenStates((current) => {
         const next = { ...current };
         targetScreenIds.forEach((screenId) => {
-          next[screenId] = nextTopText ? { type, content, topText: nextTopText } : { type, content };
+          next[screenId] = nextTopText ? { type: nextType, content, topText: nextTopText } : { type: nextType, content };
         });
         return next;
       });
@@ -964,19 +1083,22 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               </div>
             </div>
             <div className="projectorTabs" role="tablist" aria-label="Content Type">
-              {["text", "latex", "image", "video"].map((tab) => (
+              {["text", "latex", "question", "image", "video"].map((tab) => (
                 <button
                   className={type === tab ? "isActive" : ""}
                   key={tab}
                   type="button"
-                  onClick={() => setType(tab)}
+                  onClick={() => {
+                    setType(tab);
+                    if (tab === "question") setLibraryCategory("Questions");
+                  }}
                 >
                   {tab === "latex" ? "LaTeX" : tab[0].toUpperCase() + tab.slice(1)}
                 </button>
               ))}
             </div>
 
-            {type !== "text" ? (
+            {type !== "text" && type !== "question" ? (
               <div className="projectorTopTextControls">
                 <label className="projectorCheckboxRow">
                   <input
@@ -1012,6 +1134,58 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
               </>
             ) : null}
 
+            {type === "question" ? (
+              <>
+                <label className="field">
+                  <span>Prompt Type</span>
+                  <select value={questionPromptType} onChange={(event) => setQuestionPromptType(event.target.value)}>
+                    <option value="text">Text</option>
+                    <option value="latex">LaTeX</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Prompt</span>
+                  <textarea
+                    value={questionPrompt}
+                    onChange={(event) => setQuestionPrompt(event.target.value)}
+                    rows={4}
+                    placeholder={questionPromptType === "latex" ? "\\frac{3}{4} + \\frac{1}{8}" : "Question prompt..."}
+                  />
+                </label>
+                <div className="projectorQuestionBuilderOptions">
+                  {QUESTION_OPTION_LABELS.map((label, index) => (
+                    <label className="field" key={label}>
+                      <span>Choice {label}</span>
+                      <input
+                        value={questionOptions[index]}
+                        onChange={(event) => updateQuestionOption(index, event.target.value)}
+                        placeholder={`Choice ${label}`}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="field">
+                  <span>Correct Answer</span>
+                  <select
+                    value={questionCorrectIndex}
+                    onChange={(event) => setQuestionCorrectIndex(event.target.value)}
+                  >
+                    <option value="">No answer marked</option>
+                    {QUESTION_OPTION_LABELS.map((label, index) => (
+                      <option key={label} value={index} disabled={!questionOptions[index].trim()}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="projectorComposerPreview">
+                  {currentComposerState()
+                    ? renderContent(currentComposerState())
+                    : "Add A Prompt To Preview The Question"}
+                </div>
+              </>
+            ) : null}
+
             {type === "latex" ? (
               <>
                 <label className="field">
@@ -1040,7 +1214,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   />
                 </label>
                 <div className="projectorComposerPreview">
-                  {renderContent({ type, content: latex, topText: currentComposerTopText() })}
+                  {renderContent(currentComposerState())}
                 </div>
               </>
             ) : null}
@@ -1065,7 +1239,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                   onDrop={onImageDrop}
                 >
                   {imageDataUrl || url
-                    ? renderContent({ type, content: imageDataUrl || url, topText: currentComposerTopText() })
+                    ? renderContent(currentComposerState())
                     : (
                       <span className="projectorImageDropHint">
                         Drop Image Here
@@ -1102,9 +1276,9 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 </label>
                 <div className="projectorComposerPreview">
                   {(videoUploadUrl || url) && /\.gif(\?|#|$)/i.test(videoUploadUrl || url) ? (
-                    renderContent({ type, content: videoUploadUrl || url, topText: currentComposerTopText() })
+                    renderContent(currentComposerState())
                   ) : videoUploadUrl || url ? (
-                    renderContent({ type, content: videoUploadUrl || url, topText: currentComposerTopText() })
+                    renderContent(currentComposerState())
                   ) : uploadingVideo ? (
                     "Converting Recording..."
                   ) : (
