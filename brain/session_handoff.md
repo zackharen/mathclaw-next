@@ -8,9 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-05 America/New_York (class plan header/nav polish)
+2026-06-05 America/New_York (dashboard/nav ordering polish)
 
 ## Current State For Fresh Chat
+- Latest polish update restores **Log Out** as the fixed final topbar button while keeping all other nav links alphabetized (`app/layout.js`). The Pacing Dashboard now renders class cards alphabetically by the shared course label sort (`app/dashboard/page.js`).
+- Verification for the dashboard/nav ordering polish passed: `node --check app/layout.js`; `node --check app/dashboard/page.js`; `git diff --check`; `npm run build`.
 - Latest polish update adjusts `app/classes/[id]/plan/page.js`, `app/globals.css`, and `app/layout.js`: the class plan **Back to Classes** link now sits as a normal top-right rectangular button in the plan header instead of stretching tall beside date inputs, and the topbar navigation buttons are alphabetized with **Log Out** included in the visible ordering.
 - Verification for the header/nav polish passed: `node --check app/layout.js`; `node --check app/classes/[id]/plan/page.js`; `git diff --check`; `npm run build`.
 - Latest fix resolves an AB calendar relabeling bug in `app/classes/[id]/plan/actions.js`: changing a class start date could move `courses.ab_pattern_start_date` while preserving old in-range `course_calendar_days.ab_day` labels, so the first actual school day could remain hidden when the class was set to A-only or B-only. Date-range saves and AB Schedule saves now recalculate stored `ab_day` labels across the class range while preserving existing day type/reason/note edits, then rebuild pacing.

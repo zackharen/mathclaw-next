@@ -172,13 +172,6 @@ export default async function RootLayout({ children }) {
   }
 
   navItems = [...navItems].sort((a, b) => a.label.localeCompare(b.label));
-  const logoutLabel = "Log Out";
-  const navItemsBeforeLogout = user
-    ? navItems.filter((item) => item.label.localeCompare(logoutLabel) < 0)
-    : navItems;
-  const navItemsAfterLogout = user
-    ? navItems.filter((item) => item.label.localeCompare(logoutLabel) >= 0)
-    : [];
 
   return (
     <html lang="en">
@@ -200,7 +193,7 @@ export default async function RootLayout({ children }) {
                 {roleLabel ? <span className={`roleBadge ${roleMode ? `roleBadge--${roleMode}` : ""}`}>{roleLabel}</span> : null}
               </div>
               <div className="topbarNav">
-                {navItemsBeforeLogout.length > 0 ? <AppNav items={navItemsBeforeLogout} /> : null}
+                <AppNav items={navItems} />
                 {user ? (
                   <form action={signOutAction} className="navForm topbarMenuForm">
                     <button className="navButton" type="submit">
@@ -208,7 +201,6 @@ export default async function RootLayout({ children }) {
                     </button>
                   </form>
                 ) : null}
-                {navItemsAfterLogout.length > 0 ? <AppNav items={navItemsAfterLogout} /> : null}
               </div>
             </header>
             <GameReadyBanner href={gameReadyBannerHref} label={gameReadyBannerLabel} />

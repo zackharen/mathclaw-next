@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { getSiteCopy } from "@/lib/site-config";
+import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
 
 function prettyDate(value) {
   const [year, month, day] = String(value).split("-").map(Number);
@@ -115,8 +116,9 @@ export default async function DashboardPage() {
     );
   }
 
-  const courseIds = courses.map((c) => c.id);
-  const classNames = [...new Set(courses.map((c) => c.class_name).filter(Boolean))];
+  const sortedCourses = sortCoursesAlphabetically(courses);
+  const courseIds = sortedCourses.map((c) => c.id);
+  const classNames = [...new Set(sortedCourses.map((c) => c.class_name).filter(Boolean))];
   const { data: planRows } = await supabase
     .from("course_lesson_plan")
     .select(
@@ -127,7 +129,7 @@ export default async function DashboardPage() {
 
   const lessonCountByCourse = new Map();
   await Promise.all(
-    courses.map(async (course) => {
+    sortedCourses.map(async (course) => {
       if (!course.selected_library_id) {
         lessonCountByCourse.set(course.id, 0);
         return;
@@ -201,7 +203,7 @@ export default async function DashboardPage() {
     colleagueStatsByClass.set(course.class_name, stats);
   }
 
-  const cards = courses.map((course) => {
+  const cards = sortedCourses.map((course) => {
     const rows = rowsByCourse.get(course.id) || [];
     const totalLessons = lessonCountByCourse.get(course.id) || rows.length || 0;
     const completedRows = rows.filter((r) => r.status === "completed");
