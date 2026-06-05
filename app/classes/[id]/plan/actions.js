@@ -85,6 +85,37 @@ function buildDefaultCalendarRows(course, startDate, endDate, existingDates) {
   return rows;
 }
 
+async function relabelExistingABDays({ writeClient, course, startDate, endDate }) {
+  const expectedRows = buildDefaultCalendarRows(course, startDate, endDate, new Set());
+  const expectedByDate = new Map(expectedRows.map((row) => [row.class_date, row.ab_day || null]));
+
+  const { data: existingDays, error: existingError } = await writeClient
+    .from("course_calendar_days")
+    .select("class_date, ab_day")
+    .eq("course_id", course.id)
+    .gte("class_date", startDate)
+    .lte("class_date", endDate);
+
+  if (existingError) throw new Error(existingError.message);
+
+  let updatedCount = 0;
+  for (const day of existingDays || []) {
+    const expectedAB = expectedByDate.get(day.class_date) || null;
+    if ((day.ab_day || null) === expectedAB) continue;
+
+    const { error } = await writeClient
+      .from("course_calendar_days")
+      .update({ ab_day: expectedAB, updated_at: new Date().toISOString() })
+      .eq("course_id", course.id)
+      .eq("class_date", day.class_date);
+
+    if (error) throw new Error(error.message);
+    updatedCount += 1;
+  }
+
+  return updatedCount;
+}
+
 export async function generatePacingAction(formData) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
@@ -200,6 +231,12 @@ export async function updateCourseDateRangeAction(formData) {
 
   const existingDates = new Set((existingDays || []).map((day) => day.class_date));
   const rowsToInsert = buildDefaultCalendarRows(nextCourse, startDate, endDate, existingDates);
+  const relabeledDays = await relabelExistingABDays({
+    writeClient,
+    course: nextCourse,
+    startDate,
+    endDate,
+  });
 
   if (rowsToInsert.length > 0) {
     const { error: insertError } = await writeClient.from("course_calendar_days").insert(rowsToInsert);
@@ -213,6 +250,7 @@ export async function updateCourseDateRangeAction(formData) {
     startDate,
     endDate,
     insertedDays: rowsToInsert.length,
+    relabeledDays,
     ms: Date.now() - actionStart,
   });
 
@@ -244,12 +282,18 @@ export async function updateABMeetingDaysAction(formData) {
 
   if (!user) return;
 
-  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+  );
   const course = access?.course;
 
   if (!course) return;
   const writeClient = getCourseWriteClient(access, supabase);
 
+  const nextCourse = { ...course, ab_meeting_day: abMeetingDay };
   const { error } = await writeClient
     .from("courses")
     .update({ ab_meeting_day: abMeetingDay, updated_at: new Date().toISOString() })
@@ -257,11 +301,19 @@ export async function updateABMeetingDaysAction(formData) {
 
   if (error) throw new Error(error.message);
 
+  const relabeledDays = await relabelExistingABDays({
+    writeClient,
+    course: nextCourse,
+    startDate: course.school_year_start,
+    endDate: course.school_year_end,
+  });
+
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("updateABMeetingDaysAction", {
     course: course.id,
     abMeetingDay: abMeetingDay || "both",
+    relabeledDays,
     ms: Date.now() - actionStart,
   });
 

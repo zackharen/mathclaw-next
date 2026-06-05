@@ -8,9 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-05 America/New_York (class calendar bulk day-type controls)
+2026-06-05 America/New_York (AB calendar relabel fix)
 
 ## Current State For Fresh Chat
+- Latest fix resolves an AB calendar relabeling bug in `app/classes/[id]/plan/actions.js`: changing a class start date could move `courses.ab_pattern_start_date` while preserving old in-range `course_calendar_days.ab_day` labels, so the first actual school day could remain hidden when the class was set to A-only or B-only. Date-range saves and AB Schedule saves now recalculate stored `ab_day` labels across the class range while preserving existing day type/reason/note edits, then rebuild pacing.
+- Verification for the AB relabel fix passed: `node --check app/classes/[id]/plan/actions.js`; `git diff --check`; `npm run build`. Existing affected classes need one more **Update Dates** submit or AB Schedule submit after deployment to rewrite their already-stored AB labels.
 - Latest local work adds bulk day-type controls to the pacing guide's Full Calendar Editor (`app/classes/[id]/plan/page.js`, `app/classes/[id]/calendar/actions.js`, `app/globals.css`). Teachers can check calendar rows, choose a day type such as Half Day, optionally keep/clear/set the reason, and apply it with the existing **Apply Calendar Changes** button. The same tool also has **Apply To: All Visible Days** for changing the whole visible calendar range at once.
 - Verification for the calendar bulk-edit work passed: `node --check app/classes/[id]/calendar/actions.js`; `node --check app/classes/[id]/plan/page.js`; `git diff --check`; `npm run build`. Direct authenticated browser testing remains dependent on an available signed-in teacher session / bindable local server.
 - Latest local work adds class start/end date editing directly on the pacing guide (`app/classes/[id]/plan/page.js`, `app/classes/[id]/plan/actions.js`). Teachers can update `school_year_start` and `school_year_end` from `/classes/[id]/plan`; the action preserves existing in-range calendar edits, inserts default rows for newly included dates, removes calendar/lesson-plan/announcement rows outside the new range, updates AB pattern start when it was tracking the old class start, and rebuilds pacing.
