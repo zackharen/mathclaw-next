@@ -121,7 +121,7 @@ main {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.4rem;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   justify-content: flex-end;
   min-width: 0;
 }
@@ -2409,6 +2409,44 @@ details[open] > summary.btn,
   display: inline-block;
 }
 
+.classPlanHeaderControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+
+.classPlanBackButton {
+  grid-column: 2;
+  grid-row: 1;
+  width: auto;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.classPlanPrimaryControls {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.classPlanDateForm,
+.classPlanPacingForm {
+  align-items: flex-start;
+}
+
+.classPlanDateForm {
+  max-width: 24rem;
+}
+
+.classPlanPacingForm {
+  max-width: 36rem;
+}
+
 .abScheduleForm {
   display: flex;
   flex-wrap: nowrap;
@@ -2424,6 +2462,7 @@ details[open] > summary.btn,
 
   .controlBar,
   .inlineControlForm,
+  .classPlanPrimaryControls,
   .abScheduleForm {
     flex-wrap: wrap;
     min-width: 0;
@@ -2431,8 +2470,20 @@ details[open] > summary.btn,
 }
 
 @media (max-width: 760px) {
+  .classPlanHeaderControls {
+    grid-template-columns: 1fr;
+  }
+
+  .classPlanBackButton,
+  .classPlanPrimaryControls {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+  }
+
   .controlBar,
   .inlineControlForm,
+  .classPlanPrimaryControls,
   .abScheduleForm,
   .compactDayActions {
     flex-direction: column;
@@ -2441,6 +2492,7 @@ details[open] > summary.btn,
 
   .controlBar > *,
   .inlineControlForm > *,
+  .classPlanPrimaryControls > *,
   .abScheduleForm > *,
   .compactDayActions > * {
     width: 100%;

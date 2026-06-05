@@ -163,13 +163,22 @@ export default async function RootLayout({ children }) {
       ...(canAccessAdmin ? [{ href: "/admin", label: "Admin" }] : []),
       { href: "/play", label: "Arcade" },
       { href: "/classes", label: "Classes" },
-      { href: "/projector", label: "Projector" },
       { href: "/dashboard", label: "Dashboard" },
       { href: "/onboarding/profile", label: "Profile" },
+      { href: "/projector", label: "Projector" },
       { href: "/report-bug", label: "Report Bug" },
       { href: "/teachers", label: "Teachers" },
     ];
   }
+
+  navItems = [...navItems].sort((a, b) => a.label.localeCompare(b.label));
+  const logoutLabel = "Log Out";
+  const navItemsBeforeLogout = user
+    ? navItems.filter((item) => item.label.localeCompare(logoutLabel) < 0)
+    : navItems;
+  const navItemsAfterLogout = user
+    ? navItems.filter((item) => item.label.localeCompare(logoutLabel) >= 0)
+    : [];
 
   return (
     <html lang="en">
@@ -191,7 +200,7 @@ export default async function RootLayout({ children }) {
                 {roleLabel ? <span className={`roleBadge ${roleMode ? `roleBadge--${roleMode}` : ""}`}>{roleLabel}</span> : null}
               </div>
               <div className="topbarNav">
-                <AppNav items={navItems} />
+                {navItemsBeforeLogout.length > 0 ? <AppNav items={navItemsBeforeLogout} /> : null}
                 {user ? (
                   <form action={signOutAction} className="navForm topbarMenuForm">
                     <button className="navButton" type="submit">
@@ -199,6 +208,7 @@ export default async function RootLayout({ children }) {
                     </button>
                   </form>
                 ) : null}
+                {navItemsAfterLogout.length > 0 ? <AppNav items={navItemsAfterLogout} /> : null}
               </div>
             </header>
             <GameReadyBanner href={gameReadyBannerHref} label={gameReadyBannerLabel} />

@@ -268,45 +268,47 @@ export default async function ClassPlanPage({ params, searchParams }) {
             : "Every Day"}{" "}
           | {course.school_year_start} to {course.school_year_end}
         </p>
-        <div className="ctaRow">
-          <Link className="btn" href="/classes">
+        <div className="classPlanHeaderControls">
+          <Link className="btn classPlanBackButton" href="/classes">
             Back to Classes
           </Link>
-          <form action={updateCourseDateRangeAction} className="inlineControlForm">
-            <input type="hidden" name="course_id" value={course.id} />
-            <input
-              className="input"
-              type="date"
-              name="school_year_start"
-              defaultValue={course.school_year_start}
-              aria-label="Class start date"
-            />
-            <input
-              className="input"
-              type="date"
-              name="school_year_end"
-              defaultValue={course.school_year_end}
-              aria-label="Class end date"
-            />
-            <button className="btn" type="submit">Update Dates</button>
-          </form>
-          <form action={updatePacingModeAction} className="inlineControlForm">
-            <input type="hidden" name="course_id" value={course.id} />
-            <select
-              className="input"
-              name="pacing_mode"
-              defaultValue={course.pacing_mode || "one_lesson_per_day"}
-              style={{ minWidth: 240 }}
-            >
-              <option value="one_lesson_per_day">Pacing: One Lesson Per Full Day</option>
-              <option value="two_lessons_per_day">Pacing: 2 Lessons Per Day</option>
-              <option value="two_lessons_unless_modified">
-                Pacing: 2 Lessons Per Day Unless There Is a Modified Schedule
-              </option>
-              <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
-            </select>
-            <button className="btn" type="submit">Apply Pacing Mode</button>
-          </form>
+          <div className="classPlanPrimaryControls">
+            <form action={updateCourseDateRangeAction} className="inlineControlForm classPlanDateForm">
+              <input type="hidden" name="course_id" value={course.id} />
+              <input
+                className="input"
+                type="date"
+                name="school_year_start"
+                defaultValue={course.school_year_start}
+                aria-label="Class start date"
+              />
+              <input
+                className="input"
+                type="date"
+                name="school_year_end"
+                defaultValue={course.school_year_end}
+                aria-label="Class end date"
+              />
+              <button className="btn" type="submit">Update Dates</button>
+            </form>
+            <form action={updatePacingModeAction} className="inlineControlForm classPlanPacingForm">
+              <input type="hidden" name="course_id" value={course.id} />
+              <select
+                className="input"
+                name="pacing_mode"
+                defaultValue={course.pacing_mode || "one_lesson_per_day"}
+                style={{ minWidth: 240 }}
+              >
+                <option value="one_lesson_per_day">Pacing: One Lesson Per Full Day</option>
+                <option value="two_lessons_per_day">Pacing: 2 Lessons Per Day</option>
+                <option value="two_lessons_unless_modified">
+                  Pacing: 2 Lessons Per Day Unless There Is a Modified Schedule
+                </option>
+                <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
+              </select>
+              <button className="btn" type="submit">Apply Pacing Mode</button>
+            </form>
+          </div>
         </div>
         {pacingUpdated ? (
           <div className="controlStatusLineStatic">
