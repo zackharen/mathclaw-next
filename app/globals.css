@@ -1135,7 +1135,7 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 .calendarGridHeaderNoAction,
 .calendarRowNoAction {
   display: grid;
-  grid-template-columns: 1.6fr 0.45fr 1fr 1fr 1fr;
+  grid-template-columns: 0.65fr 1.6fr 0.45fr 1fr 1fr 1fr;
   gap: 0.6rem;
   align-items: center;
 }
@@ -1154,6 +1154,31 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
   border: 1px dashed #6b7c8a;
   border-radius: 8px;
   background: var(--white);
+}
+
+.calendarBulkTools {
+  display: grid;
+  grid-template-columns: auto minmax(12rem, 1fr) minmax(12rem, 1fr) minmax(12rem, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid #6b7c8a;
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.calendarSelectCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+}
+
+.calendarSelectCell input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--navy);
 }
 
 .editorSummary .hideLabel {
@@ -2127,6 +2152,10 @@ details[open] > summary.gameControlsSummary .hideLabel {
   }
 
   .calendarRowNoAction {
+    grid-template-columns: 1fr;
+  }
+
+  .calendarBulkTools {
     grid-template-columns: 1fr;
   }
 

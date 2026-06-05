@@ -395,7 +395,31 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     <span className="hideLabel">Hide Full Calendar Editor</span>
                   </summary>
                   <div className="controlExpandedPanel controlExpandedPanelWide">
+                    <div className="calendarBulkTools">
+                      <strong>Selected Days</strong>
+                      <select className="input" name="selected_bulk_scope" defaultValue="checked">
+                        <option value="checked">Apply To: Checked Days</option>
+                        <option value="all_visible">Apply To: All Visible Days</option>
+                      </select>
+                      <select className="input" name="selected_day_type" defaultValue="">
+                        <option value="">Choose Day Type</option>
+                        <option value="instructional">Full</option>
+                        <option value="off">Off</option>
+                        <option value="half">Half Day</option>
+                        <option value="modified">Modified</option>
+                      </select>
+                      <select className="input" name="selected_reason_id" defaultValue="">
+                        <option value="">Keep Row Reason</option>
+                        <option value="__clear__">Clear Reason</option>
+                        {reasons.map((reason) => (
+                          <option key={reason.id} value={reason.id}>
+                            {reason.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="calendarGridHeaderNoAction">
+                      <span>Select</span>
                       <span>Date</span>
                       <span>AB</span>
                       <span>Day Type</span>
@@ -405,6 +429,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     <div className="calendarGridBody">
                       {visibleCalendarDays.map((day) => (
                         <div className="calendarRowNoAction" key={day.class_date}>
+                          <label className="calendarSelectCell">
+                            <input type="checkbox" name="selected_class_date" value={day.class_date} />
+                            <span>Select</span>
+                          </label>
                           <span>{prettyDate(day.class_date)}</span>
                           <span>{day.ab_day || "-"}</span>
                           <select

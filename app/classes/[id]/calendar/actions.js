@@ -39,9 +39,15 @@ function nextAB(current) {
 
 function parseBulkUpdates(formData) {
   const updates = new Map();
+  const selectedDates = new Set();
 
   for (const [key, value] of formData.entries()) {
     if (typeof key !== "string") continue;
+
+    if (key === "selected_class_date" && typeof value === "string" && value) {
+      selectedDates.add(value);
+      continue;
+    }
 
     if (key.startsWith("day_type__")) {
       const classDate = key.replace("day_type__", "");
@@ -65,7 +71,7 @@ function parseBulkUpdates(formData) {
     }
   }
 
-  return updates;
+  return { updates, selectedDates };
 }
 
 export async function generateCalendarAction(formData) {
@@ -213,17 +219,32 @@ export async function applyCalendarBulkAction(formData) {
   if (!course) return;
   const writeClient = getCourseWriteClient(access, supabase);
 
-  const updates = parseBulkUpdates(formData);
+  const { updates, selectedDates } = parseBulkUpdates(formData);
+  const selectedDayType = String(formData.get("selected_day_type") || "");
+  const selectedReasonId = String(formData.get("selected_reason_id") || "");
+  const selectedReasonShouldApply = selectedReasonId !== "";
+  const bulkScope = String(formData.get("selected_bulk_scope") || "") === "all_visible" ? "all_visible" : "checked";
   const allowed = new Set(["instructional", "off", "half", "modified"]);
+  const shouldApplySelectedDayType =
+    allowed.has(selectedDayType) && (bulkScope === "all_visible" || selectedDates.size > 0);
   let updatedCount = 0;
 
   // Bulk editor currently posts all visible rows; use full rebuild for deterministic mapping.
   for (const [classDate, row] of updates.entries()) {
-    if (!allowed.has(row.day_type)) continue;
+    const isBulkTarget = bulkScope === "all_visible" || selectedDates.has(classDate);
+    const dayType = shouldApplySelectedDayType && isBulkTarget ? selectedDayType : row.day_type;
+    if (!allowed.has(dayType)) continue;
 
     const payload = {
-      day_type: row.day_type,
-      reason_id: row.reason_id ? row.reason_id : null,
+      day_type: dayType,
+      reason_id:
+        shouldApplySelectedDayType && isBulkTarget && selectedReasonShouldApply
+          ? selectedReasonId === "__clear__"
+            ? null
+            : selectedReasonId
+          : row.reason_id
+            ? row.reason_id
+            : null,
       note: row.note && row.note.trim() ? row.note.trim() : null,
       updated_at: new Date().toISOString(),
     };
@@ -243,6 +264,12 @@ export async function applyCalendarBulkAction(formData) {
   perfLog("applyCalendarBulkAction", {
     course: course.id,
     updates: updatedCount,
+    selectedUpdates: shouldApplySelectedDayType
+      ? bulkScope === "all_visible"
+        ? updatedCount
+        : selectedDates.size
+      : 0,
+    bulkScope,
     ms: Date.now() - actionStart,
   });
 
