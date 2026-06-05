@@ -8,9 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-04 America/New_York (Projector question visual cleanup)
+2026-06-05 America/New_York (class pacing guide date range controls)
 
 ## Current State For Fresh Chat
+- Latest local work adds class start/end date editing directly on the pacing guide (`app/classes/[id]/plan/page.js`, `app/classes/[id]/plan/actions.js`). Teachers can update `school_year_start` and `school_year_end` from `/classes/[id]/plan`; the action preserves existing in-range calendar edits, inserts default rows for newly included dates, removes calendar/lesson-plan/announcement rows outside the new range, updates AB pattern start when it was tracking the old class start, and rebuilds pacing.
+- Verification for the class date-range work passed: `node --check app/classes/[id]/plan/actions.js`; `node --check app/classes/[id]/plan/page.js`; `git diff --check`; `npm run build`. Local `next dev` and `next start --port 3001` were both blocked by sandbox port binding errors (`EPERM`), so browser verification of the authenticated pacing guide UI did not run.
 - Recent work has focused on the **Projector** tool. The latest shipped Projector Question Builder commit on `main` is `421c000 Add projector question builder`; follow-up work turned Question into composer modes instead of its own media tab and added per-screen answer reveal controls.
 - Projector Question Builder now uses `Fill In The Blank` and `Multiple Choice` buttons beside the `Top Text` toggle. The selected Text, LaTeX, Image, or Video content is the question prompt; there is no separate prompt field unless `Top Text` is turned on. Multiple Choice supports up to four answers, an optional marked answer, centered option cards/answer text, and Text/LaTeX answer format with fraction bars preserved. Fill In The Blank supports an optional answer key, Text/LaTeX answer format, and a classroom-sized blank line. Answers are hidden by default on dashboard previews and public projector screens; each question screen card has a `Reveal Answer` / `Hide Answer` button. Text-mode questions suppress the redundant base text display below the question. Questions save/send inside the existing `content` field, so no Supabase migration is required.
 - Projector Image mode now has a drag-and-drop drop zone in the composer preview. Dragged screenshots/image files use the same client-side data URL path as the existing file picker.

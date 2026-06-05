@@ -8,6 +8,7 @@ import {
   markLessonCompleteAction,
   markLessonPlannedAction,
   updateABMeetingDaysAction,
+  updateCourseDateRangeAction,
   updatePacingModeAction,
 } from "./actions";
 import {
@@ -151,6 +152,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const progressUpdated = qs.progress_updated === "1";
   const announcementsUpdated = qs.announcements_updated === "1";
   const pacingUpdated = qs.pacing_updated === "1";
+  const dateRangeUpdated = qs.date_range_updated === "1";
   const imported = qs.imported === "1";
 
   const supabase = await createClient();
@@ -270,6 +272,24 @@ export default async function ClassPlanPage({ params, searchParams }) {
           <Link className="btn" href="/classes">
             Back to Classes
           </Link>
+          <form action={updateCourseDateRangeAction} className="inlineControlForm">
+            <input type="hidden" name="course_id" value={course.id} />
+            <input
+              className="input"
+              type="date"
+              name="school_year_start"
+              defaultValue={course.school_year_start}
+              aria-label="Class start date"
+            />
+            <input
+              className="input"
+              type="date"
+              name="school_year_end"
+              defaultValue={course.school_year_end}
+              aria-label="Class end date"
+            />
+            <button className="btn" type="submit">Update Dates</button>
+          </form>
           <form action={updatePacingModeAction} className="inlineControlForm">
             <input type="hidden" name="course_id" value={course.id} />
             <select
@@ -291,6 +311,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
         {pacingUpdated ? (
           <div className="controlStatusLineStatic">
             <span>Pacing Mode Updated!</span>
+          </div>
+        ) : null}
+        {dateRangeUpdated ? (
+          <div className="controlStatusLineStatic">
+            <span>Class Dates Updated!</span>
           </div>
         ) : null}
       </section>
