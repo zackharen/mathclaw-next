@@ -2350,7 +2350,6 @@ details[open] > summary.gameControlsSummary .hideLabel {
   flex-wrap: wrap;
   gap: 0.65rem;
   align-items: flex-start;
-  min-width: max-content;
 }
 
 .inlineDetails {
