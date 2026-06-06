@@ -2464,8 +2464,23 @@ details[open] > summary.btn,
   margin-top: 0.75rem;
 }
 
+.classPlanControlRowApply {
+  align-items: center;
+}
+
 .classPlanCalendarApplyForm {
+  align-items: center;
   min-width: 0;
+}
+
+.classPlanCalendarApplyForm .calendarSelectCell {
+  align-items: center;
+  line-height: 1;
+}
+
+.classPlanCalendarApplyForm .calendarSelectCell input {
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .classPlanCompletedActionSpace {
