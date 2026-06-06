@@ -576,13 +576,14 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     : dayPlanRows.some((row) => row.status === "completed")
                       ? "partly completed"
                       : "planned";
+              const noLessonLabel = day.day_type === "off" ? "No School" : "Grace Day";
 
               if (dayPlanRows.length === 0) {
                 return (
                   <article key={day.class_date} className="card" style={{ background: "#fff" }}>
                     <h3>{prettyDate(day.class_date)}</h3>
                     <p>
-                      No Lesson Scheduled{reasonLabel ? ` | ${reasonLabel}` : ""}
+                      {noLessonLabel}{reasonLabel ? ` | ${reasonLabel}` : ""}
                     </p>
                     {day.note ? <p>{day.note}</p> : null}
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
