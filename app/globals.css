@@ -2441,6 +2441,46 @@ details[open] > summary.btn,
   white-space: nowrap;
 }
 
+.classPlanControlStack {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.classPlanControlRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.classPlanControlRowSchedule {
+  align-items: flex-start;
+}
+
+.classPlanControlRowApply,
+.classPlanControlRowTools {
+  margin-top: 0.75rem;
+}
+
+.classPlanCalendarApplyForm {
+  min-width: 0;
+}
+
+.classPlanCompletedActionSpace {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  min-height: 1.45rem;
+  margin-top: 0.75rem;
+  color: var(--navy);
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .classPlanPrimaryControls {
   grid-column: 1;
   grid-row: 1;
@@ -2518,6 +2558,7 @@ details[open] > summary.btn,
 
   .controlBar,
   .inlineControlForm,
+  .classPlanControlRow,
   .classPlanPrimaryControls,
   .abScheduleForm {
     flex-wrap: wrap;
@@ -2549,6 +2590,7 @@ details[open] > summary.btn,
 
   .controlBar,
   .inlineControlForm,
+  .classPlanControlRow,
   .classPlanPrimaryControls,
   .abScheduleForm,
   .compactDayActions {
@@ -2558,6 +2600,7 @@ details[open] > summary.btn,
 
   .controlBar > *,
   .inlineControlForm > *,
+  .classPlanControlRow > *,
   .classPlanPrimaryControls > *,
   .abScheduleForm > *,
   .compactDayActions > * {
