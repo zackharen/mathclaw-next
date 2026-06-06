@@ -134,18 +134,12 @@ export async function generateAnnouncementsAction(formData) {
     .order("lesson_slot", { ascending: true });
 
   if (planError) throw new Error(planError.message);
-  if (!planRows || planRows.length === 0) {
-    revalidatePath(`/classes/${course.id}/announcements`);
-    revalidatePath(`/classes/${course.id}/plan`);
-    redirect(`/classes/${course.id}/plan?announcements_updated=1&t=${Date.now()}`);
-  }
 
-  const lessonIds = [...new Set(planRows.map((row) => row.lesson_id).filter(Boolean))];
+  const lessonIds = [...new Set((planRows || []).map((row) => row.lesson_id).filter(Boolean))];
 
-  const { data: lessons, error: lessonsError } = await supabase
-    .from("curriculum_lessons")
-    .select("id, title, objective")
-    .in("id", lessonIds);
+  const { data: lessons, error: lessonsError } = lessonIds.length
+    ? await supabase.from("curriculum_lessons").select("id, title, objective").in("id", lessonIds)
+    : { data: [], error: null };
 
   if (lessonsError) throw new Error(lessonsError.message);
 
@@ -216,10 +210,9 @@ export async function generateAnnouncementsAction(formData) {
     templateRow?.regular_assignments || ""
   );
 
-  const { data: links, error: linksError } = await supabase
-    .from("curriculum_lesson_standards")
-    .select("lesson_id, standards(code)")
-    .in("lesson_id", lessonIds);
+  const { data: links, error: linksError } = lessonIds.length
+    ? await supabase.from("curriculum_lesson_standards").select("lesson_id, standards(code)").in("lesson_id", lessonIds)
+    : { data: [], error: null };
 
   if (linksError) throw new Error(linksError.message);
 
@@ -236,17 +229,13 @@ export async function generateAnnouncementsAction(formData) {
   }
 
   const planRowsByDate = new Map();
-  for (const row of planRows) {
+  for (const row of planRows || []) {
     const rowsForDate = planRowsByDate.get(row.class_date) || [];
     rowsForDate.push(row);
     planRowsByDate.set(row.class_date, rowsForDate);
   }
 
-  const rows = [...planRowsByDate.entries()].map(([classDate, rowsForDate]) => {
-    const firstRow = rowsForDate[0];
-    const lesson = lessonById.get(firstRow.lesson_id);
-    const standards = standardsByLesson.get(firstRow.lesson_id) || [];
-    const day = calendarByDate.get(classDate);
+  function buildAnnouncementContent({ classDate, rowsForDate, lesson, standards, day }) {
     const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
     const dayType = day?.day_type || "instructional";
     const lessonSummary = rowsForDate
@@ -256,11 +245,7 @@ export async function generateAnnouncementsAction(formData) {
       })
       .join("\n");
     const doNow = includeDoNow
-      ? buildDoNow({
-          lessonTitle: lesson?.title,
-          objective: lesson?.objective,
-          standards,
-        })
+      ? buildDoNow({ lessonTitle: lesson?.title, objective: lesson?.objective, standards })
       : "";
     const quote = includeQuote
       ? `Quote: "${buildQuote({ classDate, className: course.title })}"`
@@ -278,7 +263,7 @@ export async function generateAnnouncementsAction(formData) {
       class_name: course.title || "Class",
       day_type: dayType,
       reason: reasonLabel || "",
-      lesson_title: rowsForDate.length > 1 ? lessonSummary : lesson?.title || "TBD",
+      lesson_title: rowsForDate.length > 1 ? lessonSummary : lesson?.title || "Grace Day",
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
       day_number: dayNumber,
@@ -288,7 +273,7 @@ export async function generateAnnouncementsAction(formData) {
       quote,
     });
 
-    if (includeDoNow && !template.includes("{do_now}")) {
+    if (includeDoNow && doNow && !template.includes("{do_now}")) {
       content = `${content}\n${doNow}`.trim();
     }
     if (includeQuote && !template.includes("{quote}")) {
@@ -300,21 +285,37 @@ export async function generateAnnouncementsAction(formData) {
     if (includeDayOfWeek && dayOfWeek && !template.includes("{day_of_week}")) {
       content = `${content}\nDay of Week: ${dayOfWeek}`.trim();
     }
-    if (
-      includeRegularAssignments &&
-      regularAssignment &&
-      !template.includes("{regular_assignment}")
-    ) {
+    if (includeRegularAssignments && regularAssignment && !template.includes("{regular_assignment}")) {
       content = `${content}\nRegular Assignment: ${regularAssignment}`.trim();
     }
 
+    return content;
+  }
+
+  const rows = [...planRowsByDate.entries()].map(([classDate, rowsForDate]) => {
+    const firstRow = rowsForDate[0];
+    const lesson = lessonById.get(firstRow.lesson_id);
+    const standards = standardsByLesson.get(firstRow.lesson_id) || [];
+    const day = calendarByDate.get(classDate);
     return {
       course_id: course.id,
       class_date: classDate,
-      content,
+      content: buildAnnouncementContent({ classDate, rowsForDate, lesson, standards, day }),
       updated_at: new Date().toISOString(),
     };
   });
+
+  // Also generate announcements for non-off class days that have no lesson rows (e.g. grace days)
+  for (const [classDate, day] of calendarByDate.entries()) {
+    if (day.day_type === "off") continue;
+    if (planRowsByDate.has(classDate)) continue;
+    rows.push({
+      course_id: course.id,
+      class_date: classDate,
+      content: buildAnnouncementContent({ classDate, rowsForDate: [], lesson: null, standards: [], day }),
+      updated_at: new Date().toISOString(),
+    });
+  }
 
   const { error: upsertError } = await writeClient
     .from("course_announcements")

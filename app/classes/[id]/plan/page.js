@@ -329,19 +329,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
               | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
             </p>
           </div>
-          <div className="ctaRow">
-            <form action={generateAnnouncementsAction}>
-              <input type="hidden" name="course_id" value={course.id} />
-              <button className="btn" type="submit">Generate / Update Announcements</button>
-            </form>
-            <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
-          </div>
+          <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
         </div>
-        {announcementsUpdated ? (
-          <div className="controlStatusLineStatic" style={{ marginTop: "0.5rem" }}>
-            <span>Announcements Updated!</span>
-          </div>
-        ) : null}
       </section>
 
       <section className="card">
@@ -601,11 +590,20 @@ export default async function ClassPlanPage({ params, searchParams }) {
             </div>
 
             <div className="controlBar" style={{ marginTop: "0.75rem" }}>
+              <form action={generateAnnouncementsAction}>
+                <input type="hidden" name="course_id" value={course.id} />
+                <button className="btn" type="submit">Generate / Update Announcements</button>
+              </form>
               <form action={copyCalendarToOtherClassesAction}>
                 <input type="hidden" name="course_id" value={course.id} />
                 <button className="btn" type="submit">Copy Calendar to Other Classes</button>
               </form>
             </div>
+            {announcementsUpdated ? (
+              <div className="controlStatusLineStatic" style={{ marginTop: "0.5rem" }}>
+                <span>Announcements Updated!</span>
+              </div>
+            ) : null}
           </>
         )}
       </section>
