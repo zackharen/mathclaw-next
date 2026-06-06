@@ -18,6 +18,12 @@ import {
   updateCourseGameSettingAction,
 } from "./actions";
 
+function shortDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${m}/${d}/${y}`;
+}
+
 function getBestDisplayName(profile, metadata, email, fallback = "-") {
   return (
     profile?.display_name ||
@@ -311,7 +317,7 @@ export default async function ClassesPage({ searchParams }) {
                       : "Role: Co-Teacher"}
                 </p>
                 <p>
-                  {course.school_year_start} to {course.school_year_end}
+                  {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
                 </p>
                 {course.student_join_code ? (
                   <p style={{ fontSize: "0.95rem" }}>

@@ -3,6 +3,12 @@
 import { useMemo, useState } from "react";
 import { createClassAction } from "./actions";
 
+function shortDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${m}/${d}/${y}`;
+}
+
 export default function NewClassForm({
   timezone,
   libraries,
@@ -191,7 +197,7 @@ export default function NewClassForm({
           <option value="">No import (use default calendar)</option>
           {(existingCourses || []).map((course) => (
             <option key={course.id} value={course.id}>
-              {course.title} | {course.class_name} | {course.school_year_start} to {course.school_year_end}
+              {course.title} | {course.class_name} | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
             </option>
           ))}
         </select>

@@ -114,6 +114,12 @@ function normalizeWeekdayModifiers(raw) {
   return modifiers;
 }
 
+function shortDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${m}/${d}/${y}`;
+}
+
 function prettyDate(value) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(year, month - 1, day);
@@ -298,6 +304,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
   ).length;
   const plannedCount = planRows?.length || 0;
   const announcementCount = announcements?.length || 0;
+  const lastPlanRow = planRows[planRows.length - 1] || null;
+  const projectedEnd = curriculumEnabled
+    ? (lastPlanRow?.class_date || course.school_year_end)
+    : null;
 
   return (
     <div className="stack">
@@ -308,7 +318,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
           {course.schedule_model === "ab"
             ? `AB (${course.ab_meeting_day || "Both"})`
             : "Every Day"}{" "}
-          | {course.school_year_start} to {course.school_year_end}
+          | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
         </p>
       </section>
 
@@ -334,6 +344,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
             <strong>Generated Announcements</strong>
             <span>{announcementCount}</span>
           </div>
+          {projectedEnd ? (
+            <div>
+              <strong>Projected Final Lesson Date</strong>
+              <span>{shortDate(projectedEnd)}</span>
+            </div>
+          ) : null}
         </div>
       </section>
 
