@@ -18,6 +18,7 @@ import {
   generateCalendarAction,
   updateCalendarDayAction,
 } from "../calendar/actions";
+import { generateAnnouncementsAction } from "../announcements/actions";
 import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
@@ -328,8 +329,19 @@ export default async function ClassPlanPage({ params, searchParams }) {
               | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
             </p>
           </div>
-          <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+          <div className="ctaRow">
+            <form action={generateAnnouncementsAction}>
+              <input type="hidden" name="course_id" value={course.id} />
+              <button className="btn" type="submit">Generate / Update Announcements</button>
+            </form>
+            <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+          </div>
         </div>
+        {announcementsUpdated ? (
+          <div className="controlStatusLineStatic" style={{ marginTop: "0.5rem" }}>
+            <span>Announcements Updated!</span>
+          </div>
+        ) : null}
       </section>
 
       <section className="card">
@@ -584,7 +596,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
               </span>
               {abUpdated ? <span>AB Schedule Updated!</span> : null}
               {progressUpdated ? <span>Progress Updated!</span> : null}
-              {announcementsUpdated ? <span>Announcements Updated!</span> : null}
               {imported ? <span>Calendar Imported!</span> : null}
               {calendarCopied ? <span>Calendar copied to other classes.</span> : null}
             </div>
