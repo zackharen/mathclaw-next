@@ -16,6 +16,7 @@ import {
   deleteClassAction,
   regenerateStudentJoinCodeAction,
   removeCoTeacherAction,
+  updateClassSettingsAction,
   updateCourseGameSettingAction,
 } from "@/app/classes/actions";
 
@@ -82,6 +83,14 @@ function formatGameControlNotice(status, gameSlug) {
   if (status === "course-not-found") return "That class could not be found for game-control updates.";
   if (status === "unknown-game") return "That game could not be found.";
   if (status === "save-failed") return `Could not update ${gameLabel} for this class. Please try again.`;
+  return "";
+}
+
+function formatClassSettingsNotice(status) {
+  if (status === "updated") return "Class settings updated.";
+  if (status === "missing-data") return "Add both class names before saving.";
+  if (status === "course-not-found") return "That class could not be found for settings updates.";
+  if (status === "save-failed") return "Could not update class settings. Please try again.";
   return "";
 }
 
@@ -434,6 +443,16 @@ export default async function DashboardPage({ searchParams }) {
           <p>{formatGameControlNotice(String(qs.gameControlError), String(qs.gameSlug || ""))}</p>
         </div>
       ) : null}
+      {qs.classSettings ? (
+        <div className="card noticeSuccess">
+          <p>{formatClassSettingsNotice(String(qs.classSettings))}</p>
+        </div>
+      ) : null}
+      {qs.classSettingsError ? (
+        <div className="card noticeError">
+          <p>{formatClassSettingsNotice(String(qs.classSettingsError))}</p>
+        </div>
+      ) : null}
 
       <div className="list">
         {cards.map((card) => (
@@ -537,6 +556,34 @@ export default async function DashboardPage({ searchParams }) {
                     </form>
                   ) : null}
                 </div>
+
+                <details className="gameControlsDetails classNestedDetails">
+                  <summary className="gameControlsSummary">
+                    <div>
+                      <h2>Class Settings</h2>
+                      <p>Rename the class card and class label</p>
+                    </div>
+                    <span className="gameControlsToggle">
+                      <span className="showLabel">Show</span>
+                      <span className="hideLabel">Hide</span>
+                    </span>
+                  </summary>
+                  <div className="gameControlsBody classNestedBody">
+                    <form action={updateClassSettingsAction} className="classCoTeacherForm classSettingsForm">
+                      <input type="hidden" name="course_id" value={card.course.id} />
+                      <input type="hidden" name="return_to" value="dashboard" />
+                      <label>
+                        <span>Dashboard name</span>
+                        <input className="input" name="title" defaultValue={card.course.title || ""} required />
+                      </label>
+                      <label>
+                        <span>Class label</span>
+                        <input className="input" name="class_name" defaultValue={card.course.class_name || ""} required />
+                      </label>
+                      <button className="btn primary" type="submit">Save Class Settings</button>
+                    </form>
+                  </div>
+                </details>
 
                 {card.course.membership_role === "owner" ? (
                   <details className="gameControlsDetails classNestedDetails">

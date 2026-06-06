@@ -77,6 +77,73 @@ export async function deleteClassAction(formData) {
   revalidatePath("/dashboard");
 }
 
+export async function updateClassSettingsAction(formData) {
+  const courseId = String(formData.get("course_id") || "").trim();
+  const title = String(formData.get("title") || "").trim();
+  const className = String(formData.get("class_name") || "").trim();
+  const returnTo = normalizeReturnTo(String(formData.get("return_to") || ""));
+
+  if (!courseId || !title || !className) {
+    redirect(buildRedirectPath({ returnTo, courseId, params: { classSettingsError: "missing-data" } }));
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/dashboard");
+  }
+
+  const accountType = await getAccountTypeForUser(supabase, user);
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const course = access?.course;
+
+  if (!course) {
+    await logInternalEvent({
+      eventKey: "teacher_class_settings_course_not_found",
+      source: "classes.actions",
+      level: "warning",
+      message: "Teacher attempted to rename a missing or inaccessible course",
+      user,
+      accountType,
+      courseId,
+      context: { returnTo },
+    });
+    redirect(buildRedirectPath({ returnTo, courseId, params: { classSettingsError: "course-not-found" } }));
+  }
+
+  const writeClient = getCourseWriteClient(access, supabase);
+  const { error } = await writeClient
+    .from("courses")
+    .update({
+      title,
+      class_name: className,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", course.id);
+
+  if (error) {
+    await logInternalEvent({
+      eventKey: "teacher_class_settings_save_failed",
+      source: "classes.actions",
+      message: error.message,
+      user,
+      accountType,
+      courseId: course.id,
+      context: { returnTo },
+    });
+    redirect(buildRedirectPath({ returnTo, courseId: course.id, params: { classSettingsError: "save-failed" } }));
+  }
+
+  revalidatePath("/classes");
+  revalidatePath("/dashboard");
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/students`);
+  redirect(buildRedirectPath({ returnTo, courseId: course.id, params: { classSettings: "updated" } }));
+}
+
 export async function regenerateStudentJoinCodeAction(formData) {
   const courseId = formData.get("course_id");
   const returnTo = normalizeReturnTo(String(formData.get("return_to") || ""));
