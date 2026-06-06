@@ -649,7 +649,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       Day Type: {day.day_type}
                     </p>
 
+                    {announcementText ? (
+                      <pre className="announcementText">{announcementText}</pre>
+                    ) : null}
+
                     <div className="ctaRow compactDayActions">
+                      {announcementText ? <CopyButton text={announcementText} /> : null}
                       <details className="dayModifyDetails">
                         <summary className="btn">Modify This Day</summary>
                         <form
