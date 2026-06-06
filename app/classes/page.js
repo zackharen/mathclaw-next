@@ -17,6 +17,7 @@ import {
   removeCoTeacherAction,
   updateCourseGameSettingAction,
 } from "./actions";
+import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
 
 function shortDate(iso) {
   if (!iso) return "";
@@ -157,6 +158,7 @@ export default async function ClassesPage({ searchParams }) {
       }),
     ]);
     gameSettingsByKey = await listCourseGameSettingsMap(courses.map((course) => course.id));
+    courses = sortCoursesAlphabetically(courses);
 
     const ownerCourses = courses.filter((course) => course.membership_role === "owner");
     const ownerCourseIds = ownerCourses.map((course) => course.id);
@@ -304,133 +306,179 @@ export default async function ClassesPage({ searchParams }) {
               }));
 
               return (
-              <article key={course.id} className="card" style={{ background: "#fff" }}>
-                <h3>{course.title}</h3>
-                <p>
-                  {course.class_name} | {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"}
-                </p>
-                <p style={{ fontSize: "0.9rem", opacity: 0.8 }}>
-                  {course.membership_role === "owner"
-                    ? "Role: Owner"
-                    : course.membership_role === "admin"
-                      ? "Role: Admin"
-                      : "Role: Co-Teacher"}
-                </p>
-                <p>
-                  {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
-                </p>
-                {course.student_join_code ? (
-                  <p style={{ fontSize: "0.95rem" }}>
-                    Student Join Code: <strong>{course.student_join_code}</strong>
-                  </p>
-                ) : null}
-                <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>Course ID: {course.id}</p>
-                {course.membership_role === "owner" ? (
-                  <div className="classCoTeacherBlock">
-                    <p className="classCoTeacherHeading">Co-Teachers</p>
-                    {currentCoTeachers.length > 0 ? (
-                      <div className="classCoTeacherList">
-                        {currentCoTeachers.map((teacher) => (
-                          <div key={teacher.profileId} className="classCoTeacherItem">
+                <article key={course.id} className="card classCourseCard">
+                  <details className="arcadeSectionDetails classCourseDetails">
+                    <summary className="arcadeSectionSummary classCourseSummary">
+                      <div>
+                        <h2>{course.title}</h2>
+                        <p>
+                          {course.class_name} ·{" "}
+                          {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"} ·{" "}
+                          {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
+                        </p>
+                      </div>
+                      <span className="arcadeSectionToggle">
+                        <span className="showLabel">Show</span>
+                        <span className="hideLabel">Hide</span>
+                      </span>
+                    </summary>
+                    <div className="arcadeSectionBody classCourseBody">
+                      <div className="classCourseMetaGrid">
+                        <div>
+                          <strong>Role</strong>
+                          <span>
+                            {course.membership_role === "owner"
+                              ? "Owner"
+                              : course.membership_role === "admin"
+                                ? "Admin"
+                                : "Co-Teacher"}
+                          </span>
+                        </div>
+                        <div>
+                          <strong>Dates</strong>
+                          <span>{shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}</span>
+                        </div>
+                        <div>
+                          <strong>Join Code</strong>
+                          <span>{course.student_join_code || "Not set yet"}</span>
+                        </div>
+                      </div>
+
+                      <div className="ctaRow">
+                        <Link className="btn" href={`/classes/${course.id}/plan`}>
+                          Open Plan
+                        </Link>
+                        <Link className="btn" href={`/classes/${course.id}/students`}>
+                          Student Progress
+                        </Link>
+                        {course.student_join_code ? (
+                          <form action={regenerateStudentJoinCodeAction}>
+                            <input type="hidden" name="course_id" value={course.id} />
+                            <input type="hidden" name="return_to" value="classes" />
+                            <button className="btn" type="submit">
+                              New Join Code
+                            </button>
+                          </form>
+                        ) : null}
+                        {course.membership_role === "owner" || course.membership_role === "admin" ? (
+                          <form action={deleteClassAction}>
+                            <input type="hidden" name="course_id" value={course.id} />
+                            <button className="btn danger" type="submit">
+                              Delete Class
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+
+                      {course.membership_role === "owner" ? (
+                        <details className="gameControlsDetails classNestedDetails">
+                          <summary className="gameControlsSummary">
                             <div>
-                              <strong>{teacher.displayName}</strong>
-                              <span>{teacher.email}</span>
+                              <h2>Co-Teachers</h2>
+                              <p>{currentCoTeachers.length} co-teacher{currentCoTeachers.length === 1 ? "" : "s"} connected</p>
                             </div>
-                            <form action={removeCoTeacherAction}>
+                            <span className="gameControlsToggle">
+                              <span className="showLabel">Show</span>
+                              <span className="hideLabel">Hide</span>
+                            </span>
+                          </summary>
+                          <div className="gameControlsBody classNestedBody">
+                            {currentCoTeachers.length > 0 ? (
+                              <div className="classCoTeacherList">
+                                {currentCoTeachers.map((teacher) => (
+                                  <div key={teacher.profileId} className="classCoTeacherItem">
+                                    <div>
+                                      <strong>{teacher.displayName}</strong>
+                                      <span>{teacher.email}</span>
+                                    </div>
+                                    <form action={removeCoTeacherAction}>
+                                      <input type="hidden" name="course_id" value={course.id} />
+                                      <input type="hidden" name="profile_id" value={teacher.profileId} />
+                                      <input type="hidden" name="return_to" value="classes" />
+                                      <button className="btn ghost" type="submit">
+                                        Remove Co-Teacher
+                                      </button>
+                                    </form>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="classCoTeacherEmpty">No co-teachers yet.</p>
+                            )}
+                            <form action={addCoTeacherAction} className="classCoTeacherForm">
                               <input type="hidden" name="course_id" value={course.id} />
-                              <input type="hidden" name="profile_id" value={teacher.profileId} />
                               <input type="hidden" name="return_to" value="classes" />
-                              <button className="btn ghost" type="submit">
-                                Remove Co-Teacher
+                              <select className="input" name="profile_id" defaultValue="" disabled={availableCoTeachers.length === 0}>
+                                <option value="" disabled>
+                                  {availableCoTeachers.length > 0 ? "Add a co-teacher" : "No more teachers available"}
+                                </option>
+                                {availableCoTeachers.map((candidate) => (
+                                  <option key={candidate.id} value={candidate.id}>
+                                    {candidate.displayName}
+                                    {candidate.email ? ` · ${candidate.email}` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                              <button className="btn ghost" type="submit" disabled={availableCoTeachers.length === 0}>
+                                Add Co-Teacher
                               </button>
                             </form>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="classCoTeacherEmpty">No co-teachers yet.</p>
-                    )}
-                    <form action={addCoTeacherAction} className="classCoTeacherForm">
-                      <input type="hidden" name="course_id" value={course.id} />
-                      <input type="hidden" name="return_to" value="classes" />
-                      <select className="input" name="profile_id" defaultValue="" disabled={availableCoTeachers.length === 0}>
-                        <option value="" disabled>
-                          {availableCoTeachers.length > 0 ? "Add a co-teacher" : "No more teachers available"}
-                        </option>
-                        {availableCoTeachers.map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>
-                            {candidate.displayName}
-                            {candidate.email ? ` · ${candidate.email}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <button className="btn ghost" type="submit" disabled={availableCoTeachers.length === 0}>
-                        Add Co-Teacher
-                      </button>
-                    </form>
-                  </div>
-                ) : null}
-                <div className="classGameControlsBlock">
-                  <p className="classCoTeacherHeading">Game Controls</p>
-                  <p className="classGameControlsIntro">
-                    Enabled games appear in the Student Arcade for this class. Hidden games stay out of students&apos; class-linked game list.
-                  </p>
-                  <div className="classGameControlsList">
-                    {courseGames.map((game) => (
-                      <form
-                        key={`${course.id}:${game.slug}`}
-                        action={updateCourseGameSettingAction}
-                        className={`classGameControlItem ${game.enabled ? "isEnabled" : "isHidden"}`}
-                        >
-                          <input type="hidden" name="course_id" value={course.id} />
-                          <input type="hidden" name="game_slug" value={game.slug} />
-                          <input type="hidden" name="enabled" value={String(!game.enabled)} />
-                          <input type="hidden" name="return_to" value="classes" />
-                          <div className="classGameControlCopy">
-                          <div className="classGameControlTopline">
-                            <strong>{game.name}</strong>
-                            <span className={`pill classGameStatusPill ${game.studentEnabled ? "isEnabled" : "isHidden"}`}>
-                              {game.studentEnabled ? "Live for students" : "Hidden from students"}
-                            </span>
+                        </details>
+                      ) : null}
+
+                      <details className="gameControlsDetails classNestedDetails">
+                        <summary className="gameControlsSummary">
+                          <div>
+                            <h2>Game Controls</h2>
+                            <p>
+                              {courseGames.filter((game) => game.studentEnabled).length} of {courseGames.length} games live for students
+                            </p>
                           </div>
-                          <span>{game.studentEnabled ? "Students in this class can launch it now." : "Students will not see this in their class game list."}</span>
-                          <p>{getGameSupportCopy(game)}</p>
-                          <p><strong>Site-wide rollout:</strong> {game.siteStatusLabel}</p>
+                          <span className="gameControlsToggle">
+                            <span className="showLabel">Show</span>
+                            <span className="hideLabel">Hide</span>
+                          </span>
+                        </summary>
+                        <div className="gameControlsBody classNestedBody">
+                          <p className="classGameControlsIntro">
+                            Enabled games appear in the Student Arcade for this class. Hidden games stay out of students&apos; class-linked game list.
+                          </p>
+                          <div className="classGameControlsList">
+                            {courseGames.map((game) => (
+                              <form
+                                key={`${course.id}:${game.slug}`}
+                                action={updateCourseGameSettingAction}
+                                className={`classGameControlItem ${game.enabled ? "isEnabled" : "isHidden"}`}
+                              >
+                                <input type="hidden" name="course_id" value={course.id} />
+                                <input type="hidden" name="game_slug" value={game.slug} />
+                                <input type="hidden" name="enabled" value={String(!game.enabled)} />
+                                <input type="hidden" name="return_to" value="classes" />
+                                <div className="classGameControlCopy">
+                                  <div className="classGameControlTopline">
+                                    <strong>{game.name}</strong>
+                                    <span className={`pill classGameStatusPill ${game.studentEnabled ? "isEnabled" : "isHidden"}`}>
+                                      {game.studentEnabled ? "Live for students" : "Hidden from students"}
+                                    </span>
+                                  </div>
+                                  <span>{game.studentEnabled ? "Students in this class can launch it now." : "Students will not see this in their class game list."}</span>
+                                  <p>{getGameSupportCopy(game)}</p>
+                                  <p><strong>Site-wide rollout:</strong> {game.siteStatusLabel}</p>
+                                </div>
+                                <button className={`btn ${game.courseEnabled ? "ghost" : "primary"}`} type="submit">
+                                  {game.courseEnabled ? "Hide Game" : "Show Game"}
+                                </button>
+                              </form>
+                            ))}
+                          </div>
                         </div>
-                        <button className={`btn ${game.courseEnabled ? "ghost" : "primary"}`} type="submit">
-                          {game.courseEnabled ? "Hide Game" : "Show Game"}
-                        </button>
-                      </form>
-                    ))}
-                  </div>
-                </div>
-                <div className="ctaRow">
-                  <Link className="btn" href={`/classes/${course.id}/plan`}>
-                    Open Plan
-                  </Link>
-                  <Link className="btn" href={`/classes/${course.id}/students`}>
-                    Student Progress
-                  </Link>
-                  {course.student_join_code ? (
-                    <form action={regenerateStudentJoinCodeAction}>
-                      <input type="hidden" name="course_id" value={course.id} />
-                      <input type="hidden" name="return_to" value="classes" />
-                      <button className="btn" type="submit">
-                        New Join Code
-                      </button>
-                    </form>
-                  ) : null}
-                  {course.membership_role === "owner" || course.membership_role === "admin" ? (
-                    <form action={deleteClassAction}>
-                      <input type="hidden" name="course_id" value={course.id} />
-                      <button className="btn danger" type="submit">
-                        Delete Class
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
-              </article>
-            )})}
+                      </details>
+                    </div>
+                  </details>
+                </article>
+              );
+            })}
           </div>
         ) : null}
       </section>

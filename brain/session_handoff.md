@@ -8,7 +8,7 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-06 America/New_York (Class Plan checkbox alignment polish)
+2026-06-06 America/New_York (Classes page collapsible redesign)
 
 ## What Was Built (2026-06-05 Session — Class Plan overhaul)
 - **Grace Day added as a new `day_type`** (`supabase/migrations_20260605_grace_day_type.sql`, `app/classes/[id]/calendar/actions.js`, `lib/planning/rebuild-plan.js`, `app/classes/[id]/plan/page.js`): Grace days are school days that keep their A/B label but get no lesson slot. They appear in all day_type dropdowns. The pacing engine filters `grace_day` the same as `off`. Migration extends the `course_calendar_days.day_type` check constraint — **must be applied to production Supabase before saving Grace Days.**
@@ -23,6 +23,7 @@ This file represents the **current state only**. It should stay short enough to 
 - All commits pushed to `origin/main`; builds verified with `node --check` + `npm run build`.
 
 ## Current State For Fresh Chat
+- Latest local work updates the teacher `/classes` page (`app/classes/page.js`, `app/globals.css`): classes now sort alphabetically using the shared `sortCoursesAlphabetically` helper, each class renders as an arcade-style collapsible card, and Co-Teachers / Game Controls are nested collapsible sections inside each class. The class summary now shows the key schedule/date context while detailed controls stay tucked away until expanded. Verification passed: `node --check app/classes/page.js`; `git diff --check`; `npm run build`. Local browser verification still could not run because `next start --port 3001 --hostname 127.0.0.1` was blocked by sandbox `EPERM`.
 - Latest local polish centers the Class Plan **Apply to all my classes** checkbox against its label and the **Update Schedule** button (`app/globals.css`) by aligning the schedule action row and removing the checkbox input's default margin. Verification passed: `git diff --check`; `npm run build`.
 - Latest local work simplifies the Class Plan **Modify Calendar** action buttons (`app/classes/[id]/plan/page.js`, `app/classes/[id]/calendar/actions.js`, `app/classes/[id]/announcements/actions.js`, `app/classes/[id]/plan/apply-calendar-submit.js`): **Update Schedule** now applies pacing mode/modifier changes, saves visible calendar editor changes, rebuilds the lesson plan, optionally copies calendar changes to other classes when **Apply to all my classes** is checked, and regenerates announcements. Removed the separate visible Auto-Regenerate, Apply Pacing Mode, Apply Calendar Changes, Generate / Update Announcements, and Copy Calendar to Other Classes buttons from that control cluster; **Show Full Calendar Editor** remains as a disclosure.
 - Verification for the one-button schedule update passed: focused `node --check` on changed JS files, `git diff --check`, and `npm run build`. Local browser verification still could not run because `next start --port 3001 --hostname 127.0.0.1` was blocked by sandbox `EPERM`.

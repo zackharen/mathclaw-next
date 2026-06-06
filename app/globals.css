@@ -347,6 +347,56 @@ p {
   color: #4f6476;
 }
 
+.classCourseCard {
+  background: #fff;
+}
+
+.classCourseSummary h2 {
+  font-size: 1.45rem;
+}
+
+.classCourseBody {
+  display: grid;
+  gap: 1rem;
+}
+
+.classCourseMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.classCourseMetaGrid > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 1px solid #93a5b4;
+  border-radius: 8px;
+  background: #f9fbfc;
+}
+
+.classCourseMetaGrid strong {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  color: var(--navy);
+}
+
+.classCourseMetaGrid span {
+  color: #4f6476;
+}
+
+.classNestedDetails {
+  margin-top: 0;
+  padding: 0.85rem;
+  border: 1px solid #93a5b4;
+  border-radius: 8px;
+  background: #f9fbfc;
+}
+
+.classNestedBody {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .bugReportForm {
   display: grid;
   gap: 0.9rem;
@@ -494,6 +544,10 @@ p {
 
   .classGameControlItem .btn {
     width: 100%;
+  }
+
+  .classCourseMetaGrid {
+    grid-template-columns: 1fr;
   }
 
   .adminTwoColumnLogGrid {
