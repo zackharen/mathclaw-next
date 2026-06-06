@@ -371,17 +371,21 @@ export default async function ClassPlanPage({ params, searchParams }) {
             <input type="hidden" name="course_id" value={course.id} />
             <input
               className="input"
-              type="date"
+              type="text"
               name="school_year_start"
-              defaultValue={course.school_year_start}
+              defaultValue={shortDate(course.school_year_start)}
+              placeholder="M/D/YYYY"
               aria-label="Class start date"
+              style={{ width: 110 }}
             />
             <input
               className="input"
-              type="date"
+              type="text"
               name="school_year_end"
-              defaultValue={course.school_year_end}
+              defaultValue={shortDate(course.school_year_end)}
+              placeholder="M/D/YYYY"
               aria-label="Class end date"
+              style={{ width: 110 }}
             />
             <button className="btn" type="submit">Update Dates</button>
           </form>

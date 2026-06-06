@@ -41,6 +41,20 @@ function isValidISODate(value) {
   return toISODate(parsed) === value;
 }
 
+function parseFlexibleDate(value) {
+  if (!value || typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (ISO_DATE_PATTERN.test(trimmed)) {
+    return isValidISODate(trimmed) ? trimmed : null;
+  }
+  const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) {
+    const iso = `${slash[3]}-${String(slash[1]).padStart(2, "0")}-${String(slash[2]).padStart(2, "0")}`;
+    return isValidISODate(iso) ? iso : null;
+  }
+  return null;
+}
+
 function isWeekend(date) {
   const day = date.getUTCDay();
   return day === 0 || day === 6;
@@ -180,16 +194,10 @@ export async function generatePacingAction(formData) {
 export async function updateCourseDateRangeAction(formData) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
-  const startDate = String(formData.get("school_year_start") || "").trim();
-  const endDate = String(formData.get("school_year_end") || "").trim();
+  const startDate = parseFlexibleDate(String(formData.get("school_year_start") || ""));
+  const endDate = parseFlexibleDate(String(formData.get("school_year_end") || ""));
 
-  if (
-    typeof courseId !== "string" ||
-    !courseId ||
-    !isValidISODate(startDate) ||
-    !isValidISODate(endDate) ||
-    startDate >= endDate
-  ) {
+  if (typeof courseId !== "string" || !courseId || !startDate || !endDate || startDate >= endDate) {
     return;
   }
 
