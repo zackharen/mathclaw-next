@@ -16,12 +16,17 @@ import {
 import { logInternalEvent } from "@/lib/observability/events";
 
 function normalizeReturnTo(value) {
+  if (value === "dashboard") return "dashboard";
   return value === "students" ? "students" : "classes";
 }
 
 function buildRedirectPath({ returnTo, courseId, params }) {
   const targetPath =
-    returnTo === "students" && courseId ? `/classes/${courseId}/students` : "/classes";
+    returnTo === "students" && courseId
+      ? `/classes/${courseId}/students`
+      : returnTo === "dashboard"
+        ? "/dashboard"
+        : "/classes";
   const query = new URLSearchParams(
     Object.entries(params).filter(([, value]) => value !== null && value !== undefined && value !== "")
   );
@@ -69,6 +74,7 @@ export async function deleteClassAction(formData) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/classes");
+  revalidatePath("/dashboard");
 }
 
 export async function regenerateStudentJoinCodeAction(formData) {
@@ -121,6 +127,7 @@ export async function regenerateStudentJoinCodeAction(formData) {
 
     if (!error) {
       revalidatePath("/classes");
+      revalidatePath("/dashboard");
       revalidatePath(`/classes/${course.id}/students`);
       redirect(
         buildRedirectPath({
@@ -294,6 +301,7 @@ export async function addCoTeacherAction(formData) {
   }
 
   revalidatePath("/classes");
+  revalidatePath("/dashboard");
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/students`);
   redirect(buildRedirectPath({ returnTo, courseId: course.id, params: { coTeacher: "added" } }));
@@ -482,6 +490,7 @@ export async function removeCoTeacherAction(formData) {
   }
 
   revalidatePath("/classes");
+  revalidatePath("/dashboard");
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/students`);
   redirect(buildRedirectPath({ returnTo, courseId: course.id, params: { coTeacher: "removed" } }));
@@ -558,6 +567,7 @@ export async function updateCourseGameSettingAction(formData) {
   }
 
   revalidatePath("/classes");
+  revalidatePath("/dashboard");
   revalidatePath("/play");
   revalidatePath("/play/2048");
   revalidatePath("/play/integer-practice");
