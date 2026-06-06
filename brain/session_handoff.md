@@ -8,7 +8,19 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-05 America/New_York (AB off-day sequence shipped live)
+2026-06-05 America/New_York (Class Plan overhaul session)
+
+## What Was Built (2026-06-05 Session — Class Plan overhaul)
+- **Grace Day added as a new `day_type`** (`supabase/migrations_20260605_grace_day_type.sql`, `app/classes/[id]/calendar/actions.js`, `lib/planning/rebuild-plan.js`, `app/classes/[id]/plan/page.js`): Grace days are school days that keep their A/B label but get no lesson slot. They appear in all day_type dropdowns. The pacing engine filters `grace_day` the same as `off`. Migration extends the `course_calendar_days.day_type` check constraint — **must be applied to production Supabase before saving Grace Days.**
+- **Class Plan controls reorganized**: date range form and pacing mode form moved from the top card into the Modify Calendar section. Back to Classes button removed (topbar nav covers it).
+- **Copy Calendar to Other Classes**: new button in Modify Calendar. Copies all non-grace day_type and reason_id values to all other teacher-owned courses for overlapping date ranges, then rebuilds plans for affected courses. Grace days are excluded from the copy.
+- **Apply to all my classes checkbox**: added to the Apply Calendar Changes form. When checked, the bulk calendar update also runs the copy-to-other-classes logic in one action.
+- **Weekend rows hidden for Every Day classes**: `visibleCalendarDays` now filters weekends for non-AB classes (same filter AB classes already used). Weekends no longer appear in the plan view.
+- **Short date format site-wide**: ISO dates (`2026-09-02`) replaced with `M/D/YYYY` (`9/2/2026`) in plan page subtitle, class list cards, and new-class import dropdown. `shortDate()` helper added locally to each file. Date input fields changed from `type="date"` (picker) to `type="text"` so teachers can type dates; action accepts both `M/D/YYYY` and `YYYY-MM-DD`.
+- **Projected Final Lesson Date on plan stats card**: computed from last lesson plan row (same logic as dashboard `projectedEnd`); shown only when curriculum is enabled.
+- **kv label column widened**: `210px` → `240px` so "Generated Announcements" and similar labels fit on one line.
+- **Arcade Suggestions toggle**: checkbox in top-right of plan page header card. Unchecking hides all Suggested MathClaw Skills blocks on lesson cards. State stored in `hide_arcade_suggestions` browser cookie — applies across all class plan pages on same browser, no migration needed. Implemented as a client component (`arcade-suggestions-toggle.js`) that sets the cookie and calls `router.refresh()`.
+- All commits pushed to `origin/main`; builds verified with `node --check` + `npm run build`.
 
 ## Current State For Fresh Chat
 - Latest AB fix changes the A/B sequence so `off` calendar days do not receive an A/B label and do not advance the sequence. Half, modified, and instructional days do advance it. This touched `app/classes/[id]/plan/actions.js`, `app/classes/[id]/calendar/actions.js`, `app/classes/[id]/plan/page.js`, `app/classes/new/actions.js`, and `app/onboarding/profile/actions.js`.
@@ -37,6 +49,10 @@ This file represents the **current state only**. It should stay short enough to 
 - Latest local verification: `node --check` on changed Projector JS/page files passed; `git diff --check` passed; `npm run build` passed; built server on `localhost:3001` returned 307 for unauthenticated `/projector` and 200 for `/projector/screen`.
 - Local verification caveat: authenticated teacher UI/browser testing has repeatedly been blocked by lack of a local signed-in teacher session. In the latest run, `next dev` also reproduced the known local `EMFILE` watcher warnings and served 404s, so route checks used `next start --port 3001` after a successful build.
 - Local repo caveat: `.claude/settings.json` and `brain/future_ideas.md` have unrelated uncommitted changes. Do not revert or stage them unless Zack explicitly asks.
+- **Class Plan page shape (current)**: top card shows title + subtitle + Arcade Suggestions toggle (top-right). Modify Calendar section contains date range form, pacing mode form, AB schedule, bulk calendar editor (with Apply to All Classes checkbox), Copy Calendar to Other Classes button. Stats card has Class Days, Full Days, Library Lessons, Planned Lessons, Generated Announcements, and Projected Final Lesson Date.
+- **Grace Day** is a new `day_type` in code. Migration `migrations_20260605_grace_day_type.sql` is **not yet applied to production**. Until applied, saving a Grace Day will hit a DB check constraint error. All other day types work normally.
+- **Copy Calendar / Apply to All Classes**: both copy non-grace day types + reasons to all other teacher-owned courses for overlapping dates, then rebuild plans. Grace days stay local.
+- **Arcade Suggestions toggle**: stored in `hide_arcade_suggestions` browser cookie. Per-browser, not per-account. No DB storage.
 
 ## What Was Built (2026-06-04 Session — Projector Question Builder)
 - **Projector saved-item Question Builder implemented without a migration** (`app/projector/page.js`, `app/projector/projector-client.js`, `app/projector/screen/screen-client.js`, `app/api/projector/route.js`, `app/globals.css`):
@@ -394,6 +410,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 -->
 
 ## Migrations Or Policy Changes Made
+- Created `/supabase/migrations_20260605_grace_day_type.sql`; extends the `course_calendar_days.day_type` check constraint to include `grace_day`. **Not yet applied to production.** Must be applied before teachers can save Grace Day type on any calendar row.
 - Created `/supabase/migrations_20260601_projector_sessions.sql` and applied it to production Supabase project `mathclaw-prod` (`ruaaznacaywngewxyged`) on 2026-06-01 via the Supabase connector. The apply call returned `success: true`; follow-up migration listing was blocked by connector reauthentication.
 - Created `/supabase/migrations_20260601_projector_library_items.sql` and applied it to production Supabase project `mathclaw-prod` (`ruaaznacaywngewxyged`) on 2026-06-01 via the Supabase connector. The apply call returned `success: true`; migration list verification showed `projector_library_items` at version `20260602000202`.
 - Created `/supabase/migrations_20260602_projector_scene_library_items.sql` and applied it to production Supabase project `mathclaw-prod` (`ruaaznacaywngewxyged`) on 2026-06-02 via the Supabase connector. The apply call returned `success: true`; migration list verification showed `projector_scene_library_items` at version `20260602134120`.
@@ -411,7 +428,8 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - required before Lowest Number Wins works with real classes.
+1. **Run `migrations_20260605_grace_day_type.sql` in production Supabase** - required before Grace Day can be saved. Use the Supabase SQL editor on project `ruaaznacaywngewxyged`.
+2. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - required before Lowest Number Wins works with real classes.
 2. **Run `migrations_20260506_connect4_tournaments.sql` in production Supabase** - required before Connect 4 Tournament Mode works for authenticated users.
 3. **Projector next build: Word Walls / Data Walls** — `Word Walls` need a multi-term input that renders as a grid on the projector screen. `Data Walls` need a structured data display. The other 3 categories (`Activities`, `News`, `Announcements`) are fine with the existing composer. Load `brain/future_ideas.md` → "Projector Classroom Display System" before implementing.
 3a. **Projector next build: Playlists / Timed Rotations** - group saved items or scenes into timed rotations per screen or across all screens. Load `brain/future_ideas.md` -> "Projector Classroom Display System" before implementing.
