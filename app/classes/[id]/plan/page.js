@@ -285,7 +285,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const meetsB = course.ab_meeting_day !== "A";
 
   const visibleCalendarDays = calendarDays.filter((day) => {
-    if (course.schedule_model !== "ab") return true;
+    if (course.schedule_model !== "ab") return !isWeekendISODate(day.class_date);
     if (day.day_type === "off") return !isWeekendISODate(day.class_date);
     if (day.ab_day !== "A" && day.ab_day !== "B") return false;
     if (course.ab_meeting_day === "A") return day.ab_day === "A";
@@ -456,6 +456,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
               <form action={applyCalendarBulkAction} className="inlineControlForm" data-auto-regenerate-target="1">
                 <input type="hidden" name="course_id" value={course.id} />
                 <AutoRegenerateToggle />
+                <label className="calendarSelectCell">
+                  <input type="checkbox" name="copy_to_all" value="1" />
+                  <span>Apply to all my classes</span>
+                </label>
                 <ApplyCalendarSubmit calendarUpdated={calendarUpdated} />
 
                 <details className="inlineDetails">

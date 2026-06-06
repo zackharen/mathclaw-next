@@ -238,6 +238,63 @@ export async function generateCalendarAction(formData) {
   redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}`);
 }
 
+async function copyCourseCalendarToOthers({ supabase, writeClient, course, userId }) {
+  const { data: sourceDays } = await writeClient
+    .from("course_calendar_days")
+    .select("class_date, day_type, reason_id")
+    .eq("course_id", course.id)
+    .neq("day_type", "grace_day")
+    .order("class_date", { ascending: true });
+
+  if (!sourceDays || sourceDays.length === 0) return [];
+
+  const { data: otherCourses } = await supabase
+    .from("courses")
+    .select("id, school_year_start, school_year_end, schedule_model, ab_pattern_start_date")
+    .eq("owner_id", course.owner_id)
+    .neq("id", course.id);
+
+  if (!otherCourses || otherCourses.length === 0) return [];
+
+  const affectedCourseIds = [];
+
+  for (const targetCourse of otherCourses) {
+    const overlappingDays = sourceDays.filter(
+      (d) =>
+        d.class_date >= targetCourse.school_year_start &&
+        d.class_date <= targetCourse.school_year_end
+    );
+    if (overlappingDays.length === 0) continue;
+
+    const { data: targetExisting } = await supabase
+      .from("course_calendar_days")
+      .select("class_date")
+      .eq("course_id", targetCourse.id);
+
+    const targetDatesSet = new Set((targetExisting || []).map((d) => d.class_date));
+    const daysToUpdate = overlappingDays.filter((d) => targetDatesSet.has(d.class_date));
+    if (daysToUpdate.length === 0) continue;
+
+    for (const day of daysToUpdate) {
+      await supabase
+        .from("course_calendar_days")
+        .update({
+          day_type: day.day_type,
+          reason_id: day.reason_id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("course_id", targetCourse.id)
+        .eq("class_date", day.class_date);
+    }
+
+    await relabelExistingABDays({ writeClient: supabase, course: targetCourse });
+    await rebuildPlanFromCalendar({ supabase, courseId: targetCourse.id, userId });
+    affectedCourseIds.push(targetCourse.id);
+  }
+
+  return affectedCourseIds;
+}
+
 export async function applyCalendarBulkAction(formData) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
@@ -261,6 +318,7 @@ export async function applyCalendarBulkAction(formData) {
   if (!course) return;
   const writeClient = getCourseWriteClient(access, supabase);
 
+  const copyToAll = formData.get("copy_to_all") === "1";
   const { updates, selectedDates } = parseBulkUpdates(formData);
   const selectedDayType = String(formData.get("selected_day_type") || "");
   const selectedReasonId = String(formData.get("selected_reason_id") || "");
@@ -304,6 +362,16 @@ export async function applyCalendarBulkAction(formData) {
   const relabeledDays = await relabelExistingABDays({ writeClient, course });
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
+  let affectedCourseIds = [];
+  if (copyToAll) {
+    affectedCourseIds = await copyCourseCalendarToOthers({
+      supabase,
+      writeClient,
+      course,
+      userId: user.id,
+    });
+  }
+
   perfLog("applyCalendarBulkAction", {
     course: course.id,
     updates: updatedCount,
@@ -314,13 +382,20 @@ export async function applyCalendarBulkAction(formData) {
       : 0,
     bulkScope,
     relabeledDays,
+    copyToAll,
+    affectedCourses: affectedCourseIds.length,
     ms: Date.now() - actionStart,
   });
 
+  for (const id of affectedCourseIds) {
+    revalidatePath(`/classes/${id}/plan`);
+    revalidatePath(`/classes/${id}/calendar`);
+  }
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan?calendar_updated=1&t=${Date.now()}#modify-calendar`);
+  const copied = affectedCourseIds.length > 0 ? "&calendar_copied=1" : "";
+  redirect(`/classes/${course.id}/plan?calendar_updated=1${copied}&t=${Date.now()}#modify-calendar`);
 }
 
 export async function updateCalendarDayAction(formData) {
@@ -423,68 +498,15 @@ export async function copyCalendarToOtherClassesAction(formData) {
   if (!course) return;
   const writeClient = getCourseWriteClient(access, supabase);
 
-  // Load source calendar, skipping grace_day (those are class-specific)
-  const { data: sourceDays } = await writeClient
-    .from("course_calendar_days")
-    .select("class_date, day_type, reason_id")
-    .eq("course_id", course.id)
-    .neq("day_type", "grace_day")
-    .order("class_date", { ascending: true });
-
-  if (!sourceDays || sourceDays.length === 0) {
-    redirect(`/classes/${courseId}/plan?calendar_copied=1&t=${Date.now()}#modify-calendar`);
-  }
-
-  // Get all other courses this teacher owns
-  const { data: otherCourses } = await supabase
-    .from("courses")
-    .select("id, school_year_start, school_year_end, schedule_model, ab_pattern_start_date")
-    .eq("owner_id", user.id)
-    .neq("id", courseId);
-
-  if (!otherCourses || otherCourses.length === 0) {
-    redirect(`/classes/${courseId}/plan?calendar_copied=1&t=${Date.now()}#modify-calendar`);
-  }
-
-  const affectedCourseIds = [];
-
-  for (const targetCourse of otherCourses) {
-    const overlappingDays = sourceDays.filter(
-      (d) =>
-        d.class_date >= targetCourse.school_year_start &&
-        d.class_date <= targetCourse.school_year_end
-    );
-    if (overlappingDays.length === 0) continue;
-
-    const { data: targetExisting } = await supabase
-      .from("course_calendar_days")
-      .select("class_date")
-      .eq("course_id", targetCourse.id);
-
-    const targetDatesSet = new Set((targetExisting || []).map((d) => d.class_date));
-    const daysToUpdate = overlappingDays.filter((d) => targetDatesSet.has(d.class_date));
-    if (daysToUpdate.length === 0) continue;
-
-    for (const day of daysToUpdate) {
-      await supabase
-        .from("course_calendar_days")
-        .update({
-          day_type: day.day_type,
-          reason_id: day.reason_id ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("course_id", targetCourse.id)
-        .eq("class_date", day.class_date);
-    }
-
-    await relabelExistingABDays({ writeClient: supabase, course: targetCourse });
-    await rebuildPlanFromCalendar({ supabase, courseId: targetCourse.id, userId: user.id });
-    affectedCourseIds.push(targetCourse.id);
-  }
+  const affectedCourseIds = await copyCourseCalendarToOthers({
+    supabase,
+    writeClient,
+    course,
+    userId: user.id,
+  });
 
   perfLog("copyCalendarToOtherClassesAction", {
     course: courseId,
-    targetCourses: otherCourses.length,
     affected: affectedCourseIds.length,
     ms: Date.now() - actionStart,
   });
