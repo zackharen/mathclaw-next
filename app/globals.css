@@ -2409,6 +2409,20 @@ details[open] > summary.btn,
   display: inline-block;
 }
 
+.classPlanTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.arcadeSuggestionsToggle {
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 .classPlanHeaderControls {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

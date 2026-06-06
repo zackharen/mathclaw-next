@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
@@ -21,6 +22,7 @@ import CopyButton from "../announcements/copy-button";
 import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
+import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_SKILL_RULES = [
@@ -194,6 +196,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const dateRangeUpdated = qs.date_range_updated === "1";
   const imported = qs.imported === "1";
 
+  const cookieStore = await cookies();
+  const hideSuggestions = cookieStore.get("hide_arcade_suggestions")?.value === "1";
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -312,14 +317,19 @@ export default async function ClassPlanPage({ params, searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>{course.title}: Plan</h1>
-        <p>
-          {course.class_name} |{" "}
-          {course.schedule_model === "ab"
-            ? `AB (${course.ab_meeting_day || "Both"})`
-            : "Every Day"}{" "}
-          | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
-        </p>
+        <div className="classPlanTitleRow">
+          <div>
+            <h1>{course.title}: Plan</h1>
+            <p>
+              {course.class_name} |{" "}
+              {course.schedule_model === "ab"
+                ? `AB (${course.ab_meeting_day || "Both"})`
+                : "Every Day"}{" "}
+              | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
+            </p>
+          </div>
+          <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+        </div>
       </section>
 
       <section className="card">
@@ -695,7 +705,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
                     Status: {dayStatus}
                   </p>
-                  {suggestedSkills.length > 0 ? (
+                  {!hideSuggestions && suggestedSkills.length > 0 ? (
                     <div className="lessonSkillBlock">
                       <strong>Suggested MathClaw Skills</strong>
                       <div className="lessonSkillGrid">
