@@ -37,6 +37,44 @@ function nextAB(current) {
   return current === "A" ? "B" : "A";
 }
 
+async function relabelExistingABDays({ writeClient, course }) {
+  if (course.schedule_model !== "ab") return 0;
+
+  const abStart = course.ab_pattern_start_date || null;
+  const { data: existingDays, error: existingError } = await writeClient
+    .from("course_calendar_days")
+    .select("class_date, day_type, ab_day")
+    .eq("course_id", course.id)
+    .gte("class_date", course.school_year_start)
+    .lte("class_date", course.school_year_end)
+    .order("class_date", { ascending: true });
+
+  if (existingError) throw new Error(existingError.message);
+
+  let currentAB = "A";
+  let updatedCount = 0;
+  for (const day of existingDays || []) {
+    let expectedAB = null;
+    if (day.day_type !== "off" && (!abStart || day.class_date >= abStart)) {
+      expectedAB = currentAB;
+      currentAB = nextAB(currentAB);
+    }
+
+    if ((day.ab_day || null) === expectedAB) continue;
+
+    const { error } = await writeClient
+      .from("course_calendar_days")
+      .update({ ab_day: expectedAB, updated_at: new Date().toISOString() })
+      .eq("course_id", course.id)
+      .eq("class_date", day.class_date);
+
+    if (error) throw new Error(error.message);
+    updatedCount += 1;
+  }
+
+  return updatedCount;
+}
+
 function parseBulkUpdates(formData) {
   const updates = new Map();
   const selectedDates = new Set();
@@ -168,7 +206,6 @@ export async function generateCalendarAction(formData) {
     if (course.schedule_model === "ab") {
       if (!dayWeekend && (!abStart || cursor >= abStart)) {
         abDay = currentAB;
-        if (course.ab_meeting_day && abDay !== course.ab_meeting_day) dayType = "off";
         currentAB = nextAB(currentAB);
       }
     }
@@ -213,7 +250,12 @@ export async function applyCalendarBulkAction(formData) {
 
   if (!user) return;
 
-  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+  );
   const course = access?.course;
 
   if (!course) return;
@@ -259,6 +301,7 @@ export async function applyCalendarBulkAction(formData) {
     updatedCount += 1;
   }
 
+  const relabeledDays = await relabelExistingABDays({ writeClient, course });
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 
   perfLog("applyCalendarBulkAction", {
@@ -270,6 +313,7 @@ export async function applyCalendarBulkAction(formData) {
         : selectedDates.size
       : 0,
     bulkScope,
+    relabeledDays,
     ms: Date.now() - actionStart,
   });
 
@@ -306,7 +350,12 @@ export async function updateCalendarDayAction(formData) {
 
   if (!user) return;
 
-  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+  );
   const course = access?.course;
 
   if (!course) return;
@@ -327,6 +376,8 @@ export async function updateCalendarDayAction(formData) {
 
   if (error) throw new Error(error.message);
 
+  const relabeledDays = await relabelExistingABDays({ writeClient, course });
+
   if (autoRegenerate) {
     await rebuildPlanFromCalendar({
       supabase: writeClient,
@@ -341,6 +392,7 @@ export async function updateCalendarDayAction(formData) {
     classDate,
     dayType,
     autoRegenerate,
+    relabeledDays,
     ms: Date.now() - actionStart,
   });
 

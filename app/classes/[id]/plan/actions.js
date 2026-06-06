@@ -90,7 +90,6 @@ function buildDefaultCalendarRows(course, startDate, endDate, existingDates) {
     if (course.schedule_model === "ab") {
       if (!dayWeekend && (!abStart || cursor >= abStart)) {
         abDay = currentAB;
-        if (course.ab_meeting_day && abDay !== course.ab_meeting_day) dayType = "off";
         currentAB = nextAB(currentAB);
       }
     }
@@ -111,21 +110,30 @@ function buildDefaultCalendarRows(course, startDate, endDate, existingDates) {
 }
 
 async function relabelExistingABDays({ writeClient, course, startDate, endDate }) {
-  const expectedRows = buildDefaultCalendarRows(course, startDate, endDate, new Set());
-  const expectedByDate = new Map(expectedRows.map((row) => [row.class_date, row.ab_day || null]));
+  const abStart =
+    course.schedule_model === "ab" && course.ab_pattern_start_date
+      ? course.ab_pattern_start_date
+      : null;
 
   const { data: existingDays, error: existingError } = await writeClient
     .from("course_calendar_days")
-    .select("class_date, ab_day")
+    .select("class_date, day_type, ab_day")
     .eq("course_id", course.id)
     .gte("class_date", startDate)
-    .lte("class_date", endDate);
+    .lte("class_date", endDate)
+    .order("class_date", { ascending: true });
 
   if (existingError) throw new Error(existingError.message);
 
+  let currentAB = "A";
   let updatedCount = 0;
   for (const day of existingDays || []) {
-    const expectedAB = expectedByDate.get(day.class_date) || null;
+    let expectedAB = null;
+    if (course.schedule_model === "ab" && day.day_type !== "off" && (!abStart || day.class_date >= abStart)) {
+      expectedAB = currentAB;
+      currentAB = nextAB(currentAB);
+    }
+
     if ((day.ab_day || null) === expectedAB) continue;
 
     const { error } = await writeClient
@@ -256,17 +264,18 @@ export async function updateCourseDateRangeAction(formData) {
 
   const existingDates = new Set((existingDays || []).map((day) => day.class_date));
   const rowsToInsert = buildDefaultCalendarRows(nextCourse, startDate, endDate, existingDates);
+
+  if (rowsToInsert.length > 0) {
+    const { error: insertError } = await writeClient.from("course_calendar_days").insert(rowsToInsert);
+    if (insertError) throw new Error(insertError.message);
+  }
+
   const relabeledDays = await relabelExistingABDays({
     writeClient,
     course: nextCourse,
     startDate,
     endDate,
   });
-
-  if (rowsToInsert.length > 0) {
-    const { error: insertError } = await writeClient.from("course_calendar_days").insert(rowsToInsert);
-    if (insertError) throw new Error(insertError.message);
-  }
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
 

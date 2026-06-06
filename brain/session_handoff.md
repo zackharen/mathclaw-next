@@ -8,9 +8,12 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-05 America/New_York (lesson day no-school/grace-day labels)
+2026-06-05 America/New_York (AB sequence skips off days)
 
 ## Current State For Fresh Chat
+- Latest AB fix changes the A/B sequence so `off` calendar days do not receive an A/B label and do not advance the sequence. Half, modified, and instructional days do advance it. This touched `app/classes/[id]/plan/actions.js`, `app/classes/[id]/calendar/actions.js`, `app/classes/[id]/plan/page.js`, `app/classes/new/actions.js`, and `app/onboarding/profile/actions.js`.
+- Production migration `relabel_ab_days_skip_off` was applied successfully to Supabase project `ruaaznacaywngewxyged`. Verification query for `56A | AP Calculus` confirmed: `2026-09-02=A`, `2026-09-03=B`, `2026-09-04=A`, `2026-09-07=off/null`, `2026-09-08=B`.
+- Verification for the AB off-day sequencing work passed: focused `node --check` on changed JS files, `git diff --check`, and `npm run build`.
 - Latest copy polish changes Lesson by Day labels when no lesson rows are assigned: `day_type = off` now displays **No School**, while school days with no lesson assignment display **Grace Day** (`app/classes/[id]/plan/page.js`). Verification passed: `node --check app/classes/[id]/plan/page.js`; `git diff --check`; `npm run build`.
 - Latest pacing update changes the plan engine from one lesson row per date to lesson slots per date (`course_lesson_plan.lesson_slot`) so **2 Lessons Per Day** can actually show two lessons on the same day instead of skipping lesson numbers. Production migration `pacing_lesson_slots` was applied successfully to Supabase project `ruaaznacaywngewxyged`.
 - Pacing modes are now: `1 Lesson Per Day` (full/half/modified school days get one lesson), `1 Lesson Per Day (No Half Days)`, `2 Lessons Per Day` (two on full/modified, one on half), and `Manual`. The old `two_lessons_unless_modified` value is normalized to `two_lessons_per_day`.

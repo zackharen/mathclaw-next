@@ -124,6 +124,13 @@ function prettyDate(value) {
   });
 }
 
+function isWeekendISODate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const weekday = date.getDay();
+  return weekday === 0 || weekday === 6;
+}
+
 function formatLessonLabel(sourceLessonCode, title) {
   const safeTitle = title || "Untitled Lesson";
   if (!sourceLessonCode) return safeTitle;
@@ -277,6 +284,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
   const visibleCalendarDays = calendarDays.filter((day) => {
     if (course.schedule_model !== "ab") return true;
+    if (day.day_type === "off") return !isWeekendISODate(day.class_date);
     if (day.ab_day !== "A" && day.ab_day !== "B") return false;
     if (course.ab_meeting_day === "A") return day.ab_day === "A";
     if (course.ab_meeting_day === "B") return day.ab_day === "B";

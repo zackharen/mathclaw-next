@@ -81,22 +81,20 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
     cursor <= end;
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   ) {
+    const isoDate = toISODate(cursor);
     const dayWeekend = isWeekend(cursor);
     let dayType = dayWeekend ? "off" : "instructional";
     let abDay = null;
-
-    if (course.schedule_model === "ab") {
-      if (!dayWeekend && (!abStart || cursor >= abStart)) {
-        abDay = currentAB;
-        if (course.ab_meeting_day && abDay !== course.ab_meeting_day) dayType = "off";
-        currentAB = nextAB(currentAB);
-      }
-    }
-
-    const isoDate = toISODate(cursor);
     const override = overrideMap.get(isoDate);
     if (override) {
       dayType = override.day_type;
+    }
+
+    if (course.schedule_model === "ab") {
+      if (dayType !== "off" && (!abStart || cursor >= abStart)) {
+        abDay = currentAB;
+        currentAB = nextAB(currentAB);
+      }
     }
 
     rows.push({

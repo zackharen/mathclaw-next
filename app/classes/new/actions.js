@@ -210,7 +210,6 @@ export async function createClassAction(formData) {
       let abDay = null;
       if (scheduleModel === "ab" && !weekend) {
         abDay = currentAB;
-        if (abMeetingDay && abDay !== abMeetingDay) dayType = "off";
         currentAB = currentAB === "A" ? "B" : "A";
       }
       rows.push({
