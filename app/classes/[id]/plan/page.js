@@ -13,6 +13,7 @@ import {
 } from "./actions";
 import {
   applyCalendarBulkAction,
+  copyCalendarToOtherClassesAction,
   generateCalendarAction,
   updateCalendarDayAction,
 } from "../calendar/actions";
@@ -179,6 +180,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const { id } = await params;
   const qs = (await searchParams) || {};
   const calendarUpdated = qs.calendar_updated === "1";
+  const calendarCopied = qs.calendar_copied === "1";
   const abUpdated = qs.ab_updated === "1";
   const progressUpdated = qs.progress_updated === "1";
   const announcementsUpdated = qs.announcements_updated === "1";
@@ -308,87 +310,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
             : "Every Day"}{" "}
           | {course.school_year_start} to {course.school_year_end}
         </p>
-        <div className="classPlanHeaderControls">
-          <Link className="btn classPlanBackButton" href="/classes">
-            Back to Classes
-          </Link>
-          <div className="classPlanPrimaryControls">
-            <form action={updateCourseDateRangeAction} className="inlineControlForm classPlanDateForm">
-              <input type="hidden" name="course_id" value={course.id} />
-              <input
-                className="input"
-                type="date"
-                name="school_year_start"
-                defaultValue={course.school_year_start}
-                aria-label="Class start date"
-              />
-              <input
-                className="input"
-                type="date"
-                name="school_year_end"
-                defaultValue={course.school_year_end}
-                aria-label="Class end date"
-              />
-              <button className="btn" type="submit">Update Dates</button>
-            </form>
-            <form action={updatePacingModeAction} className="inlineControlForm classPlanPacingForm">
-              <input type="hidden" name="course_id" value={course.id} />
-              <select
-                className="input"
-                name="pacing_mode"
-                defaultValue={pacingMode}
-                style={{ minWidth: 240 }}
-              >
-                <option value="one_lesson_per_day">Pacing: 1 Lesson Per Day</option>
-                <option value="one_lesson_no_half_days">Pacing: 1 Lesson Per Day (No Half Days)</option>
-                <option value="two_lessons_per_day">Pacing: 2 Lessons Per Day</option>
-                <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
-              </select>
-              <details className="inlineDetails pacingModifierDetails">
-                <summary className="btn">Modified Day Rules</summary>
-                <div className="controlExpandedPanel pacingModifierPanel">
-                  <div className="pacingModifierHeader">
-                    <span>Day</span>
-                    <span>No Lesson</span>
-                    <span>One Less Lesson</span>
-                  </div>
-                  {WEEKDAY_MODIFIER_OPTIONS.map((day) => (
-                    <div className="pacingModifierRow" key={day.value}>
-                      <strong>{day.label}</strong>
-                      <label className="calendarSelectCell">
-                        <input
-                          type="checkbox"
-                          name={`pacing_weekday_no_lesson__${day.value}`}
-                          defaultChecked={weekdayModifiers[day.value] === "no_lesson"}
-                        />
-                        <span>No Lesson</span>
-                      </label>
-                      <label className="calendarSelectCell">
-                        <input
-                          type="checkbox"
-                          name={`pacing_weekday_one_less__${day.value}`}
-                          defaultChecked={weekdayModifiers[day.value] === "one_less"}
-                        />
-                        <span>One Less</span>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </details>
-              <button className="btn" type="submit">Apply Pacing Mode</button>
-            </form>
-          </div>
-        </div>
-        {pacingUpdated ? (
-          <div className="controlStatusLineStatic">
-            <span>Pacing Mode Updated!</span>
-          </div>
-        ) : null}
-        {dateRangeUpdated ? (
-          <div className="controlStatusLineStatic">
-            <span>Class Dates Updated!</span>
-          </div>
-        ) : null}
       </section>
 
       <section className="card">
@@ -428,6 +349,83 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
       <section className="card" id="modify-calendar">
         <h2>Modify Calendar</h2>
+
+        <div className="classPlanPrimaryControls" style={{ marginTop: "0.75rem" }}>
+          <form action={updateCourseDateRangeAction} className="inlineControlForm classPlanDateForm">
+            <input type="hidden" name="course_id" value={course.id} />
+            <input
+              className="input"
+              type="date"
+              name="school_year_start"
+              defaultValue={course.school_year_start}
+              aria-label="Class start date"
+            />
+            <input
+              className="input"
+              type="date"
+              name="school_year_end"
+              defaultValue={course.school_year_end}
+              aria-label="Class end date"
+            />
+            <button className="btn" type="submit">Update Dates</button>
+          </form>
+          <form action={updatePacingModeAction} className="inlineControlForm classPlanPacingForm">
+            <input type="hidden" name="course_id" value={course.id} />
+            <select
+              className="input"
+              name="pacing_mode"
+              defaultValue={pacingMode}
+              style={{ minWidth: 240 }}
+            >
+              <option value="one_lesson_per_day">Pacing: 1 Lesson Per Day</option>
+              <option value="one_lesson_no_half_days">Pacing: 1 Lesson Per Day (No Half Days)</option>
+              <option value="two_lessons_per_day">Pacing: 2 Lessons Per Day</option>
+              <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
+            </select>
+            <details className="inlineDetails pacingModifierDetails">
+              <summary className="btn">Modified Day Rules</summary>
+              <div className="controlExpandedPanel pacingModifierPanel">
+                <div className="pacingModifierHeader">
+                  <span>Day</span>
+                  <span>No Lesson</span>
+                  <span>One Less Lesson</span>
+                </div>
+                {WEEKDAY_MODIFIER_OPTIONS.map((day) => (
+                  <div className="pacingModifierRow" key={day.value}>
+                    <strong>{day.label}</strong>
+                    <label className="calendarSelectCell">
+                      <input
+                        type="checkbox"
+                        name={`pacing_weekday_no_lesson__${day.value}`}
+                        defaultChecked={weekdayModifiers[day.value] === "no_lesson"}
+                      />
+                      <span>No Lesson</span>
+                    </label>
+                    <label className="calendarSelectCell">
+                      <input
+                        type="checkbox"
+                        name={`pacing_weekday_one_less__${day.value}`}
+                        defaultChecked={weekdayModifiers[day.value] === "one_less"}
+                      />
+                      <span>One Less</span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </details>
+            <button className="btn" type="submit">Apply Pacing Mode</button>
+          </form>
+        </div>
+        {pacingUpdated ? (
+          <div className="controlStatusLineStatic">
+            <span>Pacing Mode Updated!</span>
+          </div>
+        ) : null}
+        {dateRangeUpdated ? (
+          <div className="controlStatusLineStatic">
+            <span>Class Dates Updated!</span>
+          </div>
+        ) : null}
 
         {calendarDays.length === 0 ? (
           <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
@@ -478,6 +476,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         <option value="off">Off</option>
                         <option value="half">Half Day</option>
                         <option value="modified">Modified</option>
+                        <option value="grace_day">Grace Day</option>
                       </select>
                       <select className="input" name="selected_reason_id" defaultValue="">
                         <option value="">Keep Row Reason</option>
@@ -515,6 +514,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             <option value="off">Off</option>
                             <option value="half">Half Day</option>
                             <option value="modified">Modified</option>
+                            <option value="grace_day">Grace Day</option>
                           </select>
                           <select
                             className="input"
@@ -552,6 +552,14 @@ export default async function ClassPlanPage({ params, searchParams }) {
               {progressUpdated ? <span>Progress Updated!</span> : null}
               {announcementsUpdated ? <span>Announcements Updated!</span> : null}
               {imported ? <span>Calendar Imported!</span> : null}
+              {calendarCopied ? <span>Calendar copied to other classes.</span> : null}
+            </div>
+
+            <div className="controlBar" style={{ marginTop: "0.75rem" }}>
+              <form action={copyCalendarToOtherClassesAction}>
+                <input type="hidden" name="course_id" value={course.id} />
+                <button className="btn" type="submit">Copy Calendar to Other Classes</button>
+              </form>
             </div>
           </>
         )}
@@ -616,6 +624,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             <option value="off">Off</option>
                             <option value="half">Half Day</option>
                             <option value="modified">Modified</option>
+                            <option value="grace_day">Grace Day</option>
                           </select>
                           <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
                             <option value="">None</option>
