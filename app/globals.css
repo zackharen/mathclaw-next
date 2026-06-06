@@ -253,6 +253,10 @@ main {
   gap: 1rem;
 }
 
+.content > .stack {
+  gap: 0.18rem;
+}
+
 .card {
   border: 2px solid var(--line);
   background: #f9fbfc;
@@ -281,6 +285,12 @@ p {
   margin-top: 0.75rem;
   display: grid;
   gap: 0.6rem;
+}
+
+.list:has(> .card),
+.list:has(> article.card),
+.list:has(> section.card) {
+  gap: 0.18rem;
 }
 
 .classCoTeacherBlock {
