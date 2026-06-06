@@ -10,17 +10,13 @@ import {
   markLessonPlannedAction,
   updateABMeetingDaysAction,
   updateCourseDateRangeAction,
-  updatePacingModeAction,
 } from "./actions";
 import {
-  applyCalendarBulkAction,
-  copyCalendarToOtherClassesAction,
   generateCalendarAction,
+  updateScheduleAction,
   updateCalendarDayAction,
 } from "../calendar/actions";
-import { generateAnnouncementsAction } from "../announcements/actions";
 import CopyButton from "../announcements/copy-button";
-import AutoRegenerateToggle from "./auto-regenerate-toggle";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
@@ -196,16 +192,22 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const pacingUpdated = qs.pacing_updated === "1";
   const dateRangeUpdated = qs.date_range_updated === "1";
   const imported = qs.imported === "1";
-  const completedActionMessages = [
-    dateRangeUpdated ? "Class Dates Updated!" : null,
-    pacingUpdated ? "Pacing Mode Updated!" : null,
-    calendarUpdated ? "Calendar Updated!" : null,
-    abUpdated ? "AB Schedule Updated!" : null,
-    progressUpdated ? "Progress Updated!" : null,
-    imported ? "Calendar Imported!" : null,
-    calendarCopied ? "Calendar copied to other classes." : null,
-    announcementsUpdated ? "Announcements Updated!" : null,
-  ].filter(Boolean);
+  const scheduleUpdated = qs.schedule_updated === "1";
+  const completedActionMessages = scheduleUpdated
+    ? [
+        "Schedule Updated!",
+        calendarCopied ? "Calendar copied to other classes." : null,
+      ].filter(Boolean)
+    : [
+        dateRangeUpdated ? "Class Dates Updated!" : null,
+        pacingUpdated ? "Pacing Mode Updated!" : null,
+        calendarUpdated ? "Calendar Updated!" : null,
+        abUpdated ? "AB Schedule Updated!" : null,
+        progressUpdated ? "Progress Updated!" : null,
+        imported ? "Calendar Imported!" : null,
+        calendarCopied ? "Calendar copied to other classes." : null,
+        announcementsUpdated ? "Announcements Updated!" : null,
+      ].filter(Boolean);
 
   const cookieStore = await cookies();
   const hideSuggestions = cookieStore.get("hide_arcade_suggestions")?.value === "1";
@@ -412,7 +414,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
           </form>
 
           <div className="classPlanControlRow classPlanControlRowSchedule">
-            <form id="class-plan-pacing-form" action={updatePacingModeAction} className="inlineControlForm classPlanPacingForm">
+            <form id="class-plan-schedule-form" action={updateScheduleAction} className="inlineControlForm classPlanPacingForm">
               <input type="hidden" name="course_id" value={course.id} />
               <select
                 className="input"
@@ -476,7 +478,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
         {calendarDays.length === 0 ? (
           <div className="classPlanControlRow classPlanControlRowApply">
-            <button className="btn" type="submit" form="class-plan-pacing-form">Apply Pacing Mode</button>
+            <ApplyCalendarSubmit formId="class-plan-schedule-form" />
             <form action={generateCalendarAction}>
               <input type="hidden" name="course_id" value={course.id} />
               <button className="btn primary" type="submit">
@@ -487,21 +489,13 @@ export default async function ClassPlanPage({ params, searchParams }) {
         ) : (
           <>
             <div className="classPlanControlRow classPlanControlRowApply">
-              <button className="btn" type="submit" form="class-plan-pacing-form">Apply Pacing Mode</button>
-              <form
-                id="class-plan-calendar-form"
-                action={applyCalendarBulkAction}
-                className="inlineControlForm classPlanCalendarApplyForm"
-                data-auto-regenerate-target="1"
-              >
-                <input type="hidden" name="course_id" value={course.id} />
-                <AutoRegenerateToggle />
+              <div className="inlineControlForm classPlanCalendarApplyForm">
                 <label className="calendarSelectCell">
-                  <input type="checkbox" name="copy_to_all" value="1" />
+                  <input type="checkbox" name="copy_to_all" value="1" form="class-plan-schedule-form" />
                   <span>Apply to all my classes</span>
                 </label>
-                <ApplyCalendarSubmit formId="class-plan-calendar-form" />
-              </form>
+                <ApplyCalendarSubmit formId="class-plan-schedule-form" />
+              </div>
             </div>
 
             <div className="classPlanControlRow classPlanControlRowTools">
@@ -513,11 +507,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 <div className="controlExpandedPanel controlExpandedPanelWide">
                     <div className="calendarBulkTools">
                       <strong>Selected Days</strong>
-                      <select className="input" name="selected_bulk_scope" defaultValue="checked" form="class-plan-calendar-form">
+                      <select className="input" name="selected_bulk_scope" defaultValue="checked" form="class-plan-schedule-form">
                         <option value="checked">Apply To: Checked Days</option>
                         <option value="all_visible">Apply To: All Visible Days</option>
                       </select>
-                      <select className="input" name="selected_day_type" defaultValue="" form="class-plan-calendar-form">
+                      <select className="input" name="selected_day_type" defaultValue="" form="class-plan-schedule-form">
                         <option value="">Choose Day Type</option>
                         <option value="instructional">Full</option>
                         <option value="off">Off</option>
@@ -525,7 +519,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         <option value="modified">Modified</option>
                         <option value="grace_day">Grace Day</option>
                       </select>
-                      <select className="input" name="selected_reason_id" defaultValue="" form="class-plan-calendar-form">
+                      <select className="input" name="selected_reason_id" defaultValue="" form="class-plan-schedule-form">
                         <option value="">Keep Row Reason</option>
                         <option value="__clear__">Clear Reason</option>
                         {reasons.map((reason) => (
@@ -547,7 +541,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       {visibleCalendarDays.map((day) => (
                         <div className="calendarRowNoAction" key={day.class_date}>
                           <label className="calendarSelectCell">
-                            <input type="checkbox" name="selected_class_date" value={day.class_date} form="class-plan-calendar-form" />
+                            <input type="checkbox" name="selected_class_date" value={day.class_date} form="class-plan-schedule-form" />
                             <span>Select</span>
                           </label>
                           <span>{prettyDate(day.class_date)}</span>
@@ -556,7 +550,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             className="input"
                             name={`day_type__${day.class_date}`}
                             defaultValue={day.day_type}
-                            form="class-plan-calendar-form"
+                            form="class-plan-schedule-form"
                           >
                             <option value="instructional">Full</option>
                             <option value="off">Off</option>
@@ -568,7 +562,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             className="input"
                             name={`reason_id__${day.class_date}`}
                             defaultValue={day.reason_id || ""}
-                            form="class-plan-calendar-form"
+                            form="class-plan-schedule-form"
                           >
                             <option value="">None</option>
                             {reasons.map((reason) => (
@@ -582,21 +576,13 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             name={`note__${day.class_date}`}
                             defaultValue={day.note || ""}
                             placeholder="Optional"
-                            form="class-plan-calendar-form"
+                            form="class-plan-schedule-form"
                           />
                         </div>
                       ))}
                     </div>
                 </div>
               </details>
-              <form action={generateAnnouncementsAction}>
-                <input type="hidden" name="course_id" value={course.id} />
-                <button className="btn" type="submit">Generate / Update Announcements</button>
-              </form>
-              <form action={copyCalendarToOtherClassesAction}>
-                <input type="hidden" name="course_id" value={course.id} />
-                <button className="btn" type="submit">Copy Calendar to Other Classes</button>
-              </form>
             </div>
 
           </>
@@ -713,7 +699,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         ? lesson.objective
                         : lesson
                           ? "No objective provided."
-                          : "Add full days and click Apply Calendar Changes.";
+                          : "Add full days and click Update Schedule.";
 
                       return (
                         <div className="lessonPlanItem" key={`${day.class_date}-${row.lesson_slot || index + 1}`}>

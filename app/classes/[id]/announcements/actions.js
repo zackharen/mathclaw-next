@@ -104,28 +104,7 @@ function buildQuote({ classDate, className }) {
   return QUOTES[hash % QUOTES.length];
 }
 
-export async function generateAnnouncementsAction(formData) {
-  const courseId = formData.get("course_id");
-  if (!courseId || typeof courseId !== "string") return;
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return;
-
-  const access = await getCourseAccessForUser(
-    supabase,
-    user.id,
-    courseId,
-    "id, title, school_year_start, owner_id"
-  );
-  const course = access?.course;
-
-  if (!course) return;
-  const writeClient = getCourseWriteClient(access, supabase);
-
+export async function generateAnnouncementsForCourse({ supabase, writeClient, userId, course }) {
   const { data: planRows, error: planError } = await supabase
     .from("course_lesson_plan")
     .select("class_date, lesson_slot, lesson_id")
@@ -162,7 +141,7 @@ export async function generateAnnouncementsAction(formData) {
     .select(
       "body_template, include_do_now, include_quote, include_day_number, include_day_of_week, include_regular_assignments, regular_assignments"
     )
-    .eq("owner_id", user.id)
+    .eq("owner_id", userId)
     .eq("is_default", true)
     .limit(1)
     .maybeSingle();
@@ -180,7 +159,7 @@ export async function generateAnnouncementsAction(formData) {
     const retry = await supabase
       .from("announcement_templates")
       .select("body_template")
-      .eq("owner_id", user.id)
+      .eq("owner_id", userId)
       .eq("is_default", true)
       .limit(1)
       .maybeSingle();
@@ -317,11 +296,45 @@ export async function generateAnnouncementsAction(formData) {
     });
   }
 
+  if (rows.length === 0) return 0;
+
   const { error: upsertError } = await writeClient
     .from("course_announcements")
     .upsert(rows, { onConflict: "course_id,class_date" });
 
   if (upsertError) throw new Error(upsertError.message);
+
+  return rows.length;
+}
+
+export async function generateAnnouncementsAction(formData) {
+  const courseId = formData.get("course_id");
+  if (!courseId || typeof courseId !== "string") return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, title, school_year_start, owner_id"
+  );
+  const course = access?.course;
+
+  if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
+
+  await generateAnnouncementsForCourse({
+    supabase,
+    writeClient,
+    userId: user.id,
+    course,
+  });
 
   revalidatePath(`/classes/${course.id}/announcements`);
   revalidatePath(`/classes/${course.id}/plan`);

@@ -5,8 +5,16 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
+import { generateAnnouncementsForCourse } from "../announcements/actions";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
+const PACING_MODES = new Set([
+  "one_lesson_per_day",
+  "one_lesson_no_half_days",
+  "two_lessons_per_day",
+  "manual_complete",
+]);
+const DAY_TYPES = new Set(["instructional", "off", "half", "modified", "grace_day"]);
 
 function perfLog(action, details) {
   if (!PERF_ENABLED) return;
@@ -35,6 +43,25 @@ function isWeekend(date) {
 
 function nextAB(current) {
   return current === "A" ? "B" : "A";
+}
+
+function normalizePacingMode(value) {
+  if (value === "two_lessons_unless_modified") return "two_lessons_per_day";
+  return PACING_MODES.has(value) ? value : "one_lesson_per_day";
+}
+
+function parseWeekdayModifiers(formData) {
+  const modifiers = {};
+  for (const weekday of ["1", "2", "3", "4", "5"]) {
+    const noLesson = formData.get(`pacing_weekday_no_lesson__${weekday}`) === "on";
+    const oneLess = formData.get(`pacing_weekday_one_less__${weekday}`) === "on";
+    if (noLesson) {
+      modifiers[weekday] = "no_lesson";
+    } else if (oneLess) {
+      modifiers[weekday] = "one_less";
+    }
+  }
+  return modifiers;
 }
 
 async function relabelExistingABDays({ writeClient, course }) {
@@ -396,6 +423,131 @@ export async function applyCalendarBulkAction(formData) {
   revalidatePath("/classes");
   const copied = affectedCourseIds.length > 0 ? "&calendar_copied=1" : "";
   redirect(`/classes/${course.id}/plan?calendar_updated=1${copied}&t=${Date.now()}#modify-calendar`);
+}
+
+export async function updateScheduleAction(formData) {
+  const actionStart = Date.now();
+  const courseId = formData.get("course_id");
+  if (!courseId || typeof courseId !== "string") return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, title, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+  );
+  const course = access?.course;
+
+  if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
+  const pacingMode = normalizePacingMode(String(formData.get("pacing_mode") || ""));
+  const weekdayModifiers = parseWeekdayModifiers(formData);
+  const copyToAll = formData.get("copy_to_all") === "1";
+  const { updates, selectedDates } = parseBulkUpdates(formData);
+  const selectedDayType = String(formData.get("selected_day_type") || "");
+  const selectedReasonId = String(formData.get("selected_reason_id") || "");
+  const selectedReasonShouldApply = selectedReasonId !== "";
+  const bulkScope = String(formData.get("selected_bulk_scope") || "") === "all_visible" ? "all_visible" : "checked";
+  const shouldApplySelectedDayType =
+    DAY_TYPES.has(selectedDayType) && (bulkScope === "all_visible" || selectedDates.size > 0);
+
+  const { error: pacingError } = await writeClient
+    .from("courses")
+    .update({
+      pacing_mode: pacingMode,
+      pacing_weekday_modifiers: weekdayModifiers,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", course.id);
+
+  if (pacingError) throw new Error(pacingError.message);
+
+  let updatedCount = 0;
+  for (const [classDate, row] of updates.entries()) {
+    const isBulkTarget = bulkScope === "all_visible" || selectedDates.has(classDate);
+    const dayType = shouldApplySelectedDayType && isBulkTarget ? selectedDayType : row.day_type;
+    if (!DAY_TYPES.has(dayType)) continue;
+
+    const payload = {
+      day_type: dayType,
+      reason_id:
+        shouldApplySelectedDayType && isBulkTarget && selectedReasonShouldApply
+          ? selectedReasonId === "__clear__"
+            ? null
+            : selectedReasonId
+          : row.reason_id
+            ? row.reason_id
+            : null,
+      note: row.note && row.note.trim() ? row.note.trim() : null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await writeClient
+      .from("course_calendar_days")
+      .update(payload)
+      .eq("course_id", course.id)
+      .eq("class_date", classDate);
+
+    if (error) throw new Error(error.message);
+    updatedCount += 1;
+  }
+
+  const nextCourse = { ...course, pacing_mode: pacingMode, pacing_weekday_modifiers: weekdayModifiers };
+  const relabeledDays = await relabelExistingABDays({ writeClient, course: nextCourse });
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+
+  let affectedCourseIds = [];
+  if (copyToAll) {
+    affectedCourseIds = await copyCourseCalendarToOthers({
+      supabase,
+      writeClient,
+      course: nextCourse,
+      userId: user.id,
+    });
+  }
+
+  const generatedAnnouncements = await generateAnnouncementsForCourse({
+    supabase,
+    writeClient,
+    userId: user.id,
+    course: nextCourse,
+  });
+
+  perfLog("updateScheduleAction", {
+    course: course.id,
+    pacingMode,
+    weekdayModifiers: Object.keys(weekdayModifiers).length,
+    updates: updatedCount,
+    selectedUpdates: shouldApplySelectedDayType
+      ? bulkScope === "all_visible"
+        ? updatedCount
+        : selectedDates.size
+      : 0,
+    bulkScope,
+    relabeledDays,
+    copyToAll,
+    affectedCourses: affectedCourseIds.length,
+    announcements: generatedAnnouncements,
+    ms: Date.now() - actionStart,
+  });
+
+  for (const id of affectedCourseIds) {
+    revalidatePath(`/classes/${id}/plan`);
+    revalidatePath(`/classes/${id}/calendar`);
+  }
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath(`/classes/${course.id}/announcements`);
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath("/classes");
+  const copied = affectedCourseIds.length > 0 ? "&calendar_copied=1" : "";
+  redirect(`/classes/${course.id}/plan?schedule_updated=1&calendar_updated=1&pacing_updated=1&announcements_updated=1${copied}&t=${Date.now()}#modify-calendar`);
 }
 
 export async function updateCalendarDayAction(formData) {

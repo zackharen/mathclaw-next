@@ -13,7 +13,7 @@ export default function ApplyCalendarSubmit({ formId }) {
         form={formId}
         disabled={pending}
       >
-        Apply Calendar Changes
+        Update Schedule
       </button>
       {pending ? (
         <span className="controlStatusLine" aria-live="polite">
