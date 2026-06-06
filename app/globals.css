@@ -2447,6 +2447,46 @@ details[open] > summary.btn,
   max-width: 36rem;
 }
 
+.pacingModifierDetails {
+  flex-basis: 100%;
+}
+
+.pacingModifierPanel {
+  display: grid;
+  gap: 0.45rem;
+  width: min(42rem, 100%);
+}
+
+.pacingModifierHeader,
+.pacingModifierRow {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(8rem, 1fr) minmax(9rem, 1fr);
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.pacingModifierHeader {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.lessonPlanList {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.lessonPlanItem {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.lessonPlanItem + .lessonPlanItem {
+  padding-top: 0.65rem;
+  border-top: 1px dashed #6b7c8a;
+}
+
 .abScheduleForm {
   display: flex;
   flex-wrap: nowrap;
@@ -2479,6 +2519,16 @@ details[open] > summary.btn,
     grid-column: 1;
     grid-row: auto;
     width: 100%;
+  }
+
+  .pacingModifierHeader {
+    display: none;
+  }
+
+  .pacingModifierRow {
+    grid-template-columns: 1fr;
+    padding: 0.5rem 0;
+    border-top: 1px dashed #6b7c8a;
   }
 
   .controlBar,

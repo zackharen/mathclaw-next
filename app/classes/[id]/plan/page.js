@@ -84,9 +84,33 @@ const GAME_LABELS = {
   sudoku: "Sudoku",
   comet_typing: "Comet Typing",
 };
+const WEEKDAY_MODIFIER_OPTIONS = [
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+];
 
 function hasCurriculum(course) {
   return Boolean(course?.selected_library_id);
+}
+
+function normalizePacingMode(value) {
+  if (value === "two_lessons_unless_modified") return "two_lessons_per_day";
+  return value || "one_lesson_per_day";
+}
+
+function normalizeWeekdayModifiers(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const modifiers = {};
+  for (const [weekday, modifier] of Object.entries(raw)) {
+    if (!["1", "2", "3", "4", "5"].includes(String(weekday))) continue;
+    if (modifier === "no_lesson" || modifier === "one_less") {
+      modifiers[String(weekday)] = modifier;
+    }
+  }
+  return modifiers;
 }
 
 function prettyDate(value) {
@@ -169,7 +193,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     supabase,
     user.id,
     id,
-    "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode, owner_id"
+    "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode, pacing_weekday_modifiers, owner_id"
   );
   const course = access?.course;
 
@@ -207,10 +231,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
     courseDataClient
       .from("course_lesson_plan")
       .select(
-        "class_date, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)"
+        "class_date, lesson_slot, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)"
       )
       .eq("course_id", course.id)
-      .order("class_date", { ascending: true }),
+      .order("class_date", { ascending: true })
+      .order("lesson_slot", { ascending: true }),
     courseDataClient
       .from("course_announcements")
       .select("class_date, content")
@@ -237,8 +262,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
     announcements.map((a) => [a.class_date, a.content])
   );
   const calendarByDate = new Map(calendarDays.map((d) => [d.class_date, d]));
-  const planByDate = new Map(planRows.map((row) => [row.class_date, row]));
+  const planRowsByDate = new Map();
+  for (const row of planRows) {
+    const rows = planRowsByDate.get(row.class_date) || [];
+    rows.push(row);
+    planRowsByDate.set(row.class_date, rows);
+  }
   const reasonById = new Map(reasons.map((reason) => [reason.id, reason.label]));
+  const pacingMode = normalizePacingMode(course.pacing_mode);
+  const weekdayModifiers = normalizeWeekdayModifiers(course.pacing_weekday_modifiers);
 
   const meetsA = course.ab_meeting_day !== "B";
   const meetsB = course.ab_meeting_day !== "A";
@@ -296,16 +328,45 @@ export default async function ClassPlanPage({ params, searchParams }) {
               <select
                 className="input"
                 name="pacing_mode"
-                defaultValue={course.pacing_mode || "one_lesson_per_day"}
+                defaultValue={pacingMode}
                 style={{ minWidth: 240 }}
               >
-                <option value="one_lesson_per_day">Pacing: One Lesson Per Full Day</option>
+                <option value="one_lesson_per_day">Pacing: 1 Lesson Per Day</option>
+                <option value="one_lesson_no_half_days">Pacing: 1 Lesson Per Day (No Half Days)</option>
                 <option value="two_lessons_per_day">Pacing: 2 Lessons Per Day</option>
-                <option value="two_lessons_unless_modified">
-                  Pacing: 2 Lessons Per Day Unless There Is a Modified Schedule
-                </option>
                 <option value="manual_complete">Pacing: Manual (Move On When Complete)</option>
               </select>
+              <details className="inlineDetails pacingModifierDetails">
+                <summary className="btn">Modified Day Rules</summary>
+                <div className="controlExpandedPanel pacingModifierPanel">
+                  <div className="pacingModifierHeader">
+                    <span>Day</span>
+                    <span>No Lesson</span>
+                    <span>One Less Lesson</span>
+                  </div>
+                  {WEEKDAY_MODIFIER_OPTIONS.map((day) => (
+                    <div className="pacingModifierRow" key={day.value}>
+                      <strong>{day.label}</strong>
+                      <label className="calendarSelectCell">
+                        <input
+                          type="checkbox"
+                          name={`pacing_weekday_no_lesson__${day.value}`}
+                          defaultChecked={weekdayModifiers[day.value] === "no_lesson"}
+                        />
+                        <span>No Lesson</span>
+                      </label>
+                      <label className="calendarSelectCell">
+                        <input
+                          type="checkbox"
+                          name={`pacing_weekday_one_less__${day.value}`}
+                          defaultChecked={weekdayModifiers[day.value] === "one_less"}
+                        />
+                        <span>One Less</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </details>
               <button className="btn" type="submit">Apply Pacing Mode</button>
             </form>
           </div>
@@ -502,26 +563,26 @@ export default async function ClassPlanPage({ params, searchParams }) {
         {!planError && curriculumEnabled && visibleCalendarDays.length > 0 ? (
           <div className="list">
             {visibleCalendarDays.map((day) => {
-              const row = planByDate.get(day.class_date);
-              const lesson = row?.curriculum_lessons;
-              const lessonLabel = lesson
-                ? formatLessonLabel(lesson?.source_lesson_code, lesson?.title)
-                : "No lesson assigned yet.";
-              const objectiveText = lesson?.objective
-                ? lesson.objective
-                : lesson
-                  ? "No objective provided."
-                  : "Add full days and click Apply Calendar Changes.";
-              const suggestedSkills = findSuggestedSkills({ lesson, enabledGames });
+              const dayPlanRows = planRowsByDate.get(day.class_date) || [];
+              const firstLesson = dayPlanRows[0]?.curriculum_lessons;
+              const suggestedSkills = findSuggestedSkills({ lesson: firstLesson, enabledGames });
               const announcementText = announcementByDate.get(day.class_date) || "";
               const reasonLabel = day.reason_id ? reasonById.get(day.reason_id) : null;
+              const dayStatus =
+                dayPlanRows.length === 0
+                  ? "No lesson scheduled"
+                  : dayPlanRows.every((row) => row.status === "completed")
+                    ? "completed"
+                    : dayPlanRows.some((row) => row.status === "completed")
+                      ? "partly completed"
+                      : "planned";
 
-              if (day.day_type !== "instructional") {
+              if (dayPlanRows.length === 0) {
                 return (
                   <article key={day.class_date} className="card" style={{ background: "#fff" }}>
                     <h3>{prettyDate(day.class_date)}</h3>
                     <p>
-                      Off Day{reasonLabel ? ` | ${reasonLabel}` : ""}
+                      No Lesson Scheduled{reasonLabel ? ` | ${reasonLabel}` : ""}
                     </p>
                     {day.note ? <p>{day.note}</p> : null}
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
@@ -567,10 +628,30 @@ export default async function ClassPlanPage({ params, searchParams }) {
               return (
                 <article key={day.class_date} className="card" style={{ background: "#fff" }}>
                   <h3>{prettyDate(day.class_date)}</h3>
-                  <p>{lessonLabel}</p>
-                  <p>{objectiveText}</p>
+                  <div className="lessonPlanList">
+                    {dayPlanRows.map((row, index) => {
+                      const lesson = row.curriculum_lessons;
+                      const lessonLabel = lesson
+                        ? formatLessonLabel(lesson?.source_lesson_code, lesson?.title)
+                        : "No lesson assigned yet.";
+                      const objectiveText = lesson?.objective
+                        ? lesson.objective
+                        : lesson
+                          ? "No objective provided."
+                          : "Add full days and click Apply Calendar Changes.";
+
+                      return (
+                        <div className="lessonPlanItem" key={`${day.class_date}-${row.lesson_slot || index + 1}`}>
+                          <p>
+                            <strong>Lesson {index + 1}:</strong> {lessonLabel}
+                          </p>
+                          <p>{objectiveText}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                   <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
-                    Status: {row?.status || "planned"}
+                    Status: {dayStatus}
                   </p>
                   {suggestedSkills.length > 0 ? (
                     <div className="lessonSkillBlock">
@@ -590,7 +671,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       </div>
                     </div>
                   ) : null}
-                  {course.pacing_mode === "manual_complete" ? (
+                  {pacingMode === "manual_complete" ? (
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
                       Manual pacing mode: this lesson repeats until you click Mark Complete.
                     </p>
@@ -607,8 +688,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   <div className="ctaRow compactDayActions">
                     {announcementText ? <CopyButton text={announcementText} /> : null}
 
-                    {row ? (
-                      row.status === "completed" ? (
+                    {dayPlanRows.length > 0 ? (
+                      dayPlanRows.every((row) => row.status === "completed") ? (
                         <form action={markLessonPlannedAction}>
                           <input type="hidden" name="course_id" value={course.id} />
                           <input type="hidden" name="class_date" value={day.class_date} />

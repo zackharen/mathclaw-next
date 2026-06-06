@@ -122,10 +122,11 @@ export default async function DashboardPage() {
   const { data: planRows } = await supabase
     .from("course_lesson_plan")
     .select(
-      "course_id, class_date, status, curriculum_lessons(source_lesson_code, title)"
+      "course_id, class_date, lesson_slot, status, curriculum_lessons(source_lesson_code, title)"
     )
     .in("course_id", courseIds)
-    .order("class_date", { ascending: true });
+    .order("class_date", { ascending: true })
+    .order("lesson_slot", { ascending: true });
 
   const lessonCountByCourse = new Map();
   await Promise.all(

@@ -101,11 +101,12 @@ create table if not exists public.courses (
   pacing_mode text not null default 'one_lesson_per_day' check (
     pacing_mode in (
       'one_lesson_per_day',
+      'one_lesson_no_half_days',
       'two_lessons_per_day',
-      'two_lessons_unless_modified',
       'manual_complete'
     )
   ),
+  pacing_weekday_modifiers jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (school_year_start < school_year_end)
@@ -211,12 +212,13 @@ create table if not exists public.course_lesson_plan (
   id uuid primary key default gen_random_uuid(),
   course_id uuid not null references public.courses (id) on delete cascade,
   class_date date not null,
+  lesson_slot integer not null default 1 check (lesson_slot >= 1),
   lesson_id uuid references public.curriculum_lessons (id),
   status text not null default 'planned' check (status in ('planned','completed','deferred','skipped')),
   is_added_buffer_day boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (course_id, class_date)
+  unique (course_id, class_date, lesson_slot)
 );
 
 create index if not exists course_lesson_plan_course_status_idx

@@ -16,7 +16,8 @@ function normalizeScheduleModel(value) {
 function normalizePacingMode(value) {
   if (value === "manual_complete") return "manual_complete";
   if (value === "two_lessons_per_day") return "two_lessons_per_day";
-  if (value === "two_lessons_unless_modified") return "two_lessons_unless_modified";
+  if (value === "two_lessons_unless_modified") return "two_lessons_per_day";
+  if (value === "one_lesson_no_half_days") return "one_lesson_no_half_days";
   return "one_lesson_per_day";
 }
 
@@ -115,6 +116,7 @@ export async function createClassAction(formData) {
     timezone,
     selected_library_id: library?.id || null,
     pacing_mode: pacingMode,
+    pacing_weekday_modifiers: {},
     student_join_code: generateJoinCode(),
   };
 
@@ -129,11 +131,13 @@ export async function createClassAction(formData) {
     courseError &&
     typeof courseError.message === "string" &&
     (courseError.message.includes("ab_meeting_day") ||
-      courseError.message.includes("student_join_code"))
+      courseError.message.includes("student_join_code") ||
+      courseError.message.includes("pacing_weekday_modifiers"))
   ) {
     const fallbackPayload = { ...coursePayload };
     delete fallbackPayload.ab_meeting_day;
     delete fallbackPayload.student_join_code;
+    delete fallbackPayload.pacing_weekday_modifiers;
     const retry = await writeClient
       .from("courses")
       .insert(fallbackPayload)

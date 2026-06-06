@@ -8,6 +8,12 @@ import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/acce
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const PACING_MODES = new Set([
+  "one_lesson_per_day",
+  "one_lesson_no_half_days",
+  "two_lessons_per_day",
+  "manual_complete",
+]);
 
 function perfLog(action, details) {
   if (!PERF_ENABLED) return;
@@ -42,6 +48,25 @@ function isWeekend(date) {
 
 function nextAB(current) {
   return current === "A" ? "B" : "A";
+}
+
+function normalizePacingMode(value) {
+  if (value === "two_lessons_unless_modified") return "two_lessons_per_day";
+  return PACING_MODES.has(value) ? value : "one_lesson_per_day";
+}
+
+function parseWeekdayModifiers(formData) {
+  const modifiers = {};
+  for (const weekday of ["1", "2", "3", "4", "5"]) {
+    const noLesson = formData.get(`pacing_weekday_no_lesson__${weekday}`) === "on";
+    const oneLess = formData.get(`pacing_weekday_one_less__${weekday}`) === "on";
+    if (noLesson) {
+      modifiers[weekday] = "no_lesson";
+    } else if (oneLess) {
+      modifiers[weekday] = "one_less";
+    }
+  }
+  return modifiers;
 }
 
 function buildDefaultCalendarRows(course, startDate, endDate, existingDates) {
@@ -325,17 +350,12 @@ export async function updateABMeetingDaysAction(formData) {
 export async function updatePacingModeAction(formData) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
-  const pacingMode = formData.get("pacing_mode");
+  const pacingMode = normalizePacingMode(String(formData.get("pacing_mode") || ""));
+  const weekdayModifiers = parseWeekdayModifiers(formData);
 
   if (
     typeof courseId !== "string" ||
-    !courseId ||
-    ![
-      "one_lesson_per_day",
-      "two_lessons_per_day",
-      "two_lessons_unless_modified",
-      "manual_complete",
-    ].includes(String(pacingMode || ""))
+    !courseId
   ) {
     return;
   }
@@ -355,7 +375,11 @@ export async function updatePacingModeAction(formData) {
 
   const { error } = await writeClient
     .from("courses")
-    .update({ pacing_mode: pacingMode, updated_at: new Date().toISOString() })
+    .update({
+      pacing_mode: pacingMode,
+      pacing_weekday_modifiers: weekdayModifiers,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", course.id);
 
   if (error) throw new Error(error.message);
@@ -365,6 +389,7 @@ export async function updatePacingModeAction(formData) {
   perfLog("updatePacingModeAction", {
     course: course.id,
     pacingMode,
+    weekdayModifiers: Object.keys(weekdayModifiers).length,
     ms: Date.now() - actionStart,
   });
 

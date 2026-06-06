@@ -128,9 +128,10 @@ export async function generateAnnouncementsAction(formData) {
 
   const { data: planRows, error: planError } = await supabase
     .from("course_lesson_plan")
-    .select("class_date, lesson_id")
+    .select("class_date, lesson_slot, lesson_id")
     .eq("course_id", course.id)
-    .order("class_date", { ascending: true });
+    .order("class_date", { ascending: true })
+    .order("lesson_slot", { ascending: true });
 
   if (planError) throw new Error(planError.message);
   if (!planRows || planRows.length === 0) {
@@ -234,12 +235,26 @@ export async function generateAnnouncementsAction(formData) {
     standardsByLesson.set(link.lesson_id, arr);
   }
 
-  const rows = planRows.map((row) => {
-    const lesson = lessonById.get(row.lesson_id);
-    const standards = standardsByLesson.get(row.lesson_id) || [];
-    const day = calendarByDate.get(row.class_date);
+  const planRowsByDate = new Map();
+  for (const row of planRows) {
+    const rowsForDate = planRowsByDate.get(row.class_date) || [];
+    rowsForDate.push(row);
+    planRowsByDate.set(row.class_date, rowsForDate);
+  }
+
+  const rows = [...planRowsByDate.entries()].map(([classDate, rowsForDate]) => {
+    const firstRow = rowsForDate[0];
+    const lesson = lessonById.get(firstRow.lesson_id);
+    const standards = standardsByLesson.get(firstRow.lesson_id) || [];
+    const day = calendarByDate.get(classDate);
     const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
     const dayType = day?.day_type || "instructional";
+    const lessonSummary = rowsForDate
+      .map((row, index) => {
+        const rowLesson = lessonById.get(row.lesson_id);
+        return `Lesson ${index + 1}: ${rowLesson?.title || "TBD"}`;
+      })
+      .join("\n");
     const doNow = includeDoNow
       ? buildDoNow({
           lessonTitle: lesson?.title,
@@ -248,22 +263,22 @@ export async function generateAnnouncementsAction(formData) {
         })
       : "";
     const quote = includeQuote
-      ? `Quote: "${buildQuote({ classDate: row.class_date, className: course.title })}"`
+      ? `Quote: "${buildQuote({ classDate, className: course.title })}"`
       : "";
-    const dayOfWeek = includeDayOfWeek ? getDayOfWeek(row.class_date) : "";
+    const dayOfWeek = includeDayOfWeek ? getDayOfWeek(classDate) : "";
     const dayNumber = includeDayNumber
-      ? getDayNumber(row.class_date, course.school_year_start || row.class_date)
+      ? getDayNumber(classDate, course.school_year_start || classDate)
       : "";
     const regularAssignment = includeRegularAssignments
-      ? recurringAssignmentForDate(row.class_date, recurringAssignments)
+      ? recurringAssignmentForDate(classDate, recurringAssignments)
       : "";
 
     let content = applyTemplate(template, {
-      date: formatDate(row.class_date),
+      date: formatDate(classDate),
       class_name: course.title || "Class",
       day_type: dayType,
       reason: reasonLabel || "",
-      lesson_title: lesson?.title || "TBD",
+      lesson_title: rowsForDate.length > 1 ? lessonSummary : lesson?.title || "TBD",
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
       day_number: dayNumber,
@@ -295,7 +310,7 @@ export async function generateAnnouncementsAction(formData) {
 
     return {
       course_id: course.id,
-      class_date: row.class_date,
+      class_date: classDate,
       content,
       updated_at: new Date().toISOString(),
     };

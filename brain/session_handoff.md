@@ -8,9 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-05 America/New_York (dashboard/nav ordering polish)
+2026-06-05 America/New_York (pacing lesson slots and weekday modifiers)
 
 ## Current State For Fresh Chat
+- Latest pacing update changes the plan engine from one lesson row per date to lesson slots per date (`course_lesson_plan.lesson_slot`) so **2 Lessons Per Day** can actually show two lessons on the same day instead of skipping lesson numbers. Production migration `pacing_lesson_slots` was applied successfully to Supabase project `ruaaznacaywngewxyged`.
+- Pacing modes are now: `1 Lesson Per Day` (full/half/modified school days get one lesson), `1 Lesson Per Day (No Half Days)`, `2 Lessons Per Day` (two on full/modified, one on half), and `Manual`. The old `two_lessons_unless_modified` value is normalized to `two_lessons_per_day`.
+- Class plans now include **Modified Day Rules** next to pacing: Monday-Friday rows with **No Lesson** and **One Less Lesson** checkboxes. These save in `courses.pacing_weekday_modifiers`; `No Lesson` wins if both boxes are posted for the same weekday.
+- Plan rendering now groups multiple lessons per day, dashboard rows order by `lesson_slot`, and announcement generation groups same-date lesson slots into one announcement row to avoid duplicate upserts.
+- Verification for the pacing-slot work passed: focused `node --check` on changed JS files, `git diff --check`, `npm run build`, and Supabase migration sanity check for the new constraints.
 - Latest polish update restores **Log Out** as the fixed final topbar button while keeping all other nav links alphabetized (`app/layout.js`). The Pacing Dashboard now renders class cards alphabetically by the shared course label sort (`app/dashboard/page.js`).
 - Verification for the dashboard/nav ordering polish passed: `node --check app/layout.js`; `node --check app/dashboard/page.js`; `git diff --check`; `npm run build`.
 - Latest polish update adjusts `app/classes/[id]/plan/page.js`, `app/globals.css`, and `app/layout.js`: the class plan **Back to Classes** link now sits as a normal top-right rectangular button in the plan header instead of stretching tall beside date inputs, and the topbar navigation buttons are alphabetized with **Log Out** included in the visible ordering.
