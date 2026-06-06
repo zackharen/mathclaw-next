@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
+import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
@@ -81,6 +82,7 @@ export async function updateClassSettingsAction(formData) {
   const courseId = String(formData.get("course_id") || "").trim();
   const title = String(formData.get("title") || "").trim();
   const className = String(formData.get("class_name") || "").trim();
+  const selectedLibraryId = String(formData.get("selected_library_id") || "").trim();
   const returnTo = normalizeReturnTo(String(formData.get("return_to") || ""));
 
   if (!courseId || !title || !className) {
@@ -97,7 +99,12 @@ export async function updateClassSettingsAction(formData) {
   }
 
   const accountType = await getAccountTypeForUser(supabase, user);
-  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, owner_id, selected_library_id"
+  );
   const course = access?.course;
 
   if (!course) {
@@ -115,11 +122,33 @@ export async function updateClassSettingsAction(formData) {
   }
 
   const writeClient = getCourseWriteClient(access, supabase);
+  let library = null;
+  if (selectedLibraryId) {
+    const { data, error: libraryError } = await supabase
+      .from("curriculum_libraries")
+      .select("id")
+      .eq("id", selectedLibraryId)
+      .maybeSingle();
+
+    if (libraryError || !data) {
+      redirect(
+        buildRedirectPath({
+          returnTo,
+          courseId: course.id,
+          params: { classSettingsError: "invalid-curriculum" },
+        })
+      );
+    }
+
+    library = data;
+  }
+
   const { error } = await writeClient
     .from("courses")
     .update({
       title,
       class_name: className,
+      selected_library_id: library?.id || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", course.id);
@@ -135,6 +164,63 @@ export async function updateClassSettingsAction(formData) {
       context: { returnTo },
     });
     redirect(buildRedirectPath({ returnTo, courseId: course.id, params: { classSettingsError: "save-failed" } }));
+  }
+
+  if (course.selected_library_id !== (library?.id || null)) {
+    const { error: announcementDeleteError } = await writeClient
+      .from("course_announcements")
+      .delete()
+      .eq("course_id", course.id);
+
+    if (announcementDeleteError) {
+      await logInternalEvent({
+        eventKey: "teacher_class_settings_curriculum_cleanup_failed",
+        source: "classes.actions",
+        message: announcementDeleteError.message,
+        user,
+        accountType,
+        courseId: course.id,
+        context: { returnTo },
+      });
+      redirect(
+        buildRedirectPath({
+          returnTo,
+          courseId: course.id,
+          params: { classSettingsError: "save-failed" },
+        })
+      );
+    }
+
+    if (library?.id) {
+      await rebuildPlanFromCalendar({
+        supabase: writeClient,
+        courseId: course.id,
+        userId: course.owner_id,
+      });
+    } else {
+      const { error: lessonPlanDeleteError } = await writeClient
+        .from("course_lesson_plan")
+        .delete()
+        .eq("course_id", course.id);
+      if (lessonPlanDeleteError) {
+        await logInternalEvent({
+          eventKey: "teacher_class_settings_curriculum_cleanup_failed",
+          source: "classes.actions",
+          message: lessonPlanDeleteError.message,
+          user,
+          accountType,
+          courseId: course.id,
+          context: { returnTo },
+        });
+        redirect(
+          buildRedirectPath({
+            returnTo,
+            courseId: course.id,
+            params: { classSettingsError: "save-failed" },
+          })
+        );
+      }
+    }
   }
 
   revalidatePath("/classes");

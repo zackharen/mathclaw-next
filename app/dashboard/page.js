@@ -90,8 +90,16 @@ function formatClassSettingsNotice(status) {
   if (status === "updated") return "Class settings updated.";
   if (status === "missing-data") return "Add both class names before saving.";
   if (status === "course-not-found") return "That class could not be found for settings updates.";
+  if (status === "invalid-curriculum") return "Choose a valid curriculum before saving.";
   if (status === "save-failed") return "Could not update class settings. Please try again.";
   return "";
+}
+
+function formatCurriculumLabel(library) {
+  if (!library) return "No curriculum";
+  const providerName = library.curriculum_providers?.name;
+  const className = library.class_name || "Curriculum";
+  return providerName ? `${className} · ${providerName}` : className;
 }
 
 function formatLessonLabel(sourceLessonCode, title) {
@@ -163,6 +171,7 @@ export default async function DashboardPage({ searchParams }) {
   let error = null;
   let courses = [];
   let games = [];
+  let curriculumLibraries = [];
   let gameSettingsByKey = new Map();
   let coTeacherState = {
     byCourseId: new Map(),
@@ -170,7 +179,7 @@ export default async function DashboardPage({ searchParams }) {
   };
 
   try {
-    [courses, games] = await Promise.all([
+    [courses, games, curriculumLibraries] = await Promise.all([
       listEditableCoursesForUser(
         supabase,
         user.id,
@@ -180,6 +189,15 @@ export default async function DashboardPage({ searchParams }) {
         viewerAccountType: "teacher",
         includeDisabledBySite: true,
       }),
+      supabase
+        .from("curriculum_libraries")
+        .select("id, class_code, class_name, curriculum_providers!inner(code, name)")
+        .eq("curriculum_providers.code", "math_medic")
+        .order("class_name", { ascending: true })
+        .then(({ data, error: librariesError }) => {
+          if (librariesError) throw new Error(librariesError.message);
+          return data || [];
+        }),
     ]);
     courses = sortCoursesAlphabetically(courses);
     gameSettingsByKey = await listCourseGameSettingsMap(courses.map((course) => course.id));
@@ -321,6 +339,7 @@ export default async function DashboardPage({ searchParams }) {
   }
 
   const todayIso = new Date().toISOString().slice(0, 10);
+  const curriculumById = new Map(curriculumLibraries.map((library) => [library.id, library]));
 
   const { data: connectionRows } = await supabase
     .from("teacher_connections")
@@ -397,6 +416,7 @@ export default async function DashboardPage({ searchParams }) {
     return {
       course,
       courseGames,
+      curriculumLabel: formatCurriculumLabel(curriculumById.get(course.selected_library_id)),
       currentCoTeachers: coTeacherState.byCourseId.get(course.id) || [],
       availableCoTeachers: coTeacherState.candidateOptionsByCourseId.get(course.id) || [],
       completed,
@@ -530,6 +550,10 @@ export default async function DashboardPage({ searchParams }) {
                     <span>{shortDate(card.course.school_year_start)} to {shortDate(card.course.school_year_end)}</span>
                   </div>
                   <div>
+                    <strong>Curriculum</strong>
+                    <span>{card.curriculumLabel}</span>
+                  </div>
+                  <div>
                     <strong>Join Code</strong>
                     <span>{card.course.student_join_code || "Not set yet"}</span>
                   </div>
@@ -561,7 +585,7 @@ export default async function DashboardPage({ searchParams }) {
                   <summary className="gameControlsSummary">
                     <div>
                       <h2>Class Settings</h2>
-                      <p>Rename the class card and class label</p>
+                      <p>Rename the class card, class label, and curriculum</p>
                     </div>
                     <span className="gameControlsToggle">
                       <span className="showLabel">Show</span>
@@ -579,6 +603,21 @@ export default async function DashboardPage({ searchParams }) {
                       <label>
                         <span>Class label</span>
                         <input className="input" name="class_name" defaultValue={card.course.class_name || ""} required />
+                      </label>
+                      <label>
+                        <span>Curriculum</span>
+                        <select
+                          className="input"
+                          name="selected_library_id"
+                          defaultValue={card.course.selected_library_id || ""}
+                        >
+                          <option value="">No curriculum</option>
+                          {curriculumLibraries.map((library) => (
+                            <option key={library.id} value={library.id}>
+                              {formatCurriculumLabel(library)}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <button className="btn primary" type="submit">Save Class Settings</button>
                     </form>
