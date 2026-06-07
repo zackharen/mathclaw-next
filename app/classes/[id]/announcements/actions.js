@@ -8,12 +8,8 @@ import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/acce
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(year, month - 1, day);
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  return `${weekday}, ${month}/${day}/${year}`;
 }
 
 function getDayOfWeek(isoDate) {
@@ -22,11 +18,17 @@ function getDayOfWeek(isoDate) {
   return date.toLocaleDateString("en-US", { weekday: "long" });
 }
 
-function getDayNumber(isoDate, schoolYearStart) {
-  const start = new Date(`${schoolYearStart}T00:00:00`);
-  const date = new Date(`${isoDate}T00:00:00`);
-  const diff = Math.floor((date - start) / (1000 * 60 * 60 * 24));
-  return Number.isFinite(diff) && diff >= 0 ? String(diff + 1) : "";
+function buildSchoolDayNumberByDate(calendarDays) {
+  const map = new Map();
+  let dayNumber = 0;
+
+  for (const day of calendarDays || []) {
+    if (day.day_type === "off") continue;
+    dayNumber += 1;
+    map.set(day.class_date, String(dayNumber));
+  }
+
+  return map;
 }
 
 function parseRecurringAssignments(rawText) {
@@ -57,7 +59,16 @@ function recurringAssignmentForDate(isoDate, assignmentsMap) {
   );
 }
 
-const DEFAULT_TEMPLATE = `Date: {date}
+const DEFAULT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
+{lesson_title}
+{objective}
+{standards}
+
+{assignments}
+
+{teacher_absences}`;
+
+const LEGACY_DEFAULT_TEMPLATE = `Date: {date}
 Class: {class_name}
 Day Type: {day_type}
 Lesson: {lesson_title}
@@ -81,10 +92,31 @@ function applyTemplate(template, values) {
   return output.trim();
 }
 
+function normalizeTemplate(template) {
+  const normalized = String(template || "").trim();
+  if (!normalized || normalized === LEGACY_DEFAULT_TEMPLATE) {
+    return DEFAULT_TEMPLATE;
+  }
+  return normalized;
+}
+
 function titleWithoutCode(lessonTitle) {
   return String(lessonTitle || "")
     .replace(/^\s*[\w.-]+\s*:\s*/u, "")
     .trim();
+}
+
+function formatABDay(abDay) {
+  return abDay === "A" || abDay === "B" ? `${abDay} Day` : "";
+}
+
+function formatScheduleType(dayType) {
+  if (dayType === "instructional") return "Full Day Schedule";
+  if (dayType === "half") return "Half Day Schedule";
+  if (dayType === "modified") return "Modified Day Schedule";
+  if (dayType === "grace_day") return "Grace Day Schedule";
+  if (dayType === "off") return "No School";
+  return "Full Day Schedule";
 }
 
 function buildDoNow({ lessonTitle, objective, standards }) {
@@ -124,8 +156,9 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
   const { data: calendarDays, error: calendarError } = await supabase
     .from("course_calendar_days")
-    .select("class_date, day_type, reason_id")
-    .eq("course_id", course.id);
+    .select("class_date, day_type, ab_day, reason_id")
+    .eq("course_id", course.id)
+    .order("class_date", { ascending: true });
 
   if (calendarError) throw new Error(calendarError.message);
 
@@ -179,7 +212,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
   if (templateError) throw new Error(templateError.message);
 
-  const template = templateRow?.body_template?.trim() || DEFAULT_TEMPLATE;
+  const template = normalizeTemplate(templateRow?.body_template);
   const includeDoNow = templateRow?.include_do_now ?? false;
   const includeQuote = templateRow?.include_quote ?? false;
   const includeDayNumber = templateRow?.include_day_number ?? false;
@@ -198,6 +231,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   const lessonById = new Map((lessons || []).map((lesson) => [lesson.id, lesson]));
   const standardsByLesson = new Map();
   const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
+  const schoolDayNumberByDate = buildSchoolDayNumberByDate(calendarDays || []);
   const reasonById = new Map((reasons || []).map((r) => [r.id, r.label]));
 
   for (const link of links || []) {
@@ -217,6 +251,8 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   function buildAnnouncementContent({ classDate, rowsForDate, lesson, standards, day }) {
     const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
     const dayType = day?.day_type || "instructional";
+    const abDay = formatABDay(day?.ab_day);
+    const scheduleType = formatScheduleType(dayType);
     const lessonSummary = rowsForDate
       .map((row, index) => {
         const rowLesson = lessonById.get(row.lesson_id);
@@ -229,25 +265,28 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     const quote = includeQuote
       ? `Quote: "${buildQuote({ classDate, className: course.title })}"`
       : "";
-    const dayOfWeek = includeDayOfWeek ? getDayOfWeek(classDate) : "";
-    const dayNumber = includeDayNumber
-      ? getDayNumber(classDate, course.school_year_start || classDate)
-      : "";
+    const dayOfWeek = getDayOfWeek(classDate);
+    const dayNumber = schoolDayNumberByDate.get(classDate) || "";
     const regularAssignment = includeRegularAssignments
       ? recurringAssignmentForDate(classDate, recurringAssignments)
       : "";
+    const assignments = regularAssignment;
 
     let content = applyTemplate(template, {
       date: formatDate(classDate),
       class_name: course.title || "Class",
+      ab_day: abDay,
       day_type: dayType,
+      schedule_type: scheduleType,
       reason: reasonLabel || "",
       lesson_title: rowsForDate.length > 1 ? lessonSummary : lesson?.title || "Grace Day",
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
       day_number: dayNumber,
       day_of_week: dayOfWeek,
+      assignments,
       regular_assignment: regularAssignment,
+      teacher_absences: "",
       do_now: doNow,
       quote,
     });

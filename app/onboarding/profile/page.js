@@ -10,6 +10,30 @@ import {
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
 
+const DEFAULT_ANNOUNCEMENT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
+{lesson_title}
+{objective}
+{standards}
+
+{assignments}
+
+{teacher_absences}`;
+
+const LEGACY_DEFAULT_ANNOUNCEMENT_TEMPLATE = `Date: {date}
+Class: {class_name}
+Day Type: {day_type}
+Lesson: {lesson_title}
+Objective: {objective}
+Standards: {standards}`;
+
+function normalizeAnnouncementTemplate(template) {
+  const normalized = String(template || "").trim();
+  if (!normalized || normalized === LEGACY_DEFAULT_ANNOUNCEMENT_TEMPLATE) {
+    return DEFAULT_ANNOUNCEMENT_TEMPLATE;
+  }
+  return normalized;
+}
+
 function defaultSchoolYearDates() {
   const now = new Date();
   const year = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
@@ -236,14 +260,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   if (templateError) throw new Error(templateError.message);
 
-  const defaultTemplate =
-    templateRow?.body_template ||
-    `Date: {date}
-Class: {class_name}
-Day Type: {day_type}
-Lesson: {lesson_title}
-Objective: {objective}
-Standards: {standards}`;
+  const defaultTemplate = normalizeAnnouncementTemplate(templateRow?.body_template);
   const includeDoNow = templateRow?.include_do_now ?? false;
   const includeQuote = templateRow?.include_quote ?? false;
   const includeDayNumber = templateRow?.include_day_number ?? false;
@@ -410,10 +427,12 @@ Standards: {standards}`;
           Control how daily announcements are generated. Supported placeholders:
           {" "}
           <code>{"{date}"}</code>, <code>{"{class_name}"}</code>,{" "}
-          <code>{"{day_type}"}</code>, <code>{"{reason}"}</code>,{" "}
+          <code>{"{ab_day}"}</code>, <code>{"{day_type}"}</code>,{" "}
+          <code>{"{schedule_type}"}</code>, <code>{"{reason}"}</code>,{" "}
           <code>{"{lesson_title}"}</code>, <code>{"{objective}"}</code>,{" "}
           <code>{"{standards}"}</code>, <code>{"{day_number}"}</code>,{" "}
-          <code>{"{day_of_week}"}</code>, <code>{"{regular_assignment}"}</code>,{" "}
+          <code>{"{day_of_week}"}</code>, <code>{"{assignments}"}</code>,{" "}
+          <code>{"{regular_assignment}"}</code>, <code>{"{teacher_absences}"}</code>,{" "}
           <code>{"{do_now}"}</code>, <code>{"{quote}"}</code>.
         </p>
 
