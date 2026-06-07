@@ -5,6 +5,8 @@ import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
 import { getSiteCopy } from "@/lib/site-config";
 import {
+  addTeacherAbsenceAction,
+  deleteTeacherAbsenceAction,
   saveAnnouncementTemplateAction,
   saveSchoolCalendarAction,
 } from "./actions";
@@ -67,6 +69,12 @@ function prettyDate(value) {
   });
 }
 
+function courseLabel(course) {
+  const title = course?.title || "Class";
+  const className = course?.class_name ? ` (${course.class_name})` : "";
+  return `${title}${className}`;
+}
+
 function buildWeekdays(startIso, endIso) {
   const start = parseDateAtUTC(startIso);
   const end = parseDateAtUTC(endIso);
@@ -112,6 +120,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
   const templateUpdated = qs.template_updated === "1";
+  const absenceUpdated = qs.absence_updated === "1";
+  const absenceError = qs.absence_error;
   const siteCopy = await getSiteCopy();
 
   const supabase = await createClient();
@@ -183,6 +193,13 @@ export default async function OnboardingProfilePage({ searchParams }) {
     .limit(1)
     .maybeSingle();
 
+  const { data: teacherCourses } = isTeacher
+    ? await supabase
+        .from("courses")
+        .select("id, title, class_name")
+        .eq("owner_id", user.id)
+        .order("title", { ascending: true })
+    : { data: [] };
 
   const weekdays = buildWeekdays(schoolYearStart, schoolYearEnd);
   const abPatternStartIso = abSeedCourse?.ab_pattern_start_date || schoolYearStart;
@@ -215,6 +232,34 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const schoolDayByDate = new Map(
     (schoolDays || []).map((row) => [row.class_date, row])
+  );
+
+  let teacherAbsences = [];
+  let absencesMigrationNeeded = false;
+  if (isTeacher) {
+    const { data: absencesData, error: absencesError } = await supabase
+      .from("teacher_absences")
+      .select("id, absence_date, course_id, note")
+      .eq("owner_id", user.id)
+      .gte("absence_date", schoolYearStart)
+      .lte("absence_date", schoolYearEnd)
+      .order("absence_date", { ascending: true });
+
+    if (
+      absencesError &&
+      typeof absencesError.message === "string" &&
+      absencesError.message.includes("teacher_absences")
+    ) {
+      absencesMigrationNeeded = true;
+    } else if (absencesError) {
+      throw new Error(absencesError.message);
+    } else {
+      teacherAbsences = absencesData || [];
+    }
+  }
+
+  const teacherCourseById = new Map(
+    (teacherCourses || []).map((course) => [course.id, course])
   );
 
   let { data: templateRow, error: templateError } = await supabase
@@ -417,6 +462,89 @@ export default async function OnboardingProfilePage({ searchParams }) {
               </div>
           </form>
         </details>
+      </section>
+      ) : null}
+
+      {isTeacher ? (
+      <section className="card">
+        <h2>Teacher Absences</h2>
+        <p>
+          Add days you know you will be out. Generated announcements can include
+          upcoming absence dates automatically.
+        </p>
+
+        {absencesMigrationNeeded || absenceError === "missing-table" ? (
+          <p style={{ marginTop: "0.75rem" }}>
+            Teacher absences are unavailable until the teacher absences migration
+            is applied.
+          </p>
+        ) : null}
+
+        {!absencesMigrationNeeded ? (
+          <form action={addTeacherAbsenceAction} className="list" style={{ marginTop: "0.75rem" }}>
+            <div className="schoolYearRangeRow">
+              <label>
+                Date
+                <input className="input" type="date" name="absence_date" required />
+              </label>
+              <label>
+                Applies To
+                <select className="input" name="course_scope" defaultValue="all">
+                  <option value="all">All Classes</option>
+                  {(teacherCourses || []).map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {courseLabel(course)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              Note
+              <input className="input" name="note" placeholder="Optional" />
+            </label>
+            <div className="ctaRow">
+              <button className="btn primary" type="submit">
+                Add Absence
+              </button>
+              {absenceUpdated ? (
+                <span className="statusNote">Teacher Absences Updated!</span>
+              ) : null}
+              {absenceError && absenceError !== "missing-table" ? (
+                <span className="statusNote">Could not save absence.</span>
+              ) : null}
+            </div>
+          </form>
+        ) : null}
+
+        {teacherAbsences.length > 0 ? (
+          <div className="list" style={{ marginTop: "0.75rem" }}>
+            {teacherAbsences.map((absence) => {
+              const course = absence.course_id
+                ? teacherCourseById.get(absence.course_id)
+                : null;
+              return (
+                <div className="card" key={absence.id} style={{ background: "#fff" }}>
+                  <div className="ctaRow" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <strong>{prettyDate(absence.absence_date)}</strong>
+                      <p style={{ marginTop: "0.25rem" }}>
+                        {course ? courseLabel(course) : "All Classes"}
+                        {absence.note ? ` | ${absence.note}` : ""}
+                      </p>
+                    </div>
+                    <form action={deleteTeacherAbsenceAction}>
+                      <input type="hidden" name="absence_id" value={absence.id} />
+                      <button className="btn" type="submit">
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
       ) : null}
 

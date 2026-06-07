@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
+import { generateAnnouncementsForCourse } from "../../classes/[id]/announcements/actions";
 
 function parseDateAtUTC(isoDate) {
   const [year, month, day] = String(isoDate).split("-").map(Number);
@@ -29,6 +30,37 @@ function nextAB(current) {
 function isMissingSchoolCalendarTableError(error) {
   const message = String(error?.message || "");
   return message.includes("school_calendar_days");
+}
+
+function isMissingTeacherAbsencesTableError(error) {
+  const message = String(error?.message || "");
+  return message.includes("teacher_absences");
+}
+
+function isValidISODate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = parseDateAtUTC(value);
+  return toISODate(parsed) === value;
+}
+
+async function regenerateAnnouncementsForTeacherCourses(supabase, userId) {
+  const { data: courses, error } = await supabase
+    .from("courses")
+    .select("id, title, owner_id, school_year_start, school_year_end")
+    .eq("owner_id", userId);
+
+  if (error) throw new Error(error.message);
+
+  for (const course of courses || []) {
+    await generateAnnouncementsForCourse({
+      supabase,
+      writeClient: supabase,
+      userId,
+      course,
+    });
+    revalidatePath(`/classes/${course.id}/plan`);
+    revalidatePath(`/classes/${course.id}/announcements`);
+  }
 }
 
 function parseSchoolCalendarRows(formData) {
@@ -360,4 +392,107 @@ export async function saveSchoolCalendarAction(formData) {
   revalidatePath("/");
 
   redirect(`/onboarding/profile?school_calendar_updated=1&t=${Date.now()}`);
+}
+
+export async function addTeacherAbsenceAction(formData) {
+  const absenceDate = String(formData.get("absence_date") || "");
+  const courseScope = String(formData.get("course_scope") || "all");
+  const note = String(formData.get("note") || "").trim();
+
+  if (!isValidISODate(absenceDate)) {
+    redirect("/onboarding/profile?absence_error=1");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  let courseId = null;
+  if (courseScope !== "all") {
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("id", courseScope)
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+    if (courseError) throw new Error(courseError.message);
+    if (!course?.id) redirect("/onboarding/profile?absence_error=1");
+    courseId = course.id;
+  }
+
+  let deleteQuery = supabase
+    .from("teacher_absences")
+    .delete()
+    .eq("owner_id", user.id)
+    .eq("absence_date", absenceDate);
+  deleteQuery = courseId ? deleteQuery.eq("course_id", courseId) : deleteQuery.is("course_id", null);
+  const { error: deleteError } = await deleteQuery;
+
+  if (deleteError) {
+    if (isMissingTeacherAbsencesTableError(deleteError)) {
+      redirect("/onboarding/profile?absence_error=missing-table");
+    }
+    throw new Error(deleteError.message);
+  }
+
+  const { error: insertError } = await supabase
+    .from("teacher_absences")
+    .insert({
+      owner_id: user.id,
+      course_id: courseId,
+      absence_date: absenceDate,
+      note: note || null,
+    });
+
+  if (insertError) {
+    if (isMissingTeacherAbsencesTableError(insertError)) {
+      redirect("/onboarding/profile?absence_error=missing-table");
+    }
+    throw new Error(insertError.message);
+  }
+
+  await regenerateAnnouncementsForTeacherCourses(supabase, user.id);
+
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/classes");
+  redirect(`/onboarding/profile?absence_updated=1&t=${Date.now()}`);
+}
+
+export async function deleteTeacherAbsenceAction(formData) {
+  const absenceId = String(formData.get("absence_id") || "");
+  if (!absenceId) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const { error } = await supabase
+    .from("teacher_absences")
+    .delete()
+    .eq("id", absenceId)
+    .eq("owner_id", user.id);
+
+  if (error) {
+    if (isMissingTeacherAbsencesTableError(error)) {
+      redirect("/onboarding/profile?absence_error=missing-table");
+    }
+    throw new Error(error.message);
+  }
+
+  await regenerateAnnouncementsForTeacherCourses(supabase, user.id);
+
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/classes");
+  redirect(`/onboarding/profile?absence_updated=1&t=${Date.now()}`);
 }

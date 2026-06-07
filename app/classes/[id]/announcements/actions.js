@@ -12,6 +12,11 @@ function formatDate(isoDate) {
   return `${weekday}, ${month}/${day}/${year}`;
 }
 
+function formatShortDate(isoDate) {
+  const [, month, day] = isoDate.split("-").map(Number);
+  return `${month}/${day}`;
+}
+
 function getDayOfWeek(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(year, month - 1, day);
@@ -119,6 +124,26 @@ function formatScheduleType(dayType) {
   return "Full Day Schedule";
 }
 
+function isMissingTeacherAbsencesTableError(error) {
+  const message = String(error?.message || "");
+  return message.includes("teacher_absences");
+}
+
+function formatTeacherAbsenceList(absences, classDate) {
+  const upcomingAbsences = (absences || []).filter(
+    (absence) => absence.absence_date >= classDate
+  );
+
+  if (upcomingAbsences.length === 0) return "";
+
+  const dates = upcomingAbsences.map((absence) => {
+    const note = String(absence.note || "").trim();
+    return note ? `${formatShortDate(absence.absence_date)} (${note})` : formatShortDate(absence.absence_date);
+  });
+
+  return `I won't be in school on the following dates: ${dates.join(", ")}`;
+}
+
 function buildDoNow({ lessonTitle, objective, standards }) {
   const title = titleWithoutCode(lessonTitle) || "today's topic";
   const standard = standards[0] || "today’s standard";
@@ -168,6 +193,29 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     : { data: [], error: null };
 
   if (reasonsError) throw new Error(reasonsError.message);
+
+  const firstCalendarDate = calendarDays?.[0]?.class_date || course.school_year_start;
+  const lastCalendarDate =
+    calendarDays?.[calendarDays.length - 1]?.class_date || course.school_year_end || firstCalendarDate;
+
+  let teacherAbsences = [];
+  if (firstCalendarDate && lastCalendarDate) {
+    const { data: absencesData, error: absencesError } = await supabase
+      .from("teacher_absences")
+      .select("absence_date, course_id, note")
+      .eq("owner_id", userId)
+      .gte("absence_date", firstCalendarDate)
+      .lte("absence_date", lastCalendarDate)
+      .order("absence_date", { ascending: true });
+
+    if (absencesError && !isMissingTeacherAbsencesTableError(absencesError)) {
+      throw new Error(absencesError.message);
+    }
+
+    teacherAbsences = (absencesData || []).filter(
+      (absence) => !absence.course_id || absence.course_id === course.id
+    );
+  }
 
   let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
@@ -271,6 +319,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       ? recurringAssignmentForDate(classDate, recurringAssignments)
       : "";
     const assignments = regularAssignment;
+    const teacherAbsencesText = formatTeacherAbsenceList(teacherAbsences, classDate);
 
     let content = applyTemplate(template, {
       date: formatDate(classDate),
@@ -286,7 +335,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       day_of_week: dayOfWeek,
       assignments,
       regular_assignment: regularAssignment,
-      teacher_absences: "",
+      teacher_absences: teacherAbsencesText,
       do_now: doNow,
       quote,
     });
@@ -361,7 +410,7 @@ export async function generateAnnouncementsAction(formData) {
     supabase,
     user.id,
     courseId,
-    "id, title, school_year_start, owner_id"
+    "id, title, school_year_start, school_year_end, owner_id"
   );
   const course = access?.course;
 
