@@ -7,8 +7,10 @@ import { getSiteCopy } from "@/lib/site-config";
 import {
   addTeacherAbsenceAction,
   deleteTeacherAbsenceAction,
+  deleteTeacherMarkingPeriodAction,
   saveAnnouncementTemplateAction,
   saveSchoolCalendarAction,
+  saveTeacherMarkingPeriodAction,
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
 
@@ -122,6 +124,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const templateUpdated = qs.template_updated === "1";
   const absenceUpdated = qs.absence_updated === "1";
   const absenceError = qs.absence_error;
+  const markingPeriodUpdated = qs.marking_period_updated === "1";
+  const markingPeriodError = qs.marking_period_error;
   const siteCopy = await getSiteCopy();
 
   const supabase = await createClient();
@@ -233,6 +237,30 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const schoolDayByDate = new Map(
     (schoolDays || []).map((row) => [row.class_date, row])
   );
+
+  let markingPeriods = [];
+  let markingPeriodsMigrationNeeded = false;
+  if (isTeacher) {
+    const { data: periodsData, error: periodsError } = await supabase
+      .from("teacher_marking_periods")
+      .select("id, name, start_date, end_date")
+      .eq("owner_id", user.id)
+      .gte("end_date", schoolYearStart)
+      .lte("start_date", schoolYearEnd)
+      .order("start_date", { ascending: true });
+
+    if (
+      periodsError &&
+      typeof periodsError.message === "string" &&
+      periodsError.message.includes("teacher_marking_periods")
+    ) {
+      markingPeriodsMigrationNeeded = true;
+    } else if (periodsError) {
+      throw new Error(periodsError.message);
+    } else {
+      markingPeriods = periodsData || [];
+    }
+  }
 
   let teacherAbsences = [];
   let absencesMigrationNeeded = false;
@@ -361,7 +389,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
       ) : null}
 
       {isTeacher ? (
-      <section className="card">
+      <section className="card" id="school-calendar">
         <h2>School Calendar</h2>
         <p>
           Set school-year dates and non-full school days once, then apply to all
@@ -461,6 +489,75 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 ) : null}
               </div>
           </form>
+
+          <div className="list" style={{ marginTop: "1.1rem" }}>
+            <div>
+              <h3>Marking Periods</h3>
+              <p>
+                Set marking period dates for future assignment scheduling rules.
+              </p>
+            </div>
+
+            {markingPeriodsMigrationNeeded || markingPeriodError === "missing-table" ? (
+              <p>
+                Marking periods are unavailable until the marking periods migration
+                is applied.
+              </p>
+            ) : null}
+
+            {!markingPeriodsMigrationNeeded ? (
+              <form action={saveTeacherMarkingPeriodAction} className="list">
+                <div className="schoolYearRangeRow">
+                  <label>
+                    Name
+                    <input className="input" name="name" placeholder="MP1" required />
+                  </label>
+                  <label>
+                    Start
+                    <input className="input" type="date" name="start_date" required />
+                  </label>
+                  <label>
+                    End
+                    <input className="input" type="date" name="end_date" required />
+                  </label>
+                </div>
+                <div className="ctaRow">
+                  <button className="btn primary" type="submit">
+                    Add / Update Period
+                  </button>
+                  {markingPeriodUpdated ? (
+                    <span className="statusNote">Marking Periods Updated!</span>
+                  ) : null}
+                  {markingPeriodError && markingPeriodError !== "missing-table" ? (
+                    <span className="statusNote">Could not save marking period.</span>
+                  ) : null}
+                </div>
+              </form>
+            ) : null}
+
+            {markingPeriods.length > 0 ? (
+              <div className="list">
+                {markingPeriods.map((period) => (
+                  <div className="card" key={period.id} style={{ background: "#fff" }}>
+                    <div className="ctaRow" style={{ justifyContent: "space-between" }}>
+                      <div>
+                        <strong>{period.name}</strong>
+                        <p style={{ marginTop: "0.25rem" }}>
+                          {prettyDate(period.start_date)} to {prettyDate(period.end_date)}
+                        </p>
+                      </div>
+                      <form action={deleteTeacherMarkingPeriodAction}>
+                        <input type="hidden" name="period_id" value={period.id} />
+                        <button className="btn" type="submit">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </details>
       </section>
       ) : null}

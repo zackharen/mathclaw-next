@@ -37,6 +37,11 @@ function isMissingTeacherAbsencesTableError(error) {
   return message.includes("teacher_absences");
 }
 
+function isMissingTeacherMarkingPeriodsTableError(error) {
+  const message = String(error?.message || "");
+  return message.includes("teacher_marking_periods");
+}
+
 function isValidISODate(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = parseDateAtUTC(value);
@@ -495,4 +500,76 @@ export async function deleteTeacherAbsenceAction(formData) {
   revalidatePath("/onboarding/profile");
   revalidatePath("/classes");
   redirect(`/onboarding/profile?absence_updated=1&t=${Date.now()}`);
+}
+
+export async function saveTeacherMarkingPeriodAction(formData) {
+  const name = String(formData.get("name") || "").trim();
+  const startDate = String(formData.get("start_date") || "");
+  const endDate = String(formData.get("end_date") || "");
+
+  if (!name || !isValidISODate(startDate) || !isValidISODate(endDate) || startDate > endDate) {
+    redirect("/onboarding/profile?marking_period_error=1#school-calendar");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const { error } = await supabase
+    .from("teacher_marking_periods")
+    .upsert(
+      {
+        owner_id: user.id,
+        name,
+        start_date: startDate,
+        end_date: endDate,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "owner_id,name" }
+    );
+
+  if (error) {
+    if (isMissingTeacherMarkingPeriodsTableError(error)) {
+      redirect("/onboarding/profile?marking_period_error=missing-table#school-calendar");
+    }
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/onboarding/profile");
+  redirect(`/onboarding/profile?marking_period_updated=1&t=${Date.now()}#school-calendar`);
+}
+
+export async function deleteTeacherMarkingPeriodAction(formData) {
+  const periodId = String(formData.get("period_id") || "");
+  if (!periodId) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const { error } = await supabase
+    .from("teacher_marking_periods")
+    .delete()
+    .eq("id", periodId)
+    .eq("owner_id", user.id);
+
+  if (error) {
+    if (isMissingTeacherMarkingPeriodsTableError(error)) {
+      redirect("/onboarding/profile?marking_period_error=missing-table#school-calendar");
+    }
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/onboarding/profile");
+  redirect(`/onboarding/profile?marking_period_updated=1&t=${Date.now()}#school-calendar`);
 }
