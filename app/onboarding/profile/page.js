@@ -8,6 +8,7 @@ import {
   addTeacherAbsenceAction,
   deleteTeacherAbsenceAction,
   deleteTeacherMarkingPeriodAction,
+  saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
   saveSchoolCalendarAction,
   saveTeacherMarkingPeriodAction,
@@ -93,6 +94,33 @@ function buildWeekdays(startIso, endIso) {
   }
 
   return dates;
+}
+
+function buildSchoolDayNumberMap(weekdays, schoolDayByDate) {
+  const map = new Map();
+  let dayNumber = 0;
+
+  for (const date of weekdays) {
+    const row = schoolDayByDate.get(date);
+    if (row?.day_type === "off") continue;
+    dayNumber += 1;
+    map.set(dayNumber, date);
+  }
+
+  return { map, count: dayNumber };
+}
+
+function markingPeriodDateText(period, schoolDayNumberMap) {
+  const startDate = schoolDayNumberMap.get(period.start_day_number);
+  const endDate = schoolDayNumberMap.get(period.end_day_number);
+
+  if (startDate && endDate) {
+    return `${prettyDate(startDate)} to ${prettyDate(endDate)}`;
+  }
+  if (startDate) {
+    return `${prettyDate(startDate)} to not scheduled yet`;
+  }
+  return "Not scheduled yet";
 }
 
 
@@ -237,22 +265,22 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const schoolDayByDate = new Map(
     (schoolDays || []).map((row) => [row.class_date, row])
   );
+  const { map: schoolDayNumberMap, count: schoolDayCount } =
+    buildSchoolDayNumberMap(weekdays, schoolDayByDate);
 
   let markingPeriods = [];
   let markingPeriodsMigrationNeeded = false;
   if (isTeacher) {
     const { data: periodsData, error: periodsError } = await supabase
-      .from("teacher_marking_periods")
-      .select("id, name, start_date, end_date")
+      .from("teacher_marking_period_rules")
+      .select("id, name, start_day_number, end_day_number")
       .eq("owner_id", user.id)
-      .gte("end_date", schoolYearStart)
-      .lte("start_date", schoolYearEnd)
-      .order("start_date", { ascending: true });
+      .order("start_day_number", { ascending: true });
 
     if (
       periodsError &&
       typeof periodsError.message === "string" &&
-      periodsError.message.includes("teacher_marking_periods")
+      periodsError.message.includes("teacher_marking_period_rules")
     ) {
       markingPeriodsMigrationNeeded = true;
     } else if (periodsError) {
@@ -494,7 +522,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
             <div>
               <h3>Marking Periods</h3>
               <p>
-                Set marking period dates for future assignment scheduling rules.
+                Set marking periods by school day number. Current date ranges recalculate when the school
+                calendar changes.
+              </p>
+              <p style={{ marginTop: "0.25rem" }}>
+                Current school days in calendar: {schoolDayCount}
               </p>
             </div>
 
@@ -506,33 +538,41 @@ export default async function OnboardingProfilePage({ searchParams }) {
             ) : null}
 
             {!markingPeriodsMigrationNeeded ? (
-              <form action={saveTeacherMarkingPeriodAction} className="list">
-                <div className="schoolYearRangeRow">
-                  <label>
-                    Name
-                    <input className="input" name="name" placeholder="MP1" required />
-                  </label>
-                  <label>
-                    Start
-                    <input className="input" type="date" name="start_date" required />
-                  </label>
-                  <label>
-                    End
-                    <input className="input" type="date" name="end_date" required />
-                  </label>
-                </div>
-                <div className="ctaRow">
-                  <button className="btn primary" type="submit">
-                    Add / Update Period
+              <>
+                <form action={saveStandardMarkingPeriodRulesAction}>
+                  <button className="btn" type="submit">
+                    Use 4 Standard Quarters
                   </button>
-                  {markingPeriodUpdated ? (
-                    <span className="statusNote">Marking Periods Updated!</span>
-                  ) : null}
-                  {markingPeriodError && markingPeriodError !== "missing-table" ? (
-                    <span className="statusNote">Could not save marking period.</span>
-                  ) : null}
-                </div>
-              </form>
+                </form>
+
+                <form action={saveTeacherMarkingPeriodAction} className="list">
+                  <div className="schoolYearRangeRow">
+                    <label>
+                      Name
+                      <input className="input" name="name" placeholder="Quarter 1" required />
+                    </label>
+                    <label>
+                      Start Day #
+                      <input className="input" type="number" min="1" name="start_day_number" placeholder="1" required />
+                    </label>
+                    <label>
+                      End Day #
+                      <input className="input" type="number" min="1" name="end_day_number" placeholder="45" required />
+                    </label>
+                  </div>
+                  <div className="ctaRow">
+                    <button className="btn primary" type="submit">
+                      Add / Update Rule
+                    </button>
+                    {markingPeriodUpdated ? (
+                      <span className="statusNote">Marking Periods Updated!</span>
+                    ) : null}
+                    {markingPeriodError && markingPeriodError !== "missing-table" ? (
+                      <span className="statusNote">Could not save marking period.</span>
+                    ) : null}
+                  </div>
+                </form>
+              </>
             ) : null}
 
             {markingPeriods.length > 0 ? (
@@ -543,7 +583,10 @@ export default async function OnboardingProfilePage({ searchParams }) {
                       <div>
                         <strong>{period.name}</strong>
                         <p style={{ marginTop: "0.25rem" }}>
-                          {prettyDate(period.start_date)} to {prettyDate(period.end_date)}
+                          Days #{period.start_day_number}-{period.end_day_number}
+                        </p>
+                        <p style={{ marginTop: "0.25rem" }}>
+                          Current dates: {markingPeriodDateText(period, schoolDayNumberMap)}
                         </p>
                       </div>
                       <form action={deleteTeacherMarkingPeriodAction}>

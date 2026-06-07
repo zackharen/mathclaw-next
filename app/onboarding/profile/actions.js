@@ -37,9 +37,9 @@ function isMissingTeacherAbsencesTableError(error) {
   return message.includes("teacher_absences");
 }
 
-function isMissingTeacherMarkingPeriodsTableError(error) {
+function isMissingTeacherMarkingPeriodRulesTableError(error) {
   const message = String(error?.message || "");
-  return message.includes("teacher_marking_periods");
+  return message.includes("teacher_marking_period_rules");
 }
 
 function isValidISODate(value) {
@@ -504,10 +504,16 @@ export async function deleteTeacherAbsenceAction(formData) {
 
 export async function saveTeacherMarkingPeriodAction(formData) {
   const name = String(formData.get("name") || "").trim();
-  const startDate = String(formData.get("start_date") || "");
-  const endDate = String(formData.get("end_date") || "");
+  const startDayNumber = Number.parseInt(String(formData.get("start_day_number") || ""), 10);
+  const endDayNumber = Number.parseInt(String(formData.get("end_day_number") || ""), 10);
 
-  if (!name || !isValidISODate(startDate) || !isValidISODate(endDate) || startDate > endDate) {
+  if (
+    !name ||
+    !Number.isInteger(startDayNumber) ||
+    !Number.isInteger(endDayNumber) ||
+    startDayNumber < 1 ||
+    endDayNumber < startDayNumber
+  ) {
     redirect("/onboarding/profile?marking_period_error=1#school-calendar");
   }
 
@@ -521,20 +527,53 @@ export async function saveTeacherMarkingPeriodAction(formData) {
   }
 
   const { error } = await supabase
-    .from("teacher_marking_periods")
+    .from("teacher_marking_period_rules")
     .upsert(
       {
         owner_id: user.id,
         name,
-        start_date: startDate,
-        end_date: endDate,
+        start_day_number: startDayNumber,
+        end_day_number: endDayNumber,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "owner_id,name" }
     );
 
   if (error) {
-    if (isMissingTeacherMarkingPeriodsTableError(error)) {
+    if (isMissingTeacherMarkingPeriodRulesTableError(error)) {
+      redirect("/onboarding/profile?marking_period_error=missing-table#school-calendar");
+    }
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/onboarding/profile");
+  redirect(`/onboarding/profile?marking_period_updated=1&t=${Date.now()}#school-calendar`);
+}
+
+export async function saveStandardMarkingPeriodRulesAction() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const now = new Date().toISOString();
+  const rows = [
+    { owner_id: user.id, name: "Quarter 1", start_day_number: 1, end_day_number: 45, updated_at: now },
+    { owner_id: user.id, name: "Quarter 2", start_day_number: 46, end_day_number: 90, updated_at: now },
+    { owner_id: user.id, name: "Quarter 3", start_day_number: 91, end_day_number: 135, updated_at: now },
+    { owner_id: user.id, name: "Quarter 4", start_day_number: 136, end_day_number: 180, updated_at: now },
+  ];
+
+  const { error } = await supabase
+    .from("teacher_marking_period_rules")
+    .upsert(rows, { onConflict: "owner_id,name" });
+
+  if (error) {
+    if (isMissingTeacherMarkingPeriodRulesTableError(error)) {
       redirect("/onboarding/profile?marking_period_error=missing-table#school-calendar");
     }
     throw new Error(error.message);
@@ -558,13 +597,13 @@ export async function deleteTeacherMarkingPeriodAction(formData) {
   }
 
   const { error } = await supabase
-    .from("teacher_marking_periods")
+    .from("teacher_marking_period_rules")
     .delete()
     .eq("id", periodId)
     .eq("owner_id", user.id);
 
   if (error) {
-    if (isMissingTeacherMarkingPeriodsTableError(error)) {
+    if (isMissingTeacherMarkingPeriodRulesTableError(error)) {
       redirect("/onboarding/profile?marking_period_error=missing-table#school-calendar");
     }
     throw new Error(error.message);
