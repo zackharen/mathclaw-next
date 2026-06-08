@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
@@ -188,6 +189,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
     redirect("/auth/sign-in?redirect=/onboarding/profile");
   }
 
+  const admin = createAdminClient();
   const defaults = defaultSchoolYearDates();
   const accountType = await getAccountTypeForUser(supabase, user);
   const isTeacher = isTeacherAccountType(accountType);
@@ -199,7 +201,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
     schoolOptions = [];
   }
 
-  let { data: profile, error: profileError } = await supabase
+  let { data: profile, error: profileError } = await admin
     .from("profiles")
     .select(
       "display_name, nickname, school_name, timezone, discoverable, school_year_start, school_year_end"
@@ -214,7 +216,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
       profileError.message.includes("school_year_start") ||
       profileError.message.includes("discoverable"))
   ) {
-    const retry = await supabase
+    const retry = await admin
       .from("profiles")
       .select("display_name, school_name, timezone")
       .eq("id", user.id)
@@ -455,7 +457,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
               dates and apply changes to class calendars.
             </p>
           ) : null}
-          <form action={saveSchoolCalendarAction} className="list" style={{ marginTop: "0.75rem" }}>
+          <form
+            key={`${schoolYearStart}-${schoolYearEnd}`}
+            action={saveSchoolCalendarAction}
+            className="list"
+            style={{ marginTop: "0.75rem" }}
+          >
               <div className="schoolYearRangeRow">
                 <label>
                   School Year Start
