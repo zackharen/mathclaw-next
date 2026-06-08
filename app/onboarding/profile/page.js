@@ -6,10 +6,11 @@ import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
 import { getSiteCopy } from "@/lib/site-config";
 import {
+  deleteTeacherAnnouncementAssignmentRuleAction,
   deleteTeacherMarkingPeriodAction,
   saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
-  saveTeacherAnnouncementAssignmentsAction,
+  saveTeacherAnnouncementAssignmentRuleAction,
   saveSchoolCalendarAction,
   saveTeacherMarkingPeriodAction,
 } from "./actions";
@@ -168,134 +169,40 @@ function buildABMap(dates, abPatternStartIso) {
   return map;
 }
 
-function getDayOfWeekIndex(isoDate) {
-  return parseDateAtUTC(isoDate).getUTCDay();
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+];
+
+function weekdayName(value) {
+  return WEEKDAY_OPTIONS.find((day) => day.value === Number(value))?.label || "Friday";
 }
 
-function addDaysISO(isoDate, days) {
-  const date = parseDateAtUTC(isoDate);
-  date.setUTCDate(date.getUTCDate() + days);
-  return toISODate(date);
+function ruleScopeText(rule, courseById) {
+  return rule.course_id ? courseLabel(courseById.get(rule.course_id)) : "All classes";
 }
 
-function formatAssignmentDate(isoDate) {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return `${month}/${day}/${year}`;
-}
-
-function assignmentCourseScopeText(course) {
-  return course ? courseLabel(course) : "All classes";
-}
-
-function assignmentCandidateKey(candidate) {
-  return `${candidate.course_id || "all"}|${candidate.assignment_date}|${candidate.label}`;
-}
-
-function assignmentCandidateValue(candidate) {
-  return [
-    candidate.course_id || "all",
-    candidate.assignment_date,
-    candidate.label,
-    candidate.due_date || "",
-    candidate.source || "",
-  ].join("|");
-}
-
-function pickEvenly(items, count) {
-  if (items.length <= count) return items;
-  const picked = [];
-  const seen = new Set();
-  for (let i = 0; i < count; i += 1) {
-    const index = Math.round((i * (items.length - 1)) / (count - 1));
-    if (!seen.has(index)) {
-      picked.push(items[index]);
-      seen.add(index);
-    }
+function ruleSummary(rule) {
+  const settings = rule.settings || {};
+  const count = rule.count_per_period || 1;
+  if (rule.cadence === "weekly") {
+    const days = (settings.weekdays || [5]).slice(0, count).map(weekdayName).join(", ");
+    return `${count} time${count === 1 ? "" : "s"} per week: ${days}`;
   }
-  return picked;
-}
-
-function isCourseMeetingDay(course, day) {
-  if (!day || day.day_type === "off") return false;
-  if (course.schedule_model !== "ab") return true;
-  if (course.ab_meeting_day === "A") return day.ab_day === "A";
-  if (course.ab_meeting_day === "B") return day.ab_day === "B";
-  return day.ab_day === "A" || day.ab_day === "B";
-}
-
-function buildCourseAssignmentCandidates({
-  course,
-  courseDays,
-  markingPeriods,
-  schoolDayNumberByDate,
-}) {
-  const meetingDays = (courseDays || []).filter((day) => isCourseMeetingDay(course, day));
-  const candidates = [];
-
-  for (const day of meetingDays) {
-    const weekday = getDayOfWeekIndex(day.class_date);
-    if (course.schedule_model !== "ab" && weekday === 5) {
-      candidates.push({
-        course_id: course.id,
-        assignment_date: day.class_date,
-        label: "Assessment",
-        due_date: "",
-        source: "Friday assessments",
-      });
-    }
-    if (course.schedule_model === "ab" && (weekday === 4 || weekday === 5)) {
-      candidates.push({
-        course_id: course.id,
-        assignment_date: day.class_date,
-        label: "Assessment",
-        due_date: "",
-        source: "AB Thu/Fri assessments",
-      });
-    }
+  if (rule.cadence === "biweekly") {
+    const days = (settings.weekdays || [5]).slice(0, count).map(weekdayName).join(", ");
+    return `${count} time${count === 1 ? "" : "s"} every 2 weeks: ${days}`;
   }
-
-  for (const period of markingPeriods || []) {
-    const periodDays = meetingDays.filter((day) => {
-      const dayNumber = schoolDayNumberByDate.get(day.class_date);
-      return (
-        dayNumber &&
-        dayNumber >= period.start_day_number &&
-        dayNumber <= period.end_day_number
-      );
-    });
-    const periodFridays = periodDays.filter((day) => getDayOfWeekIndex(day.class_date) === 5);
-
-    for (const day of pickEvenly(periodFridays, 3)) {
-      candidates.push({
-        course_id: course.id,
-        assignment_date: day.class_date,
-        label: "Notebook Check",
-        due_date: "",
-        source: `${period.name} notebook checks`,
-      });
-    }
-
-    for (const day of pickEvenly(periodDays, 2)) {
-      candidates.push({
-        course_id: course.id,
-        assignment_date: day.class_date,
-        label: "Choice Board",
-        due_date: addDaysISO(day.class_date, 7),
-        source: `${period.name} choice boards`,
-      });
-    }
+  if (rule.cadence === "monthly") {
+    const days = (settings.month_days || [1]).slice(0, count).join(", ");
+    const shift = settings.monthly_shift === "before" ? "before" : "after";
+    return `${count} time${count === 1 ? "" : "s"} per month on day ${days}; if needed, use the first school day ${shift}`;
   }
-
-  const byKey = new Map();
-  for (const candidate of candidates) {
-    byKey.set(assignmentCandidateKey(candidate), candidate);
-  }
-  return [...byKey.values()].sort((a, b) => {
-    if (a.assignment_date !== b.assignment_date) {
-      return a.assignment_date.localeCompare(b.assignment_date);
-    }
-    return a.label.localeCompare(b.label);
-  });
+  const days = (settings.marking_period_day_numbers || [1]).slice(0, count).join(", ");
+  return `${count} time${count === 1 ? "" : "s"} per marking period on MP school day ${days}`;
 }
 
 export default async function OnboardingProfilePage({ searchParams }) {
@@ -473,74 +380,28 @@ export default async function OnboardingProfilePage({ searchParams }) {
     (teacherCourses || []).map((course) => [course.id, course])
   );
 
-  let courseCalendarDays = [];
-  const teacherCourseIds = (teacherCourses || []).map((course) => course.id);
-  if (isTeacher && teacherCourseIds.length > 0) {
-    const { data: courseCalendarData, error: courseCalendarError } = await supabase
-      .from("course_calendar_days")
-      .select("course_id, class_date, day_type, ab_day")
-      .in("course_id", teacherCourseIds)
-      .gte("class_date", schoolYearStart)
-      .lte("class_date", schoolYearEnd)
-      .order("class_date", { ascending: true });
-
-    if (courseCalendarError) {
-      throw new Error(courseCalendarError.message);
-    }
-
-    courseCalendarDays = courseCalendarData || [];
-  }
-
-  let announcementAssignments = [];
-  let announcementAssignmentsMigrationNeeded = false;
+  let assignmentRules = [];
+  let assignmentRulesMigrationNeeded = false;
   if (isTeacher) {
-    const { data: assignmentsData, error: assignmentsError } = await supabase
-      .from("teacher_announcement_assignments")
-      .select("id, course_id, assignment_date, label, due_date, source")
+    const { data: rulesData, error: rulesError } = await supabase
+      .from("teacher_announcement_assignment_rules")
+      .select("id, course_id, label, cadence, count_per_period, settings, is_active")
       .eq("owner_id", user.id)
-      .gte("assignment_date", schoolYearStart)
-      .lte("assignment_date", schoolYearEnd)
-      .order("assignment_date", { ascending: true })
+      .eq("is_active", true)
       .order("label", { ascending: true });
 
     if (
-      assignmentsError &&
-      typeof assignmentsError.message === "string" &&
-      assignmentsError.message.includes("teacher_announcement_assignments")
+      rulesError &&
+      typeof rulesError.message === "string" &&
+      rulesError.message.includes("teacher_announcement_assignment_rules")
     ) {
-      announcementAssignmentsMigrationNeeded = true;
-    } else if (assignmentsError) {
-      throw new Error(assignmentsError.message);
+      assignmentRulesMigrationNeeded = true;
+    } else if (rulesError) {
+      throw new Error(rulesError.message);
     } else {
-      announcementAssignments = assignmentsData || [];
+      assignmentRules = rulesData || [];
     }
   }
-
-  const courseCalendarByCourse = new Map();
-  for (const day of courseCalendarDays || []) {
-    const arr = courseCalendarByCourse.get(day.course_id) || [];
-    arr.push(day);
-    courseCalendarByCourse.set(day.course_id, arr);
-  }
-
-  const existingAssignmentKeys = new Set(
-    (announcementAssignments || []).map((assignment) => assignmentCandidateKey(assignment))
-  );
-
-  const assignmentCandidates = (teacherCourses || []).flatMap((course) =>
-    buildCourseAssignmentCandidates({
-      course,
-      courseDays: courseCalendarByCourse.get(course.id) || [],
-      markingPeriods,
-      schoolDayNumberByDate: dateToSchoolDayNumber,
-    })
-  );
-
-  const selectedOnlyAssignments = (announcementAssignments || []).filter(
-    (assignment) => !assignmentCandidates.some(
-      (candidate) => assignmentCandidateKey(candidate) === assignmentCandidateKey(assignment)
-    )
-  );
 
   let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
@@ -844,113 +705,203 @@ export default async function OnboardingProfilePage({ searchParams }) {
             <div>
               <h3>Announcement Assignments</h3>
               <p>
-                Pick generated assignment dates for assessments, notebook checks, and choice boards.
-                Checked rows feed the <code>{"{assignments}"}</code> announcement placeholder.
+                Set assignment types once, then choose how often each type appears in generated
+                announcements.
               </p>
             </div>
 
-            {announcementAssignmentsMigrationNeeded || assignmentError === "missing-table" ? (
+            {assignmentRulesMigrationNeeded || assignmentError === "missing-table" ? (
               <p>
-                Announcement assignments are unavailable until the announcement assignments
+                Announcement assignment rules are unavailable until the assignment rules
                 migration is applied.
               </p>
             ) : null}
 
-            {!announcementAssignmentsMigrationNeeded ? (
-              <form action={saveTeacherAnnouncementAssignmentsAction} className="list">
-                <input type="hidden" name="school_year_start" value={schoolYearStart} />
-                <input type="hidden" name="school_year_end" value={schoolYearEnd} />
+            {!assignmentRulesMigrationNeeded ? (
+              <>
+                <form action={saveTeacherAnnouncementAssignmentRuleAction} className="list">
+                  <div className="schoolYearRangeRow">
+                    <label>
+                      Assignment Type
+                      <input className="input" name="label" placeholder="Assessment" required />
+                    </label>
+                    <label>
+                      Applies To
+                      <select className="input" name="course_scope" defaultValue="all">
+                        <option value="all">All classes</option>
+                        {(teacherCourses || []).map((course) => (
+                          <option key={course.id} value={course.id}>
+                            {courseLabel(course)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Happens
+                      <select className="input" name="cadence" defaultValue="weekly">
+                        <option value="weekly">Every week</option>
+                        <option value="biweekly">Every 2 weeks</option>
+                        <option value="monthly">Every month</option>
+                        <option value="marking_period">Every marking period</option>
+                      </select>
+                    </label>
+                    <label>
+                      Times Per
+                      <input className="input" type="number" min="1" max="5" name="count_per_period" defaultValue="1" />
+                    </label>
+                  </div>
 
-                {assignmentCandidates.length > 0 ? (
+                  <div className="schoolYearRangeRow">
+                    {[0, 1, 2, 3, 4].map((index) => (
+                      <label key={`weekday-${index}`}>
+                        Weekday {index + 1}
+                        <select className="input" name="weekday" defaultValue={index === 0 ? "5" : ""}>
+                          <option value="">None</option>
+                          {WEEKDAY_OPTIONS.map((day) => (
+                            <option key={day.value} value={day.value}>
+                              {day.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="schoolYearRangeRow">
+                    {[0, 1, 2, 3, 4].map((index) => (
+                      <label key={`month-day-${index}`}>
+                        Month Day {index + 1}
+                        <input className="input" type="number" min="1" max="31" name="month_day" placeholder={index === 0 ? "15" : ""} />
+                      </label>
+                    ))}
+                    <label>
+                      If Not School Day
+                      <select className="input" name="monthly_shift" defaultValue="after">
+                        <option value="after">First school day after</option>
+                        <option value="before">First school day before</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="schoolYearRangeRow">
+                    {[0, 1, 2, 3, 4].map((index) => (
+                      <label key={`mp-day-${index}`}>
+                        MP Day {index + 1}
+                        <input className="input" type="number" min="1" max="60" name="marking_period_day_number" placeholder={index === 0 ? "10" : ""} />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="ctaRow">
+                    <button className="btn primary" type="submit">
+                      Save Assignment Type
+                    </button>
+                    {assignmentsUpdated ? (
+                      <span className="statusNote">Announcement Assignments Updated!</span>
+                    ) : null}
+                    {assignmentError && assignmentError !== "missing-table" ? (
+                      <span className="statusNote">Could not save announcement assignments.</span>
+                    ) : null}
+                  </div>
+                </form>
+
+                {assignmentRules.length > 0 ? (
                   <div className="list">
-                    {(teacherCourses || []).map((course) => {
-                      const courseCandidates = assignmentCandidates.filter(
-                        (candidate) => candidate.course_id === course.id
-                      );
-                      if (courseCandidates.length === 0) return null;
-                      return (
-                        <div className="card" key={course.id} style={{ background: "#fff", padding: "0.7rem 0.9rem" }}>
-                          <h4>{courseLabel(course)}</h4>
-                          <div className="list" style={{ marginTop: "0.45rem" }}>
-                            {courseCandidates.map((candidate) => (
-                              <label
-                                key={assignmentCandidateKey(candidate)}
-                                style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "0.55rem", alignItems: "start" }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  name="assignment_pick"
-                                  value={assignmentCandidateValue(candidate)}
-                                  defaultChecked={existingAssignmentKeys.has(assignmentCandidateKey(candidate))}
-                                />
-                                <span>
-                                  <strong>{candidate.label}</strong>{" "}
-                                  <span>
-                                    {formatAssignmentDate(candidate.assignment_date)}
-                                    {candidate.due_date ? ` · Due ${formatAssignmentDate(candidate.due_date)}` : ""}
-                                  </span>
-                                  <br />
-                                  <span style={{ fontSize: "0.88rem", opacity: 0.75 }}>
-                                    {candidate.source}
-                                  </span>
-                                </span>
+                    {assignmentRules.map((rule) => (
+                      <details className="card" key={rule.id} style={{ background: "#fff", padding: "0.7rem 0.9rem" }}>
+                        <summary>
+                          <strong>{rule.label}</strong>{" "}
+                          <span style={{ opacity: 0.75 }}>
+                            {ruleScopeText(rule, teacherCourseById)} · {ruleSummary(rule)}
+                          </span>
+                        </summary>
+                        <form action={saveTeacherAnnouncementAssignmentRuleAction} className="list" style={{ marginTop: "0.75rem" }}>
+                          <input type="hidden" name="rule_id" value={rule.id} />
+                          <div className="schoolYearRangeRow">
+                            <label>
+                              Assignment Type
+                              <input className="input" name="label" defaultValue={rule.label} required />
+                            </label>
+                            <label>
+                              Applies To
+                              <select className="input" name="course_scope" defaultValue={rule.course_id || "all"}>
+                                <option value="all">All classes</option>
+                                {(teacherCourses || []).map((course) => (
+                                  <option key={course.id} value={course.id}>
+                                    {courseLabel(course)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Happens
+                              <select className="input" name="cadence" defaultValue={rule.cadence}>
+                                <option value="weekly">Every week</option>
+                                <option value="biweekly">Every 2 weeks</option>
+                                <option value="monthly">Every month</option>
+                                <option value="marking_period">Every marking period</option>
+                              </select>
+                            </label>
+                            <label>
+                              Times Per
+                              <input className="input" type="number" min="1" max="5" name="count_per_period" defaultValue={rule.count_per_period || 1} />
+                            </label>
+                          </div>
+                          <div className="schoolYearRangeRow">
+                            {[0, 1, 2, 3, 4].map((index) => (
+                              <label key={`${rule.id}-weekday-${index}`}>
+                                Weekday {index + 1}
+                                <select className="input" name="weekday" defaultValue={rule.settings?.weekdays?.[index] || ""}>
+                                  <option value="">None</option>
+                                  {WEEKDAY_OPTIONS.map((day) => (
+                                    <option key={day.value} value={day.value}>
+                                      {day.label}
+                                    </option>
+                                  ))}
+                                </select>
                               </label>
                             ))}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p>
-                    No assignment candidates yet. Build class calendars and marking period rules first.
-                  </p>
-                )}
-
-                {selectedOnlyAssignments.length > 0 ? (
-                  <div className="card" style={{ background: "#fff", padding: "0.7rem 0.9rem" }}>
-                    <h4>Saved Custom Rows</h4>
-                    <div className="list" style={{ marginTop: "0.45rem" }}>
-                      {selectedOnlyAssignments.map((assignment) => (
-                        <label
-                          key={assignmentCandidateKey(assignment)}
-                          style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "0.55rem", alignItems: "start" }}
-                        >
-                          <input
-                            type="checkbox"
-                            name="assignment_pick"
-                            value={assignmentCandidateValue(assignment)}
-                            defaultChecked
-                          />
-                          <span>
-                            <strong>{assignment.label}</strong>{" "}
-                            <span>
-                              {formatAssignmentDate(assignment.assignment_date)}
-                              {assignment.due_date ? ` · Due ${formatAssignmentDate(assignment.due_date)}` : ""}
-                            </span>
-                            <br />
-                            <span style={{ fontSize: "0.88rem", opacity: 0.75 }}>
-                              {assignmentCourseScopeText(teacherCourseById.get(assignment.course_id))}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                          <div className="schoolYearRangeRow">
+                            {[0, 1, 2, 3, 4].map((index) => (
+                              <label key={`${rule.id}-month-day-${index}`}>
+                                Month Day {index + 1}
+                                <input className="input" type="number" min="1" max="31" name="month_day" defaultValue={rule.settings?.month_days?.[index] || ""} />
+                              </label>
+                            ))}
+                            <label>
+                              If Not School Day
+                              <select className="input" name="monthly_shift" defaultValue={rule.settings?.monthly_shift || "after"}>
+                                <option value="after">First school day after</option>
+                                <option value="before">First school day before</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div className="schoolYearRangeRow">
+                            {[0, 1, 2, 3, 4].map((index) => (
+                              <label key={`${rule.id}-mp-day-${index}`}>
+                                MP Day {index + 1}
+                                <input className="input" type="number" min="1" max="60" name="marking_period_day_number" defaultValue={rule.settings?.marking_period_day_numbers?.[index] || ""} />
+                              </label>
+                            ))}
+                          </div>
+                          <div className="ctaRow">
+                            <button className="btn primary" type="submit">
+                              Update Assignment Type
+                            </button>
+                          </div>
+                        </form>
+                        <form action={deleteTeacherAnnouncementAssignmentRuleAction} className="ctaRow">
+                          <input type="hidden" name="rule_id" value={rule.id} />
+                          <button className="btn" type="submit">
+                            Delete
+                          </button>
+                        </form>
+                      </details>
+                    ))}
                   </div>
                 ) : null}
-
-                <div className="ctaRow">
-                  <button className="btn primary" type="submit">
-                    Save Announcement Assignments
-                  </button>
-                  {assignmentsUpdated ? (
-                    <span className="statusNote">Announcement Assignments Updated!</span>
-                  ) : null}
-                  {assignmentError && assignmentError !== "missing-table" ? (
-                    <span className="statusNote">Could not save announcement assignments.</span>
-                  ) : null}
-                </div>
-              </form>
+              </>
             ) : null}
           </div>
         </details>

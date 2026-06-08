@@ -129,9 +129,9 @@ function isMissingTeacherAbsencesTableError(error) {
   return message.includes("teacher_absences");
 }
 
-function isMissingTeacherAnnouncementAssignmentsTableError(error) {
+function isMissingTeacherAnnouncementAssignmentRulesTableError(error) {
   const message = String(error?.message || "");
-  return message.includes("teacher_announcement_assignments");
+  return message.includes("teacher_announcement_assignment_rules");
 }
 
 function formatTeacherAbsenceList(absences, classDate) {
@@ -160,6 +160,136 @@ function buildAssignmentText(assignments) {
     .map(formatAnnouncementAssignment)
     .filter(Boolean)
     .join("\n");
+}
+
+function parseDateAtUTC(isoDate) {
+  const [year, month, day] = String(isoDate).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function toISODate(date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function monthKey(isoDate) {
+  return String(isoDate || "").slice(0, 7);
+}
+
+function weekdayIndex(isoDate) {
+  return parseDateAtUTC(isoDate).getUTCDay();
+}
+
+function weeksBetween(startIso, endIso) {
+  const start = parseDateAtUTC(startIso);
+  const end = parseDateAtUTC(endIso);
+  return Math.floor((end.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+}
+
+function isCourseMeetingDay(course, day) {
+  if (!day || day.day_type === "off") return false;
+  if (course?.schedule_model !== "ab") return true;
+  if (course.ab_meeting_day === "A") return day.ab_day === "A";
+  if (course.ab_meeting_day === "B") return day.ab_day === "B";
+  return day.ab_day === "A" || day.ab_day === "B";
+}
+
+function normalizeNumberArray(value, fallback = []) {
+  return Array.isArray(value)
+    ? value.map((item) => Number.parseInt(String(item), 10)).filter(Number.isInteger)
+    : fallback;
+}
+
+function findMonthlyMeetingDay({ meetingDaysByDate, meetingDates, year, month, dayOfMonth, shift }) {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const targetDate = `${year}-${String(month).padStart(2, "0")}-${String(Math.min(dayOfMonth, lastDay)).padStart(2, "0")}`;
+  if (meetingDaysByDate.has(targetDate)) return targetDate;
+
+  const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
+  const monthMeetingDates = meetingDates.filter((date) => date.startsWith(monthPrefix));
+  if (shift === "before") {
+    return [...monthMeetingDates].reverse().find((date) => date < targetDate) || "";
+  }
+  return monthMeetingDates.find((date) => date > targetDate) || "";
+}
+
+function buildRuleAssignments({ rules, course, calendarDays, markingPeriodRules, schoolDayNumberByDate }) {
+  const meetingDays = (calendarDays || []).filter((day) => isCourseMeetingDay(course, day));
+  const meetingDates = meetingDays.map((day) => day.class_date);
+  const meetingDaysByDate = new Map(meetingDays.map((day) => [day.class_date, day]));
+  const assignmentsByDate = new Map();
+  const schoolDateByDayNumber = new Map(
+    [...schoolDayNumberByDate.entries()].map(([date, number]) => [Number(number), date])
+  );
+  const firstDate = calendarDays?.[0]?.class_date || course.school_year_start || "";
+
+  function addAssignment(date, rule) {
+    if (!date || !meetingDaysByDate.has(date)) return;
+    const arr = assignmentsByDate.get(date) || [];
+    if (!arr.some((assignment) => assignment.label === rule.label)) {
+      arr.push({ assignment_date: date, label: rule.label, due_date: null });
+      assignmentsByDate.set(date, arr);
+    }
+  }
+
+  for (const rule of rules || []) {
+    if (rule.course_id && rule.course_id !== course.id) continue;
+    const settings = rule.settings || {};
+    const count = Math.max(1, Math.min(5, Number.parseInt(String(rule.count_per_period || 1), 10)));
+
+    if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
+      const weekdays = normalizeNumberArray(settings.weekdays, [5]).slice(0, count);
+      for (const day of meetingDays) {
+        if (!weekdays.includes(weekdayIndex(day.class_date))) continue;
+        if (rule.cadence === "biweekly" && firstDate && weeksBetween(firstDate, day.class_date) % 2 !== 0) continue;
+        addAssignment(day.class_date, rule);
+      }
+    }
+
+    if (rule.cadence === "monthly") {
+      const monthDays = normalizeNumberArray(settings.month_days, [1]).slice(0, count);
+      const shift = settings.monthly_shift === "before" ? "before" : "after";
+      const months = [...new Set(meetingDates.map(monthKey))];
+      for (const key of months) {
+        const [year, month] = key.split("-").map(Number);
+        for (const dayOfMonth of monthDays) {
+          const date = findMonthlyMeetingDay({
+            meetingDaysByDate,
+            meetingDates,
+            year,
+            month,
+            dayOfMonth,
+            shift,
+          });
+          addAssignment(date, rule);
+        }
+      }
+    }
+
+    if (rule.cadence === "marking_period") {
+      const relativeDays = normalizeNumberArray(settings.marking_period_day_numbers, [1]).slice(0, count);
+      for (const period of markingPeriodRules || []) {
+        for (const relativeDay of relativeDays) {
+          const targetSchoolDay = period.start_day_number + relativeDay - 1;
+          if (targetSchoolDay > period.end_day_number) continue;
+          const exactDate = schoolDateByDayNumber.get(targetSchoolDay);
+          if (meetingDaysByDate.has(exactDate)) {
+            addAssignment(exactDate, rule);
+            continue;
+          }
+          const fallbackDate = meetingDates.find((date) => {
+            const dayNumber = Number(schoolDayNumberByDate.get(date));
+            return dayNumber && dayNumber >= targetSchoolDay && dayNumber <= period.end_day_number;
+          });
+          addAssignment(fallbackDate, rule);
+        }
+      }
+    }
+  }
+
+  return assignmentsByDate;
 }
 
 function buildDoNow({ lessonTitle, objective, standards }) {
@@ -217,7 +347,8 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     calendarDays?.[calendarDays.length - 1]?.class_date || course.school_year_end || firstCalendarDate;
 
   let teacherAbsences = [];
-  let announcementAssignments = [];
+  let assignmentRules = [];
+  let markingPeriodRules = [];
   if (firstCalendarDate && lastCalendarDate) {
     const { data: absencesData, error: absencesError } = await supabase
       .from("teacher_absences")
@@ -235,25 +366,35 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       (absence) => !absence.course_id || absence.course_id === course.id
     );
 
-    const { data: assignmentsData, error: assignmentsError } = await supabase
-      .from("teacher_announcement_assignments")
-      .select("assignment_date, course_id, label, due_date, source")
+    const { data: rulesData, error: rulesError } = await supabase
+      .from("teacher_announcement_assignment_rules")
+      .select("id, course_id, label, cadence, count_per_period, settings, is_active")
       .eq("owner_id", userId)
-      .gte("assignment_date", firstCalendarDate)
-      .lte("assignment_date", lastCalendarDate)
-      .order("assignment_date", { ascending: true })
+      .eq("is_active", true)
       .order("label", { ascending: true });
 
     if (
-      assignmentsError &&
-      !isMissingTeacherAnnouncementAssignmentsTableError(assignmentsError)
+      rulesError &&
+      !isMissingTeacherAnnouncementAssignmentRulesTableError(rulesError)
     ) {
-      throw new Error(assignmentsError.message);
+      throw new Error(rulesError.message);
     }
 
-    announcementAssignments = (assignmentsData || []).filter(
-      (assignment) => !assignment.course_id || assignment.course_id === course.id
+    assignmentRules = (rulesData || []).filter(
+      (rule) => !rule.course_id || rule.course_id === course.id
     );
+
+    const { data: periodsData, error: periodsError } = await supabase
+      .from("teacher_marking_period_rules")
+      .select("id, name, start_day_number, end_day_number")
+      .eq("owner_id", userId)
+      .order("start_day_number", { ascending: true });
+
+    if (periodsError && !String(periodsError.message || "").includes("teacher_marking_period_rules")) {
+      throw new Error(periodsError.message);
+    }
+
+    markingPeriodRules = periodsData || [];
   }
 
   let { data: templateRow, error: templateError } = await supabase
@@ -320,13 +461,13 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
   const schoolDayNumberByDate = buildSchoolDayNumberByDate(calendarDays || []);
   const reasonById = new Map((reasons || []).map((r) => [r.id, r.label]));
-  const assignmentsByDate = new Map();
-
-  for (const assignment of announcementAssignments || []) {
-    const rowsForDate = assignmentsByDate.get(assignment.assignment_date) || [];
-    rowsForDate.push(assignment);
-    assignmentsByDate.set(assignment.assignment_date, rowsForDate);
-  }
+  const assignmentsByDate = buildRuleAssignments({
+    rules: assignmentRules,
+    course,
+    calendarDays: calendarDays || [],
+    markingPeriodRules,
+    schoolDayNumberByDate,
+  });
 
   for (const link of links || []) {
     const arr = standardsByLesson.get(link.lesson_id) || [];
@@ -457,7 +598,7 @@ export async function generateAnnouncementsAction(formData) {
     supabase,
     user.id,
     courseId,
-    "id, title, school_year_start, school_year_end, owner_id"
+    "id, title, school_year_start, school_year_end, owner_id, schedule_model, ab_meeting_day"
   );
   const course = access?.course;
 

@@ -44,9 +44,9 @@ function isMissingTeacherMarkingPeriodRulesTableError(error) {
   return message.includes("teacher_marking_period_rules");
 }
 
-function isMissingTeacherAnnouncementAssignmentsTableError(error) {
+function isMissingTeacherAnnouncementAssignmentRulesTableError(error) {
   const message = String(error?.message || "");
-  return message.includes("teacher_announcement_assignments");
+  return message.includes("teacher_announcement_assignment_rules");
 }
 
 function isValidISODate(value) {
@@ -70,7 +70,7 @@ function normalizeDateInput(value) {
 async function regenerateAnnouncementsForTeacherCourses(supabase, userId) {
   const { data: courses, error } = await supabase
     .from("courses")
-    .select("id, title, owner_id, school_year_start, school_year_end")
+    .select("id, title, owner_id, school_year_start, school_year_end, schedule_model, ab_meeting_day")
     .eq("owner_id", userId);
 
   if (error) throw new Error(error.message);
@@ -125,39 +125,6 @@ function parseSchoolCalendarRows(formData) {
   return updates;
 }
 
-function parseAnnouncementAssignmentValues(formData, userId) {
-  const rows = [];
-  const seen = new Set();
-
-  for (const value of formData.getAll("assignment_pick")) {
-    const raw = String(value || "");
-    const [courseIdRaw, assignmentDate, labelRaw, dueDateRaw, sourceRaw] = raw.split("|");
-    const courseId = courseIdRaw === "all" ? null : courseIdRaw;
-    const label = String(labelRaw || "").trim();
-    const dueDate = String(dueDateRaw || "").trim();
-    const source = String(sourceRaw || "").trim();
-
-    if (!isValidISODate(assignmentDate) || !label) continue;
-    if (dueDate && !isValidISODate(dueDate)) continue;
-
-    const key = `${courseId || "all"}|${assignmentDate}|${label}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    rows.push({
-      owner_id: userId,
-      course_id: courseId,
-      assignment_date: assignmentDate,
-      label,
-      due_date: dueDate || null,
-      source: source || null,
-      updated_at: new Date().toISOString(),
-    });
-  }
-
-  return rows;
-}
-
 function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overrideMap }) {
   const start = parseDateAtUTC(schoolYearStart);
   const end = parseDateAtUTC(schoolYearEnd);
@@ -204,6 +171,26 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
   }
 
   return rows;
+}
+
+function parsePositiveInt(value, fallback = 1) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampCount(value) {
+  return Math.max(1, Math.min(5, parsePositiveInt(value, 1)));
+}
+
+function parseNumberList(values, min, max, limit) {
+  const numbers = [];
+  for (const value of values) {
+    const parsed = Number.parseInt(String(value || ""), 10);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) continue;
+    if (!numbers.includes(parsed)) numbers.push(parsed);
+    if (numbers.length >= limit) break;
+  }
+  return numbers;
 }
 
 export async function saveAnnouncementTemplateAction(formData) {
@@ -706,11 +693,17 @@ export async function deleteTeacherMarkingPeriodAction(formData) {
   redirect(`/onboarding/profile?marking_period_updated=1&t=${Date.now()}#school-calendar`);
 }
 
-export async function saveTeacherAnnouncementAssignmentsAction(formData) {
-  const schoolYearStart = normalizeDateInput(formData.get("school_year_start"));
-  const schoolYearEnd = normalizeDateInput(formData.get("school_year_end"));
+export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
+  const ruleId = String(formData.get("rule_id") || "").trim();
+  const label = String(formData.get("label") || "").trim();
+  const courseScope = String(formData.get("course_scope") || "all");
+  const cadenceRaw = String(formData.get("cadence") || "weekly");
+  const cadence = ["weekly", "biweekly", "monthly", "marking_period"].includes(cadenceRaw)
+    ? cadenceRaw
+    : "weekly";
+  const countPerPeriod = clampCount(formData.get("count_per_period"));
 
-  if (!schoolYearStart || !schoolYearEnd) {
+  if (!label) {
     redirect("/onboarding/profile?assignment_error=1#announcement-assignments");
   }
 
@@ -723,49 +716,103 @@ export async function saveTeacherAnnouncementAssignmentsAction(formData) {
     redirect("/auth/sign-in?redirect=/onboarding/profile");
   }
 
-  const rows = parseAnnouncementAssignmentValues(formData, user.id);
-  const courseIds = [...new Set(rows.map((row) => row.course_id).filter(Boolean))];
-
-  if (courseIds.length > 0) {
-    const { data: courses, error: coursesError } = await supabase
+  let courseId = null;
+  if (courseScope !== "all") {
+    const { data: course, error: courseError } = await supabase
       .from("courses")
       .select("id")
+      .eq("id", courseScope)
       .eq("owner_id", user.id)
-      .in("id", courseIds);
+      .maybeSingle();
 
-    if (coursesError) throw new Error(coursesError.message);
-
-    const ownedCourseIds = new Set((courses || []).map((course) => course.id));
-    if (courseIds.some((courseId) => !ownedCourseIds.has(courseId))) {
+    if (courseError) throw new Error(courseError.message);
+    if (!course?.id) {
       redirect("/onboarding/profile?assignment_error=1#announcement-assignments");
     }
+    courseId = course.id;
   }
 
-  const { error: deleteError } = await supabase
-    .from("teacher_announcement_assignments")
-    .delete()
-    .eq("owner_id", user.id)
-    .gte("assignment_date", schoolYearStart)
-    .lte("assignment_date", schoolYearEnd);
+  const settings = {
+    weekdays: parseNumberList(formData.getAll("weekday"), 1, 5, countPerPeriod),
+    month_days: parseNumberList(formData.getAll("month_day"), 1, 31, countPerPeriod),
+    monthly_shift: String(formData.get("monthly_shift") || "after") === "before" ? "before" : "after",
+    marking_period_day_numbers: parseNumberList(
+      formData.getAll("marking_period_day_number"),
+      1,
+      60,
+      countPerPeriod
+    ),
+  };
 
-  if (deleteError) {
-    if (isMissingTeacherAnnouncementAssignmentsTableError(deleteError)) {
+  if ((cadence === "weekly" || cadence === "biweekly") && settings.weekdays.length === 0) {
+    settings.weekdays = [5];
+  }
+  if (cadence === "monthly" && settings.month_days.length === 0) {
+    settings.month_days = [1];
+  }
+  if (cadence === "marking_period" && settings.marking_period_day_numbers.length === 0) {
+    settings.marking_period_day_numbers = [1];
+  }
+
+  const payload = {
+    owner_id: user.id,
+    course_id: courseId,
+    label,
+    cadence,
+    count_per_period: countPerPeriod,
+    settings,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const query = ruleId
+    ? supabase
+        .from("teacher_announcement_assignment_rules")
+        .update(payload)
+        .eq("id", ruleId)
+        .eq("owner_id", user.id)
+    : supabase.from("teacher_announcement_assignment_rules").insert(payload);
+
+  const { error } = await query;
+
+  if (error) {
+    if (isMissingTeacherAnnouncementAssignmentRulesTableError(error)) {
       redirect("/onboarding/profile?assignment_error=missing-table#announcement-assignments");
     }
-    throw new Error(deleteError.message);
+    throw new Error(error.message);
   }
 
-  if (rows.length > 0) {
-    const { error: insertError } = await supabase
-      .from("teacher_announcement_assignments")
-      .insert(rows);
+  await regenerateAnnouncementsForTeacherCourses(supabase, user.id);
 
-    if (insertError) {
-      if (isMissingTeacherAnnouncementAssignmentsTableError(insertError)) {
-        redirect("/onboarding/profile?assignment_error=missing-table#announcement-assignments");
-      }
-      throw new Error(insertError.message);
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/classes");
+  redirect(`/onboarding/profile?assignments_updated=1&t=${Date.now()}#announcement-assignments`);
+}
+
+export async function deleteTeacherAnnouncementAssignmentRuleAction(formData) {
+  const ruleId = String(formData.get("rule_id") || "").trim();
+  if (!ruleId) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const { error } = await supabase
+    .from("teacher_announcement_assignment_rules")
+    .delete()
+    .eq("id", ruleId)
+    .eq("owner_id", user.id);
+
+  if (error) {
+    if (isMissingTeacherAnnouncementAssignmentRulesTableError(error)) {
+      redirect("/onboarding/profile?assignment_error=missing-table#announcement-assignments");
     }
+    throw new Error(error.message);
   }
 
   await regenerateAnnouncementsForTeacherCourses(supabase, user.id);
