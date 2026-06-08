@@ -6,8 +6,6 @@ import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
 import { getSiteCopy } from "@/lib/site-config";
 import {
-  addTeacherAbsenceAction,
-  deleteTeacherAbsenceAction,
   deleteTeacherMarkingPeriodAction,
   saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
@@ -507,12 +505,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
                       <span>{prettyDate(date)}</span>
                       <span>{dayNum ? `#${dayNum}` : "—"}</span>
                       <span>{abByDate.get(date) || "-"}</span>
-                      <span style={{ display: "flex", justifyContent: "center" }}>
+                      <span style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
                         <input
                           type="checkbox"
                           name={`teacher_out__${date}`}
                           defaultChecked={row?.day_type === "grace_day"}
-                          style={{ width: "1rem", height: "1rem" }}
+                          style={{ width: "1rem", height: "1rem", margin: 0 }}
                         />
                       </span>
                       <select
@@ -644,88 +642,6 @@ export default async function OnboardingProfilePage({ searchParams }) {
       </section>
       ) : null}
 
-      {isTeacher ? (
-      <section className="card">
-        <h2>Teacher Absences</h2>
-        <p>
-          Add days you know you will be out. Generated announcements can include
-          upcoming absence dates automatically.
-        </p>
-
-        {absencesMigrationNeeded || absenceError === "missing-table" ? (
-          <p style={{ marginTop: "0.75rem" }}>
-            Teacher absences are unavailable until the teacher absences migration
-            is applied.
-          </p>
-        ) : null}
-
-        {!absencesMigrationNeeded ? (
-          <form action={addTeacherAbsenceAction} className="list" style={{ marginTop: "0.75rem" }}>
-            <div className="schoolYearRangeRow">
-              <label>
-                Date
-                <input className="input" type="date" name="absence_date" required />
-              </label>
-              <label>
-                Applies To
-                <select className="input" name="course_scope" defaultValue="all">
-                  <option value="all">All Classes</option>
-                  {(teacherCourses || []).map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {courseLabel(course)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label>
-              Note
-              <input className="input" name="note" placeholder="Optional" />
-            </label>
-            <div className="ctaRow">
-              <button className="btn primary" type="submit">
-                Add Absence
-              </button>
-              {absenceUpdated ? (
-                <span className="statusNote">Teacher Absences Updated!</span>
-              ) : null}
-              {absenceError && absenceError !== "missing-table" ? (
-                <span className="statusNote">Could not save absence.</span>
-              ) : null}
-            </div>
-          </form>
-        ) : null}
-
-        {teacherAbsences.length > 0 ? (
-          <div className="list" style={{ marginTop: "0.75rem" }}>
-            {teacherAbsences.map((absence) => {
-              const course = absence.course_id
-                ? teacherCourseById.get(absence.course_id)
-                : null;
-              return (
-                <div className="card" key={absence.id} style={{ background: "#fff" }}>
-                  <div className="ctaRow" style={{ justifyContent: "space-between" }}>
-                    <div>
-                      <strong>{prettyDate(absence.absence_date)}</strong>
-                      <p style={{ marginTop: "0.25rem" }}>
-                        {course ? courseLabel(course) : "All Classes"}
-                        {absence.note ? ` | ${absence.note}` : ""}
-                      </p>
-                    </div>
-                    <form action={deleteTeacherAbsenceAction}>
-                      <input type="hidden" name="absence_id" value={absence.id} />
-                      <button className="btn" type="submit">
-                        Delete
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </section>
-      ) : null}
 
       {isTeacher ? (
       <section className="card">
