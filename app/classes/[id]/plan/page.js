@@ -301,16 +301,27 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const schoolDays = schoolDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];
 
-  // Build school-day# → date map and date → school-day# map from the global school calendar
+  // Build school-day# map by walking all weekdays in the school year,
+  // using school_calendar_days only to identify off days (same logic as profile page).
   const schoolDayByDate = new Map(schoolDays.map((d) => [d.class_date, d]));
   const schoolDayNumberByDate = new Map();
-  {
+  if (course.school_year_start && course.school_year_end) {
+    const [sy, sm, sd] = course.school_year_start.split("-").map(Number);
+    const [ey, em, ed] = course.school_year_end.split("-").map(Number);
+    const cursor = new Date(Date.UTC(sy, sm - 1, sd));
+    const endDate = new Date(Date.UTC(ey, em - 1, ed));
     let dayNum = 0;
-    for (const d of schoolDays) {
-      if (d.day_type !== "off") {
-        dayNum += 1;
-        schoolDayNumberByDate.set(d.class_date, dayNum);
+    while (cursor <= endDate) {
+      const dow = cursor.getUTCDay();
+      if (dow !== 0 && dow !== 6) {
+        const iso = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}-${String(cursor.getUTCDate()).padStart(2, "0")}`;
+        const row = schoolDayByDate.get(iso);
+        if (row?.day_type !== "off") {
+          dayNum += 1;
+          schoolDayNumberByDate.set(iso, dayNum);
+        }
       }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
   }
 
