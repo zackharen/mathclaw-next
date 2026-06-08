@@ -108,6 +108,13 @@ function parseSchoolCalendarRows(formData) {
       row.note = String(value || "");
       updates.set(classDate, row);
     }
+
+    if (key.startsWith("teacher_out__")) {
+      const classDate = key.replace("teacher_out__", "");
+      const row = updates.get(classDate) || {};
+      row.teacher_out = true;
+      updates.set(classDate, row);
+    }
   }
 
   return updates;
@@ -324,11 +331,11 @@ export async function saveSchoolCalendarAction(formData) {
   }
 
   const rawUpdates = parseSchoolCalendarRows(formData);
-  const allowed = new Set(["instructional", "off", "half", "modified"]);
+  const allowed = new Set(["instructional", "off", "half", "modified", "grace_day"]);
 
   const overrides = [];
   for (const [classDate, row] of rawUpdates.entries()) {
-    const dayType = row.day_type;
+    const dayType = row.teacher_out ? "grace_day" : row.day_type;
     if (!allowed.has(dayType)) continue;
 
     if (dayType === "instructional") continue;

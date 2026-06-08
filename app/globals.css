@@ -2385,7 +2385,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
 .schoolCalendarHeader,
 .schoolCalendarRow {
   display: grid;
-  grid-template-columns: 1.45fr 0.45fr 0.35fr 0.9fr 1fr 1fr;
+  grid-template-columns: 1.45fr 0.45fr 0.35fr 0.45fr 0.9fr 1fr 1fr;
   gap: 0.6rem;
   align-items: center;
 }

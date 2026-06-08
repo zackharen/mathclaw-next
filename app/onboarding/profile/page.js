@@ -492,6 +492,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 <span>Date</span>
                 <span>Day #</span>
                 <span>AB</span>
+                <span>Out?</span>
                 <span>Day Type</span>
                 <span>Reason</span>
                 <span>Note</span>
@@ -506,6 +507,14 @@ export default async function OnboardingProfilePage({ searchParams }) {
                       <span>{prettyDate(date)}</span>
                       <span>{dayNum ? `#${dayNum}` : "—"}</span>
                       <span>{abByDate.get(date) || "-"}</span>
+                      <span style={{ display: "flex", justifyContent: "center" }}>
+                        <input
+                          type="checkbox"
+                          name={`teacher_out__${date}`}
+                          defaultChecked={row?.day_type === "grace_day"}
+                          style={{ width: "1rem", height: "1rem" }}
+                        />
+                      </span>
                       <select
                         className="input"
                         name={`day_type__${date}`}
