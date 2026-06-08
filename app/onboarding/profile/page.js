@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
-import SchoolCalendarSubmit from "./school-calendar-submit";
 import { getSiteCopy } from "@/lib/site-config";
 import {
   addTeacherAbsenceAction,
@@ -511,10 +510,15 @@ export default async function OnboardingProfilePage({ searchParams }) {
               </div>
 
               <div className="ctaRow">
-                <SchoolCalendarSubmit
-                  updated={schoolCalendarUpdated}
-                  error={schoolCalendarError}
-                />
+                <button className="btn primary" type="submit">
+                  Apply Calendar Changes
+                </button>
+                {schoolCalendarUpdated ? (
+                  <span className="statusNote">School Calendar Updated!</span>
+                ) : null}
+                {schoolCalendarError ? (
+                  <span className="statusNote">Could not save school calendar.</span>
+                ) : null}
               </div>
           </form>
 
