@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-08 America/New_York (Calendar date display bug fixed)
+2026-06-08 America/New_York (Profile calendar polish + Teacher Out checkboxes)
+
+## What Was Built (2026-06-08 Session — Profile calendar polish + Teacher Out)
+
+- **Teacher Out checkboxes added to Profile School Calendar** (`app/onboarding/profile/page.js`, `app/onboarding/profile/actions.js`, `app/globals.css`, production Supabase migrations): each weekday row now has an **Out?** checkbox. Checking it marks that day as `grace_day` across all class plans — the school day number still counts and A/B label is kept, but no lesson is assigned. Applied `grace_day` constraint to both `school_calendar_days` and `course_calendar_days` in production via MCP. `parseSchoolCalendarRows` parses `teacher_out__DATE` checkbox fields; a checked row forces `day_type = grace_day` regardless of the Day Type dropdown. Commits `457b727`, `75ff97c`, `54c8cc9`.
+- **Teacher Absences section removed** from Profile page — replaced by the Out? checkboxes. Actions remain in `actions.js` for announcement generation backend use.
+- **Day # column added** to Profile school calendar rows showing `#1`, `#2`, etc. for school days and `—` for off days. Grid updated to 7 columns.
+- **Marking period cards tightened** — reduced padding, zeroed ctaRow margin-top, switched text lines to a flex column with small gap, Delete button vertically centered. Commits `e4d4cc5`, `e73195f`.
+- **Grace Day migration status**: `grace_day` is now live in production for both `school_calendar_days` and `course_calendar_days`. The old `migrations_20260605_grace_day_type.sql` concern in the handoff is resolved.
 
 ## What Was Built (2026-06-08 Session — Calendar date display fix)
 - **Root cause found and fixed for Profile School Calendar always showing default dates** (`app/onboarding/profile/page.js`, production Supabase migration):
@@ -94,7 +102,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Local verification caveat: authenticated teacher UI/browser testing has repeatedly been blocked by lack of a local signed-in teacher session. In the latest run, `next dev` also reproduced the known local `EMFILE` watcher warnings and served 404s, so route checks used `next start --port 3001` after a successful build.
 - Local repo caveat: `.claude/settings.json` and `brain/future_ideas.md` have unrelated uncommitted changes. Do not revert or stage them unless Zack explicitly asks.
 - **Class Plan page shape (current)**: top card shows title + subtitle + Arcade Suggestions toggle (top-right). Modify Calendar section contains date range form, pacing mode form, AB schedule, bulk calendar editor (with Apply to All Classes checkbox), Copy Calendar to Other Classes button. Stats card has Class Days, Full Days, Library Lessons, Planned Lessons, Generated Announcements, and Projected Final Lesson Date.
-- **Grace Day** is a new `day_type` in code. Migration `migrations_20260605_grace_day_type.sql` is **not yet applied to production**. Until applied, saving a Grace Day will hit a DB check constraint error. All other day types work normally.
+- **Grace Day** is live in production. `grace_day` is allowed in both `school_calendar_days` and `course_calendar_days`. Teacher Out checkboxes on the Profile calendar use this type.
 - **Copy Calendar / Apply to All Classes**: both copy non-grace day types + reasons to all other teacher-owned courses for overlapping dates, then rebuild plans. Grace days stay local.
 - **Arcade Suggestions toggle**: stored in `hide_arcade_suggestions` browser cookie. Per-browser, not per-account. No DB storage.
 
