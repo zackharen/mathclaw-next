@@ -50,6 +50,18 @@ function isValidISODate(value) {
   return toISODate(parsed) === value;
 }
 
+function normalizeDateInput(value) {
+  const raw = String(value || "").trim();
+  if (isValidISODate(raw)) return raw;
+
+  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return "";
+
+  const [, month, day, year] = match;
+  const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return isValidISODate(iso) ? iso : "";
+}
+
 async function regenerateAnnouncementsForTeacherCourses(supabase, userId) {
   const { data: courses, error } = await supabase
     .from("courses")
@@ -244,15 +256,15 @@ export async function saveAnnouncementTemplateAction(formData) {
 }
 
 export async function saveSchoolCalendarAction(formData) {
-  const schoolYearStart = String(formData.get("school_year_start") || "").trim();
-  const schoolYearEnd = String(formData.get("school_year_end") || "").trim();
+  const schoolYearStart = normalizeDateInput(formData.get("school_year_start"));
+  const schoolYearEnd = normalizeDateInput(formData.get("school_year_end"));
 
-  if (!isValidISODate(schoolYearStart) || !isValidISODate(schoolYearEnd)) {
-    redirect("/onboarding/profile?school_calendar_error=1#school-calendar");
+  if (!schoolYearStart || !schoolYearEnd) {
+    redirect(`/onboarding/profile?school_calendar_error=date&t=${Date.now()}#school-calendar`);
   }
 
   if (parseDateAtUTC(schoolYearStart) >= parseDateAtUTC(schoolYearEnd)) {
-    redirect("/onboarding/profile?school_calendar_error=1#school-calendar");
+    redirect(`/onboarding/profile?school_calendar_error=range&t=${Date.now()}#school-calendar`);
   }
 
   const supabase = await createClient();
@@ -308,7 +320,7 @@ export async function saveSchoolCalendarAction(formData) {
     savedProfile.school_year_start !== schoolYearStart ||
     savedProfile.school_year_end !== schoolYearEnd
   ) {
-    redirect("/onboarding/profile?school_calendar_error=save#school-calendar");
+    redirect(`/onboarding/profile?school_calendar_error=profile&t=${Date.now()}#school-calendar`);
   }
 
   const rawUpdates = parseSchoolCalendarRows(formData);

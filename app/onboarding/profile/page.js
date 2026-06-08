@@ -128,6 +128,22 @@ function isMissingTableError(error, tableName) {
   return message.includes(tableName);
 }
 
+function schoolCalendarErrorText(code) {
+  if (code === "date") {
+    return "Use dates like 9/1/2025 or 2025-09-01.";
+  }
+  if (code === "range") {
+    return "School Year Start must be before School Year End.";
+  }
+  if (code === "profile") {
+    return "The dates did not finish saving. Try again.";
+  }
+  if (code) {
+    return "Could not save school calendar.";
+  }
+  return "";
+}
+
 
 function buildABMap(dates, abPatternStartIso) {
   const map = new Map();
@@ -155,6 +171,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
   const schoolCalendarError = qs.school_calendar_error || "";
+  const schoolCalendarErrorMessage = schoolCalendarErrorText(schoolCalendarError);
   const templateUpdated = qs.template_updated === "1";
   const absenceUpdated = qs.absence_updated === "1";
   const absenceError = qs.absence_error;
@@ -517,8 +534,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 {schoolCalendarUpdated ? (
                   <span className="statusNote">School Calendar Updated!</span>
                 ) : null}
-                {schoolCalendarError ? (
-                  <span className="statusNote">Could not save school calendar.</span>
+                {schoolCalendarErrorMessage ? (
+                  <span className="statusNote">{schoolCalendarErrorMessage}</span>
                 ) : null}
               </div>
           </form>
