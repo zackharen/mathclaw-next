@@ -218,7 +218,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   ) {
     const retry = await admin
       .from("profiles")
-      .select("display_name, school_name, timezone")
+      .select("display_name, school_name, timezone, school_year_start, school_year_end")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -227,8 +227,6 @@ export default async function OnboardingProfilePage({ searchParams }) {
             ...retry.data,
             nickname: "",
             discoverable: true,
-            school_year_start: defaults.start,
-            school_year_end: defaults.end,
           }
       : null;
 
