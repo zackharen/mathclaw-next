@@ -613,15 +613,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
               <div className="list">
                 {markingPeriods.map((period) => (
                   <div className="card" key={period.id} style={{ background: "#fff", padding: "0.55rem 0.9rem" }}>
-                    <div className="ctaRow" style={{ justifyContent: "space-between" }}>
-                      <div>
+                    <div className="ctaRow" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 0 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
                         <strong>{period.name}</strong>
-                        <p style={{ marginTop: "0.25rem" }}>
-                          Days #{period.start_day_number}-{period.end_day_number}
-                        </p>
-                        <p style={{ marginTop: "0.25rem" }}>
-                          Current dates: {markingPeriodDateText(period, schoolDayNumberMap)}
-                        </p>
+                        <p>Days #{period.start_day_number}-{period.end_day_number}</p>
+                        <p>Current dates: {markingPeriodDateText(period, schoolDayNumberMap)}</p>
                       </div>
                       <form action={deleteTeacherMarkingPeriodAction}>
                         <input type="hidden" name="period_id" value={period.id} />
