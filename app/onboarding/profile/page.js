@@ -287,6 +287,10 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const { map: schoolDayNumberMap, count: schoolDayCount } =
     buildSchoolDayNumberMap(weekdays, schoolDayByDate);
 
+  const dateToSchoolDayNumber = new Map(
+    Array.from(schoolDayNumberMap.entries()).map(([num, date]) => [date, num])
+  );
+
   let markingPeriods = [];
   let markingPeriodsMigrationNeeded = false;
   if (isTeacher) {
@@ -486,6 +490,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
               <div className="schoolCalendarHeader">
                 <span>Date</span>
+                <span>Day #</span>
                 <span>AB</span>
                 <span>Day Type</span>
                 <span>Reason</span>
@@ -495,9 +500,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
               <div className="schoolCalendarBody">
                 {weekdays.map((date) => {
                   const row = schoolDayByDate.get(date);
+                  const dayNum = dateToSchoolDayNumber.get(date);
                   return (
                     <div className="schoolCalendarRow" key={date}>
                       <span>{prettyDate(date)}</span>
+                      <span>{dayNum ? `#${dayNum}` : "—"}</span>
                       <span>{abByDate.get(date) || "-"}</span>
                       <select
                         className="input"
@@ -605,7 +612,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
             {markingPeriods.length > 0 ? (
               <div className="list">
                 {markingPeriods.map((period) => (
-                  <div className="card" key={period.id} style={{ background: "#fff" }}>
+                  <div className="card" key={period.id} style={{ background: "#fff", padding: "0.55rem 0.9rem" }}>
                     <div className="ctaRow" style={{ justifyContent: "space-between" }}>
                       <div>
                         <strong>{period.name}</strong>
