@@ -123,6 +123,11 @@ function markingPeriodDateText(period, schoolDayNumberMap) {
   return "Not scheduled yet";
 }
 
+function isMissingTableError(error, tableName) {
+  const message = String(error?.message || "");
+  return message.includes(tableName);
+}
+
 
 function buildABMap(dates, abPatternStartIso) {
   const map = new Map();
@@ -177,8 +182,6 @@ export default async function OnboardingProfilePage({ searchParams }) {
     schoolOptions = [];
   }
 
-  let migrationNeeded = false;
-
   let { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select(
@@ -211,7 +214,6 @@ export default async function OnboardingProfilePage({ searchParams }) {
       : null;
 
     profileError = retry.error;
-    migrationNeeded = true;
   }
 
   const schoolYearStart = profile?.school_year_start || defaults.start;
@@ -245,6 +247,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
     .order("label", { ascending: true });
 
   let schoolDays = [];
+  let schoolCalendarOverridesUnavailable = false;
   const { data: schoolDaysData, error: schoolDaysError } = await supabase
     .from("school_calendar_days")
     .select("class_date, day_type, reason_id, note")
@@ -253,12 +256,10 @@ export default async function OnboardingProfilePage({ searchParams }) {
     .lte("class_date", schoolYearEnd)
     .order("class_date", { ascending: true });
 
-  if (
-    schoolDaysError &&
-    typeof schoolDaysError.message === "string" &&
-    schoolDaysError.message.includes("school_calendar_days")
-  ) {
-    migrationNeeded = true;
+  if (schoolDaysError && isMissingTableError(schoolDaysError, "school_calendar_days")) {
+    schoolCalendarOverridesUnavailable = true;
+  } else if (schoolDaysError) {
+    throw new Error(schoolDaysError.message);
   } else {
     schoolDays = schoolDaysData || [];
   }
@@ -430,7 +431,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
             School Calendar
           </summary>
 
-          {migrationNeeded ? (
+          {schoolCalendarOverridesUnavailable ? (
             <p style={{ marginTop: "0.75rem" }}>
               Note: global calendar overrides are unavailable until the school
               calendar table migration is applied. You can still set school-year

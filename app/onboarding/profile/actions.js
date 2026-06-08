@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { buildDefaultDisplayName } from "@/lib/auth/account-type";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { generateAnnouncementsForCourse } from "../../classes/[id]/announcements/actions";
 
@@ -262,7 +264,8 @@ export async function saveSchoolCalendarAction(formData) {
     redirect("/auth/sign-in?redirect=/onboarding/profile");
   }
 
-  const { data: savedProfile, error: profileUpdateError } = await supabase
+  const admin = createAdminClient();
+  let { data: savedProfile, error: profileUpdateError } = await admin
     .from("profiles")
     .update({
       school_year_start: schoolYearStart,
@@ -272,6 +275,29 @@ export async function saveSchoolCalendarAction(formData) {
     .eq("id", user.id)
     .select("id, school_year_start, school_year_end")
     .maybeSingle();
+
+  if (profileUpdateError) {
+    throw new Error(profileUpdateError.message);
+  }
+
+  if (!savedProfile) {
+    const retry = await admin
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          display_name: buildDefaultDisplayName(user),
+          school_year_start: schoolYearStart,
+          school_year_end: schoolYearEnd,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      )
+      .select("id, school_year_start, school_year_end")
+      .maybeSingle();
+    savedProfile = retry.data;
+    profileUpdateError = retry.error;
+  }
 
   if (profileUpdateError) {
     throw new Error(profileUpdateError.message);
@@ -304,7 +330,7 @@ export async function saveSchoolCalendarAction(formData) {
     });
   }
 
-  const { error: clearOverridesError } = await supabase
+  const { error: clearOverridesError } = await admin
     .from("school_calendar_days")
     .delete()
     .eq("owner_id", user.id);
@@ -316,7 +342,7 @@ export async function saveSchoolCalendarAction(formData) {
   }
 
   if (hasSchoolCalendarTable && overrides.length > 0) {
-    const { error: insertOverridesError } = await supabase
+    const { error: insertOverridesError } = await admin
       .from("school_calendar_days")
       .insert(overrides);
 
@@ -327,7 +353,7 @@ export async function saveSchoolCalendarAction(formData) {
 
   const overrideMap = new Map(overrides.map((row) => [row.class_date, row]));
 
-  let { data: courses, error: coursesError } = await supabase
+  let { data: courses, error: coursesError } = await admin
     .from("courses")
     .select(
       "id, owner_id, schedule_model, ab_meeting_day, ab_pattern_start_date"
@@ -339,7 +365,7 @@ export async function saveSchoolCalendarAction(formData) {
     typeof coursesError.message === "string" &&
     coursesError.message.includes("ab_meeting_day")
   ) {
-    const retry = await supabase
+    const retry = await admin
       .from("courses")
       .select("id, owner_id, schedule_model, ab_pattern_start_date")
       .eq("owner_id", user.id);
@@ -353,7 +379,7 @@ export async function saveSchoolCalendarAction(formData) {
   }
 
   for (const course of courses || []) {
-    const { error: courseUpdateError } = await supabase
+    const { error: courseUpdateError } = await admin
       .from("courses")
       .update({
         school_year_start: schoolYearStart,
@@ -367,7 +393,7 @@ export async function saveSchoolCalendarAction(formData) {
       throw new Error(courseUpdateError.message);
     }
 
-    const { error: clearCourseCalendarError } = await supabase
+    const { error: clearCourseCalendarError } = await admin
       .from("course_calendar_days")
       .delete()
       .eq("course_id", course.id);
@@ -384,7 +410,7 @@ export async function saveSchoolCalendarAction(formData) {
     });
 
     if (rows.length > 0) {
-      const { error: insertCourseCalendarError } = await supabase
+      const { error: insertCourseCalendarError } = await admin
         .from("course_calendar_days")
         .insert(rows);
 
@@ -394,7 +420,7 @@ export async function saveSchoolCalendarAction(formData) {
     }
 
     await rebuildPlanFromCalendar({
-      supabase,
+      supabase: admin,
       courseId: course.id,
       userId: user.id,
     });
