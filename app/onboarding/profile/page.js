@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
+import SchoolCalendarSubmit from "./school-calendar-submit";
 import { getSiteCopy } from "@/lib/site-config";
 import {
   addTeacherAbsenceAction,
@@ -149,6 +150,7 @@ function buildABMap(dates, abPatternStartIso) {
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
+  const schoolCalendarError = qs.school_calendar_error || "";
   const templateUpdated = qs.template_updated === "1";
   const absenceUpdated = qs.absence_updated === "1";
   const absenceError = qs.absence_error;
@@ -509,12 +511,10 @@ export default async function OnboardingProfilePage({ searchParams }) {
               </div>
 
               <div className="ctaRow">
-                <button className="btn primary" type="submit">
-                  Apply Calendar Changes
-                </button>
-                {schoolCalendarUpdated ? (
-                  <span className="statusNote">School Calendar Updated!</span>
-                ) : null}
+                <SchoolCalendarSubmit
+                  updated={schoolCalendarUpdated}
+                  error={schoolCalendarError}
+                />
               </div>
           </form>
 

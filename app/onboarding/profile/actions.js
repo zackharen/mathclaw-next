@@ -242,15 +242,15 @@ export async function saveAnnouncementTemplateAction(formData) {
 }
 
 export async function saveSchoolCalendarAction(formData) {
-  const schoolYearStart = formData.get("school_year_start");
-  const schoolYearEnd = formData.get("school_year_end");
+  const schoolYearStart = String(formData.get("school_year_start") || "").trim();
+  const schoolYearEnd = String(formData.get("school_year_end") || "").trim();
 
-  if (typeof schoolYearStart !== "string" || typeof schoolYearEnd !== "string") {
-    redirect("/onboarding/profile?school_calendar_error=1");
+  if (!isValidISODate(schoolYearStart) || !isValidISODate(schoolYearEnd)) {
+    redirect("/onboarding/profile?school_calendar_error=1#school-calendar");
   }
 
-  if (schoolYearStart >= schoolYearEnd) {
-    redirect("/onboarding/profile?school_calendar_error=1");
+  if (parseDateAtUTC(schoolYearStart) >= parseDateAtUTC(schoolYearEnd)) {
+    redirect("/onboarding/profile?school_calendar_error=1#school-calendar");
   }
 
   const supabase = await createClient();
@@ -262,17 +262,27 @@ export async function saveSchoolCalendarAction(formData) {
     redirect("/auth/sign-in?redirect=/onboarding/profile");
   }
 
-  const { error: profileUpdateError } = await supabase
+  const { data: savedProfile, error: profileUpdateError } = await supabase
     .from("profiles")
     .update({
       school_year_start: schoolYearStart,
       school_year_end: schoolYearEnd,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("id, school_year_start, school_year_end")
+    .maybeSingle();
 
   if (profileUpdateError) {
     throw new Error(profileUpdateError.message);
+  }
+
+  if (
+    !savedProfile ||
+    savedProfile.school_year_start !== schoolYearStart ||
+    savedProfile.school_year_end !== schoolYearEnd
+  ) {
+    redirect("/onboarding/profile?school_calendar_error=save#school-calendar");
   }
 
   const rawUpdates = parseSchoolCalendarRows(formData);
@@ -396,7 +406,7 @@ export async function saveSchoolCalendarAction(formData) {
   revalidatePath("/classes");
   revalidatePath("/");
 
-  redirect(`/onboarding/profile?school_calendar_updated=1&t=${Date.now()}`);
+  redirect(`/onboarding/profile?school_calendar_updated=1&t=${Date.now()}#school-calendar`);
 }
 
 export async function addTeacherAbsenceAction(formData) {
