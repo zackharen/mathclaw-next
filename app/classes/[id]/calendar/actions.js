@@ -134,6 +134,15 @@ function parseBulkUpdates(formData) {
       row.note = String(value || "");
       updates.set(classDate, row);
     }
+
+    if (key.startsWith("out__")) {
+      const classDate = key.replace("out__", "");
+      if (value === "on") {
+        const row = updates.get(classDate) || {};
+        row.day_type = "grace_day";
+        updates.set(classDate, row);
+      }
+    }
   }
 
   return { updates, selectedDates };

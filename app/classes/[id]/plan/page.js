@@ -244,6 +244,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
     planRes,
     announcementsRes,
     gamesRes,
+    schoolDaysRes,
+    markingPeriodRulesRes,
   ] = await Promise.all([
     curriculumEnabled
       ? supabase
@@ -275,6 +277,18 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .eq("course_id", course.id)
       .order("class_date", { ascending: true }),
     listGamesWithCourseSettings(supabase, course.id, { viewerAccountType: accountType || "teacher" }),
+    supabase
+      .from("school_calendar_days")
+      .select("class_date, day_type")
+      .eq("owner_id", user.id)
+      .gte("class_date", course.school_year_start)
+      .lte("class_date", course.school_year_end)
+      .order("class_date", { ascending: true }),
+    supabase
+      .from("teacher_marking_period_rules")
+      .select("id, name, start_day_number, end_day_number")
+      .eq("owner_id", user.id)
+      .order("start_day_number", { ascending: true }),
   ]);
 
   const totalLessonsCount = lessonsCountRes.count || 0;
@@ -284,6 +298,33 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const planError = planRes.error;
   const announcements = announcementsRes.data || [];
   const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
+  const schoolDays = schoolDaysRes.data || [];
+  const markingPeriodRules = markingPeriodRulesRes.data || [];
+
+  // Build school-day# → date map and date → school-day# map from the global school calendar
+  const schoolDayByDate = new Map(schoolDays.map((d) => [d.class_date, d]));
+  const schoolDayNumberByDate = new Map();
+  {
+    let dayNum = 0;
+    for (const d of schoolDays) {
+      if (d.day_type !== "off") {
+        dayNum += 1;
+        schoolDayNumberByDate.set(d.class_date, dayNum);
+      }
+    }
+  }
+
+  // Map each date to its marking period name
+  function getMarkingPeriodName(classDate) {
+    const dayNum = schoolDayNumberByDate.get(classDate);
+    if (!dayNum) return null;
+    for (const rule of markingPeriodRules) {
+      if (dayNum >= rule.start_day_number && dayNum <= rule.end_day_number) {
+        return rule.name;
+      }
+    }
+    return null;
+  }
 
   if (PERF_ENABLED) {
     console.info(
@@ -532,7 +573,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     <div className="calendarGridHeaderNoAction">
                       <span>Select</span>
                       <span>Date</span>
+                      <span>MP</span>
                       <span>AB</span>
+                      <span>Out?</span>
                       <span>Day Type</span>
                       <span>Reason</span>
                       <span>Note</span>
@@ -545,7 +588,17 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             <span>Select</span>
                           </label>
                           <span>{prettyDate(day.class_date)}</span>
+                          <span style={{ fontSize: "0.78rem", opacity: 0.7 }}>{getMarkingPeriodName(day.class_date) || "—"}</span>
                           <span>{day.ab_day || "-"}</span>
+                          <label className="calendarSelectCell">
+                            <input
+                              type="checkbox"
+                              name={`out__${day.class_date}`}
+                              defaultChecked={day.day_type === "grace_day"}
+                              form="class-plan-schedule-form"
+                            />
+                            <span>Out</span>
+                          </label>
                           <select
                             className="input"
                             name={`day_type__${day.class_date}`}
@@ -631,11 +684,13 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       ? "partly completed"
                       : "planned";
               const noLessonLabel = day.day_type === "off" ? "No School" : "Grace Day";
+              const mpName = getMarkingPeriodName(day.class_date);
+              const schoolDayNum = schoolDayNumberByDate.get(day.class_date);
 
               if (dayPlanRows.length === 0) {
                 return (
                   <article key={day.class_date} className="card" style={{ background: "#fff" }}>
-                    <h3>{prettyDate(day.class_date)}</h3>
+                    <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
                     <p>
                       {noLessonLabel}{reasonLabel ? ` | ${reasonLabel}` : ""}
                     </p>
@@ -688,7 +743,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
               return (
                 <article key={day.class_date} className="card" style={{ background: "#fff" }}>
-                  <h3>{prettyDate(day.class_date)}</h3>
+                  <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
                   <div className="lessonPlanList">
                     {dayPlanRows.map((row, index) => {
                       const lesson = row.curriculum_lessons;
