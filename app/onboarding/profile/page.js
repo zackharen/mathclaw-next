@@ -9,6 +9,7 @@ import {
   deleteTeacherMarkingPeriodAction,
   saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
+  saveTeacherAnnouncementAssignmentsAction,
   saveSchoolCalendarAction,
   saveTeacherMarkingPeriodAction,
 } from "./actions";
@@ -166,6 +167,137 @@ function buildABMap(dates, abPatternStartIso) {
 
   return map;
 }
+
+function getDayOfWeekIndex(isoDate) {
+  return parseDateAtUTC(isoDate).getUTCDay();
+}
+
+function addDaysISO(isoDate, days) {
+  const date = parseDateAtUTC(isoDate);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toISODate(date);
+}
+
+function formatAssignmentDate(isoDate) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return `${month}/${day}/${year}`;
+}
+
+function assignmentCourseScopeText(course) {
+  return course ? courseLabel(course) : "All classes";
+}
+
+function assignmentCandidateKey(candidate) {
+  return `${candidate.course_id || "all"}|${candidate.assignment_date}|${candidate.label}`;
+}
+
+function assignmentCandidateValue(candidate) {
+  return [
+    candidate.course_id || "all",
+    candidate.assignment_date,
+    candidate.label,
+    candidate.due_date || "",
+    candidate.source || "",
+  ].join("|");
+}
+
+function pickEvenly(items, count) {
+  if (items.length <= count) return items;
+  const picked = [];
+  const seen = new Set();
+  for (let i = 0; i < count; i += 1) {
+    const index = Math.round((i * (items.length - 1)) / (count - 1));
+    if (!seen.has(index)) {
+      picked.push(items[index]);
+      seen.add(index);
+    }
+  }
+  return picked;
+}
+
+function isCourseMeetingDay(course, day) {
+  if (!day || day.day_type === "off") return false;
+  if (course.schedule_model !== "ab") return true;
+  if (course.ab_meeting_day === "A") return day.ab_day === "A";
+  if (course.ab_meeting_day === "B") return day.ab_day === "B";
+  return day.ab_day === "A" || day.ab_day === "B";
+}
+
+function buildCourseAssignmentCandidates({
+  course,
+  courseDays,
+  markingPeriods,
+  schoolDayNumberByDate,
+}) {
+  const meetingDays = (courseDays || []).filter((day) => isCourseMeetingDay(course, day));
+  const candidates = [];
+
+  for (const day of meetingDays) {
+    const weekday = getDayOfWeekIndex(day.class_date);
+    if (course.schedule_model !== "ab" && weekday === 5) {
+      candidates.push({
+        course_id: course.id,
+        assignment_date: day.class_date,
+        label: "Assessment",
+        due_date: "",
+        source: "Friday assessments",
+      });
+    }
+    if (course.schedule_model === "ab" && (weekday === 4 || weekday === 5)) {
+      candidates.push({
+        course_id: course.id,
+        assignment_date: day.class_date,
+        label: "Assessment",
+        due_date: "",
+        source: "AB Thu/Fri assessments",
+      });
+    }
+  }
+
+  for (const period of markingPeriods || []) {
+    const periodDays = meetingDays.filter((day) => {
+      const dayNumber = schoolDayNumberByDate.get(day.class_date);
+      return (
+        dayNumber &&
+        dayNumber >= period.start_day_number &&
+        dayNumber <= period.end_day_number
+      );
+    });
+    const periodFridays = periodDays.filter((day) => getDayOfWeekIndex(day.class_date) === 5);
+
+    for (const day of pickEvenly(periodFridays, 3)) {
+      candidates.push({
+        course_id: course.id,
+        assignment_date: day.class_date,
+        label: "Notebook Check",
+        due_date: "",
+        source: `${period.name} notebook checks`,
+      });
+    }
+
+    for (const day of pickEvenly(periodDays, 2)) {
+      candidates.push({
+        course_id: course.id,
+        assignment_date: day.class_date,
+        label: "Choice Board",
+        due_date: addDaysISO(day.class_date, 7),
+        source: `${period.name} choice boards`,
+      });
+    }
+  }
+
+  const byKey = new Map();
+  for (const candidate of candidates) {
+    byKey.set(assignmentCandidateKey(candidate), candidate);
+  }
+  return [...byKey.values()].sort((a, b) => {
+    if (a.assignment_date !== b.assignment_date) {
+      return a.assignment_date.localeCompare(b.assignment_date);
+    }
+    return a.label.localeCompare(b.label);
+  });
+}
+
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
@@ -176,6 +308,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const absenceError = qs.absence_error;
   const markingPeriodUpdated = qs.marking_period_updated === "1";
   const markingPeriodError = qs.marking_period_error;
+  const assignmentsUpdated = qs.assignments_updated === "1";
+  const assignmentError = qs.assignment_error;
   const siteCopy = await getSiteCopy();
 
   const supabase = await createClient();
@@ -246,7 +380,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const { data: teacherCourses } = isTeacher
     ? await supabase
         .from("courses")
-        .select("id, title, class_name")
+        .select("id, title, class_name, schedule_model, ab_meeting_day")
         .eq("owner_id", user.id)
         .order("title", { ascending: true })
     : { data: [] };
@@ -337,6 +471,75 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const teacherCourseById = new Map(
     (teacherCourses || []).map((course) => [course.id, course])
+  );
+
+  let courseCalendarDays = [];
+  const teacherCourseIds = (teacherCourses || []).map((course) => course.id);
+  if (isTeacher && teacherCourseIds.length > 0) {
+    const { data: courseCalendarData, error: courseCalendarError } = await supabase
+      .from("course_calendar_days")
+      .select("course_id, class_date, day_type, ab_day")
+      .in("course_id", teacherCourseIds)
+      .gte("class_date", schoolYearStart)
+      .lte("class_date", schoolYearEnd)
+      .order("class_date", { ascending: true });
+
+    if (courseCalendarError) {
+      throw new Error(courseCalendarError.message);
+    }
+
+    courseCalendarDays = courseCalendarData || [];
+  }
+
+  let announcementAssignments = [];
+  let announcementAssignmentsMigrationNeeded = false;
+  if (isTeacher) {
+    const { data: assignmentsData, error: assignmentsError } = await supabase
+      .from("teacher_announcement_assignments")
+      .select("id, course_id, assignment_date, label, due_date, source")
+      .eq("owner_id", user.id)
+      .gte("assignment_date", schoolYearStart)
+      .lte("assignment_date", schoolYearEnd)
+      .order("assignment_date", { ascending: true })
+      .order("label", { ascending: true });
+
+    if (
+      assignmentsError &&
+      typeof assignmentsError.message === "string" &&
+      assignmentsError.message.includes("teacher_announcement_assignments")
+    ) {
+      announcementAssignmentsMigrationNeeded = true;
+    } else if (assignmentsError) {
+      throw new Error(assignmentsError.message);
+    } else {
+      announcementAssignments = assignmentsData || [];
+    }
+  }
+
+  const courseCalendarByCourse = new Map();
+  for (const day of courseCalendarDays || []) {
+    const arr = courseCalendarByCourse.get(day.course_id) || [];
+    arr.push(day);
+    courseCalendarByCourse.set(day.course_id, arr);
+  }
+
+  const existingAssignmentKeys = new Set(
+    (announcementAssignments || []).map((assignment) => assignmentCandidateKey(assignment))
+  );
+
+  const assignmentCandidates = (teacherCourses || []).flatMap((course) =>
+    buildCourseAssignmentCandidates({
+      course,
+      courseDays: courseCalendarByCourse.get(course.id) || [],
+      markingPeriods,
+      schoolDayNumberByDate: dateToSchoolDayNumber,
+    })
+  );
+
+  const selectedOnlyAssignments = (announcementAssignments || []).filter(
+    (assignment) => !assignmentCandidates.some(
+      (candidate) => assignmentCandidateKey(candidate) === assignmentCandidateKey(assignment)
+    )
   );
 
   let { data: templateRow, error: templateError } = await supabase
@@ -634,6 +837,120 @@ export default async function OnboardingProfilePage({ searchParams }) {
                   </div>
                 ))}
               </div>
+            ) : null}
+          </div>
+
+          <div className="list" id="announcement-assignments" style={{ marginTop: "1.1rem" }}>
+            <div>
+              <h3>Announcement Assignments</h3>
+              <p>
+                Pick generated assignment dates for assessments, notebook checks, and choice boards.
+                Checked rows feed the <code>{"{assignments}"}</code> announcement placeholder.
+              </p>
+            </div>
+
+            {announcementAssignmentsMigrationNeeded || assignmentError === "missing-table" ? (
+              <p>
+                Announcement assignments are unavailable until the announcement assignments
+                migration is applied.
+              </p>
+            ) : null}
+
+            {!announcementAssignmentsMigrationNeeded ? (
+              <form action={saveTeacherAnnouncementAssignmentsAction} className="list">
+                <input type="hidden" name="school_year_start" value={schoolYearStart} />
+                <input type="hidden" name="school_year_end" value={schoolYearEnd} />
+
+                {assignmentCandidates.length > 0 ? (
+                  <div className="list">
+                    {(teacherCourses || []).map((course) => {
+                      const courseCandidates = assignmentCandidates.filter(
+                        (candidate) => candidate.course_id === course.id
+                      );
+                      if (courseCandidates.length === 0) return null;
+                      return (
+                        <div className="card" key={course.id} style={{ background: "#fff", padding: "0.7rem 0.9rem" }}>
+                          <h4>{courseLabel(course)}</h4>
+                          <div className="list" style={{ marginTop: "0.45rem" }}>
+                            {courseCandidates.map((candidate) => (
+                              <label
+                                key={assignmentCandidateKey(candidate)}
+                                style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "0.55rem", alignItems: "start" }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  name="assignment_pick"
+                                  value={assignmentCandidateValue(candidate)}
+                                  defaultChecked={existingAssignmentKeys.has(assignmentCandidateKey(candidate))}
+                                />
+                                <span>
+                                  <strong>{candidate.label}</strong>{" "}
+                                  <span>
+                                    {formatAssignmentDate(candidate.assignment_date)}
+                                    {candidate.due_date ? ` · Due ${formatAssignmentDate(candidate.due_date)}` : ""}
+                                  </span>
+                                  <br />
+                                  <span style={{ fontSize: "0.88rem", opacity: 0.75 }}>
+                                    {candidate.source}
+                                  </span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p>
+                    No assignment candidates yet. Build class calendars and marking period rules first.
+                  </p>
+                )}
+
+                {selectedOnlyAssignments.length > 0 ? (
+                  <div className="card" style={{ background: "#fff", padding: "0.7rem 0.9rem" }}>
+                    <h4>Saved Custom Rows</h4>
+                    <div className="list" style={{ marginTop: "0.45rem" }}>
+                      {selectedOnlyAssignments.map((assignment) => (
+                        <label
+                          key={assignmentCandidateKey(assignment)}
+                          style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "0.55rem", alignItems: "start" }}
+                        >
+                          <input
+                            type="checkbox"
+                            name="assignment_pick"
+                            value={assignmentCandidateValue(assignment)}
+                            defaultChecked
+                          />
+                          <span>
+                            <strong>{assignment.label}</strong>{" "}
+                            <span>
+                              {formatAssignmentDate(assignment.assignment_date)}
+                              {assignment.due_date ? ` · Due ${formatAssignmentDate(assignment.due_date)}` : ""}
+                            </span>
+                            <br />
+                            <span style={{ fontSize: "0.88rem", opacity: 0.75 }}>
+                              {assignmentCourseScopeText(teacherCourseById.get(assignment.course_id))}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="ctaRow">
+                  <button className="btn primary" type="submit">
+                    Save Announcement Assignments
+                  </button>
+                  {assignmentsUpdated ? (
+                    <span className="statusNote">Announcement Assignments Updated!</span>
+                  ) : null}
+                  {assignmentError && assignmentError !== "missing-table" ? (
+                    <span className="statusNote">Could not save announcement assignments.</span>
+                  ) : null}
+                </div>
+              </form>
             ) : null}
           </div>
         </details>

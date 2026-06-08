@@ -44,6 +44,11 @@ function isMissingTeacherMarkingPeriodRulesTableError(error) {
   return message.includes("teacher_marking_period_rules");
 }
 
+function isMissingTeacherAnnouncementAssignmentsTableError(error) {
+  const message = String(error?.message || "");
+  return message.includes("teacher_announcement_assignments");
+}
+
 function isValidISODate(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = parseDateAtUTC(value);
@@ -118,6 +123,39 @@ function parseSchoolCalendarRows(formData) {
   }
 
   return updates;
+}
+
+function parseAnnouncementAssignmentValues(formData, userId) {
+  const rows = [];
+  const seen = new Set();
+
+  for (const value of formData.getAll("assignment_pick")) {
+    const raw = String(value || "");
+    const [courseIdRaw, assignmentDate, labelRaw, dueDateRaw, sourceRaw] = raw.split("|");
+    const courseId = courseIdRaw === "all" ? null : courseIdRaw;
+    const label = String(labelRaw || "").trim();
+    const dueDate = String(dueDateRaw || "").trim();
+    const source = String(sourceRaw || "").trim();
+
+    if (!isValidISODate(assignmentDate) || !label) continue;
+    if (dueDate && !isValidISODate(dueDate)) continue;
+
+    const key = `${courseId || "all"}|${assignmentDate}|${label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    rows.push({
+      owner_id: userId,
+      course_id: courseId,
+      assignment_date: assignmentDate,
+      label,
+      due_date: dueDate || null,
+      source: source || null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  return rows;
 }
 
 function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overrideMap }) {
@@ -666,4 +704,73 @@ export async function deleteTeacherMarkingPeriodAction(formData) {
 
   revalidatePath("/onboarding/profile");
   redirect(`/onboarding/profile?marking_period_updated=1&t=${Date.now()}#school-calendar`);
+}
+
+export async function saveTeacherAnnouncementAssignmentsAction(formData) {
+  const schoolYearStart = normalizeDateInput(formData.get("school_year_start"));
+  const schoolYearEnd = normalizeDateInput(formData.get("school_year_end"));
+
+  if (!schoolYearStart || !schoolYearEnd) {
+    redirect("/onboarding/profile?assignment_error=1#announcement-assignments");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const rows = parseAnnouncementAssignmentValues(formData, user.id);
+  const courseIds = [...new Set(rows.map((row) => row.course_id).filter(Boolean))];
+
+  if (courseIds.length > 0) {
+    const { data: courses, error: coursesError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("owner_id", user.id)
+      .in("id", courseIds);
+
+    if (coursesError) throw new Error(coursesError.message);
+
+    const ownedCourseIds = new Set((courses || []).map((course) => course.id));
+    if (courseIds.some((courseId) => !ownedCourseIds.has(courseId))) {
+      redirect("/onboarding/profile?assignment_error=1#announcement-assignments");
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("teacher_announcement_assignments")
+    .delete()
+    .eq("owner_id", user.id)
+    .gte("assignment_date", schoolYearStart)
+    .lte("assignment_date", schoolYearEnd);
+
+  if (deleteError) {
+    if (isMissingTeacherAnnouncementAssignmentsTableError(deleteError)) {
+      redirect("/onboarding/profile?assignment_error=missing-table#announcement-assignments");
+    }
+    throw new Error(deleteError.message);
+  }
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase
+      .from("teacher_announcement_assignments")
+      .insert(rows);
+
+    if (insertError) {
+      if (isMissingTeacherAnnouncementAssignmentsTableError(insertError)) {
+        redirect("/onboarding/profile?assignment_error=missing-table#announcement-assignments");
+      }
+      throw new Error(insertError.message);
+    }
+  }
+
+  await regenerateAnnouncementsForTeacherCourses(supabase, user.id);
+
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/classes");
+  redirect(`/onboarding/profile?assignments_updated=1&t=${Date.now()}#announcement-assignments`);
 }

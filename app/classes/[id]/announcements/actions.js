@@ -129,6 +129,11 @@ function isMissingTeacherAbsencesTableError(error) {
   return message.includes("teacher_absences");
 }
 
+function isMissingTeacherAnnouncementAssignmentsTableError(error) {
+  const message = String(error?.message || "");
+  return message.includes("teacher_announcement_assignments");
+}
+
 function formatTeacherAbsenceList(absences, classDate) {
   const upcomingAbsences = (absences || []).filter(
     (absence) => absence.absence_date >= classDate
@@ -142,6 +147,19 @@ function formatTeacherAbsenceList(absences, classDate) {
   });
 
   return `I won't be in school on the following dates: ${dates.join(", ")}`;
+}
+
+function formatAnnouncementAssignment(assignment) {
+  const label = String(assignment?.label || "").trim();
+  if (!label) return "";
+  return assignment?.due_date ? `${label} | Due ${formatShortDate(assignment.due_date)}` : label;
+}
+
+function buildAssignmentText(assignments) {
+  return (assignments || [])
+    .map(formatAnnouncementAssignment)
+    .filter(Boolean)
+    .join("\n");
 }
 
 function buildDoNow({ lessonTitle, objective, standards }) {
@@ -199,6 +217,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     calendarDays?.[calendarDays.length - 1]?.class_date || course.school_year_end || firstCalendarDate;
 
   let teacherAbsences = [];
+  let announcementAssignments = [];
   if (firstCalendarDate && lastCalendarDate) {
     const { data: absencesData, error: absencesError } = await supabase
       .from("teacher_absences")
@@ -214,6 +233,26 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
     teacherAbsences = (absencesData || []).filter(
       (absence) => !absence.course_id || absence.course_id === course.id
+    );
+
+    const { data: assignmentsData, error: assignmentsError } = await supabase
+      .from("teacher_announcement_assignments")
+      .select("assignment_date, course_id, label, due_date, source")
+      .eq("owner_id", userId)
+      .gte("assignment_date", firstCalendarDate)
+      .lte("assignment_date", lastCalendarDate)
+      .order("assignment_date", { ascending: true })
+      .order("label", { ascending: true });
+
+    if (
+      assignmentsError &&
+      !isMissingTeacherAnnouncementAssignmentsTableError(assignmentsError)
+    ) {
+      throw new Error(assignmentsError.message);
+    }
+
+    announcementAssignments = (assignmentsData || []).filter(
+      (assignment) => !assignment.course_id || assignment.course_id === course.id
     );
   }
 
@@ -281,6 +320,13 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
   const schoolDayNumberByDate = buildSchoolDayNumberByDate(calendarDays || []);
   const reasonById = new Map((reasons || []).map((r) => [r.id, r.label]));
+  const assignmentsByDate = new Map();
+
+  for (const assignment of announcementAssignments || []) {
+    const rowsForDate = assignmentsByDate.get(assignment.assignment_date) || [];
+    rowsForDate.push(assignment);
+    assignmentsByDate.set(assignment.assignment_date, rowsForDate);
+  }
 
   for (const link of links || []) {
     const arr = standardsByLesson.get(link.lesson_id) || [];
@@ -318,7 +364,8 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     const regularAssignment = includeRegularAssignments
       ? recurringAssignmentForDate(classDate, recurringAssignments)
       : "";
-    const assignments = regularAssignment;
+    const selectedAssignments = buildAssignmentText(assignmentsByDate.get(classDate) || []);
+    const assignments = [selectedAssignments, regularAssignment].filter(Boolean).join("\n");
     const teacherAbsencesText = formatTeacherAbsenceList(teacherAbsences, classDate);
 
     let content = applyTemplate(template, {
