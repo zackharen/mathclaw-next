@@ -9,6 +9,7 @@ import { getSiteCopy } from "@/lib/site-config";
 import {
   deleteTeacherAnnouncementAssignmentRuleAction,
   deleteTeacherMarkingPeriodAction,
+  saveTeacherAnnouncementAssignmentRuleOverrideAction,
   saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
   saveTeacherAnnouncementAssignmentRuleAction,
@@ -16,6 +17,10 @@ import {
   saveTeacherMarkingPeriodAction,
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
+import {
+  buildRuleAssignmentOccurrences,
+  buildSchoolDayNumberByDate,
+} from "@/lib/announcements/assignment-rules";
 
 const DEFAULT_ANNOUNCEMENT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
 {lesson_title}
@@ -72,6 +77,12 @@ function prettyDate(value) {
     month: "short",
     day: "numeric",
   });
+}
+
+function shortDate(value) {
+  if (!value) return "";
+  const [, month, day] = value.split("-").map(Number);
+  return `${month}/${day}`;
 }
 
 function courseLabel(course) {
@@ -205,6 +216,41 @@ function ruleSummary(rule) {
   return `${count} time${count === 1 ? "" : "s"} per marking period${days}`;
 }
 
+function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, markingPeriods, overrides }) {
+  const previewsByRuleId = new Map();
+  for (const rule of rules || []) {
+    const scopedCourses = rule.course_id
+      ? (courses || []).filter((course) => course.id === rule.course_id)
+      : courses || [];
+    const previews = [];
+
+    for (const course of scopedCourses) {
+      const calendarDays = calendarDaysByCourseId.get(course.id) || [];
+      const schoolDayNumberByDate = buildSchoolDayNumberByDate(calendarDays);
+      const courseOverrides = (overrides || []).filter(
+        (override) => override.rule_id === rule.id && override.course_id === course.id
+      );
+      const occurrences = buildRuleAssignmentOccurrences({
+        rules: [rule],
+        course,
+        calendarDays,
+        markingPeriodRules: markingPeriods,
+        schoolDayNumberByDate,
+        overrides: courseOverrides,
+      });
+      for (const occurrence of occurrences) {
+        previews.push({
+          ...occurrence,
+          course_label: courseLabel(course),
+        });
+      }
+    }
+
+    previewsByRuleId.set(rule.id, previews);
+  }
+  return previewsByRuleId;
+}
+
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
@@ -287,7 +333,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const { data: teacherCourses } = isTeacher
     ? await supabase
         .from("courses")
-        .select("id, title, class_name, schedule_model, ab_meeting_day")
+        .select("id, title, class_name, school_year_start, school_year_end, schedule_model, ab_meeting_day")
         .eq("owner_id", user.id)
         .order("title", { ascending: true })
     : { data: [] };
@@ -385,6 +431,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   }));
 
   let assignmentRules = [];
+  let assignmentRuleOverrides = [];
+  let assignmentRuleOverridesMigrationNeeded = false;
   let assignmentRulesMigrationNeeded = false;
   if (isTeacher) {
     const { data: rulesData, error: rulesError } = await supabase
@@ -405,7 +453,56 @@ export default async function OnboardingProfilePage({ searchParams }) {
     } else {
       assignmentRules = rulesData || [];
     }
+
+    const { data: overridesData, error: overridesError } = await supabase
+      .from("teacher_announcement_assignment_rule_overrides")
+      .select("id, rule_id, course_id, original_date, assignment_date")
+      .eq("owner_id", user.id)
+      .gte("original_date", schoolYearStart)
+      .lte("original_date", schoolYearEnd);
+
+    if (
+      overridesError &&
+      typeof overridesError.message === "string" &&
+      overridesError.message.includes("teacher_announcement_assignment_rule_overrides")
+    ) {
+      assignmentRuleOverridesMigrationNeeded = true;
+    } else if (overridesError) {
+      throw new Error(overridesError.message);
+    } else {
+      assignmentRuleOverrides = overridesData || [];
+    }
   }
+
+  let assignmentCalendarDays = [];
+  if (isTeacher && teacherCourses?.length) {
+    const { data: calendarData, error: calendarError } = await supabase
+      .from("course_calendar_days")
+      .select("course_id, class_date, day_type, ab_day")
+      .in("course_id", teacherCourses.map((course) => course.id))
+      .gte("class_date", schoolYearStart)
+      .lte("class_date", schoolYearEnd)
+      .order("class_date", { ascending: true });
+
+    if (calendarError) {
+      throw new Error(calendarError.message);
+    }
+    assignmentCalendarDays = calendarData || [];
+  }
+
+  const assignmentCalendarDaysByCourseId = new Map();
+  for (const day of assignmentCalendarDays) {
+    const arr = assignmentCalendarDaysByCourseId.get(day.course_id) || [];
+    arr.push(day);
+    assignmentCalendarDaysByCourseId.set(day.course_id, arr);
+  }
+  const assignmentRulePreviews = buildAssignmentRulePreviews({
+    rules: assignmentRules,
+    courses: teacherCourses || [],
+    calendarDaysByCourseId: assignmentCalendarDaysByCourseId,
+    markingPeriods,
+    overrides: assignmentRuleOverrides,
+  });
 
   let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
@@ -720,6 +817,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 migration is applied.
               </p>
             ) : null}
+            {assignmentRuleOverridesMigrationNeeded || assignmentError === "missing-overrides" ? (
+              <p>
+                Announcement assignment rescheduling is unavailable until the override
+                migration is applied.
+              </p>
+            ) : null}
 
             {!assignmentRulesMigrationNeeded ? (
               <>
@@ -752,6 +855,70 @@ export default async function OnboardingProfilePage({ searchParams }) {
                             rule={rule}
                             submitLabel="Update Assignment Type"
                           />
+                        </div>
+                        <div className="list" style={{ marginTop: "0.75rem" }}>
+                          <div>
+                            <strong>Generated Schedule Preview</strong>
+                            <p>
+                              These are the assignment lines this rule will place across the school year.
+                            </p>
+                          </div>
+                          {(assignmentRulePreviews.get(rule.id) || []).length > 0 ? (
+                            <div style={{ overflowX: "auto" }}>
+                              <div
+                                className="schoolCalendarHeader"
+                                style={{
+                                  gridTemplateColumns: "minmax(10rem, 1.2fr) minmax(8rem, 0.8fr) minmax(11rem, 1fr) minmax(10rem, 1fr) minmax(8rem, 0.8fr)",
+                                }}
+                              >
+                                <span>Class</span>
+                                <span>Original</span>
+                                <span>Assignment Date</span>
+                                <span>Assignment</span>
+                                <span>MP</span>
+                              </div>
+                              <div className="schoolCalendarBody">
+                                {(assignmentRulePreviews.get(rule.id) || []).map((occurrence) => (
+                                  <form
+                                    action={saveTeacherAnnouncementAssignmentRuleOverrideAction}
+                                    className="schoolCalendarRow"
+                                    key={`${occurrence.course_id}-${occurrence.original_date}`}
+                                    style={{
+                                      gridTemplateColumns: "minmax(10rem, 1.2fr) minmax(8rem, 0.8fr) minmax(11rem, 1fr) minmax(10rem, 1fr) minmax(8rem, 0.8fr)",
+                                    }}
+                                  >
+                                    <input type="hidden" name="rule_id" value={occurrence.rule_id} />
+                                    <input type="hidden" name="course_id" value={occurrence.course_id} />
+                                    <input type="hidden" name="original_date" value={occurrence.original_date} />
+                                    <span>{occurrence.course_label}</span>
+                                    <span>{shortDate(occurrence.original_date)}</span>
+                                    <span className="ctaRow" style={{ marginTop: 0, gap: "0.35rem" }}>
+                                      <input
+                                        className="input"
+                                        type="date"
+                                        name="assignment_date"
+                                        defaultValue={occurrence.assignment_date}
+                                        aria-label={`Assignment date for ${occurrence.label} originally on ${occurrence.original_date}`}
+                                        required
+                                      />
+                                      <button className="btn" type="submit">
+                                        Save
+                                      </button>
+                                    </span>
+                                    <span>
+                                      {occurrence.label}
+                                      {occurrence.is_override ? (
+                                        <span style={{ opacity: 0.75 }}> (rescheduled)</span>
+                                      ) : null}
+                                    </span>
+                                    <span>{occurrence.marking_period || "—"}</span>
+                                  </form>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <p>No generated dates found for the current school-year calendar.</p>
+                          )}
                         </div>
                         <form action={deleteTeacherAnnouncementAssignmentRuleAction} className="ctaRow">
                           <input type="hidden" name="rule_id" value={rule.id} />

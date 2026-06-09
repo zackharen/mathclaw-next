@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-09 America/New_York (Announcement assignment rule form polish)
+2026-06-09 America/New_York (Announcement assignment previews and rescheduling)
+
+## What Was Built (2026-06-09 Session — Announcement assignment previews and rescheduling)
+
+- **Announcement Assignment rule previews added** (`app/onboarding/profile/page.js`, `lib/announcements/assignment-rules.js`): each saved rule card in Profile → School Calendar → Announcement Assignments now shows the generated schedule for the school year. Rules scoped to all classes render occurrence rows per class so A/B calendars and meeting days can differ. Preview rows show class, original generated date, editable assignment date, assignment label, and marking period when available.
+- **Manual rescheduling overrides added** (`app/onboarding/profile/actions.js`, `app/classes/[id]/announcements/actions.js`, `supabase/schema.sql`, `supabase/migrations_20260609_teacher_announcement_assignment_rule_overrides.sql`): changing an occurrence date saves an override keyed by `owner_id`, `rule_id`, `course_id`, and `original_date`; changing it back to the original date removes the override. Announcement generation now honors overrides when placing `{assignments}` while leaving the rule itself unchanged. The older `teacher_announcement_assignments` selected-instance table remains inactive/harmless.
+- **Production Supabase migration applied** to `mathclaw-prod` / `ruaaznacaywngewxyged`: migration list confirms `teacher_announcement_assignment_rule_overrides` version `20260609121757`. The table has owner-scoped RLS, rule/course ownership checks, no anon grants, and SELECT/INSERT/UPDATE/DELETE grants for authenticated users.
+- Verification passed locally: `node --check lib/announcements/assignment-rules.js`; `node --check app/onboarding/profile/page.js`; `node --check app/onboarding/profile/actions.js`; `node --check app/onboarding/profile/announcement-assignment-rule-form.js`; `node --check app/classes/[id]/announcements/actions.js`; `git diff --check`; `npm run build`. Local browser check of `/onboarding/profile` returned the expected unauthenticated sign-in path with no application error. Authenticated Profile click-through remains dependent on Zack's signed-in browser session.
 
 ## What Was Built (2026-06-09 Session — Announcement assignment rule form polish)
 
