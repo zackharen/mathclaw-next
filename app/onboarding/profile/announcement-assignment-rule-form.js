@@ -99,6 +99,14 @@ export default function AnnouncementAssignmentRuleForm({
               ))}
             </div>
           </fieldset>
+          <label style={{ maxWidth: "20rem" }}>
+            If class doesn't meet on this day
+            <select className="input" name="no_meeting_shift" defaultValue={settings.no_meeting_shift || "before"}>
+              <option value="before">Use nearest class day before</option>
+              <option value="after">Use nearest class day after</option>
+              <option value="skip">Skip (don't generate)</option>
+            </select>
+          </label>
         </div>
       ) : null}
 
@@ -140,6 +148,14 @@ export default function AnnouncementAssignmentRuleForm({
               ))}
             </div>
           </fieldset>
+          <label style={{ maxWidth: "20rem" }}>
+            If class doesn't meet on this day
+            <select className="input" name="no_meeting_shift" defaultValue={settings.no_meeting_shift || "before"}>
+              <option value="before">Use nearest class day before</option>
+              <option value="after">Use nearest class day after</option>
+              <option value="skip">Skip (don't generate)</option>
+            </select>
+          </label>
         </div>
       ) : null}
 
