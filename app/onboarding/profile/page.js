@@ -747,11 +747,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
             </form>
           </details>
 
-          <details className="list" style={{ marginTop: "1.1rem" }}>
+          <details style={{ marginTop: "1.1rem" }}>
             <summary className="btn btnNoToggle" style={{ display: "inline-block" }}>
               Marking Periods
             </summary>
-            <div>
+            <div className="list">
               <h3>Marking Periods</h3>
               <p>
                 Set marking periods by school day number. Current date ranges recalculate when the school
@@ -830,11 +830,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
             ) : null}
           </details>
 
-          <details className="list" id="announcement-assignments" style={{ marginTop: "1.1rem" }}>
+          <details id="announcement-assignments" style={{ marginTop: "1.1rem" }}>
             <summary className="btn btnNoToggle" style={{ display: "inline-block" }}>
               Announcement Assignments
             </summary>
-            <div>
+            <div className="list">
               <h3>Announcement Assignments</h3>
               <p>
                 Set assignment types once, then choose how often each type appears in generated
