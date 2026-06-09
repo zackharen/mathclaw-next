@@ -8,6 +8,7 @@ import AnnouncementAssignmentRuleForm from "./announcement-assignment-rule-form"
 import { getSiteCopy } from "@/lib/site-config";
 import {
   deleteTeacherAnnouncementAssignmentRuleAction,
+  deleteTeacherAnnouncementAssignmentRuleOccurrenceAction,
   deleteTeacherMarkingPeriodAction,
   saveTeacherAnnouncementAssignmentRuleOverrideAction,
   saveStandardMarkingPeriodRulesAction,
@@ -456,7 +457,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
     const { data: overridesData, error: overridesError } = await supabase
       .from("teacher_announcement_assignment_rule_overrides")
-      .select("id, rule_id, course_id, original_date, assignment_date")
+      .select("id, rule_id, course_id, original_date, assignment_date, is_skipped")
       .eq("owner_id", user.id)
       .gte("original_date", schoolYearStart)
       .lte("original_date", schoolYearEnd);
@@ -868,14 +869,14 @@ export default async function OnboardingProfilePage({ searchParams }) {
                               <div
                                 className="schoolCalendarHeader"
                                 style={{
-                                  gridTemplateColumns: "minmax(10rem, 1.2fr) minmax(8rem, 0.8fr) minmax(11rem, 1fr) minmax(10rem, 1fr) minmax(8rem, 0.8fr)",
+                                  gridTemplateColumns: "minmax(10rem, 1.3fr) minmax(6rem, 0.6fr) minmax(14rem, 0.9fr) minmax(7rem, 0.7fr) minmax(6rem, 0.5fr)",
                                 }}
                               >
                                 <span>Class</span>
                                 <span>Original</span>
                                 <span>Assignment Date</span>
-                                <span>Assignment</span>
                                 <span>MP</span>
+                                <span>Actions</span>
                               </div>
                               <div className="schoolCalendarBody">
                                 {(assignmentRulePreviews.get(rule.id) || []).map((occurrence) => (
@@ -884,7 +885,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                     className="schoolCalendarRow"
                                     key={`${occurrence.course_id}-${occurrence.original_date}`}
                                     style={{
-                                      gridTemplateColumns: "minmax(10rem, 1.2fr) minmax(8rem, 0.8fr) minmax(11rem, 1fr) minmax(10rem, 1fr) minmax(8rem, 0.8fr)",
+                                      gridTemplateColumns: "minmax(10rem, 1.3fr) minmax(6rem, 0.6fr) minmax(14rem, 0.9fr) minmax(7rem, 0.7fr) minmax(6rem, 0.5fr)",
                                     }}
                                   >
                                     <input type="hidden" name="rule_id" value={occurrence.rule_id} />
@@ -892,7 +893,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                     <input type="hidden" name="original_date" value={occurrence.original_date} />
                                     <span>{occurrence.course_label}</span>
                                     <span>{shortDate(occurrence.original_date)}</span>
-                                    <span className="ctaRow" style={{ marginTop: 0, gap: "0.35rem" }}>
+                                    <span className="ctaRow" style={{ marginTop: 0, gap: "0.35rem", flexWrap: "nowrap" }}>
                                       <input
                                         className="input"
                                         type="date"
@@ -900,18 +901,20 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                         defaultValue={occurrence.assignment_date}
                                         aria-label={`Assignment date for ${occurrence.label} originally on ${occurrence.original_date}`}
                                         required
+                                        style={{ width: "10.25rem", minWidth: 0 }}
                                       />
                                       <button className="btn" type="submit">
                                         Save
                                       </button>
                                     </span>
-                                    <span>
-                                      {occurrence.label}
-                                      {occurrence.is_override ? (
-                                        <span style={{ opacity: 0.75 }}> (rescheduled)</span>
-                                      ) : null}
-                                    </span>
                                     <span>{occurrence.marking_period || "—"}</span>
+                                    <button
+                                      className="btn"
+                                      type="submit"
+                                      formAction={deleteTeacherAnnouncementAssignmentRuleOccurrenceAction}
+                                    >
+                                      Delete
+                                    </button>
                                   </form>
                                 ))}
                               </div>

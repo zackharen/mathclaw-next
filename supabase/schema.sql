@@ -505,6 +505,7 @@ create table if not exists public.teacher_announcement_assignment_rule_overrides
   course_id uuid not null references public.courses (id) on delete cascade,
   original_date date not null,
   assignment_date date not null,
+  is_skipped boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

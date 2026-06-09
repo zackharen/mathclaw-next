@@ -253,7 +253,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
     const { data: overridesData, error: overridesError } = await supabase
       .from("teacher_announcement_assignment_rule_overrides")
-      .select("id, rule_id, course_id, original_date, assignment_date")
+      .select("id, rule_id, course_id, original_date, assignment_date, is_skipped")
       .eq("owner_id", userId)
       .eq("course_id", course.id)
       .gte("original_date", firstCalendarDate)

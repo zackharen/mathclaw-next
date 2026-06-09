@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-09 America/New_York (Standing make-it-live instruction)
+2026-06-09 America/New_York (Announcement preview row polish and skip overrides)
+
+## What Was Built (2026-06-09 Session — Announcement preview row polish and skip overrides)
+
+- **Announcement Assignment preview rows tightened** (`app/onboarding/profile/page.js`): Profile preview rows no longer show the redundant Assignment column. The assignment date input is narrower, Save sits beside the date on the same row, and each row has a Delete button at the end.
+- **Per-occurrence skip overrides added** (`app/onboarding/profile/actions.js`, `app/classes/[id]/announcements/actions.js`, `lib/announcements/assignment-rules.js`, `supabase/schema.sql`, `supabase/migrations_20260609_announcement_assignment_override_skips.sql`): Delete stores `is_skipped = true` for the generated occurrence keyed by rule/class/original date, so announcement generation omits that one assignment for that one class without changing the rule.
+- **Production Supabase migration applied** to `mathclaw-prod` / `ruaaznacaywngewxyged`: migration list confirms `announcement_assignment_override_skips` version `20260609144326`.
+- Verification passed locally: `node --check lib/announcements/assignment-rules.js`; `node --check app/onboarding/profile/page.js`; `node --check app/onboarding/profile/actions.js`; `node --check app/classes/[id]/announcements/actions.js`; `git diff --check`; `npm run build`.
 
 ## What Was Built (2026-06-09 Session — Standing make-it-live instruction)
 
