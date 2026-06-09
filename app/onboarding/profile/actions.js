@@ -916,6 +916,137 @@ export async function saveTeacherAnnouncementAssignmentRuleOverrideAction(formDa
   redirect(`/onboarding/profile?assignments_updated=1&t=${Date.now()}#announcement-assignments`);
 }
 
+export async function saveTeacherAnnouncementAssignmentRuleOccurrenceClassesAction(formData) {
+  const ruleId = String(formData.get("rule_id") || "").trim();
+  const originalDate = normalizeDateInput(formData.get("original_date"));
+  const assignmentDate = normalizeDateInput(formData.get("assignment_date"));
+  const occurrenceCourseIds = formData
+    .getAll("occurrence_course_id")
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const activeCourseIds = new Set(
+    formData
+      .getAll("active_course_id")
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  );
+
+  if (!ruleId || !originalDate || !assignmentDate || occurrenceCourseIds.length === 0) {
+    redirect("/onboarding/profile?assignment_error=override#announcement-assignments");
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const { data: rule, error: ruleError } = await supabase
+    .from("teacher_announcement_assignment_rules")
+    .select("id, course_id")
+    .eq("id", ruleId)
+    .eq("owner_id", user.id)
+    .maybeSingle();
+
+  if (ruleError) {
+    if (isMissingTeacherAnnouncementAssignmentRulesTableError(ruleError)) {
+      redirect("/onboarding/profile?assignment_error=missing-table#announcement-assignments");
+    }
+    throw new Error(ruleError.message);
+  }
+
+  if (!rule?.id) {
+    redirect("/onboarding/profile?assignment_error=override#announcement-assignments");
+  }
+
+  const uniqueCourseIds = [...new Set(occurrenceCourseIds)];
+  const { data: courses, error: coursesError } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("owner_id", user.id)
+    .in("id", uniqueCourseIds);
+
+  if (coursesError) throw new Error(coursesError.message);
+
+  const ownedCourseIds = new Set((courses || []).map((course) => course.id));
+  if (ownedCourseIds.size !== uniqueCourseIds.length) {
+    redirect("/onboarding/profile?assignment_error=override#announcement-assignments");
+  }
+  if (rule.course_id && (uniqueCourseIds.length !== 1 || uniqueCourseIds[0] !== rule.course_id)) {
+    redirect("/onboarding/profile?assignment_error=override#announcement-assignments");
+  }
+
+  const rowsToUpsert = [];
+  const activeOriginalCourseIds = [];
+
+  for (const courseId of uniqueCourseIds) {
+    if (activeCourseIds.has(courseId)) {
+      if (assignmentDate === originalDate) {
+        activeOriginalCourseIds.push(courseId);
+      } else {
+        rowsToUpsert.push({
+          owner_id: user.id,
+          rule_id: ruleId,
+          course_id: courseId,
+          original_date: originalDate,
+          assignment_date: assignmentDate,
+          is_skipped: false,
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } else {
+      rowsToUpsert.push({
+        owner_id: user.id,
+        rule_id: ruleId,
+        course_id: courseId,
+        original_date: originalDate,
+        assignment_date: assignmentDate,
+        is_skipped: true,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  if (activeOriginalCourseIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("teacher_announcement_assignment_rule_overrides")
+      .delete()
+      .eq("owner_id", user.id)
+      .eq("rule_id", ruleId)
+      .eq("original_date", originalDate)
+      .in("course_id", activeOriginalCourseIds);
+
+    if (deleteError) {
+      if (isMissingTeacherAnnouncementAssignmentRuleOverridesTableError(deleteError)) {
+        redirect("/onboarding/profile?assignment_error=missing-overrides#announcement-assignments");
+      }
+      throw new Error(deleteError.message);
+    }
+  }
+
+  if (rowsToUpsert.length > 0) {
+    const { error: upsertError } = await supabase
+      .from("teacher_announcement_assignment_rule_overrides")
+      .upsert(rowsToUpsert, { onConflict: "owner_id,rule_id,course_id,original_date" });
+
+    if (upsertError) {
+      if (isMissingTeacherAnnouncementAssignmentRuleOverridesTableError(upsertError)) {
+        redirect("/onboarding/profile?assignment_error=missing-overrides#announcement-assignments");
+      }
+      throw new Error(upsertError.message);
+    }
+  }
+
+  await regenerateAnnouncementsForTeacherCourses(supabase, user.id);
+
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/classes");
+  redirect(`/onboarding/profile?assignments_updated=1&t=${Date.now()}#announcement-assignments`);
+}
+
 export async function deleteTeacherAnnouncementAssignmentRuleOccurrenceAction(formData) {
   const ruleId = String(formData.get("rule_id") || "").trim();
   const courseId = String(formData.get("course_id") || "").trim();

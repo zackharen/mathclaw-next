@@ -8,9 +8,8 @@ import AnnouncementAssignmentRuleForm from "./announcement-assignment-rule-form"
 import { getSiteCopy } from "@/lib/site-config";
 import {
   deleteTeacherAnnouncementAssignmentRuleAction,
-  deleteTeacherAnnouncementAssignmentRuleOccurrenceAction,
   deleteTeacherMarkingPeriodAction,
-  saveTeacherAnnouncementAssignmentRuleOverrideAction,
+  saveTeacherAnnouncementAssignmentRuleOccurrenceClassesAction,
   saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
   saveTeacherAnnouncementAssignmentRuleAction,
@@ -238,6 +237,7 @@ function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, m
         markingPeriodRules: markingPeriods,
         schoolDayNumberByDate,
         overrides: courseOverrides,
+        includeSkipped: true,
       });
       for (const occurrence of occurrences) {
         previews.push({
@@ -247,7 +247,29 @@ function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, m
       }
     }
 
-    previewsByRuleId.set(rule.id, previews);
+    const groups = new Map();
+    for (const preview of previews) {
+      const group = groups.get(preview.original_date) || {
+        rule_id: rule.id,
+        original_date: preview.original_date,
+        assignment_date: preview.original_date,
+        marking_periods: [],
+        classes: [],
+      };
+      if (!preview.is_skipped && group.assignment_date === group.original_date) {
+        group.assignment_date = preview.assignment_date;
+      }
+      if (preview.marking_period && !group.marking_periods.includes(preview.marking_period)) {
+        group.marking_periods.push(preview.marking_period);
+      }
+      group.classes.push(preview);
+      groups.set(preview.original_date, group);
+    }
+
+    previewsByRuleId.set(
+      rule.id,
+      Array.from(groups.values()).sort((a, b) => a.original_date.localeCompare(b.original_date))
+    );
   }
   return previewsByRuleId;
 }
@@ -869,37 +891,44 @@ export default async function OnboardingProfilePage({ searchParams }) {
                               <div
                                 className="schoolCalendarHeader"
                                 style={{
-                                  gridTemplateColumns: "minmax(10rem, 1.3fr) minmax(6rem, 0.6fr) minmax(14rem, 0.9fr) minmax(7rem, 0.7fr) minmax(6rem, 0.5fr)",
+                                  gridTemplateColumns: "minmax(7rem, 0.7fr) minmax(14rem, 1fr) minmax(8rem, 0.7fr) minmax(10rem, 0.8fr)",
                                 }}
                               >
-                                <span>Class</span>
                                 <span>Original</span>
                                 <span>Assignment Date</span>
                                 <span>MP</span>
-                                <span>Actions</span>
+                                <span>Classes</span>
                               </div>
                               <div className="schoolCalendarBody">
-                                {(assignmentRulePreviews.get(rule.id) || []).map((occurrence) => (
+                                {(assignmentRulePreviews.get(rule.id) || []).map((preview) => {
+                                  const activeCount = preview.classes.filter((item) => !item.is_skipped).length;
+                                  return (
                                   <form
-                                    action={saveTeacherAnnouncementAssignmentRuleOverrideAction}
+                                    action={saveTeacherAnnouncementAssignmentRuleOccurrenceClassesAction}
                                     className="schoolCalendarRow"
-                                    key={`${occurrence.course_id}-${occurrence.original_date}`}
+                                    key={preview.original_date}
                                     style={{
-                                      gridTemplateColumns: "minmax(10rem, 1.3fr) minmax(6rem, 0.6fr) minmax(14rem, 0.9fr) minmax(7rem, 0.7fr) minmax(6rem, 0.5fr)",
+                                      gridTemplateColumns: "minmax(7rem, 0.7fr) minmax(14rem, 1fr) minmax(8rem, 0.7fr) minmax(10rem, 0.8fr)",
                                     }}
                                   >
-                                    <input type="hidden" name="rule_id" value={occurrence.rule_id} />
-                                    <input type="hidden" name="course_id" value={occurrence.course_id} />
-                                    <input type="hidden" name="original_date" value={occurrence.original_date} />
-                                    <span>{occurrence.course_label}</span>
-                                    <span>{shortDate(occurrence.original_date)}</span>
+                                    <input type="hidden" name="rule_id" value={preview.rule_id} />
+                                    <input type="hidden" name="original_date" value={preview.original_date} />
+                                    {preview.classes.map((item) => (
+                                      <input
+                                        key={item.course_id}
+                                        type="hidden"
+                                        name="occurrence_course_id"
+                                        value={item.course_id}
+                                      />
+                                    ))}
+                                    <span>{shortDate(preview.original_date)}</span>
                                     <span className="ctaRow" style={{ marginTop: 0, gap: "0.35rem", flexWrap: "nowrap" }}>
                                       <input
                                         className="input"
                                         type="date"
                                         name="assignment_date"
-                                        defaultValue={occurrence.assignment_date}
-                                        aria-label={`Assignment date for ${occurrence.label} originally on ${occurrence.original_date}`}
+                                        defaultValue={preview.assignment_date}
+                                        aria-label={`Assignment date originally on ${preview.original_date}`}
                                         required
                                         style={{ width: "10.25rem", minWidth: 0 }}
                                       />
@@ -907,16 +936,44 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                         Save
                                       </button>
                                     </span>
-                                    <span>{occurrence.marking_period || "—"}</span>
-                                    <button
-                                      className="btn"
-                                      type="submit"
-                                      formAction={deleteTeacherAnnouncementAssignmentRuleOccurrenceAction}
-                                    >
-                                      Delete
-                                    </button>
+                                    <span>{preview.marking_periods.join(", ") || "—"}</span>
+                                    <details style={{ position: "relative" }}>
+                                      <summary className="btn" style={{ display: "inline-block" }}>
+                                        Classes {activeCount}/{preview.classes.length}
+                                      </summary>
+                                      <div
+                                        className="card"
+                                        style={{
+                                          background: "#fff",
+                                          minWidth: "18rem",
+                                          padding: "0.7rem",
+                                          marginTop: "0.45rem",
+                                        }}
+                                      >
+                                        <div className="list">
+                                          {preview.classes.map((item) => (
+                                            <label
+                                              key={item.course_id}
+                                              style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                name="active_course_id"
+                                                value={item.course_id}
+                                                defaultChecked={!item.is_skipped}
+                                              />
+                                              {item.course_label}
+                                            </label>
+                                          ))}
+                                          <button className="btn primary" type="submit">
+                                            Save Classes
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </details>
                                   </form>
-                                ))}
+                                );
+                                })}
                               </div>
                             </div>
                           ) : (

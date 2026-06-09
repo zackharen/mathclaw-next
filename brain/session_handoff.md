@@ -8,7 +8,13 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-09 America/New_York (Announcement preview row polish and skip overrides)
+2026-06-09 America/New_York (Grouped assignment preview class menu)
+
+## What Was Built (2026-06-09 Session — Grouped assignment preview class menu)
+
+- **Announcement Assignment preview rows now group by generated date** (`app/onboarding/profile/page.js`, `app/onboarding/profile/actions.js`, `lib/announcements/assignment-rules.js`): all-class rules no longer show one full row per class. Each generated date is one row with Original, Assignment Date, MP, and a **Classes** menu.
+- **Classes menu controls class-level skips**: the menu shows checkboxes for the classes represented by that generated date. Unchecking a class saves an `is_skipped` override for that one rule/class/original date; checking it again removes the skip when the date is original, or saves an active moved-date override when the row date is changed. Generation still omits skipped occurrences.
+- Verification passed locally: `node --check app/onboarding/profile/page.js`; `node --check app/onboarding/profile/actions.js`; `node --check lib/announcements/assignment-rules.js`; `git diff --check`; `npm run build`.
 
 ## What Was Built (2026-06-09 Session — Announcement preview row polish and skip overrides)
 
