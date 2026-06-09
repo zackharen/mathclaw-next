@@ -14,7 +14,8 @@ This file represents the **current state only**. It should stay short enough to 
 
 - **Announcement Assignment preview rows now group by generated date** (`app/onboarding/profile/page.js`, `app/onboarding/profile/actions.js`, `lib/announcements/assignment-rules.js`): all-class rules no longer show one full row per class. Each generated date is one row with Original, Assignment Date, MP, and a **Classes** menu.
 - **Classes menu controls class-level skips**: the menu shows checkboxes for the classes represented by that generated date. Unchecking a class saves an `is_skipped` override for that one rule/class/original date; checking it again removes the skip when the date is original, or saves an active moved-date override when the row date is changed. Generation still omits skipped occurrences.
-- Verification passed locally: `node --check app/onboarding/profile/page.js`; `node --check app/onboarding/profile/actions.js`; `node --check lib/announcements/assignment-rules.js`; `git diff --check`; `npm run build`.
+- Delivery commit `6b90405` was pushed to `origin/main`; Vercel reported success. Live checks after push: `https://www.mathclaw.com/` returned 200, `/onboarding/profile` returned the expected unauthenticated sign-in redirect, and a protected class-plan route returned the expected sign-in redirect.
+- Verification passed locally: `node --check app/onboarding/profile/page.js`; `node --check app/onboarding/profile/actions.js`; `node --check lib/announcements/assignment-rules.js`; `git diff --check`; `npm run build`. Authenticated Profile click-through remains dependent on Zack's signed-in browser session.
 
 ## What Was Built (2026-06-09 Session — Announcement preview row polish and skip overrides)
 
