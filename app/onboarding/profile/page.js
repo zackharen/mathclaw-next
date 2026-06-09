@@ -748,7 +748,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
           </details>
 
           <details className="list" style={{ marginTop: "1.1rem" }}>
-            <summary className="btn" style={{ display: "inline-block" }}>
+            <summary className="btn btnNoToggle" style={{ display: "inline-block" }}>
               Marking Periods
             </summary>
             <div>
@@ -831,7 +831,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
           </details>
 
           <details className="list" id="announcement-assignments" style={{ marginTop: "1.1rem" }}>
-            <summary className="btn" style={{ display: "inline-block" }}>
+            <summary className="btn btnNoToggle" style={{ display: "inline-block" }}>
               Announcement Assignments
             </summary>
             <div>

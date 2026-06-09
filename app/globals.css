@@ -2480,7 +2480,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
   width: 100%;
 }
 
-details[open] > summary.btn,
+details[open] > summary.btn:not(.btnNoToggle),
 .btn.toggleBtn.active {
   background: var(--navy);
   color: var(--white);
