@@ -633,24 +633,25 @@ export default async function OnboardingProfilePage({ searchParams }) {
           classes.
         </p>
 
-        <details style={{ marginTop: "0.75rem" }}>
-          <summary className="btn" style={{ display: "inline-block" }}>
-            School Calendar
-          </summary>
+        <div className="list" style={{ marginTop: "0.75rem" }}>
+          <details open>
+            <summary className="btn" style={{ display: "inline-block" }}>
+              Calendar
+            </summary>
 
-          {schoolCalendarOverridesUnavailable ? (
-            <p style={{ marginTop: "0.75rem" }}>
-              Note: global calendar overrides are unavailable until the school
-              calendar table migration is applied. You can still set school-year
-              dates and apply changes to class calendars.
-            </p>
-          ) : null}
-          <form
-            key={`${schoolYearStart}-${schoolYearEnd}`}
-            action={saveSchoolCalendarAction}
-            className="list"
-            style={{ marginTop: "0.75rem" }}
-          >
+            {schoolCalendarOverridesUnavailable ? (
+              <p style={{ marginTop: "0.75rem" }}>
+                Note: global calendar overrides are unavailable until the school
+                calendar table migration is applied. You can still set school-year
+                dates and apply changes to class calendars.
+              </p>
+            ) : null}
+            <form
+              key={`${schoolYearStart}-${schoolYearEnd}`}
+              action={saveSchoolCalendarAction}
+              className="list"
+              style={{ marginTop: "0.75rem" }}
+            >
               <div className="schoolYearRangeRow">
                 <label>
                   School Year Start
@@ -743,9 +744,13 @@ export default async function OnboardingProfilePage({ searchParams }) {
                   <span className="statusNote">{schoolCalendarErrorMessage}</span>
                 ) : null}
               </div>
-          </form>
+            </form>
+          </details>
 
-          <div className="list" style={{ marginTop: "1.1rem" }}>
+          <details className="list" style={{ marginTop: "1.1rem" }}>
+            <summary className="btn" style={{ display: "inline-block" }}>
+              Marking Periods
+            </summary>
             <div>
               <h3>Marking Periods</h3>
               <p>
@@ -823,9 +828,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 ))}
               </div>
             ) : null}
-          </div>
+          </details>
 
-          <div className="list" id="announcement-assignments" style={{ marginTop: "1.1rem" }}>
+          <details className="list" id="announcement-assignments" style={{ marginTop: "1.1rem" }}>
+            <summary className="btn" style={{ display: "inline-block" }}>
+              Announcement Assignments
+            </summary>
             <div>
               <h3>Announcement Assignments</h3>
               <p>
@@ -992,8 +1000,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 ) : null}
               </>
             ) : null}
-          </div>
-        </details>
+          </details>
+        </div>
       </section>
       ) : null}
 

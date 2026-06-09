@@ -8,7 +8,12 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-09 America/New_York (Grouped assignment preview class menu)
+2026-06-09 America/New_York (Profile calendar collapsible sections)
+
+## What Was Built (2026-06-09 Session — Profile calendar collapsible sections)
+
+- **Profile School Calendar area split into collapsible sections** (`app/onboarding/profile/page.js`): the teacher Profile calendar card now has separate disclosure sections for **Calendar** (open by default), **Marking Periods**, and **Announcement Assignments**. This reduces scroll and keeps the marking period / assignment tools tucked away until needed.
+- Verification passed locally: `node --check app/onboarding/profile/page.js`; `git diff --check`; `npm run build`.
 
 ## What Was Built (2026-06-09 Session — Grouped assignment preview class menu)
 
