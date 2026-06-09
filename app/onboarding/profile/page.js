@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
+import AnnouncementAssignmentRuleForm from "./announcement-assignment-rule-form";
 import { getSiteCopy } from "@/lib/site-config";
 import {
   deleteTeacherAnnouncementAssignmentRuleAction,
@@ -188,21 +189,20 @@ function ruleScopeText(rule, courseById) {
 function ruleSummary(rule) {
   const settings = rule.settings || {};
   const count = rule.count_per_period || 1;
-  if (rule.cadence === "weekly") {
-    const days = (settings.weekdays || [5]).slice(0, count).map(weekdayName).join(", ");
-    return `${count} time${count === 1 ? "" : "s"} per week: ${days}`;
-  }
-  if (rule.cadence === "biweekly") {
-    const days = (settings.weekdays || [5]).slice(0, count).map(weekdayName).join(", ");
-    return `${count} time${count === 1 ? "" : "s"} every 2 weeks: ${days}`;
+  if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
+    const weekInterval = settings.week_interval || (rule.cadence === "biweekly" ? 2 : 1);
+    const days = (settings.weekdays || [5]).map(weekdayName).join(", ");
+    return `Every ${weekInterval} week${Number(weekInterval) === 1 ? "" : "s"} on ${days}`;
   }
   if (rule.cadence === "monthly") {
-    const days = (settings.month_days || [1]).slice(0, count).join(", ");
+    const days = (settings.month_days || [1]).slice(0, 1).join(", ");
     const shift = settings.monthly_shift === "before" ? "before" : "after";
-    return `${count} time${count === 1 ? "" : "s"} per month on day ${days}; if needed, use the first school day ${shift}`;
+    return `Every month on day ${days}; if needed, use the first school day ${shift}`;
   }
-  const days = (settings.marking_period_day_numbers || [1]).slice(0, count).join(", ");
-  return `${count} time${count === 1 ? "" : "s"} per marking period on MP school day ${days}`;
+  const days = settings.weekdays?.length
+    ? ` on ${settings.weekdays.map(weekdayName).join(", ")}`
+    : "";
+  return `${count} time${count === 1 ? "" : "s"} per marking period${days}`;
 }
 
 export default async function OnboardingProfilePage({ searchParams }) {
@@ -379,6 +379,10 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const teacherCourseById = new Map(
     (teacherCourses || []).map((course) => [course.id, course])
   );
+  const assignmentFormCourses = (teacherCourses || []).map((course) => ({
+    id: course.id,
+    label: courseLabel(course),
+  }));
 
   let assignmentRules = [];
   let assignmentRulesMigrationNeeded = false;
@@ -719,91 +723,17 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
             {!assignmentRulesMigrationNeeded ? (
               <>
-                <form action={saveTeacherAnnouncementAssignmentRuleAction} className="list">
-                  <div className="schoolYearRangeRow">
-                    <label>
-                      Assignment Type
-                      <input className="input" name="label" placeholder="Assessment" required />
-                    </label>
-                    <label>
-                      Applies To
-                      <select className="input" name="course_scope" defaultValue="all">
-                        <option value="all">All classes</option>
-                        {(teacherCourses || []).map((course) => (
-                          <option key={course.id} value={course.id}>
-                            {courseLabel(course)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Happens
-                      <select className="input" name="cadence" defaultValue="weekly">
-                        <option value="weekly">Every week</option>
-                        <option value="biweekly">Every 2 weeks</option>
-                        <option value="monthly">Every month</option>
-                        <option value="marking_period">Every marking period</option>
-                      </select>
-                    </label>
-                    <label>
-                      Times Per
-                      <input className="input" type="number" min="1" max="5" name="count_per_period" defaultValue="1" />
-                    </label>
-                  </div>
+                <AnnouncementAssignmentRuleForm
+                  action={saveTeacherAnnouncementAssignmentRuleAction}
+                  courses={assignmentFormCourses}
+                />
 
-                  <div className="schoolYearRangeRow">
-                    {[0, 1, 2, 3, 4].map((index) => (
-                      <label key={`weekday-${index}`}>
-                        Weekday {index + 1}
-                        <select className="input" name="weekday" defaultValue={index === 0 ? "5" : ""}>
-                          <option value="">None</option>
-                          {WEEKDAY_OPTIONS.map((day) => (
-                            <option key={day.value} value={day.value}>
-                              {day.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="schoolYearRangeRow">
-                    {[0, 1, 2, 3, 4].map((index) => (
-                      <label key={`month-day-${index}`}>
-                        Month Day {index + 1}
-                        <input className="input" type="number" min="1" max="31" name="month_day" placeholder={index === 0 ? "15" : ""} />
-                      </label>
-                    ))}
-                    <label>
-                      If Not School Day
-                      <select className="input" name="monthly_shift" defaultValue="after">
-                        <option value="after">First school day after</option>
-                        <option value="before">First school day before</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="schoolYearRangeRow">
-                    {[0, 1, 2, 3, 4].map((index) => (
-                      <label key={`mp-day-${index}`}>
-                        MP Day {index + 1}
-                        <input className="input" type="number" min="1" max="60" name="marking_period_day_number" placeholder={index === 0 ? "10" : ""} />
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="ctaRow">
-                    <button className="btn primary" type="submit">
-                      Save Assignment Type
-                    </button>
-                    {assignmentsUpdated ? (
-                      <span className="statusNote">Announcement Assignments Updated!</span>
-                    ) : null}
-                    {assignmentError && assignmentError !== "missing-table" ? (
-                      <span className="statusNote">Could not save announcement assignments.</span>
-                    ) : null}
-                  </div>
-                </form>
+                {assignmentsUpdated ? (
+                  <span className="statusNote">Announcement Assignments Updated!</span>
+                ) : null}
+                {assignmentError && assignmentError !== "missing-table" ? (
+                  <span className="statusNote">Could not save announcement assignments.</span>
+                ) : null}
 
                 {assignmentRules.length > 0 ? (
                   <div className="list">
@@ -815,82 +745,14 @@ export default async function OnboardingProfilePage({ searchParams }) {
                             {ruleScopeText(rule, teacherCourseById)} · {ruleSummary(rule)}
                           </span>
                         </summary>
-                        <form action={saveTeacherAnnouncementAssignmentRuleAction} className="list" style={{ marginTop: "0.75rem" }}>
-                          <input type="hidden" name="rule_id" value={rule.id} />
-                          <div className="schoolYearRangeRow">
-                            <label>
-                              Assignment Type
-                              <input className="input" name="label" defaultValue={rule.label} required />
-                            </label>
-                            <label>
-                              Applies To
-                              <select className="input" name="course_scope" defaultValue={rule.course_id || "all"}>
-                                <option value="all">All classes</option>
-                                {(teacherCourses || []).map((course) => (
-                                  <option key={course.id} value={course.id}>
-                                    {courseLabel(course)}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              Happens
-                              <select className="input" name="cadence" defaultValue={rule.cadence}>
-                                <option value="weekly">Every week</option>
-                                <option value="biweekly">Every 2 weeks</option>
-                                <option value="monthly">Every month</option>
-                                <option value="marking_period">Every marking period</option>
-                              </select>
-                            </label>
-                            <label>
-                              Times Per
-                              <input className="input" type="number" min="1" max="5" name="count_per_period" defaultValue={rule.count_per_period || 1} />
-                            </label>
-                          </div>
-                          <div className="schoolYearRangeRow">
-                            {[0, 1, 2, 3, 4].map((index) => (
-                              <label key={`${rule.id}-weekday-${index}`}>
-                                Weekday {index + 1}
-                                <select className="input" name="weekday" defaultValue={rule.settings?.weekdays?.[index] || ""}>
-                                  <option value="">None</option>
-                                  {WEEKDAY_OPTIONS.map((day) => (
-                                    <option key={day.value} value={day.value}>
-                                      {day.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            ))}
-                          </div>
-                          <div className="schoolYearRangeRow">
-                            {[0, 1, 2, 3, 4].map((index) => (
-                              <label key={`${rule.id}-month-day-${index}`}>
-                                Month Day {index + 1}
-                                <input className="input" type="number" min="1" max="31" name="month_day" defaultValue={rule.settings?.month_days?.[index] || ""} />
-                              </label>
-                            ))}
-                            <label>
-                              If Not School Day
-                              <select className="input" name="monthly_shift" defaultValue={rule.settings?.monthly_shift || "after"}>
-                                <option value="after">First school day after</option>
-                                <option value="before">First school day before</option>
-                              </select>
-                            </label>
-                          </div>
-                          <div className="schoolYearRangeRow">
-                            {[0, 1, 2, 3, 4].map((index) => (
-                              <label key={`${rule.id}-mp-day-${index}`}>
-                                MP Day {index + 1}
-                                <input className="input" type="number" min="1" max="60" name="marking_period_day_number" defaultValue={rule.settings?.marking_period_day_numbers?.[index] || ""} />
-                              </label>
-                            ))}
-                          </div>
-                          <div className="ctaRow">
-                            <button className="btn primary" type="submit">
-                              Update Assignment Type
-                            </button>
-                          </div>
-                        </form>
+                        <div style={{ marginTop: "0.75rem" }}>
+                          <AnnouncementAssignmentRuleForm
+                            action={saveTeacherAnnouncementAssignmentRuleAction}
+                            courses={assignmentFormCourses}
+                            rule={rule}
+                            submitLabel="Update Assignment Type"
+                          />
+                        </div>
                         <form action={deleteTeacherAnnouncementAssignmentRuleAction} className="ctaRow">
                           <input type="hidden" name="rule_id" value={rule.id} />
                           <button className="btn" type="submit">

@@ -435,7 +435,7 @@ create table if not exists public.teacher_announcement_assignment_rules (
   course_id uuid references public.courses (id) on delete cascade,
   label text not null,
   cadence text not null check (cadence in ('weekly', 'biweekly', 'monthly', 'marking_period')),
-  count_per_period integer not null default 1 check (count_per_period between 1 and 5),
+  count_per_period integer not null default 1 check (count_per_period between 1 and 20),
   settings jsonb not null default '{}'::jsonb,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),

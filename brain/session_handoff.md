@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-08 America/New_York (Announcement assignment rules)
+2026-06-09 America/New_York (Announcement assignment rule form polish)
+
+## What Was Built (2026-06-09 Session — Announcement assignment rule form polish)
+
+- **Announcement Assignment rule form simplified** (`app/onboarding/profile/page.js`, `app/onboarding/profile/announcement-assignment-rule-form.js`, `app/onboarding/profile/actions.js`, `app/classes/[id]/announcements/actions.js`, `supabase/schema.sql`, `supabase/migrations_20260609_announcement_rule_count_range.sql`): the Profile → School Calendar → Announcement Assignments UI now has a compact first line with Assignment Type, Applies To, and Happens Every choices. The relevant controls appear below based on the selected cadence instead of showing all fields at once.
+- **Cadence behavior updated**: weekly is now “every N weeks” with multiple Monday-Friday checkboxes, replacing the separate every-2-weeks mode while preserving backward compatibility for old `biweekly` rules. Monthly uses one day-of-month field plus first school day after/before. Marking period uses “times per marking period” plus optional Monday-Friday filters; generation spaces those occurrences evenly across matching class days in each marking period.
+- **Production Supabase migration applied** to `mathclaw-prod` / `ruaaznacaywngewxyged`: migration list confirms `announcement_rule_count_range` version `20260609115350`, widening `count_per_period` from 1-5 to 1-20.
+- Verification passed: `node --check app/onboarding/profile/page.js`; `node --check app/onboarding/profile/actions.js`; `node --check app/onboarding/profile/announcement-assignment-rule-form.js`; `node --check app/classes/[id]/announcements/actions.js`; `git diff --check`; `npm run build`. Authenticated browser click-through remains unverified in this session.
 
 ## What Was Built (2026-06-08 Session — Announcement assignment rules rework)
 

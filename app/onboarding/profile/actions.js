@@ -179,7 +179,7 @@ function parsePositiveInt(value, fallback = 1) {
 }
 
 function clampCount(value) {
-  return Math.max(1, Math.min(5, parsePositiveInt(value, 1)));
+  return Math.max(1, Math.min(20, parsePositiveInt(value, 1)));
 }
 
 function parseNumberList(values, min, max, limit) {
@@ -698,10 +698,13 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   const label = String(formData.get("label") || "").trim();
   const courseScope = String(formData.get("course_scope") || "all");
   const cadenceRaw = String(formData.get("cadence") || "weekly");
-  const cadence = ["weekly", "biweekly", "monthly", "marking_period"].includes(cadenceRaw)
+  const cadence = ["weekly", "monthly", "marking_period"].includes(cadenceRaw)
     ? cadenceRaw
     : "weekly";
-  const countPerPeriod = clampCount(formData.get("count_per_period"));
+  const weekdays = parseNumberList(formData.getAll("weekday"), 1, 5, 5);
+  const countPerPeriod = cadence === "marking_period"
+    ? clampCount(formData.get("count_per_period"))
+    : Math.max(1, weekdays.length || 1);
 
   if (!label) {
     redirect("/onboarding/profile?assignment_error=1#announcement-assignments");
@@ -733,25 +736,17 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   }
 
   const settings = {
-    weekdays: parseNumberList(formData.getAll("weekday"), 1, 5, countPerPeriod),
-    month_days: parseNumberList(formData.getAll("month_day"), 1, 31, countPerPeriod),
+    weekdays,
+    week_interval: Math.max(1, Math.min(52, parsePositiveInt(formData.get("week_interval"), 1))),
+    month_days: parseNumberList(formData.getAll("month_day"), 1, 31, 1),
     monthly_shift: String(formData.get("monthly_shift") || "after") === "before" ? "before" : "after",
-    marking_period_day_numbers: parseNumberList(
-      formData.getAll("marking_period_day_number"),
-      1,
-      60,
-      countPerPeriod
-    ),
   };
 
-  if ((cadence === "weekly" || cadence === "biweekly") && settings.weekdays.length === 0) {
+  if ((cadence === "weekly" || cadence === "marking_period") && settings.weekdays.length === 0) {
     settings.weekdays = [5];
   }
   if (cadence === "monthly" && settings.month_days.length === 0) {
     settings.month_days = [1];
-  }
-  if (cadence === "marking_period" && settings.marking_period_day_numbers.length === 0) {
-    settings.marking_period_day_numbers = [1];
   }
 
   const payload = {

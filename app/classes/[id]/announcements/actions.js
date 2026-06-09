@@ -202,6 +202,21 @@ function normalizeNumberArray(value, fallback = []) {
     : fallback;
 }
 
+function pickEvenly(items, count) {
+  if (items.length <= count) return items;
+  if (count <= 1) return [items[Math.floor((items.length - 1) / 2)]];
+  const picked = [];
+  const seen = new Set();
+  for (let i = 0; i < count; i += 1) {
+    const index = Math.round((i * (items.length - 1)) / (count - 1));
+    if (!seen.has(index)) {
+      picked.push(items[index]);
+      seen.add(index);
+    }
+  }
+  return picked;
+}
+
 function findMonthlyMeetingDay({ meetingDaysByDate, meetingDates, year, month, dayOfMonth, shift }) {
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const targetDate = `${year}-${String(month).padStart(2, "0")}-${String(Math.min(dayOfMonth, lastDay)).padStart(2, "0")}`;
@@ -220,9 +235,6 @@ function buildRuleAssignments({ rules, course, calendarDays, markingPeriodRules,
   const meetingDates = meetingDays.map((day) => day.class_date);
   const meetingDaysByDate = new Map(meetingDays.map((day) => [day.class_date, day]));
   const assignmentsByDate = new Map();
-  const schoolDateByDayNumber = new Map(
-    [...schoolDayNumberByDate.entries()].map(([date, number]) => [Number(number), date])
-  );
   const firstDate = calendarDays?.[0]?.class_date || course.school_year_start || "";
 
   function addAssignment(date, rule) {
@@ -240,16 +252,19 @@ function buildRuleAssignments({ rules, course, calendarDays, markingPeriodRules,
     const count = Math.max(1, Math.min(5, Number.parseInt(String(rule.count_per_period || 1), 10)));
 
     if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
-      const weekdays = normalizeNumberArray(settings.weekdays, [5]).slice(0, count);
+      const weekdays = normalizeNumberArray(settings.weekdays, [5]);
+      const weekInterval = rule.cadence === "biweekly"
+        ? 2
+        : Math.max(1, Number.parseInt(String(settings.week_interval || 1), 10));
       for (const day of meetingDays) {
         if (!weekdays.includes(weekdayIndex(day.class_date))) continue;
-        if (rule.cadence === "biweekly" && firstDate && weeksBetween(firstDate, day.class_date) % 2 !== 0) continue;
+        if (firstDate && weeksBetween(firstDate, day.class_date) % weekInterval !== 0) continue;
         addAssignment(day.class_date, rule);
       }
     }
 
     if (rule.cadence === "monthly") {
-      const monthDays = normalizeNumberArray(settings.month_days, [1]).slice(0, count);
+      const monthDays = normalizeNumberArray(settings.month_days, [1]).slice(0, 1);
       const shift = settings.monthly_shift === "before" ? "before" : "after";
       const months = [...new Set(meetingDates.map(monthKey))];
       for (const key of months) {
@@ -269,21 +284,17 @@ function buildRuleAssignments({ rules, course, calendarDays, markingPeriodRules,
     }
 
     if (rule.cadence === "marking_period") {
-      const relativeDays = normalizeNumberArray(settings.marking_period_day_numbers, [1]).slice(0, count);
+      const weekdays = normalizeNumberArray(settings.weekdays, []);
       for (const period of markingPeriodRules || []) {
-        for (const relativeDay of relativeDays) {
-          const targetSchoolDay = period.start_day_number + relativeDay - 1;
-          if (targetSchoolDay > period.end_day_number) continue;
-          const exactDate = schoolDateByDayNumber.get(targetSchoolDay);
-          if (meetingDaysByDate.has(exactDate)) {
-            addAssignment(exactDate, rule);
-            continue;
+        const periodDates = meetingDates.filter((date) => {
+          const dayNumber = Number(schoolDayNumberByDate.get(date));
+          if (!dayNumber || dayNumber < period.start_day_number || dayNumber > period.end_day_number) {
+            return false;
           }
-          const fallbackDate = meetingDates.find((date) => {
-            const dayNumber = Number(schoolDayNumberByDate.get(date));
-            return dayNumber && dayNumber >= targetSchoolDay && dayNumber <= period.end_day_number;
-          });
-          addAssignment(fallbackDate, rule);
+          return weekdays.length === 0 || weekdays.includes(weekdayIndex(date));
+        });
+        for (const date of pickEvenly(periodDates, count)) {
+          addAssignment(date, rule);
         }
       }
     }
