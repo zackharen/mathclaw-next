@@ -44,8 +44,8 @@ Use the MathClaw brain entrypoint at `/Users/zackarenstein/mathclaw-next/brain/S
 - Use your model's workflow overlay to decide when tools, browser verification, automations, subagents, review mode, or permission requests would make the work safer or more complete.
 - Keep edits minimal, precise, and high-signal.
 - Do not invent unsupported features.
-- Unless the user explicitly says otherwise, treat requests to fix/build/change something as requests to carry the change through to the live site, not just local code changes.
-- For changes intended to go live, avoid leaving the work only on a side branch; finish the workflow needed for the production branch/deployment path unless the user asks to stop earlier.
+- Standing delivery instruction from Zack: always carry fix/build/change work through to the live MathClaw site unless Zack explicitly says not to. Assume "make it live" for future sessions.
+- Do not leave completed work only as local edits, a side branch, or an unpromoted preview when it is safe and possible to ship. Finish the production branch/deployment path unless Zack asks to stop earlier.
 - Be careful with auth metadata, saved-state changes, and production-schema fallbacks.
 - Do not touch `/Users/zackarenstein/mathclaw-next/supabase/migrations_20260331_join_course_by_code_rpc.sql` unless explicitly asked.
 - Update `/Users/zackarenstein/mathclaw-next/brain/session_handoff.md` after work that changes project state, priorities, or known issues.

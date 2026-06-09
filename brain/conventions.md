@@ -54,9 +54,10 @@
 - Update `session_handoff.md` at the end of work sessions
 
 ## Delivery Convention
-- Unless the user explicitly says otherwise, interpret requests to fix/build/change a feature as requests to make that change live on the site.
-- Do not stop at local edits or a pushed side branch if the normal project workflow requires promoting the change to the production branch/deployment path.
-- If there is meaningful deployment risk or ambiguity, pause only long enough to clarify the safest path; otherwise assume the user wants the end-to-end production result.
+- Zack's standing instruction: always make completed fix/build/change work live on MathClaw unless he explicitly says not to.
+- Interpret ordinary implementation requests as requests for the end-to-end production result: local edits, verification, production migration when needed, commit, push, deployment/promotion, and live-route confirmation.
+- Do not stop at local edits, a pushed side branch, or an unpromoted preview if the normal project workflow requires promoting the change to the production branch/deployment path.
+- If there is meaningful deployment risk or ambiguity, pause only long enough to clarify the safest path; otherwise assume the user wants the work live.
 
 ## Verification Convention
 

@@ -8,7 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-06-09 America/New_York (Announcement assignment previews and rescheduling)
+2026-06-09 America/New_York (Standing make-it-live instruction)
+
+## What Was Built (2026-06-09 Session — Standing make-it-live instruction)
+
+- **Brain delivery convention tightened** (`brain/START_HERE.md`, `brain/conventions.md`, `brain/model_workflows/codex.md`, `brain/session_handoff.md`): Zack's standing instruction is now explicit: always carry completed fix/build/change work live on MathClaw unless he explicitly says not to. Future implementation sessions should assume local edits, verification, production migration when needed, commit, push, deployment/promotion, and live-route confirmation are part of the task.
 
 ## What Was Built (2026-06-09 Session — Announcement assignment previews and rescheduling)
 

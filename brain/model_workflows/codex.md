@@ -125,7 +125,9 @@ Do not work around missing permission with risky manual steps. If permission is 
 
 ## Delivery Mechanics
 
-Codex is the default closer for production shipping. When carrying work live:
+Codex is the default closer for production shipping. Zack's standing instruction is to make completed fix/build/change work live unless he explicitly says not to. For implementation tasks, assume the workflow includes commit, push, deployment/promotion, and live verification after local checks pass.
+
+When carrying work live:
 - Use GitHub connector for PR status, CI checks, and commit verification.
 - Use Vercel connector for deployment status, build logs, and production URL confirmation.
 - Use Supabase connector for migration verification and schema/RLS checks.
