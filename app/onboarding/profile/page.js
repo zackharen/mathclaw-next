@@ -448,6 +448,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
     id: course.id,
     label: courseLabel(course),
   }));
+  const longestCourseLabelChars = Math.max(
+    0,
+    ...assignmentFormCourses.map((course) => course.label.length)
+  );
+  const classesColumnWidth = `max(12rem, ${longestCourseLabelChars + 7}ch)`;
 
   let assignmentRules = [];
   let assignmentRuleOverrides = [];
@@ -896,7 +901,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                             </p>
                           </div>
                           {(assignmentRulePreviews.get(rule.id) || []).length > 0 ? (
-                            <div style={{ overflowX: "auto" }}>
+                            <div style={{ overflowX: "auto", "--classes-col": classesColumnWidth }}>
                               <div className="schoolCalendarHeader assignmentPreviewGrid">
                                 <span>Original</span>
                                 <span>Assignment Date</span>
@@ -946,6 +951,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                         className="card"
                                         style={{
                                           background: "#fff",
+                                          width: "max-content",
                                           minWidth: "12rem",
                                           padding: "0.7rem",
                                           marginTop: "0.45rem",
@@ -955,7 +961,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                           {preview.classes.map((item) => (
                                             <label
                                               key={item.course_id}
-                                              style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}
+                                              style={{ display: "flex", alignItems: "center", gap: "0.45rem", whiteSpace: "nowrap" }}
                                             >
                                               <input
                                                 type="checkbox"

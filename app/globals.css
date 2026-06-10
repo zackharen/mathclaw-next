@@ -2430,7 +2430,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
 }
 
 .assignmentPreviewGrid {
-  grid-template-columns: 5.5rem 14.5rem 7rem 12rem;
+  grid-template-columns: 5.5rem 14.5rem 7rem var(--classes-col, 12rem);
   width: fit-content;
 }
 
