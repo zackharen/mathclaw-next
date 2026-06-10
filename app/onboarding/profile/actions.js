@@ -746,6 +746,11 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   const startDateRaw = String(formData.get("start_date") || "").trim();
   const ruleStartDate = startDateRaw ? normalizeDateInput(startDateRaw) : "";
 
+  const dueSchoolDaysRaw = Number.parseInt(String(formData.get("due_school_days") || ""), 10);
+  const dueSchoolDays = Number.isInteger(dueSchoolDaysRaw)
+    ? Math.max(1, Math.min(60, dueSchoolDaysRaw))
+    : null;
+
   const settings = {
     weekdays,
     week_interval: Math.max(1, Math.min(52, parsePositiveInt(formData.get("week_interval"), 1))),
@@ -753,6 +758,7 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
     monthly_shift: String(formData.get("monthly_shift") || "after") === "before" ? "before" : "after",
     no_meeting_shift: noMeetingShift,
     start_date: ruleStartDate || null,
+    due_school_days: dueSchoolDays,
   };
 
   if ((cadence === "weekly" || cadence === "marking_period") && settings.weekdays.length === 0) {

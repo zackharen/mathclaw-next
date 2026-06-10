@@ -70,15 +70,29 @@ export default function AnnouncementAssignmentRuleForm({
         </fieldset>
       </div>
 
-      <label style={{ maxWidth: "12rem" }}>
-        Start Date (optional)
-        <input
-          className="input"
-          type="date"
-          name="start_date"
-          defaultValue={settings.start_date || ""}
-        />
-      </label>
+      <div className="schoolYearRangeRow">
+        <label style={{ maxWidth: "12rem" }}>
+          Start Date (optional)
+          <input
+            className="input"
+            type="date"
+            name="start_date"
+            defaultValue={settings.start_date || ""}
+          />
+        </label>
+        <label style={{ maxWidth: "14rem" }}>
+          Due After (school days, optional)
+          <input
+            className="input"
+            type="number"
+            min="1"
+            max="60"
+            name="due_school_days"
+            defaultValue={asString(settings.due_school_days, "")}
+            placeholder="e.g. 4"
+          />
+        </label>
+      </div>
 
       {cadence === "weekly" ? (
         <div className="list">
