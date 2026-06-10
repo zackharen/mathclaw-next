@@ -914,7 +914,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                             action={saveTeacherAnnouncementAssignmentRuleAction}
                             courses={assignmentFormCourses}
                             rule={rule}
-                            submitLabel="Update Assignment Type"
+                            submitLabel="Update Assignment"
                           />
                         </div>
                         <div className="list" style={{ marginTop: "0.75rem" }}>

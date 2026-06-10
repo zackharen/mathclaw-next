@@ -555,7 +555,7 @@ See brain/model_workflows/coordination.md for lifecycle rules.
 ## Next Recommended Steps
 Prune completed items from this list when rewriting this file. Order is rough priority.
 
-1. **Run `migrations_20260605_grace_day_type.sql` in production Supabase** - required before Grace Day can be saved. Use the Supabase SQL editor on project `ruaaznacaywngewxyged`.
+1. ~~Run `migrations_20260605_grace_day_type.sql`~~ — applied to production on 2026-06-08 (see Grace Day migration status note); `grace_day` is live in both calendar tables.
 2. **Run `migrations_20260426_lowest_number_wins.sql` in production Supabase** - required before Lowest Number Wins works with real classes.
 2. **Run `migrations_20260506_connect4_tournaments.sql` in production Supabase** - required before Connect 4 Tournament Mode works for authenticated users.
 3. **Projector next build: Word Walls / Data Walls** — `Word Walls` need a multi-term input that renders as a grid on the projector screen. `Data Walls` need a structured data display. The other 3 categories (`Activities`, `News`, `Announcements`) are fine with the existing composer. Load `brain/future_ideas.md` → "Projector Classroom Display System" before implementing.
