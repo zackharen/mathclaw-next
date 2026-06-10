@@ -197,20 +197,21 @@ function ruleScopeText(rule, courseById) {
 function ruleSummary(rule) {
   const settings = rule.settings || {};
   const count = rule.count_per_period || 1;
+  const startSuffix = settings.start_date ? `, starting ${shortDate(settings.start_date)}` : "";
   if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
     const weekInterval = settings.week_interval || (rule.cadence === "biweekly" ? 2 : 1);
     const days = (settings.weekdays || [5]).map(weekdayName).join(", ");
-    return `Every ${weekInterval} week${Number(weekInterval) === 1 ? "" : "s"} on ${days}`;
+    return `Every ${weekInterval} week${Number(weekInterval) === 1 ? "" : "s"} on ${days}${startSuffix}`;
   }
   if (rule.cadence === "monthly") {
     const days = (settings.month_days || [1]).slice(0, 1).join(", ");
     const shift = settings.monthly_shift === "before" ? "before" : "after";
-    return `Every month on day ${days}; if needed, use the first school day ${shift}`;
+    return `Every month on day ${days}; if needed, use the first school day ${shift}${startSuffix}`;
   }
   const days = settings.weekdays?.length
     ? ` on ${settings.weekdays.map(weekdayName).join(", ")}`
     : "";
-  return `${count} time${count === 1 ? "" : "s"} per marking period${days}`;
+  return `${count} time${count === 1 ? "" : "s"} per marking period${days}${startSuffix}`;
 }
 
 function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, markingPeriods, overrides, schoolDayNumberByDate }) {

@@ -743,12 +743,16 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   const noMeetingShiftRaw = String(formData.get("no_meeting_shift") || "before");
   const noMeetingShift = ["before", "after", "same_day", "skip"].includes(noMeetingShiftRaw) ? noMeetingShiftRaw : "before";
 
+  const startDateRaw = String(formData.get("start_date") || "").trim();
+  const ruleStartDate = startDateRaw ? normalizeDateInput(startDateRaw) : "";
+
   const settings = {
     weekdays,
     week_interval: Math.max(1, Math.min(52, parsePositiveInt(formData.get("week_interval"), 1))),
     month_days: parseNumberList(formData.getAll("month_day"), 1, 31, 1),
     monthly_shift: String(formData.get("monthly_shift") || "after") === "before" ? "before" : "after",
     no_meeting_shift: noMeetingShift,
+    start_date: ruleStartDate || null,
   };
 
   if ((cadence === "weekly" || cadence === "marking_period") && settings.weekdays.length === 0) {

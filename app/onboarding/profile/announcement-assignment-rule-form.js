@@ -70,6 +70,16 @@ export default function AnnouncementAssignmentRuleForm({
         </fieldset>
       </div>
 
+      <label style={{ maxWidth: "12rem" }}>
+        Start Date (optional)
+        <input
+          className="input"
+          type="date"
+          name="start_date"
+          defaultValue={settings.start_date || ""}
+        />
+      </label>
+
       {cadence === "weekly" ? (
         <div className="list">
           <label style={{ maxWidth: "12rem" }}>
