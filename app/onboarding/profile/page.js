@@ -942,7 +942,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                         className="card"
                                         style={{
                                           background: "#fff",
-                                          minWidth: "18rem",
+                                          minWidth: "12rem",
                                           padding: "0.7rem",
                                           marginTop: "0.45rem",
                                         }}

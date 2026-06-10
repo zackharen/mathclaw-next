@@ -2427,7 +2427,8 @@ details[open] > summary.gameControlsSummary .hideLabel {
 }
 
 .assignmentPreviewGrid {
-  grid-template-columns: minmax(5.5rem, 0.6fr) minmax(15rem, 1.2fr) minmax(7rem, 0.8fr) minmax(9rem, 0.9fr);
+  grid-template-columns: 5.5rem 14.5rem 7rem 12rem;
+  width: fit-content;
 }
 
 .assignmentPreviewGrid > span,
@@ -2444,6 +2445,10 @@ details[open] > summary.gameControlsSummary .hideLabel {
 
   .schoolCalendarRow {
     grid-template-columns: 1fr;
+  }
+
+  .assignmentPreviewGrid {
+    width: 100%;
   }
 }
 
