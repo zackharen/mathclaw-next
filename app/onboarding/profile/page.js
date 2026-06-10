@@ -17,10 +17,7 @@ import {
   saveTeacherMarkingPeriodAction,
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
-import {
-  buildRuleAssignmentOccurrences,
-  buildSchoolDayNumberByDate,
-} from "@/lib/announcements/assignment-rules";
+import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
 
 const DEFAULT_ANNOUNCEMENT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
 {lesson_title}
@@ -216,7 +213,7 @@ function ruleSummary(rule) {
   return `${count} time${count === 1 ? "" : "s"} per marking period${days}`;
 }
 
-function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, markingPeriods, overrides }) {
+function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, markingPeriods, overrides, schoolDayNumberByDate }) {
   const previewsByRuleId = new Map();
   for (const rule of rules || []) {
     const scopedCourses = rule.course_id
@@ -226,7 +223,6 @@ function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, m
 
     for (const course of scopedCourses) {
       const calendarDays = calendarDaysByCourseId.get(course.id) || [];
-      const schoolDayNumberByDate = buildSchoolDayNumberByDate(calendarDays);
       const courseOverrides = (overrides || []).filter(
         (override) => override.rule_id === rule.id && override.course_id === course.id
       );
@@ -525,6 +521,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
     calendarDaysByCourseId: assignmentCalendarDaysByCourseId,
     markingPeriods,
     overrides: assignmentRuleOverrides,
+    schoolDayNumberByDate: dateToSchoolDayNumber,
   });
 
   let { data: templateRow, error: templateError } = await supabase

@@ -7,6 +7,7 @@ import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/acce
 import {
   buildRuleAssignmentsByDate,
   buildSchoolDayNumberByDate,
+  buildSchoolWideDayNumberByDate,
 } from "@/lib/announcements/assignment-rules";
 
 function formatDate(isoDate) {
@@ -281,6 +282,23 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     markingPeriodRules = periodsData || [];
   }
 
+  let schoolCalendarDays = [];
+  if (course.school_year_start && course.school_year_end) {
+    const { data: schoolDaysData, error: schoolDaysError } = await supabase
+      .from("school_calendar_days")
+      .select("class_date, day_type")
+      .eq("owner_id", userId)
+      .gte("class_date", course.school_year_start)
+      .lte("class_date", course.school_year_end)
+      .order("class_date", { ascending: true });
+
+    if (schoolDaysError && !String(schoolDaysError.message || "").includes("school_calendar_days")) {
+      throw new Error(schoolDaysError.message);
+    }
+
+    schoolCalendarDays = schoolDaysData || [];
+  }
+
   let { data: templateRow, error: templateError } = await supabase
     .from("announcement_templates")
     .select(
@@ -343,7 +361,14 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   const lessonById = new Map((lessons || []).map((lesson) => [lesson.id, lesson]));
   const standardsByLesson = new Map();
   const calendarByDate = new Map((calendarDays || []).map((d) => [d.class_date, d]));
-  const schoolDayNumberByDate = buildSchoolDayNumberByDate(calendarDays || []);
+  const schoolDayNumberByDate =
+    course.school_year_start && course.school_year_end
+      ? buildSchoolWideDayNumberByDate({
+          schoolYearStart: course.school_year_start,
+          schoolYearEnd: course.school_year_end,
+          schoolDays: schoolCalendarDays,
+        })
+      : buildSchoolDayNumberByDate(calendarDays || []);
   const reasonById = new Map((reasons || []).map((r) => [r.id, r.label]));
   const assignmentsByDate = buildRuleAssignmentsByDate({
     rules: assignmentRules,
