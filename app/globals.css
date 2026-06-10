@@ -2385,9 +2385,16 @@ details[open] > summary.gameControlsSummary .hideLabel {
 .schoolCalendarHeader,
 .schoolCalendarRow {
   display: grid;
-  grid-template-columns: 1.45fr 0.45fr 0.35fr 0.45fr 0.9fr 1fr 1fr;
+  grid-template-columns: 9.5rem 3.5rem 2.5rem 2.5rem 8.5rem 11rem 11rem;
   gap: 0.6rem;
   align-items: center;
+  width: fit-content;
+}
+
+.schoolCalendarHeader span,
+.schoolCalendarRow > span {
+  justify-self: center;
+  text-align: center;
 }
 
 .schoolCalendarHeader {
@@ -2422,10 +2429,6 @@ details[open] > summary.gameControlsSummary .hideLabel {
   cursor: pointer;
 }
 
-.schoolCalendarHeader span:nth-child(4) {
-  text-align: center;
-}
-
 .assignmentPreviewGrid {
   grid-template-columns: 5.5rem 14.5rem 7rem 12rem;
   width: fit-content;
@@ -2445,6 +2448,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
 
   .schoolCalendarRow {
     grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .assignmentPreviewGrid {
