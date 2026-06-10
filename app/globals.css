@@ -2426,6 +2426,17 @@ details[open] > summary.gameControlsSummary .hideLabel {
   text-align: center;
 }
 
+.assignmentPreviewGrid {
+  grid-template-columns: minmax(5.5rem, 0.6fr) minmax(15rem, 1.2fr) minmax(7rem, 0.8fr) minmax(9rem, 0.9fr);
+}
+
+.assignmentPreviewGrid > span,
+.assignmentPreviewGrid > details {
+  justify-self: center;
+  align-self: center;
+  text-align: center;
+}
+
 @media (max-width: 980px) {
   .schoolCalendarHeader {
     display: none;

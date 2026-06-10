@@ -893,12 +893,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                           </div>
                           {(assignmentRulePreviews.get(rule.id) || []).length > 0 ? (
                             <div style={{ overflowX: "auto" }}>
-                              <div
-                                className="schoolCalendarHeader"
-                                style={{
-                                  gridTemplateColumns: "minmax(7rem, 0.7fr) minmax(14rem, 1fr) minmax(8rem, 0.7fr) minmax(10rem, 0.8fr)",
-                                }}
-                              >
+                              <div className="schoolCalendarHeader assignmentPreviewGrid">
                                 <span>Original</span>
                                 <span>Assignment Date</span>
                                 <span>MP</span>
@@ -910,11 +905,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                   return (
                                   <form
                                     action={saveTeacherAnnouncementAssignmentRuleOccurrenceClassesAction}
-                                    className="schoolCalendarRow"
+                                    className="schoolCalendarRow assignmentPreviewGrid"
                                     key={preview.original_date}
-                                    style={{
-                                      gridTemplateColumns: "minmax(7rem, 0.7fr) minmax(14rem, 1fr) minmax(8rem, 0.7fr) minmax(10rem, 0.8fr)",
-                                    }}
                                   >
                                     <input type="hidden" name="rule_id" value={preview.rule_id} />
                                     <input type="hidden" name="original_date" value={preview.original_date} />
