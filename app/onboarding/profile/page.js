@@ -859,11 +859,15 @@ export default async function OnboardingProfilePage({ searchParams }) {
                   courses={assignmentFormCourses}
                 />
 
-                {assignmentsUpdated ? (
-                  <span className="statusNote">Announcement Assignments Updated!</span>
-                ) : null}
-                {assignmentError && assignmentError !== "missing-table" ? (
-                  <span className="statusNote">Could not save announcement assignments.</span>
+                {assignmentsUpdated || (assignmentError && assignmentError !== "missing-table") ? (
+                  <div className="ctaRow">
+                    {assignmentsUpdated ? (
+                      <span className="statusNote">Announcement Assignments Updated!</span>
+                    ) : null}
+                    {assignmentError && assignmentError !== "missing-table" ? (
+                      <span className="statusNote">Could not save announcement assignments.</span>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {assignmentRules.length > 0 ? (

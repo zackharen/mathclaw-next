@@ -18,7 +18,7 @@ export default function AnnouncementAssignmentRuleForm({
   action,
   courses,
   rule = null,
-  submitLabel = "Save Assignment Type",
+  submitLabel = "Save Assignment",
 }) {
   const settings = rule?.settings || {};
   const [cadence, setCadence] = useState(rule?.cadence || "weekly");
