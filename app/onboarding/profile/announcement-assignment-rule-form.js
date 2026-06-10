@@ -104,6 +104,7 @@ export default function AnnouncementAssignmentRuleForm({
             <select className="input" name="no_meeting_shift" defaultValue={settings.no_meeting_shift || "before"}>
               <option value="before">Use nearest class day before</option>
               <option value="after">Use nearest class day after</option>
+              <option value="same_day">Due that day anyway</option>
               <option value="skip">Skip (don't generate)</option>
             </select>
           </label>
@@ -153,6 +154,7 @@ export default function AnnouncementAssignmentRuleForm({
             <select className="input" name="no_meeting_shift" defaultValue={settings.no_meeting_shift || "before"}>
               <option value="before">Use nearest class day before</option>
               <option value="after">Use nearest class day after</option>
+              <option value="same_day">Due that day anyway</option>
               <option value="skip">Skip (don't generate)</option>
             </select>
           </label>

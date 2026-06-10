@@ -741,7 +741,7 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   }
 
   const noMeetingShiftRaw = String(formData.get("no_meeting_shift") || "before");
-  const noMeetingShift = ["before", "after", "skip"].includes(noMeetingShiftRaw) ? noMeetingShiftRaw : "before";
+  const noMeetingShift = ["before", "after", "same_day", "skip"].includes(noMeetingShiftRaw) ? noMeetingShiftRaw : "before";
 
   const settings = {
     weekdays,
