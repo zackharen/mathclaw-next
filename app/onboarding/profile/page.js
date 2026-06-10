@@ -128,9 +128,9 @@ function markingPeriodDateText(period, schoolDayNumberMap) {
     return `${prettyDate(startDate)} to ${prettyDate(endDate)}`;
   }
   if (startDate) {
-    return `${prettyDate(startDate)} to not scheduled yet`;
+    return `${prettyDate(startDate)} to beyond the calendar (Day #${period.end_day_number} is not scheduled)`;
   }
-  return "Not scheduled yet";
+  return `Beyond the calendar (Day #${period.start_day_number} is not scheduled)`;
 }
 
 function isMissingTableError(error, tableName) {
@@ -417,6 +417,15 @@ export default async function OnboardingProfilePage({ searchParams }) {
       markingPeriods = periodsData || [];
     }
   }
+
+  // Official school-year accounting: the target year length is the highest
+  // marking period day number (180 with standard quarters).
+  const markingPeriodTargetDay = markingPeriods.length
+    ? Math.max(...markingPeriods.map((period) => period.end_day_number))
+    : 180;
+  const markingPeriodFinalDate = schoolDayNumberMap.get(markingPeriodTargetDay) || "";
+  const markingPeriodShortfall = Math.max(0, markingPeriodTargetDay - schoolDayCount);
+  const markingPeriodExtraDays = Math.max(0, schoolDayCount - markingPeriodTargetDay);
 
   let teacherAbsences = [];
   let absencesMigrationNeeded = false;
@@ -761,8 +770,22 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 calendar changes.
               </p>
               <p style={{ marginTop: "0.25rem" }}>
-                Current school days in calendar: {schoolDayCount}
+                School days in calendar: {schoolDayCount} · Final marking period day: #{markingPeriodTargetDay}
               </p>
+              {markingPeriodShortfall > 0 ? (
+                <p className="statusNote">
+                  The calendar is {markingPeriodShortfall} school day{markingPeriodShortfall === 1 ? "" : "s"} short
+                  of Day #{markingPeriodTargetDay}, so the last marking period ends early. Extend School Year End or
+                  un-mark Off days to fit the full year.
+                </p>
+              ) : markingPeriodFinalDate ? (
+                <p style={{ marginTop: "0.25rem" }}>
+                  Day #{markingPeriodTargetDay} lands on {prettyDate(markingPeriodFinalDate)}.
+                  {markingPeriodExtraDays > 0
+                    ? ` ${markingPeriodExtraDays} school day${markingPeriodExtraDays === 1 ? "" : "s"} after that fall outside the marking periods — mark holidays and breaks as Off to shift Day #${markingPeriodTargetDay} later.`
+                    : " The calendar fits the marking periods exactly."}
+                </p>
+              ) : null}
             </div>
 
             {markingPeriodsMigrationNeeded || markingPeriodError === "missing-table" ? (
