@@ -179,6 +179,14 @@ export default async function ClassPlanLayout({ children, params }) {
 
   return (
     <>
+      <style>{`
+        .classPlanCompletedActionSpace {
+          border: 2px solid rgba(16, 185, 129, 0.45);
+          border-radius: 8px;
+          background: rgba(16, 185, 129, 0.08);
+          padding: 0.65rem 0.85rem;
+        }
+      `}</style>
       {rules.length > 0 ? (
         <div className="stack" style={{ marginBottom: "1rem" }}>
           <section className="card">
