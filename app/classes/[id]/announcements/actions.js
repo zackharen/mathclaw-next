@@ -28,6 +28,43 @@ function getDayOfWeek(isoDate) {
   return date.toLocaleDateString("en-US", { weekday: "long" });
 }
 
+function parseDateAtUTC(isoDate) {
+  const [year, month, day] = String(isoDate).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function toISODate(date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function buildSchoolWideABDayByDate({ schoolYearStart, schoolYearEnd, schoolDays, abPatternStartDate }) {
+  const map = new Map();
+  if (!schoolYearStart || !schoolYearEnd || !abPatternStartDate) return map;
+
+  const schoolDayByDate = new Map((schoolDays || []).map((day) => [day.class_date, day]));
+  const cursor = parseDateAtUTC(schoolYearStart);
+  const end = parseDateAtUTC(schoolYearEnd);
+  const abStart = parseDateAtUTC(abPatternStartDate);
+  let currentAB = "A";
+
+  while (cursor <= end) {
+    const dow = cursor.getUTCDay();
+    const iso = toISODate(cursor);
+    if (dow !== 0 && dow !== 6 && schoolDayByDate.get(iso)?.day_type !== "off") {
+      if (cursor >= abStart) {
+        map.set(iso, currentAB);
+        currentAB = currentAB === "A" ? "B" : "A";
+      }
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return map;
+}
+
 function parseRecurringAssignments(rawText) {
   const map = new Map();
   const lines = String(rawText || "")
@@ -283,6 +320,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   }
 
   let schoolCalendarDays = [];
+  let schoolAbDayByDate = new Map();
   if (course.school_year_start && course.school_year_end) {
     const { data: schoolDaysData, error: schoolDaysError } = await supabase
       .from("school_calendar_days")
@@ -297,6 +335,24 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     }
 
     schoolCalendarDays = schoolDaysData || [];
+
+    const { data: abSeedCourse, error: abSeedError } = await supabase
+      .from("courses")
+      .select("ab_pattern_start_date")
+      .eq("owner_id", userId)
+      .eq("schedule_model", "ab")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (abSeedError) throw new Error(abSeedError.message);
+
+    schoolAbDayByDate = buildSchoolWideABDayByDate({
+      schoolYearStart: course.school_year_start,
+      schoolYearEnd: course.school_year_end,
+      schoolDays: schoolCalendarDays,
+      abPatternStartDate: abSeedCourse?.ab_pattern_start_date || course.school_year_start,
+    });
   }
 
   let { data: templateRow, error: templateError } = await supabase
@@ -396,7 +452,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   function buildAnnouncementContent({ classDate, rowsForDate, lesson, standards, day }) {
     const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
     const dayType = day?.day_type || "instructional";
-    const abDay = formatABDay(day?.ab_day);
+    const abDay = formatABDay(day?.ab_day || schoolAbDayByDate.get(classDate));
     const scheduleType = formatScheduleType(dayType);
     const lessonSummary = rowsForDate
       .map((row, index) => {
