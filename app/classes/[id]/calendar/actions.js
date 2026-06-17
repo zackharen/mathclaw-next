@@ -79,7 +79,8 @@ async function relabelExistingABDays({ writeClient, course }) {
   if (existingError) throw new Error(existingError.message);
 
   let currentAB = "A";
-  let updatedCount = 0;
+  const rowsToUpdate = [];
+  const updatedAt = new Date().toISOString();
   for (const day of existingDays || []) {
     let expectedAB = null;
     if (day.day_type !== "off" && (!abStart || day.class_date >= abStart)) {
@@ -89,17 +90,24 @@ async function relabelExistingABDays({ writeClient, course }) {
 
     if ((day.ab_day || null) === expectedAB) continue;
 
-    const { error } = await writeClient
-      .from("course_calendar_days")
-      .update({ ab_day: expectedAB, updated_at: new Date().toISOString() })
-      .eq("course_id", course.id)
-      .eq("class_date", day.class_date);
-
-    if (error) throw new Error(error.message);
-    updatedCount += 1;
+    rowsToUpdate.push({
+      course_id: course.id,
+      class_date: day.class_date,
+      day_type: day.day_type,
+      ab_day: expectedAB,
+      updated_at: updatedAt,
+    });
   }
 
-  return updatedCount;
+  if (rowsToUpdate.length > 0) {
+    const { error } = await writeClient
+      .from("course_calendar_days")
+      .upsert(rowsToUpdate, { onConflict: "course_id,class_date" });
+
+    if (error) throw new Error(error.message);
+  }
+
+  return rowsToUpdate.length;
 }
 
 function parseBulkUpdates(formData) {
@@ -146,6 +154,62 @@ function parseBulkUpdates(formData) {
   }
 
   return { updates, selectedDates };
+}
+
+async function bulkUpsertCalendarUpdates({
+  writeClient,
+  courseId,
+  updates,
+  selectedDates,
+  selectedDayType,
+  selectedReasonId,
+  selectedReasonShouldApply,
+  bulkScope,
+}) {
+  const shouldApplySelectedDayType =
+    DAY_TYPES.has(selectedDayType) && (bulkScope === "all_visible" || selectedDates.size > 0);
+  const rowsToUpsert = [];
+  const updatedAt = new Date().toISOString();
+
+  for (const [classDate, row] of updates.entries()) {
+    const isBulkTarget = bulkScope === "all_visible" || selectedDates.has(classDate);
+    const dayType = shouldApplySelectedDayType && isBulkTarget ? selectedDayType : row.day_type;
+    if (!DAY_TYPES.has(dayType)) continue;
+
+    rowsToUpsert.push({
+      course_id: courseId,
+      class_date: classDate,
+      day_type: dayType,
+      reason_id:
+        shouldApplySelectedDayType && isBulkTarget && selectedReasonShouldApply
+          ? selectedReasonId === "__clear__"
+            ? null
+            : selectedReasonId
+          : row.reason_id
+            ? row.reason_id
+            : null,
+      note: row.note && row.note.trim() ? row.note.trim() : null,
+      updated_at: updatedAt,
+    });
+  }
+
+  if (rowsToUpsert.length > 0) {
+    const { error } = await writeClient
+      .from("course_calendar_days")
+      .upsert(rowsToUpsert, { onConflict: "course_id,class_date" });
+
+    if (error) throw new Error(error.message);
+  }
+
+  return {
+    updatedCount: rowsToUpsert.length,
+    selectedUpdateCount: shouldApplySelectedDayType
+      ? bulkScope === "all_visible"
+        ? rowsToUpsert.length
+        : selectedDates.size
+      : 0,
+    shouldApplySelectedDayType,
+  };
 }
 
 export async function generateCalendarAction(formData) {
@@ -360,40 +424,16 @@ export async function applyCalendarBulkAction(formData) {
   const selectedReasonId = String(formData.get("selected_reason_id") || "");
   const selectedReasonShouldApply = selectedReasonId !== "";
   const bulkScope = String(formData.get("selected_bulk_scope") || "") === "all_visible" ? "all_visible" : "checked";
-  const allowed = new Set(["instructional", "off", "half", "modified", "grace_day"]);
-  const shouldApplySelectedDayType =
-    allowed.has(selectedDayType) && (bulkScope === "all_visible" || selectedDates.size > 0);
-  let updatedCount = 0;
-
-  // Bulk editor currently posts all visible rows; use full rebuild for deterministic mapping.
-  for (const [classDate, row] of updates.entries()) {
-    const isBulkTarget = bulkScope === "all_visible" || selectedDates.has(classDate);
-    const dayType = shouldApplySelectedDayType && isBulkTarget ? selectedDayType : row.day_type;
-    if (!allowed.has(dayType)) continue;
-
-    const payload = {
-      day_type: dayType,
-      reason_id:
-        shouldApplySelectedDayType && isBulkTarget && selectedReasonShouldApply
-          ? selectedReasonId === "__clear__"
-            ? null
-            : selectedReasonId
-          : row.reason_id
-            ? row.reason_id
-            : null,
-      note: row.note && row.note.trim() ? row.note.trim() : null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await writeClient
-      .from("course_calendar_days")
-      .update(payload)
-      .eq("course_id", course.id)
-      .eq("class_date", classDate);
-
-    if (error) throw new Error(error.message);
-    updatedCount += 1;
-  }
+  const { updatedCount, selectedUpdateCount } = await bulkUpsertCalendarUpdates({
+    writeClient,
+    courseId: course.id,
+    updates,
+    selectedDates,
+    selectedDayType,
+    selectedReasonId,
+    selectedReasonShouldApply,
+    bulkScope,
+  });
 
   const relabeledDays = await relabelExistingABDays({ writeClient, course });
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
@@ -411,11 +451,7 @@ export async function applyCalendarBulkAction(formData) {
   perfLog("applyCalendarBulkAction", {
     course: course.id,
     updates: updatedCount,
-    selectedUpdates: shouldApplySelectedDayType
-      ? bulkScope === "all_visible"
-        ? updatedCount
-        : selectedDates.size
-      : 0,
+    selectedUpdates: selectedUpdateCount,
     bulkScope,
     relabeledDays,
     copyToAll,
@@ -464,8 +500,16 @@ export async function updateScheduleAction(formData) {
   const selectedReasonId = String(formData.get("selected_reason_id") || "");
   const selectedReasonShouldApply = selectedReasonId !== "";
   const bulkScope = String(formData.get("selected_bulk_scope") || "") === "all_visible" ? "all_visible" : "checked";
-  const shouldApplySelectedDayType =
-    DAY_TYPES.has(selectedDayType) && (bulkScope === "all_visible" || selectedDates.size > 0);
+  const { updatedCount, selectedUpdateCount } = await bulkUpsertCalendarUpdates({
+    writeClient,
+    courseId: course.id,
+    updates,
+    selectedDates,
+    selectedDayType,
+    selectedReasonId,
+    selectedReasonShouldApply,
+    bulkScope,
+  });
 
   const { error: pacingError } = await writeClient
     .from("courses")
@@ -477,36 +521,6 @@ export async function updateScheduleAction(formData) {
     .eq("id", course.id);
 
   if (pacingError) throw new Error(pacingError.message);
-
-  let updatedCount = 0;
-  for (const [classDate, row] of updates.entries()) {
-    const isBulkTarget = bulkScope === "all_visible" || selectedDates.has(classDate);
-    const dayType = shouldApplySelectedDayType && isBulkTarget ? selectedDayType : row.day_type;
-    if (!DAY_TYPES.has(dayType)) continue;
-
-    const payload = {
-      day_type: dayType,
-      reason_id:
-        shouldApplySelectedDayType && isBulkTarget && selectedReasonShouldApply
-          ? selectedReasonId === "__clear__"
-            ? null
-            : selectedReasonId
-          : row.reason_id
-            ? row.reason_id
-            : null,
-      note: row.note && row.note.trim() ? row.note.trim() : null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await writeClient
-      .from("course_calendar_days")
-      .update(payload)
-      .eq("course_id", course.id)
-      .eq("class_date", classDate);
-
-    if (error) throw new Error(error.message);
-    updatedCount += 1;
-  }
 
   const nextCourse = { ...course, pacing_mode: pacingMode, pacing_weekday_modifiers: weekdayModifiers };
   const relabeledDays = await relabelExistingABDays({ writeClient, course: nextCourse });
@@ -534,11 +548,7 @@ export async function updateScheduleAction(formData) {
     pacingMode,
     weekdayModifiers: Object.keys(weekdayModifiers).length,
     updates: updatedCount,
-    selectedUpdates: shouldApplySelectedDayType
-      ? bulkScope === "all_visible"
-        ? updatedCount
-        : selectedDates.size
-      : 0,
+    selectedUpdates: selectedUpdateCount,
     bulkScope,
     relabeledDays,
     copyToAll,
