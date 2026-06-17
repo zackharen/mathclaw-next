@@ -307,6 +307,9 @@ export default async function DashboardPage({ searchParams }) {
 
   const courseIds = courses.map((course) => course.id);
   const classNames = [...new Set(courses.map((course) => course.class_name).filter(Boolean))];
+  const selectedLibraryIds = [
+    ...new Set(courses.map((course) => course.selected_library_id).filter(Boolean)),
+  ];
   const { data: planRows } = await supabase
     .from("course_lesson_plan")
     .select("course_id, class_date, lesson_slot, status, curriculum_lessons(source_lesson_code, title)")
@@ -315,21 +318,23 @@ export default async function DashboardPage({ searchParams }) {
     .order("lesson_slot", { ascending: true });
 
   const lessonCountByCourse = new Map();
+  const lessonCountByLibrary = new Map();
   await Promise.all(
-    courses.map(async (course) => {
-      if (!course.selected_library_id) {
-        lessonCountByCourse.set(course.id, 0);
-        return;
-      }
-
+    selectedLibraryIds.map(async (libraryId) => {
       const { count } = await supabase
         .from("curriculum_lessons")
         .select("id", { count: "exact", head: true })
-        .eq("library_id", course.selected_library_id);
+        .eq("library_id", libraryId);
 
-      lessonCountByCourse.set(course.id, count || 0);
+      lessonCountByLibrary.set(libraryId, count || 0);
     })
   );
+  for (const course of courses) {
+    lessonCountByCourse.set(
+      course.id,
+      course.selected_library_id ? lessonCountByLibrary.get(course.selected_library_id) || 0 : 0
+    );
+  }
 
   const rowsByCourse = new Map();
   for (const row of planRows || []) {
