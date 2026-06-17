@@ -5,8 +5,8 @@ import { useFormStatus } from "react-dom";
 
 export default function ApplyCalendarSubmit({ formId }) {
   const { pending } = useFormStatus();
-  const [submitted, setSubmitted] = useState(false);
-  const isUpdating = pending || submitted;
+  const [submitStarted, setSubmitStarted] = useState(false);
+  const isUpdating = pending || submitStarted;
 
   useEffect(() => {
     if (!formId) return undefined;
@@ -14,12 +14,20 @@ export default function ApplyCalendarSubmit({ formId }) {
     if (!form) return undefined;
 
     function handleSubmit() {
-      setSubmitted(true);
+      setSubmitStarted(true);
     }
 
     form.addEventListener("submit", handleSubmit);
     return () => form.removeEventListener("submit", handleSubmit);
   }, [formId]);
+
+  useEffect(() => {
+    if (pending || !submitStarted) return undefined;
+    const timeout = window.setTimeout(() => {
+      setSubmitStarted(false);
+    }, 12000);
+    return () => window.clearTimeout(timeout);
+  }, [pending, submitStarted]);
 
   return (
     <div className="applyCalendarControl">
@@ -28,7 +36,6 @@ export default function ApplyCalendarSubmit({ formId }) {
         type="submit"
         form={formId}
         disabled={isUpdating}
-        onClick={() => setSubmitted(true)}
         aria-busy={isUpdating}
       >
         {isUpdating ? "Updating..." : "Update Schedule"}
