@@ -186,6 +186,10 @@ export default async function ClassPlanLayout({ children, params }) {
           background: rgba(16, 185, 129, 0.08);
           padding: 0.65rem 0.85rem;
         }
+        .stack > section.card:last-child .list > article.card {
+          content-visibility: auto;
+          contain-intrinsic-size: auto 18rem;
+        }
       `}</style>
       {rules.length > 0 ? (
         <div className="stack" style={{ marginBottom: "1rem" }}>
