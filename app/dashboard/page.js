@@ -310,25 +310,32 @@ export default async function DashboardPage({ searchParams }) {
   const selectedLibraryIds = [
     ...new Set(courses.map((course) => course.selected_library_id).filter(Boolean)),
   ];
-  const { data: planRows } = await supabase
-    .from("course_lesson_plan")
-    .select("course_id, class_date, lesson_slot, status, curriculum_lessons(source_lesson_code, title)")
-    .in("course_id", courseIds)
-    .order("class_date", { ascending: true })
-    .order("lesson_slot", { ascending: true });
+  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }] = await Promise.all([
+    supabase
+      .from("course_lesson_plan")
+      .select("course_id, class_date, lesson_slot, status, curriculum_lessons(source_lesson_code, title)")
+      .in("course_id", courseIds)
+      .order("class_date", { ascending: true })
+      .order("lesson_slot", { ascending: true }),
+    Promise.all(
+      selectedLibraryIds.map(async (libraryId) => {
+        const { count } = await supabase
+          .from("curriculum_lessons")
+          .select("id", { count: "exact", head: true })
+          .eq("library_id", libraryId);
+
+        return [libraryId, count || 0];
+      })
+    ),
+    supabase
+      .from("teacher_connections")
+      .select("requester_id, addressee_id, status")
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+      .eq("status", "accepted"),
+  ]);
 
   const lessonCountByCourse = new Map();
-  const lessonCountByLibrary = new Map();
-  await Promise.all(
-    selectedLibraryIds.map(async (libraryId) => {
-      const { count } = await supabase
-        .from("curriculum_lessons")
-        .select("id", { count: "exact", head: true })
-        .eq("library_id", libraryId);
-
-      lessonCountByLibrary.set(libraryId, count || 0);
-    })
-  );
+  const lessonCountByLibrary = new Map(libraryLessonCounts);
   for (const course of courses) {
     lessonCountByCourse.set(
       course.id,
@@ -345,12 +352,6 @@ export default async function DashboardPage({ searchParams }) {
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const curriculumById = new Map(curriculumLibraries.map((library) => [library.id, library]));
-
-  const { data: connectionRows } = await supabase
-    .from("teacher_connections")
-    .select("requester_id, addressee_id, status")
-    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
-    .eq("status", "accepted");
 
   const connectedUserIds = [
     ...new Set(
