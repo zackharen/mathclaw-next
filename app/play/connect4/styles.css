@@ -1,0 +1,304 @@
+.connect4Board {
+  --connect4-slot-size: 56px;
+  --connect4-slot-gap: 0.4rem;
+  --connect4-board-pad: 0.75rem;
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(7, var(--connect4-slot-size));
+  gap: var(--connect4-slot-gap);
+  justify-content: start;
+  width: max-content;
+  padding: var(--connect4-board-pad);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--navy);
+}
+
+.connect4DropRow {
+  --connect4-slot-size: 56px;
+  --connect4-slot-gap: 0.4rem;
+  --connect4-board-pad: 0.75rem;
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(7, var(--connect4-slot-size));
+  gap: var(--connect4-slot-gap);
+  justify-content: start;
+  width: max-content;
+  padding-inline: var(--connect4-board-pad);
+  box-sizing: border-box;
+}
+
+.connect4DropBtn {
+  min-height: 2.75rem;
+  width: var(--connect4-slot-size);
+  padding: 0.35rem 0.2rem;
+}
+
+.connect4InfoCard {
+  margin-top: 0.75rem;
+  border: 1px dashed #6b7c8a;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #f7fafc;
+}
+
+.connect4TournamentCard {
+  margin-top: 0.75rem;
+  border: 2px solid #12395f;
+  border-radius: 12px;
+  padding: 0.9rem;
+  background: #f2fbf6;
+}
+
+.connect4TournamentCard h3 {
+  margin: 0.25rem 0 0.6rem;
+  color: #12395f;
+}
+
+.connect4TournamentEyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0c5b37;
+}
+
+.connect4TournamentLegend {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.65rem 0;
+  font-weight: 900;
+}
+
+.connect4TournamentLegend span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.connect4TournamentLegend i {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+}
+
+.connect4TournamentLegend i.red {
+  background: #cd3b3b;
+}
+
+.connect4TournamentLegend i.yellow {
+  background: #f1c232;
+}
+
+.connect4TournamentTurn {
+  margin: 0.65rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: #fff;
+  color: #12395f;
+  font-weight: 900;
+}
+
+.connect4TournamentSeries {
+  margin: 0.55rem 0 0;
+  color: #12395f;
+  font-weight: 900;
+}
+
+.connect4PreviousGames {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(16, 32, 51, 0.14);
+}
+
+.connect4PreviousGames h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #12395f;
+}
+
+.connect4PreviousGame {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.connect4PreviousGame p {
+  margin: 0;
+  font-weight: 900;
+}
+
+.connect4MiniBoard {
+  --slot: 1.55rem;
+  display: grid;
+  grid-template-columns: repeat(7, var(--slot));
+  gap: 0.18rem;
+  width: max-content;
+  max-width: 100%;
+  padding: 0.35rem;
+  border-radius: 8px;
+  background: var(--navy);
+  overflow: hidden;
+}
+
+.connect4MiniCell {
+  width: var(--slot);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+}
+
+.connect4TurnBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  align-items: baseline;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #f7fafc;
+}
+
+.connect4TurnBanner strong {
+  font-size: 1.15rem;
+}
+
+.connect4TurnBanner.yourTurn {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.connect4TurnBanner.theirTurn,
+.connect4TurnBanner.waiting {
+  background: #eef4fb;
+  border-color: #4c6f94;
+}
+
+.connect4TurnBanner.won {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.connect4TurnBanner.lost {
+  background: #fdeeee;
+  border-color: #cd3b3b;
+}
+
+.connect4TurnBanner.draw {
+  background: #fff7df;
+  border-color: #d9a441;
+}
+
+.connect4Cell {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.connect4Cell.isClickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18);
+}
+
+.connect4Cell.isWinner {
+  border-color: #2f8f45;
+  box-shadow: 0 0 0 4px rgba(47, 143, 69, 0.25);
+  transform: scale(1.05);
+  background: #57c26d !important;
+}
+
+.connect4ReplayPanel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 2px solid #12395f;
+  border-radius: 12px;
+  background: #f7fafc;
+}
+
+.connect4ReplayHeader {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.connect4ReplayHeader h3 {
+  margin: 0.15rem 0 0;
+}
+
+.connect4ReplayEyebrow {
+  margin: 0;
+  color: #0b5cab;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.connect4ReplaySlider {
+  width: min(100%, 30rem);
+  margin-top: 0.85rem;
+}
+
+.connect4ReplayMove {
+  margin: 0.55rem 0 0;
+  font-weight: 900;
+  color: #12395f;
+}
+
+.connect4ReplayBoard {
+  --slot: clamp(1.7rem, 7vw, 3rem);
+  display: grid;
+  grid-template-columns: repeat(7, var(--slot));
+  gap: 0.28rem;
+  width: max-content;
+  max-width: 100%;
+  margin-top: 0.85rem;
+  padding: 0.5rem;
+  border-radius: 10px;
+  background: var(--navy);
+  overflow: hidden;
+}
+
+.connect4ReplayCell {
+  width: var(--slot);
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+}
+
+.connect4ReplayFallback {
+  margin: 0.6rem 0 0;
+  color: #4b5563;
+  font-weight: 800;
+}
+
+@media (max-width: 980px) {
+
+  .connect4Board {
+    --connect4-slot-size: 42px;
+  }
+
+  .connect4DropRow {
+    --connect4-slot-size: 42px;
+  }
+
+  .connect4Cell {
+    width: 42px;
+    height: 42px;
+  }
+
+  .connect4DropBtn {
+    min-height: 2.25rem;
+    font-size: 0.8rem;
+  }
+}

@@ -1,0 +1,228 @@
+.moneyDisplayRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.moneyTile,
+.moneyAdjustCard {
+  min-width: 6rem;
+  padding: 0.85rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: #f9fbfc;
+}
+
+.moneyTile {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: center;
+  text-align: center;
+  align-content: start;
+  min-width: 9rem;
+}
+
+.moneyAdjustCard {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.moneyToggleControl {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.moneyVisualStack {
+  position: relative;
+  min-height: 4.3rem;
+  width: min(100%, 7.25rem);
+  margin: 0 auto 0.25rem;
+}
+
+.moneyVisualStack.compact {
+  min-height: 3.6rem;
+}
+
+.moneyPieceField {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 5.2rem;
+  padding: 0.25rem 0;
+}
+
+.moneyPieceField.billField {
+  min-height: 4rem;
+}
+
+.moneyVisual {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #133553;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.moneyPiece {
+  position: relative;
+  left: auto;
+  top: auto;
+  flex: 0 0 auto;
+}
+
+.moneyVisual span {
+  transform: translateY(-0.02rem);
+}
+
+.moneyVisual.bill {
+  width: 4.8rem;
+  height: 2.75rem;
+  border-radius: 0.8rem;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, #d7f1d8 0%, #b8e2ba 100%);
+}
+
+.moneyVisual.coin {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 18%, rgba(255,255,255,0) 38%),
+    linear-gradient(180deg, #f0f3f6 0%, #c8d0d7 100%);
+}
+
+.moneyVisual.dollar {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 45%),
+    linear-gradient(180deg, #d7f1d8 0%, #b8e2ba 100%);
+}
+
+.moneyVisual.quarter {
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 18%, rgba(255,255,255,0) 38%),
+    linear-gradient(180deg, #f4f6f8 0%, #cdd5dc 100%);
+}
+
+.moneyVisual.dime {
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 18%, rgba(255,255,255,0) 38%),
+    linear-gradient(180deg, #eef2f6 0%, #c5ced8 100%);
+}
+
+.moneyVisual.nickel {
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 18%, rgba(255,255,255,0) 38%),
+    linear-gradient(180deg, #f7f8fa 0%, #d2d8de 100%);
+}
+
+.moneyVisual.penny {
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.5) 18%, rgba(255,255,255,0) 38%),
+    linear-gradient(180deg, #f2c3a1 0%, #d98a5b 100%);
+}
+
+.moneyVisualCount {
+  position: absolute;
+  right: -0.35rem;
+  bottom: -0.1rem;
+  padding: 0.16rem 0.46rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.moneyVisualExtra {
+  position: absolute;
+  left: 0;
+  bottom: -0.05rem;
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #49657c;
+}
+
+.moneyQuickActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.moneyAnswerRow {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.moneyAnswerDollar,
+.moneyAnswerDot {
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-size: 1.8rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--navy);
+}
+
+.moneyAnswerInput {
+  width: min(7rem, 100%);
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.moneyHelperText {
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.moneyDeltaPill.exact {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.moneyDeltaPill.under {
+  background: #eef4fb;
+  border-color: #4c6f94;
+}
+
+.moneyDeltaPill.over {
+  background: #fdeeee;
+  border-color: #cd3b3b;
+}
+
+@media (max-width: 720px) {
+
+  .moneyTile,
+  .moneyAdjustCard {
+    width: 100%;
+  }
+
+  .moneyVisualStack {
+    width: 100%;
+    max-width: 6.5rem;
+  }
+
+  .moneyPieceField {
+    justify-content: flex-start;
+  }
+
+  .moneyAnswerInput {
+    width: 5.25rem;
+  }
+}

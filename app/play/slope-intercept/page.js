@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import SlopeInterceptClient from "./game-client";
+import "./styles.css";
 
 export default async function SlopeInterceptPage({ searchParams }) {
   const supabase = await createClient();

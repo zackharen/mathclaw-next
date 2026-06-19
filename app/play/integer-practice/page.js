@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getIntegerMasterySettings } from "@/lib/integer-practice/mastery-settings.server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import IntegerPracticeClient from "./game-client";
+import "./styles.css";
 
 export default async function IntegerPracticePage({ searchParams }) {
   const supabase = await createClient();

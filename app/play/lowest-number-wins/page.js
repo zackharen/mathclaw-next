@@ -6,6 +6,7 @@ import {
   resolvePreferredCourseId,
 } from "@/lib/student-games/courses";
 import LowestNumberWinsClient from "./game-client";
+import "./styles.css";
 
 export default async function LowestNumberWinsPage({ searchParams }) {
   const supabase = await createClient();

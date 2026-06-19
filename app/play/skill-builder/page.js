@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import SkillBuilderClient from "./game-client";
+import "../spiral-review/styles.css";
 
 export default async function SkillBuilderPage({ searchParams }) {
   const supabase = await createClient();

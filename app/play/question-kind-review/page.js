@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import QuestionKindReviewClient from "./game-client";
+import "../spiral-review/styles.css";
 
 export default async function QuestionKindReviewPage({ searchParams }) {
   const supabase = await createClient();

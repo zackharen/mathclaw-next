@@ -6,6 +6,7 @@ import {
   resolvePreferredCourseId,
 } from "@/lib/student-games/courses";
 import DoubleBoardClient from "./game-client";
+import "./styles.css";
 
 export default async function DoubleBoardPage({ searchParams }) {
   const supabase = await createClient();

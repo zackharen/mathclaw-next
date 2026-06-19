@@ -1,0 +1,1409 @@
+.projectorDashboard {
+  display: grid;
+  gap: 1rem;
+}
+
+.projectorHeader {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f9fbfc;
+  padding: 1rem;
+}
+
+.projectorHeader h1,
+.projectorJoinCard h1 {
+  margin: 0;
+}
+
+.projectorPin {
+  min-width: 12rem;
+  display: grid;
+  place-items: center;
+  gap: 0.15rem;
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.projectorPin span {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.projectorPin strong {
+  font-size: 2.2rem;
+  letter-spacing: 0.08em;
+}
+
+.projectorLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+  gap: 1rem;
+  align-items: start;
+}
+
+.projectorGridColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.projectorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.projectorRotateRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.projectorScreenCard,
+.projectorComposer,
+.projectorJoinCard {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.projectorScreenCard {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.projectorScreenCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.projectorScreenTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.projectorScreenCardHeader strong,
+.projectorScreenCardHeader span {
+  overflow-wrap: anywhere;
+}
+
+.projectorScreenEdit {
+  border: 1px solid #93a5b4;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.18rem 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorScreenEdit:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.projectorScreenCardHeader span {
+  border: 1px solid #93a5b4;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--navy);
+  background: #edf5fa;
+}
+
+.projectorScreenPreview {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0a0a0a;
+  color: #fff;
+  padding: 0.8rem;
+}
+
+.projectorEmpty {
+  color: #5d646b;
+  font-weight: 800;
+}
+
+.projectorLatexThumb {
+  width: 100%;
+  overflow: hidden;
+  text-align: center;
+  font-size: clamp(1.1rem, 2vw, 2rem);
+}
+
+.projectorLatexLine {
+  margin-block: 0.12em;
+}
+
+.projectorContentStack {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  place-items: stretch;
+}
+
+.projectorContentStack.isCompact {
+  gap: 0.18rem;
+}
+
+.projectorContentBody {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.projectorTopTextDisplay,
+.projectorTopTextThumb {
+  width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.projectorTopTextDisplay {
+  color: var(--navy);
+  font-size: clamp(1.05rem, 2vw, 2rem);
+}
+
+.projectorTopTextThumb {
+  color: #fff;
+  font-size: clamp(0.68rem, 1vw, 1rem);
+}
+
+.projectorTextThumb,
+.projectorTextDisplay,
+.projectorTextPreview {
+  width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 900;
+}
+
+.projectorTextThumb {
+  font-size: clamp(1.1rem, 2vw, 2rem);
+}
+
+.projectorTextPreview {
+  color: var(--navy);
+  font-size: clamp(1.15rem, 2vw, 2.2rem);
+}
+
+.projectorQuestionCard {
+  width: min(100%, 46rem);
+  display: grid;
+  gap: 0.8rem;
+  color: var(--navy);
+  text-align: left;
+}
+
+.projectorQuestionCard.isCompact {
+  gap: 0.25rem;
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.projectorQuestionPrompt {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(1.05rem, 2vw, 2rem);
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.projectorQuestionCard.isCompact .projectorQuestionPrompt {
+  font-size: 0.78rem;
+}
+
+.projectorQuestionOptions {
+  display: grid;
+  gap: 0.45rem;
+  width: min(100%, 34rem);
+  justify-self: center;
+}
+
+.projectorQuestionCard.isCompact .projectorQuestionOptions {
+  gap: 0.18rem;
+}
+
+.projectorQuestionOption {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  justify-items: center;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.45rem 3rem;
+  color: var(--ink);
+  font-weight: 900;
+  text-align: center;
+}
+
+.projectorQuestionCard.isCompact .projectorQuestionOption {
+  border-width: 1px;
+  padding: 0.12rem 1.4rem;
+  font-size: 0.58rem;
+}
+
+.projectorQuestionOption strong,
+.projectorScreenQuestionOption strong {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.projectorQuestionCard.isCompact .projectorQuestionOption strong {
+  left: 0.22rem;
+  width: 1rem;
+  height: 1rem;
+  font-size: 0.52rem;
+}
+
+.projectorQuestionOption > span,
+.projectorQuestionAnswerLatex,
+.projectorScreenQuestionOption > span,
+.projectorScreenQuestionOption > .projectorScreenLatex {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  justify-self: center;
+}
+
+.projectorQuestionAnswerLatex,
+.projectorScreenQuestionOption > .projectorScreenLatex {
+  width: auto;
+  color: inherit;
+  font-size: inherit;
+  text-align: center;
+}
+
+.projectorQuestionAnswerLatex .projectorLatexLine,
+.projectorScreenQuestionOption .projectorLatexLine {
+  margin-block: 0;
+}
+
+.projectorQuestionOption em,
+.projectorScreenQuestionOption em {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #e8f6ed;
+  color: #176337;
+  padding: 0.14rem 0.45rem;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.projectorQuestionCard.isCompact .projectorQuestionOption em {
+  display: none;
+}
+
+.projectorFillBlankLine {
+  width: min(100%, 32rem);
+  height: 0.35rem;
+  justify-self: center;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.8;
+}
+
+.projectorQuestionCard.isCompact .projectorFillBlankLine {
+  height: 0.16rem;
+}
+
+.projectorFillBlankAnswer {
+  justify-self: center;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.45rem 0.75rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.projectorRevealAnswerButton {
+  width: 100%;
+}
+
+.projectorThumbMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.projectorContentBody .projectorThumbMedia {
+  position: absolute;
+  inset: 0;
+}
+
+.projectorComposerPreview img,
+.projectorComposerPreview video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.projectorScreenUrl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.projectorScreenUrl code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid #d3dee7;
+  border-radius: 6px;
+  background: #f5f8fa;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.projectorComposer {
+  display: grid;
+  gap: 0.9rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.projectorLibrary {
+  display: grid;
+  gap: 0.75rem;
+  border: 2px solid #d3dee7;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 0.85rem;
+}
+
+.projectorLibraryHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--navy);
+}
+
+.projectorPanelToggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.projectorLibraryHeader h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.projectorLibraryHeader .projectorPanelCount {
+  min-width: 2rem;
+  border: 1px solid #93a5b4;
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.15rem 0.5rem;
+  text-align: center;
+  font-weight: 900;
+}
+
+.projectorPanelChevron {
+  border: 1px solid #c8d6df;
+  border-radius: 999px;
+  background: #fff;
+  color: #51606d;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.projectorPanelBody {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.projectorLibraryList {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.projectorLibraryItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.projectorLibraryItem > button:first-child,
+.projectorSceneItem > button:first-child {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5rem;
+  gap: 0.55rem;
+  align-items: center;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.45rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projectorSceneItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.projectorSceneItem > button:first-child {
+  grid-template-columns: minmax(0, 1fr) 6rem;
+}
+
+.projectorLibraryItem strong,
+.projectorLibraryItem em,
+.projectorSceneItem strong,
+.projectorSceneItem em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectorLibraryItem strong,
+.projectorSceneItem strong {
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.projectorLibraryItem em,
+.projectorSceneItem em {
+  color: #51606d;
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.projectorLibraryThumb {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #0a0a0a;
+  color: #fff;
+  padding: 0.3rem;
+}
+
+.projectorSceneThumb {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #0a0a0a;
+  padding: 2px;
+}
+
+.projectorSceneThumb > span {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #111;
+  color: #fff;
+  padding: 0.12rem;
+}
+
+.projectorLibraryThumb .projectorTextThumb,
+.projectorLibraryThumb .projectorLatexThumb,
+.projectorSceneThumb .projectorTextThumb,
+.projectorSceneThumb .projectorLatexThumb {
+  font-size: 0.85rem;
+}
+
+.projectorVideoThumb {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: #17212b;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.projectorSceneThumb .projectorEmpty {
+  font-size: 0.55rem;
+}
+
+.projectorSceneFolderCreator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.projectorSceneFolderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 2px solid #c8d6df;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.projectorSceneFolderHeader {
+  display: flex;
+  align-items: stretch;
+}
+
+.projectorSceneFolderToggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+  text-align: left;
+}
+
+.projectorSceneFolderToggle span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectorFolderCount {
+  min-width: 1.4rem;
+  border-radius: 999px;
+  background: rgba(147, 165, 180, 0.18);
+  padding: 0.02rem 0.35rem;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
+.projectorSceneFolderToggle strong {
+  font-size: 0.65rem;
+  opacity: 0.55;
+}
+
+.projectorSceneFolderDelete {
+  width: 1.6rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 2px solid #f0e8e8;
+  border-radius: 0;
+  background: #fff8f8;
+  color: #9b2020;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.projectorSceneFolderDelete:hover {
+  background: #fee2e2;
+}
+
+.projectorSceneFolderSection .projectorLibraryList {
+  border-top: 2px solid #c8d6df;
+  border-radius: 0;
+}
+
+.projectorSceneControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.projectorSceneControls label {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--navy);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.projectorSceneControls select {
+  width: 100%;
+  min-width: 0;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.projectorSceneFolderList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.projectorSceneFolderList span {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid #c8d6df;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.25rem 0.35rem 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.projectorSceneFolderList button {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #fff0f0;
+  color: #7c1f1f;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLibraryDelete {
+  border: 2px solid #d6b3b3;
+  border-radius: 8px;
+  background: #fff6f6;
+  color: #7c1f1f;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLibraryRename {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fb;
+  color: var(--ink);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLibraryItemActions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.projectorLibraryRenameForm {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.45rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fb;
+  padding: 0.55rem;
+}
+
+.projectorLibraryRenameActions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.projectorLibraryCategoryFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.projectorLibraryCategoryFilters button {
+  border: 2px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.projectorLibraryCategoryFilters button.isActive {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.projectorLibraryEmpty {
+  margin: 0;
+  border: 2px dashed #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: #51606d;
+  padding: 0.75rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.projectorTargetPicker {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.projectorTargetButtons {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(4, minmax(0, 1fr));
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.projectorTargetButtons button {
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.7rem 0.35rem;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorTargetButtons button:last-child {
+  border-right: 0;
+}
+
+.projectorTargetButtons button.isActive {
+  background: var(--navy);
+  color: #fff;
+}
+
+.projectorDashboard .field,
+.projectorScreenJoin .field {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.projectorLatexLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.projectorLatexInsertButtons {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.projectorLatexInsertButtons button {
+  border: 1px solid #93a5b4;
+  border-radius: 6px;
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.22rem 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorLatexInsertButtons button:hover,
+.projectorLatexInsertButtons button:focus-visible {
+  background: #edf5fa;
+}
+
+.projectorJoinScreenPicker {
+  display: grid;
+  gap: 0.5rem;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.projectorJoinScreenButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.projectorJoinScreenButtons button {
+  min-height: 4.25rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fa;
+  color: var(--navy);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorJoinScreenButtons button.isActive {
+  background: var(--navy);
+  color: #fff;
+  box-shadow: inset 0 0 0 3px #8fbce0;
+}
+
+.projectorDashboard input,
+.projectorDashboard select,
+.projectorDashboard textarea,
+.projectorScreenJoin input,
+.projectorScreenJoin select {
+  width: 100%;
+  border: 2px solid #93a5b4;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
+.projectorDashboard textarea {
+  resize: vertical;
+}
+
+.projectorTabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.projectorTabs button {
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.65rem 0.4rem;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorTabs button:last-child {
+  border-right: 0;
+}
+
+.projectorTabs button.isActive {
+  background: var(--navy);
+  color: #fff;
+}
+
+.projectorComposerToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.projectorComposerToggles button {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.48rem 0.75rem;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorComposerToggles button.isActive {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px #8fbce0;
+}
+
+.projectorQuestionBuilder {
+  display: grid;
+  gap: 0.6rem;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.7rem;
+}
+
+.projectorQuestionBuilderOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.projectorCheckboxRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  color: var(--navy);
+  font-weight: 900;
+}
+
+.projectorCheckboxRow input {
+  width: auto;
+  min-width: 1rem;
+  accent-color: var(--navy);
+}
+
+.projectorComposerPreview {
+  min-height: 9rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 2px dashed #93a5b4;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 0.8rem;
+  text-align: center;
+  color: #51606d;
+  font-weight: 800;
+}
+
+.projectorImageDropZone {
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.projectorImageDropZone.isDragActive {
+  border-color: var(--navy);
+  background: #edf7ff;
+  box-shadow: inset 0 0 0 3px rgba(0, 58, 99, 0.12);
+}
+
+.projectorImageDropHint {
+  display: grid;
+  gap: 0.2rem;
+  place-items: center;
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.projectorImageDropHint small {
+  color: #51606d;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.projectorUploadNote {
+  margin: -0.35rem 0 0;
+  color: var(--navy);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.projectorActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.projectorMessage {
+  margin: 0;
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.projectorScreenJoin {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #0a0a0a;
+  margin: 0;
+  padding: 1rem;
+}
+
+body:has(.projectorScreenJoin),
+body:has(.projectorScreenStage) {
+  background: #0a0a0a;
+  overflow: hidden;
+  height: 100dvh;
+}
+
+body:has(.projectorScreenJoin) main,
+body:has(.projectorScreenStage) main {
+  padding: 0;
+}
+
+body:has(.projectorScreenJoin) .shell,
+body:has(.projectorScreenStage) .shell {
+  border: 0;
+  border-radius: 0;
+  background: #0a0a0a;
+}
+
+body:has(.projectorScreenJoin) .content,
+body:has(.projectorScreenStage) .content {
+  padding: 0;
+}
+
+body:has(.projectorScreenJoin) .topbar,
+body:has(.projectorScreenJoin) .gameReadyBanner,
+body:has(.projectorScreenStage) .topbar,
+body:has(.projectorScreenStage) .gameReadyBanner {
+  display: none;
+}
+
+.projectorJoinCard {
+  width: min(100%, 26rem);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.projectorScreenStage {
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #0a0a0a;
+  color: #fff;
+  margin: 0;
+  padding: 3rem;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.projectorScreenStage.hasMedia {
+  padding: 0;
+}
+
+.projectorStatusDot {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: #5d646b;
+  box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.08);
+}
+
+.projectorStatusDot.isConnected {
+  background: #3ddc84;
+}
+
+.projectorFullscreenButton {
+  position: fixed;
+  top: 0.8rem;
+  right: 0.8rem;
+  z-index: 5;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(16, 18, 20, 0.62);
+  color: #fff;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 900;
+  cursor: pointer;
+  opacity: 0.46;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.projectorFullscreenButton:hover,
+.projectorFullscreenButton:focus-visible {
+  background: rgba(16, 18, 20, 0.9);
+  opacity: 1;
+}
+
+.projectorScreenLatex {
+  width: 100%;
+  text-align: center;
+  font-size: clamp(28px, 5vw, 72px);
+  color: #fff;
+}
+
+.projectorScreenStack {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(0.35rem, 1vw, 0.8rem);
+  padding: clamp(0.5rem, 1.5vw, 1.5rem);
+  box-sizing: border-box;
+}
+
+.projectorScreenTopText {
+  width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(20px, 2.6vw, 40px);
+  font-weight: 900;
+  line-height: 1.04;
+  color: #fff;
+}
+
+.projectorScreenBody {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.projectorScreenBody .projectorScreenMedia {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.projectorScreenText {
+  width: min(100%, 72rem);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(32px, 6vw, 86px);
+  font-weight: 900;
+  line-height: 1.12;
+  color: #fff;
+}
+
+.projectorScreenQuestionCard {
+  width: min(92vw, 78rem);
+  display: grid;
+  gap: clamp(1rem, 2.2vw, 2rem);
+  color: #fff;
+}
+
+.projectorScreenQuestionPrompt {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(2.2rem, 5vw, 6.8rem);
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.projectorScreenQuestionOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(min(26rem, 100%), 1fr));
+  gap: clamp(0.7rem, 1.4vw, 1.25rem);
+  width: min(88vw, 62rem);
+  justify-self: center;
+}
+
+.projectorScreenQuestionOption {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.6rem, 1.2vw, 1rem);
+  align-items: center;
+  justify-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: clamp(0.65rem, 1.5vw, 1.2rem) clamp(4rem, 7vw, 7rem);
+  font-size: clamp(1.4rem, 3vw, 3.6rem);
+  font-weight: 900;
+  text-align: center;
+}
+
+.projectorScreenQuestionOption strong {
+  left: clamp(0.65rem, 1.5vw, 1.2rem);
+  width: clamp(2.2rem, 4vw, 4.4rem);
+  height: clamp(2.2rem, 4vw, 4.4rem);
+  background: #fff;
+  color: #0a0a0a;
+  font-size: clamp(1.1rem, 2.1vw, 2.4rem);
+}
+
+.projectorScreenQuestionOption em {
+  right: clamp(0.65rem, 1.5vw, 1.2rem);
+  background: #bbf7d0;
+  color: #14532d;
+  font-size: clamp(0.8rem, 1.3vw, 1.2rem);
+}
+
+.projectorScreenFillBlankLine {
+  width: min(82vw, 54rem);
+  height: clamp(0.35rem, 0.9vw, 0.75rem);
+  justify-self: center;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.projectorScreenFillBlankAnswer {
+  justify-self: center;
+  border: 3px solid rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: clamp(0.65rem, 1.5vw, 1.2rem) clamp(1rem, 2vw, 2rem);
+  font-size: clamp(1.4rem, 3vw, 3.6rem);
+  font-weight: 900;
+  text-align: center;
+}
+
+.projectorScreenMedia {
+  display: block;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 100vw;
+  max-height: 100dvh;
+  object-fit: contain;
+}
+
+.projectorWaiting {
+  color: #252525;
+  font-size: clamp(1.6rem, 4vw, 4rem);
+  font-weight: 900;
+  text-transform: lowercase;
+}
+
+.projectorScreenError {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  max-width: min(28rem, calc(100vw - 2rem));
+  border: 1px solid #4d1f1f;
+  border-radius: 8px;
+  background: #200f0f;
+  color: #ffdede;
+  padding: 0.7rem 0.85rem;
+  font-weight: 800;
+}
+
+@media (max-width: 980px) {
+  .projectorLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorComposer {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .projectorHeader,
+  .projectorScreenUrl {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorHeader {
+    display: grid;
+  }
+
+  .projectorGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorQuestionBuilderOptions,
+  .projectorScreenQuestionOptions {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorScreenStage {
+    padding: 2rem 1rem;
+  }
+
+  .projectorScreenStage.hasMedia {
+    padding: 0;
+  }
+}

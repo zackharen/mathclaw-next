@@ -1,0 +1,90 @@
+.minesweeperBoard {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 0.35rem;
+  max-width: 32rem;
+}
+
+.minesweeperCell {
+  aspect-ratio: 1;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: #d7e5f1;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.minesweeperCell.isRevealed {
+  background: #f7f1e5;
+}
+
+.minesweeperCell.isCount1 {
+  color: #1d4ed8;
+}
+
+.minesweeperCell.isCount2 {
+  color: #15803d;
+}
+
+.minesweeperCell.isCount3 {
+  color: #b91c1c;
+}
+
+.minesweeperCell.isCount4 {
+  color: #312e81;
+}
+
+.minesweeperCell.isCount5 {
+  color: #9a3412;
+}
+
+.minesweeperCell.isCount6 {
+  color: #0f766e;
+}
+
+.minesweeperCell.isCount7 {
+  color: #374151;
+}
+
+.minesweeperCell.isCount8 {
+  color: #7c2d12;
+}
+
+.minesweeperCell.isMine {
+  background: #f3b3b3;
+}
+
+.minesweeperCell.isFlagged {
+  background: #ffe59a;
+  font-size: 1.1rem;
+}
+
+.minesweeperStatusBanner {
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem 0.95rem;
+  background: #eef4fb;
+}
+
+.minesweeperStatusBanner.active {
+  background: #eef4fb;
+  border-color: #4c6f94;
+}
+
+.minesweeperStatusBanner.won {
+  background: #e8f6ec;
+  border-color: #2f8f45;
+}
+
+.minesweeperStatusBanner.lost {
+  background: #fdeeee;
+  border-color: #cd3b3b;
+}
+
+@media (max-width: 720px) {
+
+  .minesweeperBoard {
+    gap: 0.25rem;
+  }
+}

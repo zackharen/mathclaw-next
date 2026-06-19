@@ -6,6 +6,7 @@ import {
   resolvePreferredCourseId,
 } from "@/lib/student-games/courses";
 import OpenMiddleHubClient from "./game-client";
+import "./styles.css";
 
 export default async function OpenMiddlePage({ searchParams }) {
   const supabase = await createClient();

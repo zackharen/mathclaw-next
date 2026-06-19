@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import MoneyCountingClient from "./game-client";
+import "./styles.css";
 
 export default async function MoneyCountingPage({ searchParams }) {
   const supabase = await createClient();

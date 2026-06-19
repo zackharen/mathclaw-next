@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
 import TournamentClient from "./tournament-client";
+import "../connect4/styles.css";
+import "./styles.css";
 
 export default async function TournamentsPage({ searchParams }) {
   const supabase = await createClient();

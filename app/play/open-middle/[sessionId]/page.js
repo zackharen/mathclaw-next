@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import OpenMiddleSessionClient from "./game-client";
+import "../styles.css";
 
 export default async function OpenMiddleSessionPage({ params }) {
   const supabase = await createClient();
