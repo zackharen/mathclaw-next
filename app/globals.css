@@ -8785,3 +8785,49 @@ body:has(.projectorScreenStage) .gameReadyBanner {
     padding: 0;
   }
 }
+
+/* Route loading skeletons (instant feedback while server components stream) */
+.skeletonStack {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.skeletonCard {
+  border: 2px solid var(--line);
+  background: #f9fbfc;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.skeletonLine {
+  height: 0.9rem;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e4ecf2 25%, #f3f8fb 37%, #e4ecf2 63%);
+  background-size: 400% 100%;
+  animation: skeletonShimmer 1.4s ease infinite;
+}
+
+.skeletonLine + .skeletonLine {
+  margin-top: 0.65rem;
+}
+
+.skeletonTitle {
+  height: 1.8rem;
+  width: 45%;
+  margin-bottom: 1rem;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonLine {
+    animation: none;
+  }
+}

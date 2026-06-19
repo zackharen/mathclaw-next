@@ -336,6 +336,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   useEffect(() => {
     if (!match?.id) return undefined;
     const interval = setInterval(() => {
+      if (document.hidden) return;
       refreshMatch(match.id);
     }, 1500);
     return () => clearInterval(interval);
@@ -347,7 +348,10 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
       return undefined;
     }
     refreshTournamentContext();
-    const interval = window.setInterval(refreshTournamentContext, 2500);
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      refreshTournamentContext();
+    }, 2500);
     return () => window.clearInterval(interval);
   }, [isTournamentMatch, isViewerInMatch, refreshTournamentContext, tournamentId]);
 

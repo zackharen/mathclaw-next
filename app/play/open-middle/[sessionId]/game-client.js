@@ -122,6 +122,7 @@ export default function OpenMiddleSessionClient({
     if (!session) return undefined;
     const delay = session.status === "live" ? 1000 : 2500;
     const timer = window.setInterval(() => {
+      if (document.hidden) return;
       loadSession().catch(() => {});
     }, delay);
     return () => window.clearInterval(timer);

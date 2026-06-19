@@ -392,7 +392,10 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
 
   useEffect(() => {
     if (!courseId) return undefined;
-    const interval = window.setInterval(fetchTournament, 2500);
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      fetchTournament();
+    }, 2500);
     return () => window.clearInterval(interval);
   }, [courseId, fetchTournament]);
 
