@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { signOutAction } from "@/app/auth/actions";
 import {
   getAccountTypeForUser,
@@ -47,7 +49,8 @@ export function GlobalHeaderFallback() {
   );
 }
 
-async function getGameReadyBanner(supabase, userId) {
+async function loadGameReadyBanner(userId) {
+  const supabase = createAdminClient();
   const { data: memberships } = await supabase
     .from("student_course_memberships")
     .select("course_id")
@@ -145,6 +148,12 @@ async function getGameReadyBanner(supabase, userId) {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] || null;
 }
 
+const getCachedGameReadyBanner = unstable_cache(
+  loadGameReadyBanner,
+  ["student-game-ready-banner-v1"],
+  { revalidate: 3 }
+);
+
 export default async function GlobalHeader() {
   const supabase = await createClient();
   const {
@@ -164,7 +173,7 @@ export default async function GlobalHeader() {
       }[roleMode] || null
     : null;
   const readyGame = user && accountType === "student"
-    ? await getGameReadyBanner(supabase, user.id)
+    ? await getCachedGameReadyBanner(user.id)
     : null;
 
   let navItems = PUBLIC_NAV_ITEMS;
