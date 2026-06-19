@@ -22,6 +22,8 @@ import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
+const LESSON_WINDOW_PAST_DAYS = 5;
+const LESSON_WINDOW_FUTURE_DAYS = 45;
 const LESSON_SKILL_RULES = [
   {
     slug: "integer_practice",
@@ -128,6 +130,27 @@ function prettyDate(value) {
     month: "short",
     day: "numeric",
   });
+}
+
+function parseUTCDate(iso) {
+  const [year, month, day] = String(iso).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function isoFromUTCDate(date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function addDays(iso, days) {
+  const date = parseUTCDate(iso);
+  date.setUTCDate(date.getUTCDate() + days);
+  return isoFromUTCDate(date);
+}
+
+function clampIsoDate(value, min, max) {
+  if (min && value < min) return min;
+  if (max && value > max) return max;
+  return value;
 }
 
 function isWeekendISODate(value) {
@@ -237,12 +260,27 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const curriculumEnabled = hasCurriculum(course);
 
   const dataFetchStart = process.hrtime.bigint();
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const lessonWindowFocusDate = clampIsoDate(
+    todayIso,
+    course.school_year_start,
+    course.school_year_end
+  );
+  const showFullLessonYear = qs.show_all_lessons === "1";
+  const lessonWindowStart = showFullLessonYear
+    ? course.school_year_start
+    : clampIsoDate(addDays(lessonWindowFocusDate, -LESSON_WINDOW_PAST_DAYS), course.school_year_start, course.school_year_end);
+  const lessonWindowEnd = showFullLessonYear
+    ? course.school_year_end
+    : clampIsoDate(addDays(lessonWindowFocusDate, LESSON_WINDOW_FUTURE_DAYS), course.school_year_start, course.school_year_end);
   const [
     lessonsCountRes,
     calendarDaysRes,
     reasonsRes,
-    planRes,
-    announcementsRes,
+    planSummaryRes,
+    planDetailsRes,
+    announcementsCountRes,
+    announcementDetailsRes,
     gamesRes,
     schoolDaysRes,
     markingPeriodRulesRes,
@@ -265,16 +303,30 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .order("label", { ascending: true }),
     courseDataClient
       .from("course_lesson_plan")
-      .select(
-        "class_date, lesson_slot, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)"
-      )
+      .select("class_date, lesson_slot, status")
       .eq("course_id", course.id)
       .order("class_date", { ascending: true })
       .order("lesson_slot", { ascending: true }),
     courseDataClient
+      .from("course_lesson_plan")
+      .select(
+        "class_date, lesson_slot, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)"
+      )
+      .eq("course_id", course.id)
+      .gte("class_date", lessonWindowStart)
+      .lte("class_date", lessonWindowEnd)
+      .order("class_date", { ascending: true })
+      .order("lesson_slot", { ascending: true }),
+    courseDataClient
+      .from("course_announcements")
+      .select("class_date", { count: "exact", head: true })
+      .eq("course_id", course.id),
+    courseDataClient
       .from("course_announcements")
       .select("class_date, content")
       .eq("course_id", course.id)
+      .gte("class_date", lessonWindowStart)
+      .lte("class_date", lessonWindowEnd)
       .order("class_date", { ascending: true }),
     listGamesWithCourseSettings(supabase, course.id, { viewerAccountType: accountType || "teacher" }),
     supabase
@@ -294,9 +346,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const totalLessonsCount = lessonsCountRes.count || 0;
   const calendarDays = calendarDaysRes.data || [];
   const reasons = reasonsRes.data || [];
-  const planRows = planRes.data || [];
-  const planError = planRes.error;
-  const announcements = announcementsRes.data || [];
+  const planSummaryRows = planSummaryRes.data || [];
+  const planRows = planDetailsRes.data || [];
+  const planError = planSummaryRes.error || planDetailsRes.error;
+  const announcements = announcementDetailsRes.data || [];
+  const announcementCount = announcementsCountRes.count || 0;
   const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
   const schoolDays = schoolDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];
@@ -339,7 +393,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
   if (PERF_ENABLED) {
     console.info(
-      `[perf] ClassPlanPage course=${course.id} fetchMs=${Number((process.hrtime.bigint() - dataFetchStart) / 1000000n)} totalMs=${Number((process.hrtime.bigint() - pageStart) / 1000000n)} calendarDays=${calendarDays.length} planRows=${planRows.length} announcements=${announcements.length}`
+      `[perf] ClassPlanPage course=${course.id} fetchMs=${Number((process.hrtime.bigint() - dataFetchStart) / 1000000n)} totalMs=${Number((process.hrtime.bigint() - pageStart) / 1000000n)} calendarDays=${calendarDays.length} planSummaryRows=${planSummaryRows.length} planDetailRows=${planRows.length} announcements=${announcements.length} window=${lessonWindowStart}:${lessonWindowEnd} full=${showFullLessonYear}`
     );
   }
 
@@ -368,13 +422,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
     if (course.ab_meeting_day === "B") return day.ab_day === "B";
     return true;
   });
+  const visibleLessonDays = visibleCalendarDays.filter(
+    (day) => day.class_date >= lessonWindowStart && day.class_date <= lessonWindowEnd
+  );
+  const hiddenLessonDayCount = Math.max(visibleCalendarDays.length - visibleLessonDays.length, 0);
 
   const instructionalDaysCount = visibleCalendarDays.filter(
     (d) => d.day_type === "instructional"
   ).length;
-  const plannedCount = planRows?.length || 0;
-  const announcementCount = announcements?.length || 0;
-  const lastPlanRow = planRows[planRows.length - 1] || null;
+  const plannedCount = planSummaryRows?.length || 0;
+  const lastPlanRow = planSummaryRows[planSummaryRows.length - 1] || null;
   const projectedEnd = curriculumEnabled
     ? (lastPlanRow?.class_date || course.school_year_end)
     : null;
@@ -667,7 +724,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
         ) : null}
       </section>
 
-      <section className="card">
+      <section className="card" id="lesson-by-day">
         <h2>Lesson by Day</h2>
         {!curriculumEnabled ? (
           <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
@@ -679,8 +736,54 @@ export default async function ClassPlanPage({ params, searchParams }) {
         ) : null}
 
         {!planError && curriculumEnabled && visibleCalendarDays.length > 0 ? (
-          <div className="list">
-            {visibleCalendarDays.map((day) => {
+          <>
+            {!showFullLessonYear && hiddenLessonDayCount > 0 ? (
+              <div className="classPlanWindowNotice" style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                margin: "0 0 0.9rem",
+                padding: "0.75rem 0.9rem",
+                border: "2px solid #d7e6f2",
+                borderRadius: "8px",
+                background: "#f8fbfd",
+                color: "var(--navy)",
+                fontFamily: "\"Gill Sans\", \"Segoe UI\", sans-serif",
+                fontWeight: 700,
+              }}>
+                <span>
+                  Showing {visibleLessonDays.length} nearby class day{visibleLessonDays.length === 1 ? "" : "s"}.
+                </span>
+                <Link className="btn" href={`/classes/${course.id}/plan?show_all_lessons=1#lesson-by-day`}>
+                  Show Full Year
+                </Link>
+              </div>
+            ) : showFullLessonYear ? (
+              <div className="classPlanWindowNotice" style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                margin: "0 0 0.9rem",
+                padding: "0.75rem 0.9rem",
+                border: "2px solid #d7e6f2",
+                borderRadius: "8px",
+                background: "#f8fbfd",
+                color: "var(--navy)",
+                fontFamily: "\"Gill Sans\", \"Segoe UI\", sans-serif",
+                fontWeight: 700,
+              }}>
+                <span>Showing the full lesson year.</span>
+                <Link className="btn" href={`/classes/${course.id}/plan#lesson-by-day`}>
+                  Show Nearby Days
+                </Link>
+              </div>
+            ) : null}
+            <div className="list">
+            {visibleLessonDays.map((day) => {
               const dayPlanRows = planRowsByDate.get(day.class_date) || [];
               const firstLesson = dayPlanRows[0]?.curriculum_lessons;
               const suggestedSkills = findSuggestedSkills({ lesson: firstLesson, enabledGames });
@@ -865,7 +968,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 </article>
               );
             })}
-          </div>
+            </div>
+          </>
         ) : null}
       </section>
     </div>

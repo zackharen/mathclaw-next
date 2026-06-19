@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,6 +10,7 @@ import {
   DEFAULT_SITE_COPY,
   ensureSiteConfigCatalog,
   normalizeSiteAudience,
+  SITE_CONFIG_CACHE_TAG,
   SITE_COPY_SETTINGS_GAME,
   SITE_FEATURE_SETTINGS_GAME,
 } from "@/lib/site-config";
@@ -894,6 +895,7 @@ export async function updateSiteFeatureAudienceAction(formData) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
   }
 
+  updateTag(SITE_CONFIG_CACHE_TAG);
   revalidatePath("/");
   revalidatePath("/about");
   revalidatePath("/admin");
@@ -960,6 +962,7 @@ export async function bulkUpdateSiteFeatureAudienceAction(formData) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
   }
 
+  updateTag(SITE_CONFIG_CACHE_TAG);
   revalidatePath("/");
   revalidatePath("/about");
   revalidatePath("/admin");
@@ -1080,6 +1083,7 @@ export async function updateSiteCopyAction(formData) {
     redirect(`/admin?error=${encodeURIComponent(error.message)}`);
   }
 
+  updateTag(SITE_CONFIG_CACHE_TAG);
   revalidatePath("/");
   revalidatePath("/about");
   revalidatePath("/admin");
