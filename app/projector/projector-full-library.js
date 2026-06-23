@@ -1,10 +1,135 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const SCREEN_IDS = ["1", "2", "3", "4"];
 const LIBRARY_CATEGORIES = ["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"];
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
+const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
+const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
+
+function ensureKatexAssets() {
+  if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = KATEX_CSS;
+    document.head.appendChild(link);
+  }
+
+  if (window.katex || document.querySelector(`script[src="${KATEX_JS}"]`)) return;
+  const script = document.createElement("script");
+  script.src = KATEX_JS;
+  script.async = true;
+  document.head.appendChild(script);
+}
+
+function isEscapedLatexCharacter(source, index) {
+  let slashCount = 0;
+  for (let i = index - 1; i >= 0 && source[i] === "\\"; i -= 1) slashCount += 1;
+  return slashCount % 2 === 1;
+}
+
+function isExponentStart(character) {
+  return Boolean(character && /[A-Za-z0-9{\\]/.test(character));
+}
+
+function isArrowTokenStart(source, index) {
+  return (
+    source.startsWith("\\uparrow", index) ||
+    source.startsWith("\\downarrow", index) ||
+    source[index] === "↑" ||
+    source[index] === "↓" ||
+    (source[index] === "^" && !isExponentStart(source[index + 1]))
+  );
+}
+
+function visibleLatexSpaces(count) {
+  return "\\;".repeat(Math.min(count, 4));
+}
+
+function normalizeLatexLineForDisplay(line) {
+  let normalized = "";
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === " ") {
+      let end = index;
+      while (line[end] === " ") end += 1;
+      normalized += isArrowTokenStart(line, end) ? visibleLatexSpaces(end - index) : line.slice(index, end);
+      index = end - 1;
+    } else if (line.startsWith("\\uparrow", index) || line.startsWith("\\downarrow", index)) {
+      const command = line.startsWith("\\uparrow", index) ? "\\uparrow" : "\\downarrow";
+      let end = index + command.length;
+      while (line[end] === " ") end += 1;
+      normalized += `${command}${visibleLatexSpaces(end - index - command.length)}`;
+      index = end - 1;
+    } else if (character === "%" && !isEscapedLatexCharacter(line, index)) {
+      normalized += "\\%";
+    } else if (character === "↑") {
+      let end = index + 1;
+      while (line[end] === " ") end += 1;
+      normalized += `\\uparrow${visibleLatexSpaces(end - index - 1)}`;
+      index = end - 1;
+    } else if (character === "↓") {
+      let end = index + 1;
+      while (line[end] === " ") end += 1;
+      normalized += `\\downarrow${visibleLatexSpaces(end - index - 1)}`;
+      index = end - 1;
+    } else if (character === "^" && !isExponentStart(line[index + 1])) {
+      let end = index + 1;
+      while (line[end] === " ") end += 1;
+      normalized += `\\uparrow${visibleLatexSpaces(end - index - 1)}`;
+      index = end - 1;
+    } else {
+      normalized += character;
+    }
+  }
+  return normalized;
+}
+
+function renderLatex(element, content) {
+  if (!element) return;
+  const lines = String(content || "").split(/\r?\n/);
+  if (!window.katex) {
+    element.textContent = content || "";
+    return;
+  }
+  try {
+    element.replaceChildren();
+    lines.forEach((line) => {
+      const row = document.createElement("div");
+      row.className = "projectorLatexLine";
+      if (line.trim()) {
+        window.katex.render(normalizeLatexLineForDisplay(line), row, {
+          throwOnError: false,
+          displayMode: true,
+        });
+      } else {
+        row.appendChild(document.createElement("br"));
+      }
+      element.appendChild(row);
+    });
+  } catch {
+    element.textContent = content || "";
+  }
+}
+
+function ProjectorLatex({ content, className = "" }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    ensureKatexAssets();
+    const id = window.setInterval(() => {
+      if (window.katex) {
+        renderLatex(ref.current, content);
+        window.clearInterval(id);
+      }
+    }, 80);
+    renderLatex(ref.current, content);
+    return () => window.clearInterval(id);
+  }, [content]);
+
+  return <div ref={ref} className={className} />;
+}
 
 function parseQuestionContent(content) {
   const source = String(content || "");
@@ -34,11 +159,16 @@ function itemTypeLabel(item) {
   return type === "latex" ? "LaTeX" : type ? type[0].toUpperCase() + type.slice(1) : "Item";
 }
 
+function shouldRenderLatex(state, content) {
+  return state?.type === "latex" || /\\(?:frac|sqrt|uparrow|downarrow|times|div|pm|cdot|text|left|right)\b/.test(content);
+}
+
 function previewForState(state) {
   if (!state?.type) return <span className="projectorFullLibraryEmptyCell">Empty</span>;
   const content = displayContent(state.content);
   if (state.type === "image") return <img src={content} alt="" />;
   if (state.type === "video") return <span className="projectorFullLibraryVideo">Video</span>;
+  if (shouldRenderLatex(state, content)) return <ProjectorLatex content={content} className="projectorFullLibraryLatex" />;
   if (parseQuestionContent(state.content)) return <span>{content || "Question"}</span>;
   return <span>{content || (state.type === "latex" ? "LaTeX" : state.type)}</span>;
 }
@@ -549,6 +679,23 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
           background: #111;
           padding: 0.18rem;
           font-size: 0.74rem;
+        }
+
+        .projectorFullLibraryLatex {
+          width: 100%;
+          display: grid;
+          place-items: center;
+          color: #fff;
+          line-height: 1.1;
+        }
+
+        .projectorFullLibraryLatex .katex-display {
+          margin: 0.05rem 0;
+        }
+
+        .projectorFullLibraryLatex .katex {
+          color: #fff;
+          font-size: clamp(0.8rem, 1.6vw, 1.18rem);
         }
 
         .projectorFullLibraryThumb img,
