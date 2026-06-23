@@ -164,7 +164,7 @@ export default async function ProjectorPage() {
         sceneItems={sceneItems}
         sceneFolders={sceneFolders}
       />
-      <ProjectorFullLibrary libraryItems={libraryItems} sceneItems={sceneItems} />
+      <ProjectorFullLibrary libraryItems={libraryItems} sceneItems={sceneItems} sceneFolders={sceneFolders} />
     </>
   );
 }
