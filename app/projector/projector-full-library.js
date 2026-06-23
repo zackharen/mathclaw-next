@@ -56,6 +56,13 @@ function sceneSearchText(scene) {
   return [scene.title, screenText].filter(Boolean).join(" ").toLowerCase();
 }
 
+async function fetchSceneItems() {
+  const response = await fetch("/api/projector?action=scenes", { cache: "no-store" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Could not load scenes.");
+  return Array.isArray(payload.scenes) ? payload.scenes : [];
+}
+
 function openSavedItemInComposer(item) {
   const libraryPanel = document.querySelector('section[aria-label="Saved Projector Items"]');
   const toggle = libraryPanel?.querySelector(".projectorPanelToggle");
@@ -76,8 +83,34 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
   const [category, setCategory] = useState("");
   const [tab, setTab] = useState(libraryItems.length ? "items" : "scenes");
   const [status, setStatus] = useState("");
+  const [loadedScenes, setLoadedScenes] = useState(sceneItems);
+  const [loadingScenes, setLoadingScenes] = useState(false);
+  const scenes = sceneItems.length ? sceneItems : loadedScenes;
   const hasItems = libraryItems.length > 0;
-  const hasScenes = sceneItems.length > 0;
+  const hasScenes = scenes.length > 0;
+
+  useEffect(() => {
+    if (sceneItems.length) setLoadedScenes(sceneItems);
+  }, [sceneItems]);
+
+  useEffect(() => {
+    if (!open || sceneItems.length || loadedScenes.length || loadingScenes) return undefined;
+    let cancelled = false;
+    setLoadingScenes(true);
+    fetchSceneItems()
+      .then((nextScenes) => {
+        if (!cancelled) setLoadedScenes(nextScenes);
+      })
+      .catch((error) => {
+        if (!cancelled) setStatus(error.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingScenes(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedScenes.length, loadingScenes, open, sceneItems.length]);
 
   const filteredItems = useMemo(() => {
     let items = libraryItems;
@@ -96,10 +129,10 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
   }, [category, libraryItems, search]);
 
   const filteredScenes = useMemo(() => {
-    if (!search.trim()) return sceneItems;
+    if (!search.trim()) return scenes;
     const query = search.trim().toLowerCase();
-    return sceneItems.filter((scene) => sceneSearchText(scene).includes(query));
-  }, [sceneItems, search]);
+    return scenes.filter((scene) => sceneSearchText(scene).includes(query));
+  }, [scenes, search]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -110,7 +143,7 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  if (!hasItems && !hasScenes) return null;
+  if (!hasItems && !hasScenes && !loadingScenes) return null;
 
   async function loadScene(scene) {
     setStatus(`Loading "${scene.title}"...`);
@@ -131,7 +164,8 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
   }
 
   const visibleCount = tab === "items" ? filteredItems.length : filteredScenes.length;
-  const totalCount = tab === "items" ? libraryItems.length : sceneItems.length;
+  const totalCount = tab === "items" ? libraryItems.length : scenes.length;
+  const sceneCountLabel = loadingScenes && !scenes.length ? "..." : scenes.length;
 
   return (
     <>
@@ -167,8 +201,13 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
               <button className={tab === "items" ? "isActive" : ""} type="button" onClick={() => setTab("items")} disabled={!hasItems}>
                 Saved Items <span>{libraryItems.length}</span>
               </button>
-              <button className={tab === "scenes" ? "isActive" : ""} type="button" onClick={() => setTab("scenes")} disabled={!hasScenes}>
-                Scenes <span>{sceneItems.length}</span>
+              <button
+                className={tab === "scenes" ? "isActive" : ""}
+                type="button"
+                onClick={() => setTab("scenes")}
+                disabled={!hasScenes && !loadingScenes}
+              >
+                Scenes <span>{sceneCountLabel}</span>
               </button>
             </div>
 
@@ -199,7 +238,9 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
             </div>
 
             <p className="projectorFullLibrarySummary">
-              Showing {visibleCount} of {totalCount} {tab === "items" ? "saved items" : "scenes"}
+              {loadingScenes && tab === "scenes" && !scenes.length
+                ? "Loading scenes..."
+                : `Showing ${visibleCount} of ${totalCount} ${tab === "items" ? "saved items" : "scenes"}`}
             </p>
 
             {status ? <p className="projectorFullLibraryStatus">{status}</p> : null}
@@ -246,7 +287,9 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
                     </article>
                   ))
                 ) : (
-                  <p className="projectorFullLibraryEmpty">No scenes match your search.</p>
+                  <p className="projectorFullLibraryEmpty">
+                    {loadingScenes ? "Loading scenes..." : "No scenes match your search."}
+                  </p>
                 )}
               </div>
             )}
