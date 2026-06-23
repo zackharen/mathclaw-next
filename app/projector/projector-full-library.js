@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+const SCREEN_IDS = ["1", "2", "3", "4"];
 const LIBRARY_CATEGORIES = ["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"];
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 
@@ -33,12 +34,26 @@ function itemTypeLabel(item) {
   return type === "latex" ? "LaTeX" : type ? type[0].toUpperCase() + type.slice(1) : "Item";
 }
 
+function previewForState(state) {
+  if (!state?.type) return <span className="projectorFullLibraryEmptyCell">Empty</span>;
+  const content = displayContent(state.content);
+  if (state.type === "image") return <img src={content} alt="" />;
+  if (state.type === "video") return <span className="projectorFullLibraryVideo">Video</span>;
+  if (parseQuestionContent(state.content)) return <span>{content || "Question"}</span>;
+  return <span>{content || (state.type === "latex" ? "LaTeX" : state.type)}</span>;
+}
+
 function previewForItem(item) {
-  const content = displayContent(item.content);
-  if (item.content_type === "image") return <img src={content} alt="" />;
-  if (item.content_type === "video") return <span className="projectorFullLibraryVideo">Video</span>;
-  if (parseQuestionContent(item.content)) return <span>{content || "Question"}</span>;
-  return <span>{content || itemTypeLabel(item)}</span>;
+  return previewForState({ type: item.content_type, content: item.content });
+}
+
+function sceneFilledCount(scene) {
+  return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
+}
+
+function sceneSearchText(scene) {
+  const screenText = SCREEN_IDS.map((screenId) => displayContent(scene?.screen_states?.[screenId]?.content)).join(" ");
+  return [scene.title, screenText].filter(Boolean).join(" ").toLowerCase();
 }
 
 function openSavedItemInComposer(item) {
@@ -55,10 +70,14 @@ function openSavedItemInComposer(item) {
   }, 40);
 }
 
-export default function ProjectorFullLibrary({ libraryItems = [] }) {
+export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [tab, setTab] = useState(libraryItems.length ? "items" : "scenes");
+  const [status, setStatus] = useState("");
+  const hasItems = libraryItems.length > 0;
+  const hasScenes = sceneItems.length > 0;
 
   const filteredItems = useMemo(() => {
     let items = libraryItems;
@@ -76,6 +95,12 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
     return items;
   }, [category, libraryItems, search]);
 
+  const filteredScenes = useMemo(() => {
+    if (!search.trim()) return sceneItems;
+    const query = search.trim().toLowerCase();
+    return sceneItems.filter((scene) => sceneSearchText(scene).includes(query));
+  }, [sceneItems, search]);
+
   useEffect(() => {
     if (!open) return undefined;
     function onKeyDown(event) {
@@ -85,7 +110,28 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  if (!libraryItems.length) return null;
+  if (!hasItems && !hasScenes) return null;
+
+  async function loadScene(scene) {
+    setStatus(`Loading "${scene.title}"...`);
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "load-scene", sceneId: scene.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load that scene.");
+      setStatus(`Loaded "${payload.title || scene.title}".`);
+      setOpen(false);
+      window.setTimeout(() => window.location.reload(), 120);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  const visibleCount = tab === "items" ? filteredItems.length : filteredScenes.length;
+  const totalCount = tab === "items" ? libraryItems.length : sceneItems.length;
 
   return (
     <>
@@ -109,64 +155,101 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
             <div className="projectorFullLibraryHeader">
               <div>
                 <p className="eyebrow">Projector Library</p>
-                <h2 id="projector-full-library-title">Saved Items</h2>
-                <p>Single reusable items for questions, word walls, images, videos, and announcements.</p>
+                <h2 id="projector-full-library-title">Full Library</h2>
+                <p>Choose a saved item for the composer or load a full scene to every screen.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)}>
                 Close
               </button>
             </div>
 
+            <div className="projectorFullLibraryTabs" role="tablist" aria-label="Projector library sections">
+              <button className={tab === "items" ? "isActive" : ""} type="button" onClick={() => setTab("items")} disabled={!hasItems}>
+                Saved Items <span>{libraryItems.length}</span>
+              </button>
+              <button className={tab === "scenes" ? "isActive" : ""} type="button" onClick={() => setTab("scenes")} disabled={!hasScenes}>
+                Scenes <span>{sceneItems.length}</span>
+              </button>
+            </div>
+
             <div className="projectorFullLibraryControls">
               <label>
                 <span>Search</span>
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search saved items..." />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search saved items or scenes..." />
               </label>
-              <div className="projectorFullLibraryFilters" aria-label="Activity Type Filters">
-                <button className={category === "" ? "isActive" : ""} type="button" onClick={() => setCategory("")}>
-                  All
-                </button>
-                {LIBRARY_CATEGORIES.map((cat) => (
-                  <button
-                    className={category === cat ? "isActive" : ""}
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategory(category === cat ? "" : cat)}
-                  >
-                    {cat}
+              {tab === "items" ? (
+                <div className="projectorFullLibraryFilters" aria-label="Activity Type Filters">
+                  <button className={category === "" ? "isActive" : ""} type="button" onClick={() => setCategory("")}>
+                    All
                   </button>
-                ))}
-              </div>
+                  {LIBRARY_CATEGORIES.map((cat) => (
+                    <button
+                      className={category === cat ? "isActive" : ""}
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategory(category === cat ? "" : cat)}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="projectorFullLibraryHint">Scenes load the whole room setup to all screens.</p>
+              )}
             </div>
 
             <p className="projectorFullLibrarySummary">
-              Showing {filteredItems.length} of {libraryItems.length} saved items
+              Showing {visibleCount} of {totalCount} {tab === "items" ? "saved items" : "scenes"}
             </p>
 
-            <div className="projectorFullLibraryGrid">
-              {filteredItems.length ? (
-                filteredItems.map((item) => (
-                  <article className="projectorFullLibraryCard" key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openSavedItemInComposer(item);
-                        setOpen(false);
-                      }}
-                    >
-                      <span className="projectorFullLibraryThumb">{previewForItem(item)}</span>
-                      <strong>{item.title}</strong>
-                      <em>
-                        {item.category ? `${item.category} · ` : ""}
-                        {itemTypeLabel(item)}
-                      </em>
-                    </button>
-                  </article>
-                ))
-              ) : (
-                <p className="projectorFullLibraryEmpty">No saved items match your search.</p>
-              )}
-            </div>
+            {status ? <p className="projectorFullLibraryStatus">{status}</p> : null}
+
+            {tab === "items" ? (
+              <div className="projectorFullLibraryGrid">
+                {filteredItems.length ? (
+                  filteredItems.map((item) => (
+                    <article className="projectorFullLibraryCard" key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          openSavedItemInComposer(item);
+                          setOpen(false);
+                        }}
+                      >
+                        <span className="projectorFullLibraryThumb">{previewForItem(item)}</span>
+                        <strong>{item.title}</strong>
+                        <em>
+                          {item.category ? `${item.category} · ` : ""}
+                          {itemTypeLabel(item)}
+                        </em>
+                      </button>
+                    </article>
+                  ))
+                ) : (
+                  <p className="projectorFullLibraryEmpty">No saved items match your search.</p>
+                )}
+              </div>
+            ) : (
+              <div className="projectorFullLibraryGrid">
+                {filteredScenes.length ? (
+                  filteredScenes.map((scene) => (
+                    <article className="projectorFullLibraryCard" key={scene.id}>
+                      <button type="button" onClick={() => loadScene(scene)}>
+                        <span className="projectorFullLibrarySceneThumb" aria-hidden="true">
+                          {SCREEN_IDS.map((screenId) => (
+                            <span key={screenId}>{previewForState(scene.screen_states?.[screenId])}</span>
+                          ))}
+                        </span>
+                        <strong>{scene.title}</strong>
+                        <em>{sceneFilledCount(scene)} of 4 screens filled</em>
+                      </button>
+                    </article>
+                  ))
+                ) : (
+                  <p className="projectorFullLibraryEmpty">No scenes match your search.</p>
+                )}
+              </div>
+            )}
           </section>
         </div>
       ) : null}
@@ -202,8 +285,8 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
           width: min(92rem, 100%);
           max-height: min(54rem, calc(100dvh - 2rem));
           display: grid;
-          grid-template-rows: auto auto auto minmax(0, 1fr);
-          gap: 0.9rem;
+          grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+          gap: 0.8rem;
           overflow: hidden;
           border: 2px solid var(--navy);
           border-radius: 16px;
@@ -225,7 +308,9 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
         }
 
         .projectorFullLibraryHeader p:not(.eyebrow),
-        .projectorFullLibrarySummary {
+        .projectorFullLibrarySummary,
+        .projectorFullLibraryHint,
+        .projectorFullLibraryStatus {
           color: #51606d;
           font-weight: 800;
         }
@@ -235,7 +320,8 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
         }
 
         .projectorFullLibraryHeader button,
-        .projectorFullLibraryFilters button {
+        .projectorFullLibraryFilters button,
+        .projectorFullLibraryTabs button {
           border: 2px solid var(--line);
           border-radius: 999px;
           background: #fff;
@@ -245,6 +331,39 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
           font-size: 0.84rem;
           font-weight: 900;
           cursor: pointer;
+        }
+
+        .projectorFullLibraryTabs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.45rem;
+        }
+
+        .projectorFullLibraryTabs button {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .projectorFullLibraryTabs button span {
+          min-width: 1.4rem;
+          border-radius: 999px;
+          background: rgba(147, 165, 180, 0.18);
+          padding: 0.04rem 0.35rem;
+          text-align: center;
+          font-size: 0.75rem;
+        }
+
+        .projectorFullLibraryTabs button.isActive,
+        .projectorFullLibraryFilters button.isActive {
+          border-color: var(--navy);
+          background: var(--navy);
+          color: #fff;
+        }
+
+        .projectorFullLibraryTabs button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
         }
 
         .projectorFullLibraryControls {
@@ -277,16 +396,20 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
           gap: 0.35rem;
         }
 
-        .projectorFullLibraryFilters button.isActive {
-          border-color: var(--navy);
-          background: var(--navy);
-          color: #fff;
-        }
-
-        .projectorFullLibrarySummary {
+        .projectorFullLibrarySummary,
+        .projectorFullLibraryHint,
+        .projectorFullLibraryStatus {
           margin: 0;
           font-size: 0.85rem;
           font-weight: 900;
+        }
+
+        .projectorFullLibraryStatus {
+          border: 2px solid #d3dee7;
+          border-radius: 8px;
+          background: #fff;
+          color: var(--navy);
+          padding: 0.55rem 0.7rem;
         }
 
         .projectorFullLibraryGrid {
@@ -338,22 +461,45 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
           font-weight: 800;
         }
 
-        .projectorFullLibraryThumb {
+        .projectorFullLibraryThumb,
+        .projectorFullLibrarySceneThumb {
           aspect-ratio: 16 / 9;
           display: grid;
-          place-items: center;
           overflow: hidden;
           border-radius: 10px;
           background: #0a0a0a;
           color: #fff;
-          padding: 0.5rem;
           text-align: center;
           font-weight: 900;
           overflow-wrap: anywhere;
           white-space: pre-wrap;
         }
 
-        .projectorFullLibraryThumb img {
+        .projectorFullLibraryThumb {
+          place-items: center;
+          padding: 0.5rem;
+        }
+
+        .projectorFullLibrarySceneThumb {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-rows: repeat(2, minmax(0, 1fr));
+          gap: 2px;
+          padding: 2px;
+        }
+
+        .projectorFullLibrarySceneThumb > span {
+          min-width: 0;
+          min-height: 0;
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+          background: #111;
+          padding: 0.18rem;
+          font-size: 0.74rem;
+        }
+
+        .projectorFullLibraryThumb img,
+        .projectorFullLibrarySceneThumb img {
           width: 100%;
           height: 100%;
           object-fit: contain;
@@ -367,6 +513,13 @@ export default function ProjectorFullLibrary({ libraryItems = [] }) {
           border: 1px solid rgba(255, 255, 255, 0.18);
           border-radius: 6px;
           background: #17212b;
+          text-transform: uppercase;
+        }
+
+        .projectorFullLibraryEmptyCell {
+          color: #5d646b;
+          font-size: 0.65rem;
+          font-weight: 900;
           text-transform: uppercase;
         }
 
