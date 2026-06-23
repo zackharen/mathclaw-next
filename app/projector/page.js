@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import ProjectorClient from "./projector-client";
+import ProjectorFullLibrary from "./projector-full-library";
 
 export const dynamic = "force-dynamic";
 
@@ -156,11 +157,14 @@ export default async function ProjectorPage() {
   const sceneFolders = await loadSceneFolders(supabase, user.id);
 
   return (
-    <ProjectorClient
-      session={session}
-      libraryItems={libraryItems}
-      sceneItems={sceneItems}
-      sceneFolders={sceneFolders}
-    />
+    <>
+      <ProjectorClient
+        session={session}
+        libraryItems={libraryItems}
+        sceneItems={sceneItems}
+        sceneFolders={sceneFolders}
+      />
+      <ProjectorFullLibrary libraryItems={libraryItems} />
+    </>
   );
 }
