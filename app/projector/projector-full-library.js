@@ -47,12 +47,22 @@ function previewForItem(item) {
   return previewForState({ type: item.content_type, content: item.content });
 }
 
+function searchableContentForState(state) {
+  if (!state?.type || state.type === "image" || state.type === "video") return "";
+  return displayContent(state.content);
+}
+
+function searchableContentForItem(item) {
+  if (!item?.content_type || item.content_type === "image" || item.content_type === "video") return "";
+  return displayContent(item.content);
+}
+
 function sceneFilledCount(scene) {
   return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
 }
 
 function sceneSearchText(scene) {
-  const screenText = SCREEN_IDS.map((screenId) => displayContent(scene?.screen_states?.[screenId]?.content)).join(" ");
+  const screenText = SCREEN_IDS.map((screenId) => searchableContentForState(scene?.screen_states?.[screenId])).join(" ");
   return [scene.title, screenText].filter(Boolean).join(" ").toLowerCase();
 }
 
@@ -118,7 +128,7 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
     if (search.trim()) {
       const query = search.trim().toLowerCase();
       items = items.filter((item) =>
-        [item.title, item.category, itemTypeLabel(item), displayContent(item.content)]
+        [item.title, item.category, itemTypeLabel(item), searchableContentForItem(item)]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
