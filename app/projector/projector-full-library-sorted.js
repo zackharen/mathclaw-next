@@ -99,13 +99,12 @@ function SortControl({ sort, onChange }) {
 
 function LibraryPanelLaunchers() {
   useEffect(() => {
-    const connectedButtons = new WeakSet();
     const panels = [
       { ariaLabel: "Saved Room Setups", tabIndex: 1, title: "Scenes" },
       { ariaLabel: "Saved Projector Items", tabIndex: 0, title: "Items" },
     ];
 
-    function connectPanel({ ariaLabel, tabIndex, title }) {
+    function decoratePanel({ ariaLabel, title }) {
       const section = document.querySelector(`section[aria-label="${ariaLabel}"]`);
       const button = section?.querySelector(".projectorPanelToggle");
       if (!button) return;
@@ -124,32 +123,26 @@ function LibraryPanelLaunchers() {
         }
       }
       button.setAttribute("aria-label", `Open ${title}`);
-
-      if (connectedButtons.has(button)) return;
-      connectedButtons.add(button);
-      button.addEventListener(
-        "click",
-        (event) => {
-          if (!event.isTrusted) return;
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          document.querySelector(".projectorFullLibraryLauncher")?.click();
-          window.setTimeout(() => {
-            document.querySelectorAll(".projectorFullLibraryTabs button")[tabIndex]?.click();
-          }, 40);
-        },
-        true
-      );
     }
 
-    function connectPanels() {
-      panels.forEach(connectPanel);
+    function openLibrary(event) {
+      if (!event.isTrusted) return;
+      const button = event.target.closest?.(".projectorPanelToggle");
+      const section = button?.closest?.("section[aria-label]");
+      const panel = panels.find((item) => item.ariaLabel === section?.getAttribute("aria-label"));
+      if (!panel) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      document.querySelector(".projectorFullLibraryLauncher")?.click();
+      window.setTimeout(() => {
+        document.querySelectorAll(".projectorFullLibraryTabs button")[panel.tabIndex]?.click();
+      }, 40);
     }
 
-    connectPanels();
-    const observer = new MutationObserver(connectPanels);
-    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
-    return () => observer.disconnect();
+    panels.forEach(decoratePanel);
+    document.addEventListener("click", openLibrary, true);
+    return () => document.removeEventListener("click", openLibrary, true);
   }, []);
 
   return (
