@@ -63,8 +63,8 @@ function SortControl({ sort, onChange }) {
       <style>{`
         .projectorFullLibrarySort {
           position: fixed;
-          top: max(8.5rem, calc((100dvh - min(54rem, calc(100dvh - 2rem))) / 2 + 8.5rem));
-          right: max(2rem, calc((100vw - min(92rem, calc(100vw - 2rem))) / 2 + 1.4rem));
+          top: max(8.5rem, calc((100dvh - min(54rem, calc(100dvh - 2rem))) * 0.5 + 8.5rem));
+          right: max(2rem, calc((100vw - min(92rem, calc(100vw - 2rem))) * 0.5 + 1.4rem));
           z-index: 50;
           display: grid;
           gap: 0.25rem;
