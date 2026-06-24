@@ -111,7 +111,9 @@ function LibraryPanelLaunchers() {
       if (!button) return;
 
       const heading = button.querySelector("h2");
-      if (heading && heading.textContent !== title) heading.textContent = title;
+      const count = button.querySelector(".projectorPanelCount")?.textContent?.trim();
+      const label = count ? `${title} ${count}` : title;
+      if (heading && heading.textContent !== label) heading.textContent = label;
       button.setAttribute("aria-label", `Open ${title}`);
 
       if (connectedButtons.has(button)) return;
@@ -148,9 +150,10 @@ function LibraryPanelLaunchers() {
       }
       section[aria-label="Saved Room Setups"] .projectorLibraryHeader,
       section[aria-label="Saved Projector Items"] .projectorLibraryHeader {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        display: flex;
         align-items: center;
+        justify-content: center;
+        text-align: center;
       }
       section[aria-label="Saved Room Setups"] .projectorLibraryHeader .eyebrow,
       section[aria-label="Saved Projector Items"] .projectorLibraryHeader .eyebrow,
@@ -160,13 +163,11 @@ function LibraryPanelLaunchers() {
       }
       section[aria-label="Saved Room Setups"] .projectorLibraryHeader > div,
       section[aria-label="Saved Projector Items"] .projectorLibraryHeader > div {
-        grid-column: 1;
+        width: 100%;
       }
       section[aria-label="Saved Room Setups"] .projectorPanelCount,
       section[aria-label="Saved Projector Items"] .projectorPanelCount {
-        grid-column: 2;
-        align-self: center;
-        justify-self: center;
+        display: none;
       }
     `}</style>
   );
