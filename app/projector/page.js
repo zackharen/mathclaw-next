@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import ProjectorClient from "./projector-client";
-import ProjectorFullLibrary from "./projector-full-library";
+import ProjectorFullLibrary from "./projector-full-library-sorted";
 
 export const dynamic = "force-dynamic";
 
