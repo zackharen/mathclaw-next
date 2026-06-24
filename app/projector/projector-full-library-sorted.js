@@ -119,6 +119,7 @@ function LibraryPanelLaunchers() {
       button.addEventListener(
         "click",
         (event) => {
+          if (!event.isTrusted) return;
           event.preventDefault();
           event.stopImmediatePropagation();
           document.querySelector(".projectorFullLibraryLauncher")?.click();
@@ -136,7 +137,7 @@ function LibraryPanelLaunchers() {
 
     connectPanels();
     const observer = new MutationObserver(connectPanels);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
     return () => observer.disconnect();
   }, []);
 
