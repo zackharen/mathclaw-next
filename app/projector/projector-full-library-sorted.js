@@ -97,6 +97,80 @@ function SortControl({ sort, onChange }) {
   );
 }
 
+function LibraryPanelLaunchers() {
+  useEffect(() => {
+    const connectedButtons = new WeakSet();
+    const panels = [
+      { ariaLabel: "Saved Room Setups", tabIndex: 1, title: "Scenes" },
+      { ariaLabel: "Saved Projector Items", tabIndex: 0, title: "Items" },
+    ];
+
+    function connectPanel({ ariaLabel, tabIndex, title }) {
+      const section = document.querySelector(`section[aria-label="${ariaLabel}"]`);
+      const button = section?.querySelector(".projectorPanelToggle");
+      if (!button) return;
+
+      const heading = button.querySelector("h2");
+      if (heading && heading.textContent !== title) heading.textContent = title;
+      button.setAttribute("aria-label", `Open ${title}`);
+
+      if (connectedButtons.has(button)) return;
+      connectedButtons.add(button);
+      button.addEventListener(
+        "click",
+        (event) => {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          document.querySelector(".projectorFullLibraryLauncher")?.click();
+          window.setTimeout(() => {
+            document.querySelectorAll(".projectorFullLibraryTabs button")[tabIndex]?.click();
+          }, 40);
+        },
+        true
+      );
+    }
+
+    function connectPanels() {
+      panels.forEach(connectPanel);
+    }
+
+    connectPanels();
+    const observer = new MutationObserver(connectPanels);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <style>{`
+      .projectorFullLibraryLauncher {
+        display: none !important;
+      }
+      section[aria-label="Saved Room Setups"] .projectorLibraryHeader,
+      section[aria-label="Saved Projector Items"] .projectorLibraryHeader {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+      }
+      section[aria-label="Saved Room Setups"] .projectorLibraryHeader .eyebrow,
+      section[aria-label="Saved Projector Items"] .projectorLibraryHeader .eyebrow,
+      section[aria-label="Saved Room Setups"] .projectorPanelChevron,
+      section[aria-label="Saved Projector Items"] .projectorPanelChevron {
+        display: none;
+      }
+      section[aria-label="Saved Room Setups"] .projectorLibraryHeader > div,
+      section[aria-label="Saved Projector Items"] .projectorLibraryHeader > div {
+        grid-column: 1;
+      }
+      section[aria-label="Saved Room Setups"] .projectorPanelCount,
+      section[aria-label="Saved Projector Items"] .projectorPanelCount {
+        grid-column: 2;
+        align-self: center;
+        justify-self: center;
+      }
+    `}</style>
+  );
+}
+
 export default function ProjectorFullLibrarySorted(props) {
   const [sort, setSort] = useState("newest");
   const sortedLibraryItems = useMemo(
@@ -116,6 +190,7 @@ export default function ProjectorFullLibrarySorted(props) {
         sceneItems={sortedSceneItems}
       />
       <SortControl sort={sort} onChange={setSort} />
+      <LibraryPanelLaunchers />
     </>
   );
 }
