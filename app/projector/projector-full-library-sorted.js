@@ -113,7 +113,15 @@ function LibraryPanelLaunchers() {
       const heading = button.querySelector("h2");
       const count = button.querySelector(".projectorPanelCount")?.textContent?.trim();
       const label = count ? `${title} ${count}` : title;
-      if (heading && heading.textContent !== label) heading.textContent = label;
+      if (heading && heading.textContent !== label) {
+        heading.replaceChildren(document.createTextNode(title));
+        if (count) {
+          const countBadge = document.createElement("span");
+          countBadge.className = "projectorLibraryLaunchCount";
+          countBadge.textContent = count;
+          heading.appendChild(countBadge);
+        }
+      }
       button.setAttribute("aria-label", `Open ${title}`);
 
       if (connectedButtons.has(button)) return;
@@ -164,6 +172,22 @@ function LibraryPanelLaunchers() {
       section[aria-label="Saved Room Setups"] .projectorLibraryHeader > div,
       section[aria-label="Saved Projector Items"] .projectorLibraryHeader > div {
         width: 100%;
+      }
+      section[aria-label="Saved Room Setups"] .projectorLibraryHeader h2,
+      section[aria-label="Saved Projector Items"] .projectorLibraryHeader h2 {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.55rem;
+      }
+      .projectorLibraryLaunchCount {
+        min-width: 2rem;
+        border: 1px solid #93a5b4;
+        border-radius: 999px;
+        background: #fff;
+        padding: 0.15rem 0.5rem;
+        text-align: center;
+        font-weight: 900;
       }
       section[aria-label="Saved Room Setups"] .projectorPanelCount,
       section[aria-label="Saved Projector Items"] .projectorPanelCount {
