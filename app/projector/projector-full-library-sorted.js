@@ -113,7 +113,8 @@ function LibraryPanelLaunchers() {
       const heading = button.querySelector("h2");
       const count = button.querySelector(".projectorPanelCount")?.textContent?.trim();
       const label = count ? `${title} ${count}` : title;
-      if (heading && heading.textContent !== label) {
+      const hasCountBadge = Boolean(heading?.querySelector(".projectorLibraryLaunchCount"));
+      if (heading && (heading.textContent !== label || (count && !hasCountBadge))) {
         heading.replaceChildren(document.createTextNode(title));
         if (count) {
           const countBadge = document.createElement("span");
