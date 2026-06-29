@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "../styles.css";
 
-const SCREEN_IDS = ["1", "2", "3", "4"];
+const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
@@ -308,7 +308,7 @@ export default function ScreenClient({ initialToken = null }) {
     setStatus("connecting");
     setMessage("");
     try {
-      const response = await fetch(`/api/projector?token=${encodeURIComponent(token)}`);
+      const response = await fetch(`/api/projector/rooms?token=${encodeURIComponent(token)}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not connect.");
       setSessionId(payload.sessionId);
@@ -377,7 +377,7 @@ export default function ScreenClient({ initialToken = null }) {
     setStatus("connecting");
     setMessage("");
     try {
-      const response = await fetch("/api/projector", {
+      const response = await fetch("/api/projector/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "resolve", pin, screenNumber }),
