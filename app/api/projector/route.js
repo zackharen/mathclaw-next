@@ -5,7 +5,8 @@ import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-
 
 export const dynamic = "force-dynamic";
 
-const SCREEN_IDS = ["1", "2", "3", "4"];
+const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const DEFAULT_SCREEN_IDS = ["1", "2", "3", "4"];
 const CONTENT_TYPES = new Set(["text", "latex", "image", "video"]);
 const LIBRARY_CATEGORIES = new Set(["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"]);
 const LIBRARY_TITLE_LIMIT = 80;
@@ -28,6 +29,47 @@ function normalizeScreenNumber(value) {
 function normalizeScreenIds(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map(normalizeScreenNumber).filter(Boolean))];
+}
+
+function normalizeRoomSlots(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 12)
+    .map((slot, index) => ({
+      name: String(slot?.name || `Screen ${index + 1}`).trim().replace(/\s+/g, " ").slice(0, 60) || `Screen ${index + 1}`,
+      inputType: ["touch", "keyboard_mouse", "display_only"].includes(slot?.inputType)
+        ? slot.inputType
+        : "display_only",
+    }))
+    .filter((slot, index, slots) => slots.findIndex((item) => item.name.toLowerCase() === slot.name.toLowerCase()) === index);
+}
+
+function roomScreenIds(room) {
+  const slots = normalizeRoomSlots(room?.slots);
+  return slots.length ? slots.map((_, index) => String(index + 1)) : DEFAULT_SCREEN_IDS;
+}
+
+async function getActiveRoom(admin, teacherId) {
+  const { data, error } = await admin
+    .from("projector_room_profiles")
+    .select("id, name, slots, is_default, is_active")
+    .eq("teacher_id", teacherId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return null;
+    throw new Error(error.message);
+  }
+
+  return data || null;
+}
+
+async function getActiveRoomScreenIds(admin, teacherId) {
+  const room = await getActiveRoom(admin, teacherId);
+  return roomScreenIds(room);
 }
 
 function normalizeTopText(type, topText, content = "") {
@@ -217,7 +259,7 @@ async function resolvePin(admin, pin, screenNumber) {
   const safeScreenNumber = normalizeScreenNumber(screenNumber);
 
   if (!/^\d{6}$/.test(safePin)) return jsonError("Enter a 6-digit room PIN.");
-  if (!safeScreenNumber) return jsonError("Choose screen 1, 2, 3, or 4.");
+  if (!safeScreenNumber) return jsonError("Choose a screen number from 1 to 12.");
 
   const { data: session, error } = await admin
     .from("projector_sessions")
@@ -386,7 +428,12 @@ async function renameLibraryItem(admin, teacherId, body) {
 }
 
 async function saveScene(admin, teacherId, session, body) {
-  const screenStates = normalizeSceneStates(session.screen_states);
+  const activeScreenIds = await getActiveRoomScreenIds(admin, teacherId);
+  const normalized = normalizeSceneStates(session.screen_states);
+  const screenStates = activeScreenIds.reduce((states, screenId) => {
+    states[screenId] = normalized[screenId] || null;
+    return states;
+  }, {});
   const serialized = JSON.stringify(screenStates);
   if (serialized.length > SCENE_STATE_LIMIT) {
     return jsonError("That room setup is too large to save. Try smaller images or shorter media URLs.");
@@ -591,7 +638,47 @@ async function loadScene(admin, teacherId, session, body) {
   }
   if (!scene) return jsonError("Saved room setup not found.", 404);
 
-  const screenStates = normalizeSceneStates(scene.screen_states);
+  const rawSceneStates = scene.screen_states && typeof scene.screen_states === "object" ? scene.screen_states : {};
+  const sceneStates = normalizeSceneStates(rawSceneStates);
+  const sceneScreenIds = Object.keys(rawSceneStates)
+    .filter((screenId) => SCREEN_IDS.includes(screenId))
+    .sort((left, right) => Number(left) - Number(right));
+  const activeScreenIds = await getActiveRoomScreenIds(admin, teacherId);
+  let screenStates = {};
+
+  if (sceneScreenIds.length > activeScreenIds.length) {
+    const assignments = body.assignments && typeof body.assignments === "object" ? body.assignments : null;
+    if (!assignments) {
+      return NextResponse.json(
+        {
+          error: "This scene has more saved screens than the active Room. Choose which scene items should go to your available screens.",
+          needsAssignment: true,
+          sceneScreens: sceneScreenIds.map((screenId) => ({ screenId, state: sceneStates[screenId] || null })),
+          roomScreens: activeScreenIds,
+        },
+        { status: 409 }
+      );
+    }
+
+    const usedRoomScreens = new Set();
+    for (const [sceneScreenId, roomScreenId] of Object.entries(assignments)) {
+      const safeSceneScreenId = normalizeScreenNumber(sceneScreenId);
+      const safeRoomScreenId = activeScreenIds.includes(String(roomScreenId)) ? String(roomScreenId) : null;
+      if (!safeSceneScreenId || !safeRoomScreenId || usedRoomScreens.has(safeRoomScreenId)) continue;
+      screenStates[safeRoomScreenId] = sceneStates[safeSceneScreenId] || null;
+      usedRoomScreens.add(safeRoomScreenId);
+    }
+
+    activeScreenIds.forEach((screenId) => {
+      if (!usedRoomScreens.has(screenId)) screenStates[screenId] = null;
+    });
+  } else {
+    screenStates = activeScreenIds.reduce((states, screenId, index) => {
+      const sourceScreenId = sceneScreenIds[index % Math.max(sceneScreenIds.length, 1)];
+      states[screenId] = sourceScreenId ? sceneStates[sourceScreenId] || null : null;
+      return states;
+    }, {});
+  }
   const { error: updateError } = await admin
     .from("projector_sessions")
     .update({ screen_states: screenStates, updated_at: new Date().toISOString() })
@@ -603,7 +690,7 @@ async function loadScene(admin, teacherId, session, body) {
   await broadcastScreenUpdates(
     admin,
     session.id,
-    SCREEN_IDS.map((screenId) => buildBroadcastPayload(screenId, screenStates[screenId]))
+    activeScreenIds.map((screenId) => buildBroadcastPayload(screenId, screenStates[screenId]))
   );
 
   return NextResponse.json({ ok: true, title: scene.title, screenStates });
@@ -700,7 +787,7 @@ export async function POST(request) {
 
   if (body?.action === "reveal-answer") {
     const screenId = normalizeScreenNumber(body.screenId);
-    if (!screenId) return jsonError("Choose screen 1, 2, 3, or 4.");
+    if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
     const current = context.session.screen_states && typeof context.session.screen_states === "object"
       ? context.session.screen_states
       : {};
@@ -726,23 +813,18 @@ export async function POST(request) {
   }
 
   if (body?.action === "rotate-screens") {
+    const activeScreenIds = await getActiveRoomScreenIds(admin, context.user.id);
     const current = context.session.screen_states && typeof context.session.screen_states === "object"
       ? context.session.screen_states
       : {};
     const rotateBackward = body.direction === "backward";
-    const rotated = rotateBackward
-      ? {
-          "1": current["2"] || null,
-          "2": current["3"] || null,
-          "3": current["4"] || null,
-          "4": current["1"] || null,
-        }
-      : {
-          "1": current["4"] || null,
-          "2": current["1"] || null,
-          "3": current["2"] || null,
-          "4": current["3"] || null,
-        };
+    const rotated = { ...current };
+    activeScreenIds.forEach((screenId, index) => {
+      const sourceIndex = rotateBackward
+        ? (index + 1) % activeScreenIds.length
+        : (index - 1 + activeScreenIds.length) % activeScreenIds.length;
+      rotated[screenId] = current[activeScreenIds[sourceIndex]] || null;
+    });
     const { error } = await admin
       .from("projector_sessions")
       .update({ screen_states: rotated, updated_at: new Date().toISOString() })
@@ -752,7 +834,7 @@ export async function POST(request) {
     await broadcastScreenUpdates(
       admin,
       context.session.id,
-      SCREEN_IDS.map((screenId) => buildBroadcastPayload(screenId, rotated[screenId]))
+      activeScreenIds.map((screenId) => buildBroadcastPayload(screenId, rotated[screenId]))
     );
     return NextResponse.json({ screenStates: rotated });
   }
@@ -802,7 +884,7 @@ export async function DELETE(request) {
   if (context.error) return context.error;
 
   const screenId = normalizeScreenNumber(body.screenId);
-  if (!screenId) return jsonError("Choose screen 1, 2, 3, or 4.");
+  if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
 
   const nextStates = {
     ...(context.session.screen_states && typeof context.session.screen_states === "object"

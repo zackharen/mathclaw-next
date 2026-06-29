@@ -3,7 +3,7 @@ import ScreenClient from "../../screen-client";
 
 export const dynamic = "force-dynamic";
 
-const SCREEN_IDS = ["1", "2", "3", "4"];
+const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 
 export default async function ProjectorScreenPinPage({ params }) {
   const { pin, screenNumber } = await params;
