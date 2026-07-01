@@ -10,6 +10,22 @@ const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 
+// Capability -> controls matrix, keyed by the screen's inputType.
+// THIS is the extension point where future per-screen student tools
+// (future #10 calculators, future #11 stylus/drawing) register and gate
+// themselves by capability. `interactive:false` receivers render no student
+// tools (display-only); touch / keyboard_mouse screens may. Today the tool set
+// is empty, so `interactive` only wires the gate — it renders no controls yet.
+const SCREEN_TOOLS = {
+  display_only: { interactive: false },
+  touch: { interactive: true },
+  keyboard_mouse: { interactive: true },
+};
+
+function toolsForInputType(inputType) {
+  return SCREEN_TOOLS[inputType] || SCREEN_TOOLS.display_only;
+}
+
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
     const link = document.createElement("link");
@@ -289,6 +305,8 @@ export default function ScreenClient({ initialToken = null }) {
   const [pin, setPin] = useState("");
   const [screenNumber, setScreenNumber] = useState("1");
   const [sessionId, setSessionId] = useState("");
+  const [screenName, setScreenName] = useState("");
+  const [inputType, setInputType] = useState("display_only");
   const [state, setState] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
@@ -313,6 +331,8 @@ export default function ScreenClient({ initialToken = null }) {
       if (!response.ok) throw new Error(payload.error || "Could not connect.");
       setSessionId(payload.sessionId);
       setScreenNumber(String(payload.screenNumber || "1"));
+      setScreenName(payload.screenName || `Screen ${payload.screenNumber || 1}`);
+      setInputType(payload.inputType || "display_only");
       setState(payload.state || null);
       setStatus("connected");
     } catch (error) {
@@ -447,17 +467,28 @@ export default function ScreenClient({ initialToken = null }) {
     );
   }
 
+  const tools = toolsForInputType(inputType);
+
   return (
     <main
-      className={`projectorScreenStage ${
+      className={`projectorScreenStage inputType-${inputType} ${
         state?.type === "image" || state?.type === "video" ? "hasMedia" : ""
       }`}
+      data-input-type={inputType}
     >
       <div className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
+      {/* Fullscreen is display setup, not a student tool, so it stays available on every profile. */}
       <button className="projectorFullscreenButton" type="button" onClick={toggleFullscreen}>
         {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
       </button>
+      {screenName ? <div className="projectorScreenProfileBadge">{screenName}</div> : null}
       <ScreenContent state={state} />
+      {tools.interactive ? (
+        // Interactive-capable screens (touch / keyboard_mouse) mount their student
+        // tools here. The tool set is empty today; future per-screen tools register
+        // in SCREEN_TOOLS above and render inside this gate.
+        <div className="projectorScreenTools" data-interactive="true" aria-hidden="true" />
+      ) : null}
       {message ? <div className="projectorScreenError">{message}</div> : null}
     </main>
   );

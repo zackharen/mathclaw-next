@@ -445,6 +445,8 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
   const [sending, setSending] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
   const [savingScene, setSavingScene] = useState(false);
+  const [assignmentPrompt, setAssignmentPrompt] = useState(null);
+  const [assignments, setAssignments] = useState({});
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
   const latexTextareaRef = useRef(null);
@@ -859,10 +861,70 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
         body: JSON.stringify({ action: "load-scene", sceneId: scene.id }),
       });
       const payload = await response.json();
+      // The scene has more screens than the active Room: the server returns
+      // needsAssignment (HTTP 409) instead of loading. Open the chooser BEFORE
+      // the ok/throw check so the non-ok status does not surface as an error.
+      if (payload.needsAssignment) {
+        setAssignmentPrompt({
+          sceneId: scene.id,
+          title: scene.title,
+          sceneScreens: Array.isArray(payload.sceneScreens) ? payload.sceneScreens : [],
+          roomScreens: Array.isArray(payload.roomScreens) ? payload.roomScreens : [],
+        });
+        setAssignments({});
+        setMessage(`"${scene.title}" has more screens than your active Room. Choose where each item should go.`);
+        return;
+      }
       if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
 
       setScreenStates(payload.screenStates || scene.screen_states || {});
       setMessage(`Loaded "${payload.title || scene.title}" to all screens.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  function assignSceneScreen(sceneScreenId, roomScreenId) {
+    setAssignments((current) => {
+      const next = { ...current };
+      if (!roomScreenId) {
+        delete next[sceneScreenId];
+        return next;
+      }
+      // A room screen can only receive one scene item — clear any other scene
+      // screen already pointing at it so the UI never offers a duplicate.
+      for (const key of Object.keys(next)) {
+        if (next[key] === roomScreenId) delete next[key];
+      }
+      next[sceneScreenId] = roomScreenId;
+      return next;
+    });
+  }
+
+  function cancelAssignment() {
+    setAssignmentPrompt(null);
+    setAssignments({});
+  }
+
+  async function confirmAssignment() {
+    if (!assignmentPrompt) return;
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "load-scene", sceneId: assignmentPrompt.sceneId, assignments }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
+
+      setScreenStates(payload.screenStates || {});
+      setMessage(`Loaded "${payload.title || assignmentPrompt.title}" to all screens.`);
+      setAssignmentPrompt(null);
+      setAssignments({});
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1145,6 +1207,91 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
 
   return (
     <div className="projectorDashboard">
+      {assignmentPrompt ? (
+        <div
+          className="projectorAssignmentOverlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingScene) cancelAssignment();
+          }}
+        >
+          <section
+            className="projectorAssignmentModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="projector-assignment-title"
+          >
+            <div className="projectorAssignmentHeader">
+              <div>
+                <p className="eyebrow">Assign Scene Screens</p>
+                <h2 id="projector-assignment-title">{assignmentPrompt.title}</h2>
+                <p className="projectorAssignmentHint">
+                  This scene has more saved screens than your active Room. Choose which room screen shows
+                  each item. Items left on “Skip” are not shown.
+                </p>
+              </div>
+              <button
+                className="projectorAssignmentClose"
+                type="button"
+                onClick={cancelAssignment}
+                disabled={savingScene}
+                aria-label="Close assignment chooser"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="projectorAssignmentList">
+              {assignmentPrompt.sceneScreens.map((sceneScreen) => {
+                const takenElsewhere = new Set(
+                  Object.entries(assignments)
+                    .filter(([key]) => key !== sceneScreen.screenId)
+                    .map(([, value]) => value)
+                );
+                const selected = assignments[sceneScreen.screenId] || "";
+                return (
+                  <article className="projectorAssignmentItem" key={sceneScreen.screenId}>
+                    <span className="projectorAssignmentThumb" aria-hidden="true">
+                      {renderContent(sceneScreen.state, true)}
+                    </span>
+                    <div className="projectorAssignmentItemBody">
+                      <strong>Scene Screen {sceneScreen.screenId}</strong>
+                      <label>
+                        <span>Show on</span>
+                        <select
+                          value={selected}
+                          onChange={(event) => assignSceneScreen(sceneScreen.screenId, event.target.value)}
+                          disabled={savingScene}
+                        >
+                          <option value="">Skip this item</option>
+                          {assignmentPrompt.roomScreens.map((roomScreenId) => (
+                            <option
+                              key={roomScreenId}
+                              value={roomScreenId}
+                              disabled={takenElsewhere.has(roomScreenId)}
+                            >
+                              Screen {roomScreenId}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="projectorAssignmentFooter">
+              <button className="btn secondary" type="button" onClick={cancelAssignment} disabled={savingScene}>
+                Cancel
+              </button>
+              <button className="btn" type="button" onClick={confirmAssignment} disabled={savingScene}>
+                Load Assigned Screens
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <section className="projectorHeader">
         <div>
           <p className="eyebrow">Projector Party</p>

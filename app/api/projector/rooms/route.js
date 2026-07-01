@@ -399,10 +399,15 @@ export async function GET(request) {
       if (!roomScreenIds(activeRoom).includes(screenNumber)) {
         return jsonError("That screen is not part of the active Room.", 404);
       }
+      // Resolve this screen's profile from the active Room's slots (index = screenNumber - 1)
+      // so the receiver can learn its capability. Fall back for old sessions / missing slots.
+      const slot = normalizeSlots(activeRoom?.slots)[Number(screenNumber) - 1] || null;
       return NextResponse.json({
         sessionId: session.id,
         screenNumber,
         state: session.screen_states?.[screenNumber] || null,
+        screenName: slot?.name || `Screen ${screenNumber}`,
+        inputType: INPUT_TYPES.has(slot?.inputType) ? slot.inputType : "display_only",
       });
     } catch (error) {
       return jsonError(error.message || "Could not load projector screen.", 500);

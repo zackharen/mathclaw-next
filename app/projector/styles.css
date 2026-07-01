@@ -1435,3 +1435,160 @@ body:has(.projectorScreenStage) .gameReadyBanner {
     padding: 0;
   }
 }
+
+/* Scene -> Room assignment chooser (Change #1) */
+.projectorAssignmentOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  overflow: auto;
+  background: rgba(8, 18, 28, 0.58);
+  padding: clamp(0.75rem, 2vw, 2rem);
+}
+
+.projectorAssignmentModal {
+  width: min(46rem, 100%);
+  display: grid;
+  gap: 1rem;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  background: #f7fafc;
+  padding: clamp(1rem, 2.4vw, 1.6rem);
+}
+
+.projectorAssignmentHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.projectorAssignmentHeader h2 {
+  margin: 0.15rem 0 0;
+  color: var(--navy);
+}
+
+.projectorAssignmentHint {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  color: #33475b;
+}
+
+.projectorAssignmentClose {
+  flex: none;
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--navy);
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.projectorAssignmentClose:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.projectorAssignmentList {
+  display: grid;
+  gap: 0.7rem;
+  max-height: min(60vh, 32rem);
+  overflow: auto;
+}
+
+.projectorAssignmentItem {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  border: 2px solid var(--navy);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.7rem 0.85rem;
+}
+
+.projectorAssignmentThumb {
+  flex: none;
+  width: 6rem;
+  height: 3.75rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(8, 18, 28, 0.2);
+  border-radius: 8px;
+  background: #eef3f8;
+  font-size: 0.7rem;
+}
+
+.projectorAssignmentThumb > * {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.projectorAssignmentItemBody {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.projectorAssignmentItemBody strong {
+  color: var(--navy);
+}
+
+.projectorAssignmentItemBody label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #33475b;
+}
+
+.projectorAssignmentItemBody select {
+  flex: 1;
+  border: 2px solid var(--navy);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  font-weight: 600;
+  color: var(--navy);
+  background: #fff;
+}
+
+.projectorAssignmentFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+/* Screen receiver capability hooks + profile-name badge (Change #2) */
+.projectorScreenProfileBadge {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 2px solid var(--navy);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--navy);
+  font-weight: 700;
+  font-size: clamp(0.8rem, 1.6vw, 1rem);
+  letter-spacing: 0.01em;
+}
+
+.projectorScreenStage[data-input-type="display_only"] .projectorScreenProfileBadge {
+  opacity: 0.85;
+}
+
+.projectorScreenTools {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  display: flex;
+  gap: 0.5rem;
+}
