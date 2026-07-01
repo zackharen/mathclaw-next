@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import "./styles.css";
 
-const SCREEN_IDS = ["1", "2", "3", "4"];
+const ALL_SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const DEFAULT_SCREEN_IDS = ["1", "2", "3", "4"];
 const LIBRARY_CATEGORIES = ["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"];
 const MATHCLAW_ORIGIN = "https://mathclaw.com";
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
@@ -341,6 +342,15 @@ function renderContent(state, compact = false, options = {}) {
   );
 }
 
+function normalizeRoomSlots(slots) {
+  return Array.isArray(slots) && slots.length ? slots.slice(0, 12) : null;
+}
+
+function screenIdsForRoom(room) {
+  const slots = normalizeRoomSlots(room?.slots);
+  return slots ? slots.map((_, index) => String(index + 1)) : DEFAULT_SCREEN_IDS;
+}
+
 function libraryTypeLabel(item) {
   if (item?.category === "Questions" && parseQuestionContent(item.content)) return "Question";
   const type = item?.content_type || item?.type || "";
@@ -367,8 +377,8 @@ async function readJsonResponse(response, fallbackMessage) {
   };
 }
 
-function sceneFilledCount(scene) {
-  return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
+function sceneFilledCount(scene, screenIds) {
+  return screenIds.filter((screenId) => scene?.screen_states?.[screenId]).length;
 }
 
 function sceneFolderLabel(scene, folders) {
@@ -397,8 +407,9 @@ function SidebarPanel({ ariaLabel, children, className = "", count, eyebrow, onT
   );
 }
 
-export default function ProjectorClient({ session, libraryItems = [], sceneItems = [], sceneFolders = [] }) {
+export default function ProjectorClient({ activeRoom: initialActiveRoom = null, session, libraryItems = [], sceneItems = [], sceneFolders = [] }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
+  const [activeRoom, setActiveRoom] = useState(initialActiveRoom);
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
   const [folders, setFolders] = useState(sceneFolders);
@@ -440,7 +451,8 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   const imageDragDepthRef = useRef(0);
 
   const screenTokens = session.screen_tokens || {};
-  const targetScreenIds = useMemo(() => (target === "all" ? SCREEN_IDS : [target]), [target]);
+  const activeScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
+  const targetScreenIds = useMemo(() => (target === "all" ? activeScreenIds : [target]), [activeScreenIds, target]);
   const sortedFolders = useMemo(
     () =>
       [...folders].sort((left, right) =>
@@ -491,12 +503,25 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
   }, []);
 
   useEffect(() => {
+    function updateActiveRoom(event) {
+      if (event.detail?.room) setActiveRoom(event.detail.room);
+    }
+
+    window.addEventListener("projector:active-room-changed", updateActiveRoom);
+    return () => window.removeEventListener("projector:active-room-changed", updateActiveRoom);
+  }, []);
+
+  useEffect(() => {
+    if (target !== "all" && !activeScreenIds.includes(target)) setTarget("all");
+  }, [activeScreenIds, target]);
+
+  useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel(`projector-session-${session.id}`)
       .on("broadcast", { event: "screen-updated" }, ({ payload }) => {
         const screenId = String(payload?.screenId || "");
-        if (!SCREEN_IDS.includes(screenId)) return;
+        if (!ALL_SCREEN_IDS.includes(screenId)) return;
         if (payload?.refetch) {
           refetchScreenState(screenId);
           return;
@@ -1134,7 +1159,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
       <div className="projectorLayout">
         <div className="projectorGridColumn">
           <section className="projectorGrid" aria-label="Projector screens">
-            {SCREEN_IDS.map((screenId) => (
+            {activeScreenIds.map((screenId) => (
               <article className="projectorScreenCard" key={screenId}>
                 <div className="projectorScreenCardHeader">
                   <div className="projectorScreenTitleRow">
@@ -1200,7 +1225,7 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                 >
                   All
                 </button>
-                {SCREEN_IDS.map((screenId) => (
+                {activeScreenIds.map((screenId) => (
                   <button
                     className={target === screenId ? "isActive" : ""}
                     key={screenId}
@@ -1505,10 +1530,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                             <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
                               <span>
                                 <strong>{scene.title}</strong>
-                                <em>{sceneFilledCount(scene)} Of 4 Screens Filled</em>
+                                <em>{sceneFilledCount(scene, activeScreenIds)} Of {activeScreenIds.length} Screens Filled</em>
                               </span>
                               <span className="projectorSceneThumb" aria-hidden="true">
-                                {SCREEN_IDS.map((screenId) => (
+                                {activeScreenIds.map((screenId) => (
                                   <span key={screenId}>{renderContent(scene.screen_states?.[screenId], true)}</span>
                                 ))}
                               </span>
@@ -1583,10 +1608,10 @@ export default function ProjectorClient({ session, libraryItems = [], sceneItems
                             <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
                               <span>
                                 <strong>{scene.title}</strong>
-                                <em>{sceneFilledCount(scene)} Of 4 Screens Filled</em>
+                                <em>{sceneFilledCount(scene, activeScreenIds)} Of {activeScreenIds.length} Screens Filled</em>
                               </span>
                               <span className="projectorSceneThumb" aria-hidden="true">
-                                {SCREEN_IDS.map((screenId) => (
+                                {activeScreenIds.map((screenId) => (
                                   <span key={screenId}>{renderContent(scene.screen_states?.[screenId], true)}</span>
                                 ))}
                               </span>

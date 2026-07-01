@@ -249,6 +249,7 @@ export default async function ProjectorPage() {
   return (
     <>
       <ProjectorClient
+        activeRoom={activeRoom}
         session={session}
         libraryItems={libraryItems}
         sceneItems={sceneItems}

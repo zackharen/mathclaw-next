@@ -36,6 +36,11 @@ function inputTypeLabel(value) {
   return INPUT_TYPES.find((type) => type.value === value)?.label || "Display Only";
 }
 
+function notifyActiveRoomChanged(room) {
+  if (!room) return;
+  window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room } }));
+}
+
 export default function ProjectorRoomsManager({ session, initialActiveRoom = null, initialRooms = [] }) {
   const [rooms, setRooms] = useState(initialRooms.length ? initialRooms : [defaultRoom()]);
   const [activeRoomId, setActiveRoomId] = useState(initialActiveRoom?.id || rooms.find((room) => room.is_active)?.id || "default");
@@ -83,6 +88,8 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
     if (!response.ok) throw new Error(payload.error || "Could not load Rooms.");
     setRooms(payload.rooms || [defaultRoom()]);
     setActiveRoomId(payload.activeRoom?.id || payload.rooms?.find((room) => room.is_active)?.id || "default");
+    notifyActiveRoomChanged(payload.activeRoom);
+    return payload;
   }
 
   async function postRoom(body) {
@@ -135,13 +142,17 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       name: draftName,
       slots: draftSlots,
     });
-    if (payload?.room) setStatus(`Saved "${payload.room.name}".`);
+    if (payload?.room) {
+      if (payload.room.id === activeRoom.id) notifyActiveRoomChanged(payload.room);
+      setStatus(`Saved "${payload.room.name}".`);
+    }
   }
 
   async function activateRoom(roomId = selectedRoom.id) {
     const payload = await postRoom({ action: "set-active-room", roomId });
     if (payload?.room) {
       setActiveRoomId(payload.room.id);
+      notifyActiveRoomChanged(payload.room);
       setStatus(`Active Room: ${payload.room.name}.`);
     }
   }
