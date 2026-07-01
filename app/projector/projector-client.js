@@ -1285,7 +1285,12 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
               <button className="btn secondary" type="button" onClick={cancelAssignment} disabled={savingScene}>
                 Cancel
               </button>
-              <button className="btn" type="button" onClick={confirmAssignment} disabled={savingScene}>
+              <button
+                className="btn"
+                type="button"
+                onClick={confirmAssignment}
+                disabled={savingScene || Object.keys(assignments).length === 0}
+              >
                 Load Assigned Screens
               </button>
             </div>
