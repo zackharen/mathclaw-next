@@ -195,6 +195,11 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
           <p className="projectorRoomsActive">Active: {activeRoom.name}</p>
         </div>
       </button>
+      <style>{`
+        .projectorRoomsLauncher .projectorLibraryHeader { justify-content: center; text-align: center; }
+        .projectorRoomsLauncherSummary { display: grid; justify-items: center; gap: 0.2rem; width: 100%; }
+        .projectorRoomsLauncherSummary h2 { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; margin: 0; }
+      `}</style>
     </section>
   );
 
@@ -330,9 +335,6 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         .projectorRoomSlot > strong { align-self: center; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--navy); color: #fff; }
         .projectorRoomSlotActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
         .projectorRoomSlotActions button:disabled, .projectorRoomsEditorActions button:disabled { cursor: not-allowed; opacity: 0.45; }
-        .projectorRoomsLauncher .projectorLibraryHeader { justify-content: center; text-align: center; }
-        .projectorRoomsLauncherSummary { display: grid; justify-items: center; gap: 0.2rem; width: 100%; }
-        .projectorRoomsLauncherSummary h2 { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; margin: 0; }
         .projectorRoomsActive { margin: 0.2rem 0 0; color: #51606d; font-size: 0.78rem; font-weight: 900; }
         .projectorRoomsActivePreview { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem; }
         .projectorRoomsActivePreview button { border: 1px solid #c8d6df; border-radius: 8px; background: #f7fafc; color: var(--navy); padding: 0.45rem 0.55rem; text-align: left; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
