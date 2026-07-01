@@ -1217,24 +1217,28 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
             title="Screen Selection"
           >
             <div className="projectorTargetPicker" aria-label="Screen Selection">
+              <button
+                className={`projectorTargetAll${target === "all" ? " isActive" : ""}`}
+                type="button"
+                onClick={() => setTarget("all")}
+              >
+                All
+              </button>
               <div className="projectorTargetButtons">
-                <button
-                  className={target === "all" ? "isActive" : ""}
-                  type="button"
-                  onClick={() => setTarget("all")}
-                >
-                  All
-                </button>
-                {activeScreenIds.map((screenId) => (
-                  <button
-                    className={target === screenId ? "isActive" : ""}
-                    key={screenId}
-                    type="button"
-                    onClick={() => setTarget(screenId)}
-                  >
-                    {screenId}
-                  </button>
-                ))}
+                {ALL_SCREEN_IDS.map((screenId) => {
+                  const available = activeScreenIds.includes(screenId);
+                  return (
+                    <button
+                      className={target === screenId ? "isActive" : ""}
+                      key={screenId}
+                      type="button"
+                      disabled={!available}
+                      onClick={() => setTarget(screenId)}
+                    >
+                      {screenId}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="projectorTabs" role="tablist" aria-label="Content Type">

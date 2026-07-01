@@ -58,7 +58,7 @@
 
 .projectorGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -840,9 +840,26 @@
   font-weight: 900;
 }
 
+.projectorTargetAll {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fa;
+  color: var(--navy);
+  padding: 0.7rem 0.35rem;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorTargetAll.isActive {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
 .projectorTargetButtons {
   display: grid;
-  grid-template-columns: 1.25fr repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   border: 2px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -852,6 +869,7 @@
   min-width: 0;
   border: 0;
   border-right: 1px solid var(--line);
+  border-top: 1px solid var(--line);
   background: #f5f8fa;
   color: var(--navy);
   padding: 0.7rem 0.35rem;
@@ -860,13 +878,23 @@
   cursor: pointer;
 }
 
-.projectorTargetButtons button:last-child {
+.projectorTargetButtons button:nth-child(-n + 6) {
+  border-top: 0;
+}
+
+.projectorTargetButtons button:nth-child(6n) {
   border-right: 0;
 }
 
 .projectorTargetButtons button.isActive {
   background: var(--navy);
   color: #fff;
+}
+
+.projectorTargetButtons button:disabled {
+  background: #eef2f4;
+  color: #b8c4cc;
+  cursor: not-allowed;
 }
 
 .projectorDashboard .field,
