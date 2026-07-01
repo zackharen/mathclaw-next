@@ -315,22 +315,22 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         {status ? <p className="projectorRoomsStatus">{status}</p> : null}
       </section>
       <style>{`
-        .projectorRoomsOverlay { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(8, 18, 28, 0.58); padding: clamp(0.75rem, 2vw, 2rem); }
-        .projectorRoomsModal { width: min(76rem, 100%); max-height: min(54rem, calc(100dvh - 2rem)); display: grid; gap: 0.85rem; overflow: hidden; border: 2px solid var(--navy); border-radius: 12px; background: #f7fafc; padding: clamp(1rem, 2vw, 1.4rem); }
+        .projectorRoomsOverlay { position: fixed; inset: 0; z-index: 45; display: grid; align-items: start; justify-items: center; overflow: auto; background: rgba(8, 18, 28, 0.58); padding: clamp(0.75rem, 2vw, 2rem); }
+        .projectorRoomsModal { width: min(76rem, 100%); display: grid; gap: 0.85rem; border: 2px solid var(--navy); border-radius: 12px; background: #f7fafc; padding: clamp(1rem, 2vw, 1.4rem); }
         .projectorRoomsHeader, .projectorRoomsEditorHeader, .projectorRoomsFooter { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
         .projectorRoomsHeader h2, .projectorRoomsHeader p, .projectorRoomsFooter p, .projectorRoomsStatus { margin: 0; }
         .projectorRoomsHeader button, .projectorRoomSlotActions button, .projectorRoomsList button { border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy); padding: 0.45rem 0.65rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
-        .projectorRoomsBody { min-height: 0; display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 1rem; overflow: hidden; }
+        .projectorRoomsBody { display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 1rem; align-items: start; }
         .projectorRoomsList, .projectorRoomsEditor, .projectorRoomSlots, .projectorRoomsNew, .projectorRoomsActivePreview { display: grid; gap: 0.65rem; min-width: 0; }
         .projectorRoomsList { align-content: start; overflow: auto; }
         .projectorRoomsList button { text-align: left; }
         .projectorRoomsList button.isActive { border-color: var(--navy); background: var(--navy); color: #fff; }
         .projectorRoomsList strong, .projectorRoomsList span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .projectorRoomsNew { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem; }
-        .projectorRoomsEditor { min-height: 0; overflow: hidden; }
+        .projectorRoomsEditor { min-height: 0; }
         .projectorRoomsEditorHeader { align-items: end; }
         .projectorRoomsEditorActions { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: flex-end; }
-        .projectorRoomSlots { overflow: auto; padding-right: 0.25rem; }
+        .projectorRoomSlots { padding-right: 0.25rem; }
         .projectorRoomSlot { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 12rem); gap: 0.6rem; align-items: end; border: 2px solid var(--line); border-radius: 8px; background: #fff; padding: 0.7rem; }
         .projectorRoomSlot > strong { align-self: center; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--navy); color: #fff; }
         .projectorRoomSlotActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
