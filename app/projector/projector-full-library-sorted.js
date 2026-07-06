@@ -38,14 +38,12 @@ function SortControl({ sort, onChange }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
 
   useEffect(() => {
-    function updateVisibility() {
-      setLibraryOpen(Boolean(document.querySelector(".projectorFullLibraryModal")));
+    function updateVisibility(event) {
+      setLibraryOpen(Boolean(event.detail?.open));
     }
 
-    updateVisibility();
-    const observer = new MutationObserver(updateVisibility);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    window.addEventListener("projector:full-library-open", updateVisibility);
+    return () => window.removeEventListener("projector:full-library-open", updateVisibility);
   }, []);
 
   if (!libraryOpen) return null;

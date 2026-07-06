@@ -1564,6 +1564,141 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   gap: 0.6rem;
 }
 
+.projectorPlaylistOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 18, 28, 0.58);
+  padding: clamp(0.75rem, 2vw, 2rem);
+}
+
+.projectorPlaylistTargetModal {
+  width: min(40rem, 100%);
+  display: grid;
+  gap: 0.9rem;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  background: #f7fafc;
+  padding: clamp(1rem, 2vw, 1.4rem);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+
+.projectorPlaylistTargetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.55rem;
+}
+
+.projectorPlaylistTargetGrid button,
+.projectorPlaylistTransport button {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--navy);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorPlaylistTargetGrid button.isActive,
+.projectorPlaylistTransport button.isActive {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.projectorPlaylistDock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.8rem;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(8, 18, 28, 0.12);
+  padding: 0.75rem 0.9rem;
+}
+
+.projectorPlaylistDock h2,
+.projectorPlaylistDock p {
+  margin: 0;
+}
+
+.projectorPlaylistDock span {
+  display: block;
+  color: #51606d;
+  font-size: 0.84rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectorPlaylistDock.is-paused,
+.projectorPlaylistDock.is-finished {
+  border-color: #f59e0b;
+  background: #fff7ed;
+}
+
+.projectorPlaylistCountdown {
+  min-width: 4.5rem;
+  border: 2px solid #d3dee7;
+  border-radius: 10px;
+  background: #f7fafc;
+  color: var(--navy);
+  padding: 0.55rem 0.75rem;
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 1000;
+  text-transform: capitalize;
+}
+
+.projectorPlaylistTransport {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.projectorPlaylistTransport button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.projectorPlaylistsLauncher .projectorLibraryHeader {
+  justify-content: center;
+  text-align: center;
+}
+
+.projectorPlaylistsLauncherSummary {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  width: 100%;
+}
+
+.projectorPlaylistsLauncherSummary h2 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .projectorPlaylistDock {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorPlaylistTransport {
+    justify-content: flex-start;
+  }
+}
+
 /* Screen receiver capability hooks + profile-name badge (Change #2) */
 .projectorScreenProfileBadge {
   position: fixed;

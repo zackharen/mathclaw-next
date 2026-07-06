@@ -364,6 +364,45 @@ function toLibraryState(item) {
   };
 }
 
+function playlistEntryLabel(entry, library, scenes) {
+  if (entry?.type === "item") {
+    return library.find((item) => item.id === entry.refId)?.title || "Saved Item";
+  }
+  if (entry?.type === "scene") {
+    return scenes.find((scene) => scene.id === entry.refId)?.title || "Scene";
+  }
+  return "Entry";
+}
+
+function playlistEntryMeta(entry, library, scenes) {
+  if (entry?.type === "item") {
+    const item = library.find((candidate) => candidate.id === entry.refId);
+    return item ? libraryTypeLabel(item) : "Missing Item";
+  }
+  if (entry?.type === "scene") {
+    const scene = scenes.find((candidate) => candidate.id === entry.refId);
+    return scene ? "Scene" : "Missing Scene";
+  }
+  return "Entry";
+}
+
+function sceneSavedScreenIds(scene) {
+  const source = scene?.screen_states && typeof scene.screen_states === "object" ? scene.screen_states : {};
+  return Object.keys(source)
+    .filter((screenId) => ALL_SCREEN_IDS.includes(screenId))
+    .sort((left, right) => Number(left) - Number(right));
+}
+
+function normalizePlaylistEntries(entries) {
+  return Array.isArray(entries)
+    ? entries.map((entry) => ({
+        type: entry?.type === "scene" ? "scene" : "item",
+        refId: String(entry?.refId || ""),
+        durationSeconds: Math.max(Number.parseInt(entry?.durationSeconds, 10) || 60, 5),
+      }))
+    : [];
+}
+
 async function readJsonResponse(response, fallbackMessage) {
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -407,12 +446,21 @@ function SidebarPanel({ ariaLabel, children, className = "", count, eyebrow, onT
   );
 }
 
-export default function ProjectorClient({ activeRoom: initialActiveRoom = null, session, libraryItems = [], sceneItems = [], sceneFolders = [] }) {
+export default function ProjectorClient({
+  activeRoom: initialActiveRoom = null,
+  session,
+  libraryItems = [],
+  sceneItems = [],
+  sceneFolders = [],
+  playlistItems = [],
+  playlistsSetupMissing = false,
+}) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [activeRoom, setActiveRoom] = useState(initialActiveRoom);
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
   const [folders, setFolders] = useState(sceneFolders);
+  const [playlists, setPlaylists] = useState(playlistItems);
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [openPanels, setOpenPanels] = useState({ screens: true, scenes: false, library: false });
@@ -447,14 +495,36 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
   const [savingScene, setSavingScene] = useState(false);
   const [assignmentPrompt, setAssignmentPrompt] = useState(null);
   const [assignments, setAssignments] = useState({});
+  const [playlistStartPrompt, setPlaylistStartPrompt] = useState(null);
+  const [playlistTargetScreens, setPlaylistTargetScreens] = useState([]);
+  const [playlistState, setPlaylistState] = useState({
+    status: "idle",
+    playlistId: null,
+    index: 0,
+    remainingSeconds: 0,
+    loop: true,
+    assignmentsBySceneId: {},
+    targetScreens: [],
+  });
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
   const latexTextareaRef = useRef(null);
   const imageDragDepthRef = useRef(0);
+  const playlistTimeoutRef = useRef(null);
+  const playlistCountdownRef = useRef(null);
+  const playlistActionRef = useRef(false);
+  const playlistStateRef = useRef(playlistState);
+  const assignmentResolverRef = useRef(null);
 
   const screenTokens = session.screen_tokens || {};
   const activeScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
   const targetScreenIds = useMemo(() => (target === "all" ? activeScreenIds : [target]), [activeScreenIds, target]);
+  const currentPlaylist = useMemo(
+    () => playlists.find((playlist) => playlist.id === playlistState.playlistId) || null,
+    [playlistState.playlistId, playlists]
+  );
+  const currentPlaylistEntries = normalizePlaylistEntries(currentPlaylist?.entries);
+  const currentPlaylistEntry = currentPlaylistEntries[playlistState.index] || null;
   const sortedFolders = useMemo(
     () =>
       [...folders].sort((left, right) =>
@@ -500,18 +570,117 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
     setOpenPanels((current) => ({ ...current, [panelName]: !current[panelName] }));
   }
 
+  function clearPlaylistTimers() {
+    if (playlistTimeoutRef.current) {
+      window.clearTimeout(playlistTimeoutRef.current);
+      playlistTimeoutRef.current = null;
+    }
+    if (playlistCountdownRef.current) {
+      window.clearInterval(playlistCountdownRef.current);
+      playlistCountdownRef.current = null;
+    }
+  }
+
+  function stopPlaylist(reason = "") {
+    clearPlaylistTimers();
+    setPlaylistState((current) => ({
+      ...current,
+      status: "idle",
+      playlistId: null,
+      index: 0,
+      remainingSeconds: 0,
+      assignmentsBySceneId: {},
+      targetScreens: [],
+    }));
+    if (reason) setMessage(reason);
+  }
+
+  function pausePlaylist(reason = "Playlist paused.") {
+    setPlaylistState((current) => {
+      if (current.status !== "running") return current;
+      clearPlaylistTimers();
+      if (reason) setMessage(reason);
+      return { ...current, status: "paused", remainingSeconds: 0 };
+    });
+  }
+
+  function pausePlaylistForManualAction() {
+    if (playlistActionRef.current) return;
+    pausePlaylist("Playlist paused for your manual change.");
+  }
+
   useEffect(() => {
     ensureKatexAssets();
   }, []);
 
   useEffect(() => {
     function updateActiveRoom(event) {
-      if (event.detail?.room) setActiveRoom(event.detail.room);
+      if (event.detail?.room) {
+        setActiveRoom(event.detail.room);
+        if (playlistTimeoutRef.current) {
+          window.clearTimeout(playlistTimeoutRef.current);
+          playlistTimeoutRef.current = null;
+        }
+        if (playlistCountdownRef.current) {
+          window.clearInterval(playlistCountdownRef.current);
+          playlistCountdownRef.current = null;
+        }
+        setPlaylistState((current) => ({
+          ...current,
+          status: "idle",
+          playlistId: null,
+          index: 0,
+          remainingSeconds: 0,
+          assignmentsBySceneId: {},
+          targetScreens: [],
+        }));
+        setMessage("Playlist stopped because the active Room changed.");
+      }
     }
 
     window.addEventListener("projector:active-room-changed", updateActiveRoom);
     return () => window.removeEventListener("projector:active-room-changed", updateActiveRoom);
   }, []);
+
+  useEffect(() => () => clearPlaylistTimers(), []);
+
+  useEffect(() => {
+    playlistStateRef.current = playlistState;
+  }, [playlistState]);
+
+  useEffect(() => {
+    function updatePlaylists(event) {
+      if (Array.isArray(event.detail?.playlists)) setPlaylists(event.detail.playlists);
+    }
+
+    function openPlaylists() {
+      document.querySelector(".projectorFullLibraryLauncher")?.click();
+      window.setTimeout(() => {
+        document.querySelector('[data-projector-library-tab="playlists"]')?.click();
+      }, 40);
+    }
+
+    function playPlaylistFromLibrary(event) {
+      const playlist = event.detail?.playlist;
+      if (!playlist) return;
+      const entries = normalizePlaylistEntries(playlist.entries);
+      if (!entries.length) {
+        setMessage(`Add entries to "${playlist.name}" before playing it.`);
+        return;
+      }
+      setPlaylistStartPrompt(playlist);
+      setPlaylistTargetScreens(activeScreenIds);
+    }
+
+    window.addEventListener("projector:playlists-updated", updatePlaylists);
+    window.addEventListener("projector:open-playlists", openPlaylists);
+    window.addEventListener("projector:play-playlist", playPlaylistFromLibrary);
+    return () => {
+      window.removeEventListener("projector:playlists-updated", updatePlaylists);
+      window.removeEventListener("projector:open-playlists", openPlaylists);
+      window.removeEventListener("projector:play-playlist", playPlaylistFromLibrary);
+    };
+  }, [activeScreenIds]);
 
   useEffect(() => {
     if (target !== "all" && !activeScreenIds.includes(target)) setTarget("all");
@@ -851,16 +1020,26 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
     }
   }
 
+  async function postLoadScene(scene, sceneAssignments = null) {
+    const response = await fetch("/api/projector", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "load-scene",
+        sceneId: scene.id,
+        ...(sceneAssignments ? { assignments: sceneAssignments } : {}),
+      }),
+    });
+    const payload = await response.json();
+    return { response, payload };
+  }
+
   async function loadScene(scene) {
+    pausePlaylistForManualAction();
     setSavingScene(true);
     setMessage("");
     try {
-      const response = await fetch("/api/projector", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "load-scene", sceneId: scene.id }),
-      });
-      const payload = await response.json();
+      const { response, payload } = await postLoadScene(scene);
       // The scene has more screens than the active Room: the server returns
       // needsAssignment (HTTP 409) instead of loading. Open the chooser BEFORE
       // the ok/throw check so the non-ok status does not surface as an error.
@@ -904,21 +1083,28 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
   }
 
   function cancelAssignment() {
+    if (assignmentResolverRef.current) {
+      assignmentResolverRef.current(null);
+      assignmentResolverRef.current = null;
+    }
     setAssignmentPrompt(null);
     setAssignments({});
   }
 
   async function confirmAssignment() {
     if (!assignmentPrompt) return;
+    if (assignmentPrompt.mode === "playlist") {
+      const nextAssignments = { ...assignments };
+      assignmentResolverRef.current?.(nextAssignments);
+      assignmentResolverRef.current = null;
+      setAssignmentPrompt(null);
+      setAssignments({});
+      return;
+    }
     setSavingScene(true);
     setMessage("");
     try {
-      const response = await fetch("/api/projector", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "load-scene", sceneId: assignmentPrompt.sceneId, assignments }),
-      });
-      const payload = await response.json();
+      const { response, payload } = await postLoadScene({ id: assignmentPrompt.sceneId }, assignments);
       if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
 
       setScreenStates(payload.screenStates || {});
@@ -1101,6 +1287,7 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
   }
 
   async function sendContent() {
+    pausePlaylistForManualAction();
     setSending(true);
     setMessage("");
     const state = currentComposerState();
@@ -1138,6 +1325,7 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
   }
 
   async function rotateScreens(direction = "forward") {
+    pausePlaylistForManualAction();
     setSending(true);
     setMessage("");
     try {
@@ -1178,6 +1366,7 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
   }
 
   async function clearScreens() {
+    pausePlaylistForManualAction();
     setSending(true);
     setMessage("");
     try {
@@ -1203,6 +1392,228 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
     } finally {
       setSending(false);
     }
+  }
+
+  function openPlaylistStart(playlist) {
+    const entries = normalizePlaylistEntries(playlist.entries);
+    if (!entries.length) {
+      setMessage(`Add entries to "${playlist.name}" before playing it.`);
+      return;
+    }
+    setPlaylistStartPrompt(playlist);
+    setPlaylistTargetScreens(activeScreenIds);
+  }
+
+  function togglePlaylistTarget(screenId) {
+    setPlaylistTargetScreens((current) => {
+      if (current.includes(screenId)) {
+        const next = current.filter((id) => id !== screenId);
+        return next.length ? next : current;
+      }
+      return [...current, screenId];
+    });
+  }
+
+  function chooseAllPlaylistTargets() {
+    setPlaylistTargetScreens(activeScreenIds);
+  }
+
+  function promptForPlaylistAssignment(scene, playlistName) {
+    return new Promise((resolve) => {
+      assignmentResolverRef.current = resolve;
+      setAssignmentPrompt({
+        mode: "playlist",
+        sceneId: scene.id,
+        title: scene.title,
+        sceneScreens: sceneSavedScreenIds(scene).map((screenId) => ({
+          screenId,
+          state: scene.screen_states?.[screenId] || null,
+        })),
+        roomScreens: activeScreenIds,
+      });
+      setAssignments({});
+      setMessage(`"${playlistName}" needs a screen assignment for "${scene.title}" before it can play.`);
+    });
+  }
+
+  async function collectPlaylistAssignments(entries, playlistName) {
+    const assignmentsBySceneId = {};
+    for (const entry of entries) {
+      if (entry.type !== "scene" || assignmentsBySceneId[entry.refId]) continue;
+      const scene = scenes.find((candidate) => candidate.id === entry.refId);
+      if (!scene) throw new Error("One playlist scene is missing from your saved scenes.");
+      if (sceneSavedScreenIds(scene).length <= activeScreenIds.length) continue;
+      const sceneAssignments = await promptForPlaylistAssignment(scene, playlistName);
+      if (!sceneAssignments) return null;
+      assignmentsBySceneId[scene.id] = sceneAssignments;
+    }
+    return assignmentsBySceneId;
+  }
+
+  function finishPlaylist(playlist, loop, entries, assignmentsBySceneId, targetScreens, currentIndex) {
+    if (loop && entries.length) {
+      playPlaylistEntry(playlist, entries, assignmentsBySceneId, targetScreens, 0, loop);
+      return;
+    }
+    clearPlaylistTimers();
+    setPlaylistState((current) => ({
+      ...current,
+      status: "finished",
+      playlistId: playlist.id,
+      index: currentIndex,
+      remainingSeconds: 0,
+      loop,
+      assignmentsBySceneId,
+      targetScreens,
+    }));
+    setMessage(`Finished "${playlist.name}".`);
+  }
+
+  async function sendPlaylistEntry(entry, targetScreens, assignmentsBySceneId) {
+    playlistActionRef.current = true;
+    try {
+      if (entry.type === "item") {
+        const item = library.find((candidate) => candidate.id === entry.refId);
+        if (!item) throw new Error("One playlist item is missing from your saved items.");
+        const response = await fetch("/api/projector", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "push",
+            screenIds: targetScreens,
+            type: item.content_type,
+            content: item.content,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not send playlist item.");
+        setScreenStates((current) => {
+          const next = { ...current };
+          targetScreens.forEach((screenId) => {
+            next[screenId] = { type: item.content_type, content: item.content };
+          });
+          return next;
+        });
+        return;
+      }
+
+      const scene = scenes.find((candidate) => candidate.id === entry.refId);
+      if (!scene) throw new Error("One playlist scene is missing from your saved scenes.");
+      const { response, payload } = await postLoadScene(scene, assignmentsBySceneId[scene.id] || null);
+      if (payload.needsAssignment) throw new Error("This scene needs a screen assignment before the playlist can continue.");
+      if (!response.ok) throw new Error(payload.error || "Could not load playlist scene.");
+      setScreenStates(payload.screenStates || {});
+    } finally {
+      playlistActionRef.current = false;
+    }
+  }
+
+  async function playPlaylistEntry(playlist, entries, assignmentsBySceneId, targetScreens, index, loop = playlist.loop !== false) {
+    if (!entries.length) return;
+    const safeIndex = (index + entries.length) % entries.length;
+    const entry = entries[safeIndex];
+    clearPlaylistTimers();
+    setPlaylistState({
+      status: "running",
+      playlistId: playlist.id,
+      index: safeIndex,
+      remainingSeconds: entry.durationSeconds,
+      loop,
+      assignmentsBySceneId,
+      targetScreens,
+    });
+    setMessage(`Playing "${playlistEntryLabel(entry, library, scenes)}" from "${playlist.name}".`);
+
+    try {
+      await sendPlaylistEntry(entry, targetScreens, assignmentsBySceneId);
+      playlistCountdownRef.current = window.setInterval(() => {
+        setPlaylistState((current) => {
+          if (current.status !== "running" || current.playlistId !== playlist.id) return current;
+          return { ...current, remainingSeconds: Math.max(current.remainingSeconds - 1, 0) };
+        });
+      }, 1000);
+      playlistTimeoutRef.current = window.setTimeout(() => {
+        const nextIndex = safeIndex + 1;
+        const shouldLoop = playlistStateRef.current.playlistId === playlist.id
+          ? playlistStateRef.current.loop
+          : loop;
+        if (nextIndex >= entries.length) {
+          finishPlaylist(playlist, shouldLoop, entries, assignmentsBySceneId, targetScreens, safeIndex);
+        } else {
+          playPlaylistEntry(playlist, entries, assignmentsBySceneId, targetScreens, nextIndex, shouldLoop);
+        }
+      }, entry.durationSeconds * 1000);
+    } catch (error) {
+      clearPlaylistTimers();
+      setPlaylistState((current) => ({ ...current, status: "paused", remainingSeconds: 0 }));
+      setMessage(error.message);
+    }
+  }
+
+  async function startPlaylist(playlist = playlistStartPrompt) {
+    if (!playlist) return;
+    const entries = normalizePlaylistEntries(playlist.entries);
+    if (!entries.length) {
+      setMessage(`Add entries to "${playlist.name}" before playing it.`);
+      return;
+    }
+    if (!playlistTargetScreens.length) {
+      setMessage("Choose at least one screen for playlist items.");
+      return;
+    }
+    setPlaylistStartPrompt(null);
+    setSavingScene(true);
+    try {
+      const assignmentsBySceneId = await collectPlaylistAssignments(entries, playlist.name);
+      if (!assignmentsBySceneId) {
+        setMessage("Playlist start cancelled.");
+        return;
+      }
+      await playPlaylistEntry(playlist, entries, assignmentsBySceneId, playlistTargetScreens, 0, playlist.loop !== false);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  function resumePlaylist() {
+    if (!currentPlaylist || playlistState.status !== "paused") return;
+    const entries = normalizePlaylistEntries(currentPlaylist.entries);
+    if (!entries.length) return;
+    const nextIndex = playlistState.index + 1 >= entries.length ? 0 : playlistState.index + 1;
+    if (playlistState.index + 1 >= entries.length && !playlistState.loop) {
+      setPlaylistState((current) => ({ ...current, status: "finished", remainingSeconds: 0 }));
+      setMessage(`Finished "${currentPlaylist.name}".`);
+      return;
+    }
+    playPlaylistEntry(
+      currentPlaylist,
+      entries,
+      playlistState.assignmentsBySceneId,
+      playlistState.targetScreens,
+      nextIndex,
+      playlistState.loop
+    );
+  }
+
+  function advancePlaylist(delta) {
+    if (!currentPlaylist || !["running", "paused", "finished"].includes(playlistState.status)) return;
+    const entries = normalizePlaylistEntries(currentPlaylist.entries);
+    if (!entries.length) return;
+    const nextIndex = (playlistState.index + delta + entries.length) % entries.length;
+    playPlaylistEntry(
+      currentPlaylist,
+      entries,
+      playlistState.assignmentsBySceneId,
+      playlistState.targetScreens.length ? playlistState.targetScreens : activeScreenIds,
+      nextIndex,
+      playlistState.loop
+    );
+  }
+
+  function toggleRunningPlaylistLoop() {
+    setPlaylistState((current) => ({ ...current, loop: !current.loop }));
   }
 
   return (
@@ -1297,6 +1708,53 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
           </section>
         </div>
       ) : null}
+      {playlistStartPrompt ? (
+        <div
+          className="projectorPlaylistOverlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingScene) setPlaylistStartPrompt(null);
+          }}
+        >
+          <section className="projectorPlaylistTargetModal" role="dialog" aria-modal="true" aria-labelledby="projector-playlist-target-title">
+            <div className="projectorAssignmentHeader">
+              <div>
+                <p className="eyebrow">Playlist Targets</p>
+                <h2 id="projector-playlist-target-title">{playlistStartPrompt.name}</h2>
+                <p className="projectorAssignmentHint">
+                  Choose which active Room screens should receive saved item entries. Scene entries load the whole active Room.
+                </p>
+              </div>
+              <button className="projectorAssignmentClose" type="button" onClick={() => setPlaylistStartPrompt(null)} disabled={savingScene}>
+                ✕
+              </button>
+            </div>
+            <div className="projectorPlaylistTargetGrid">
+              {activeScreenIds.map((screenId) => (
+                <button
+                  className={playlistTargetScreens.includes(screenId) ? "isActive" : ""}
+                  key={screenId}
+                  type="button"
+                  onClick={() => togglePlaylistTarget(screenId)}
+                >
+                  Screen {screenId}
+                </button>
+              ))}
+            </div>
+            <div className="projectorAssignmentFooter">
+              <button className="btn secondary" type="button" onClick={chooseAllPlaylistTargets}>
+                All Screens
+              </button>
+              <button className="btn secondary" type="button" onClick={() => setPlaylistStartPrompt(null)} disabled={savingScene}>
+                Cancel
+              </button>
+              <button className="btn" type="button" onClick={() => startPlaylist()} disabled={savingScene || !playlistTargetScreens.length}>
+                Start Playlist
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <section className="projectorHeader">
         <div>
           <p className="eyebrow">Projector Party</p>
@@ -1307,6 +1765,40 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
           <strong>{session.pin}</strong>
         </div>
       </section>
+
+      {currentPlaylist ? (
+        <section className={`projectorPlaylistDock is-${playlistState.status}`} aria-label="Playlist playback">
+          <div>
+            <p className="eyebrow">Playlist {playlistState.status}</p>
+            <h2>{currentPlaylist.name}</h2>
+            <span>
+              {playlistEntryLabel(currentPlaylistEntry, library, scenes)} · {playlistState.index + 1}/{currentPlaylistEntries.length || 1}
+            </span>
+          </div>
+          <div className="projectorPlaylistCountdown" aria-live="polite">
+            {playlistState.status === "running" ? `${playlistState.remainingSeconds}s` : playlistState.status}
+          </div>
+          <div className="projectorPlaylistTransport">
+            <button type="button" onClick={() => advancePlaylist(-1)} disabled={!currentPlaylistEntries.length}>
+              Previous
+            </button>
+            {playlistState.status === "running" ? (
+              <button type="button" onClick={() => pausePlaylist("Playlist paused.")}>Pause</button>
+            ) : (
+              <button type="button" onClick={resumePlaylist} disabled={playlistState.status === "finished"}>
+                Play
+              </button>
+            )}
+            <button type="button" onClick={() => advancePlaylist(1)} disabled={!currentPlaylistEntries.length}>
+              Next
+            </button>
+            <button className={playlistState.loop ? "isActive" : ""} type="button" onClick={toggleRunningPlaylistLoop}>
+              Loop {playlistState.loop ? "On" : "Off"}
+            </button>
+            <button type="button" onClick={() => stopPlaylist("Playlist stopped.")}>Stop</button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="projectorLayout">
         <div className="projectorGridColumn">
@@ -1360,6 +1852,24 @@ export default function ProjectorClient({ activeRoom: initialActiveRoom = null, 
         </div>
 
         <aside className="projectorComposer">
+          {!playlistsSetupMissing ? (
+            <section className="projectorLibrary projectorPlaylistsLauncher" aria-label="Projector Playlists">
+              <button
+                className="projectorLibraryHeader projectorPanelToggle"
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("projector:open-playlists"))}
+              >
+                <div className="projectorPlaylistsLauncherSummary">
+                  <h2>
+                    Playlists <span className="projectorLibraryLaunchCount">{playlists.length}</span>
+                  </h2>
+                  <p className="projectorRoomsActive">
+                    {currentPlaylist ? `Now: ${currentPlaylist.name}` : "Timed rotations"}
+                  </p>
+                </div>
+              </button>
+            </section>
+          ) : null}
           <SidebarPanel
             ariaLabel="Screen Selection"
             count={target === "all" ? "All" : target}

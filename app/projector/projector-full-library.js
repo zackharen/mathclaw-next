@@ -188,6 +188,30 @@ function sceneFilledCount(scene) {
   return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
 }
 
+function normalizePlaylistEntries(entries) {
+  return Array.isArray(entries)
+    ? entries.map((entry) => ({
+        type: entry?.type === "scene" ? "scene" : "item",
+        refId: String(entry?.refId || ""),
+        durationSeconds: Math.max(Number.parseInt(entry?.durationSeconds, 10) || 60, 5),
+      }))
+    : [];
+}
+
+function playlistEntryLabel(entry, items, scenes) {
+  if (entry?.type === "item") return items.find((item) => item.id === entry.refId)?.title || "Saved Item";
+  if (entry?.type === "scene") return scenes.find((scene) => scene.id === entry.refId)?.title || "Scene";
+  return "Entry";
+}
+
+function playlistDurationLabel(entries) {
+  const seconds = normalizePlaylistEntries(entries).reduce((total, entry) => total + entry.durationSeconds, 0);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+}
+
 function sceneSearchText(scene, folderTitle) {
   const screenText = SCREEN_IDS.map((screenId) => searchableContentForState(scene?.screen_states?.[screenId])).join(" ");
   return [scene.title, folderTitle, screenText].filter(Boolean).join(" ").toLowerCase();
@@ -200,6 +224,16 @@ async function fetchSceneLibrary() {
   return {
     scenes: Array.isArray(payload.scenes) ? payload.scenes : [],
     folders: Array.isArray(payload.folders) ? payload.folders : [],
+  };
+}
+
+async function fetchPlaylists() {
+  const response = await fetch("/api/projector/playlists", { cache: "no-store" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Could not load playlists.");
+  return {
+    playlists: Array.isArray(payload.playlists) ? payload.playlists : [],
+    setupMissing: Boolean(payload.setupMissing),
   };
 }
 
@@ -216,7 +250,13 @@ function openSavedItemInComposer(item) {
   }, 40);
 }
 
-export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [], sceneFolders = [] }) {
+export default function ProjectorFullLibrary({
+  libraryItems = [],
+  sceneItems = [],
+  sceneFolders = [],
+  playlistItems = [],
+  playlistsSetupMissing = false,
+}) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -225,16 +265,41 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
   const [status, setStatus] = useState("");
   const [loadedScenes, setLoadedScenes] = useState(sceneItems);
   const [loadedFolders, setLoadedFolders] = useState(sceneFolders);
+  const [loadedPlaylists, setLoadedPlaylists] = useState(playlistItems);
+  const [playlistsMissing, setPlaylistsMissing] = useState(playlistsSetupMissing);
   const [loadingScenes, setLoadingScenes] = useState(false);
+  const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState(playlistItems[0]?.id || "");
+  const [draftName, setDraftName] = useState("");
+  const [draftLoop, setDraftLoop] = useState(true);
+  const [draftEntries, setDraftEntries] = useState([]);
+  const lastSyncedPlaylistId = useRef("");
   const scenes = sceneItems.length ? sceneItems : loadedScenes;
   const folders = sceneFolders.length ? sceneFolders : loadedFolders;
+  const playlists = loadedPlaylists;
   const hasItems = libraryItems.length > 0;
   const hasScenes = scenes.length > 0;
+  const hasPlaylists = !playlistsMissing && playlists.length > 0;
+  const selectedPlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId) || playlists[0] || null;
 
   useEffect(() => {
     if (sceneItems.length) setLoadedScenes(sceneItems);
     if (sceneFolders.length) setLoadedFolders(sceneFolders);
   }, [sceneFolders, sceneItems]);
+
+  useEffect(() => {
+    if (playlistItems.length) setLoadedPlaylists(playlistItems);
+    setPlaylistsMissing(playlistsSetupMissing);
+  }, [playlistItems, playlistsSetupMissing]);
+
+  useEffect(() => {
+    if (!selectedPlaylist || lastSyncedPlaylistId.current === selectedPlaylist.id) return;
+    lastSyncedPlaylistId.current = selectedPlaylist.id;
+    setSelectedPlaylistId(selectedPlaylist.id);
+    setDraftName(selectedPlaylist.name || "");
+    setDraftLoop(selectedPlaylist.loop !== false);
+    setDraftEntries(normalizePlaylistEntries(selectedPlaylist.entries));
+  }, [selectedPlaylist]);
 
   useEffect(() => {
     if (!open || sceneItems.length || loadedScenes.length || loadingScenes) return undefined;
@@ -257,6 +322,28 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
       cancelled = true;
     };
   }, [loadedScenes.length, loadingScenes, open, sceneItems.length]);
+
+  useEffect(() => {
+    if (!open || playlistsMissing || playlistItems.length || loadedPlaylists.length || loadingPlaylists) return undefined;
+    let cancelled = false;
+    setLoadingPlaylists(true);
+    fetchPlaylists()
+      .then(({ playlists: nextPlaylists, setupMissing }) => {
+        if (!cancelled) {
+          setLoadedPlaylists(nextPlaylists);
+          setPlaylistsMissing(setupMissing);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setStatus(error.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPlaylists(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedPlaylists.length, loadingPlaylists, open, playlistItems.length, playlistsMissing]);
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
   const folderCounts = useMemo(() => {
@@ -302,7 +389,107 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  if (!hasItems && !hasScenes && !loadingScenes) return null;
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("projector:full-library-open", { detail: { open } }));
+  }, [open]);
+
+  if (!hasItems && !hasScenes && !hasPlaylists && !loadingScenes && !loadingPlaylists && playlistsMissing) return null;
+
+  function updatePlaylists(nextPlaylists) {
+    setLoadedPlaylists(nextPlaylists);
+    window.dispatchEvent(new CustomEvent("projector:playlists-updated", { detail: { playlists: nextPlaylists } }));
+  }
+
+  function newPlaylistDraft() {
+    lastSyncedPlaylistId.current = "";
+    setSelectedPlaylistId("");
+    setDraftName("");
+    setDraftLoop(true);
+    setDraftEntries([]);
+  }
+
+  function editPlaylist(playlist) {
+    lastSyncedPlaylistId.current = playlist.id;
+    setSelectedPlaylistId(playlist.id);
+    setDraftName(playlist.name || "");
+    setDraftLoop(playlist.loop !== false);
+    setDraftEntries(normalizePlaylistEntries(playlist.entries));
+  }
+
+  function addEntry(type, refId) {
+    setDraftEntries((current) => [...current, { type, refId, durationSeconds: 60 }]);
+  }
+
+  function updateEntry(index, patch) {
+    setDraftEntries((current) => current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...patch } : entry)));
+  }
+
+  function moveEntry(index, direction) {
+    setDraftEntries((current) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+      const next = [...current];
+      const [entry] = next.splice(index, 1);
+      next.splice(targetIndex, 0, entry);
+      return next;
+    });
+  }
+
+  function removeEntry(index) {
+    setDraftEntries((current) => current.filter((_, entryIndex) => entryIndex !== index));
+  }
+
+  async function savePlaylist() {
+    setStatus("Saving playlist...");
+    try {
+      const action = selectedPlaylistId ? "update-playlist" : "create-playlist";
+      const response = await fetch("/api/projector/playlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          playlistId: selectedPlaylistId,
+          name: draftName,
+          loop: draftLoop,
+          entries: draftEntries,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not save playlist.");
+      const nextPlaylists = [payload.playlist, ...playlists.filter((playlist) => playlist.id !== payload.playlist.id)];
+      updatePlaylists(nextPlaylists);
+      setSelectedPlaylistId(payload.playlist.id);
+      setStatus(`Saved "${payload.playlist.name}".`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function deletePlaylist() {
+    if (!selectedPlaylistId) return;
+    setStatus("Deleting playlist...");
+    try {
+      const response = await fetch("/api/projector/playlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-playlist", playlistId: selectedPlaylistId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not delete playlist.");
+      const nextPlaylists = playlists.filter((playlist) => playlist.id !== selectedPlaylistId);
+      updatePlaylists(nextPlaylists);
+      setSelectedPlaylistId(nextPlaylists[0]?.id || "");
+      if (!nextPlaylists.length) newPlaylistDraft();
+      setStatus("Playlist deleted.");
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  function playPlaylist(playlist) {
+    window.dispatchEvent(new CustomEvent("projector:play-playlist", { detail: { playlist } }));
+    setOpen(false);
+  }
 
   async function loadScene(scene) {
     setStatus(`Loading "${scene.title}"...`);
@@ -322,9 +509,10 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
     }
   }
 
-  const visibleCount = tab === "items" ? filteredItems.length : filteredScenes.length;
-  const totalCount = tab === "items" ? libraryItems.length : scenes.length;
+  const visibleCount = tab === "items" ? filteredItems.length : tab === "scenes" ? filteredScenes.length : playlists.length;
+  const totalCount = tab === "items" ? libraryItems.length : tab === "scenes" ? scenes.length : playlists.length;
   const sceneCountLabel = loadingScenes && !scenes.length ? "..." : scenes.length;
+  const playlistCountLabel = loadingPlaylists && !playlists.length ? "..." : playlists.length;
 
   return (
     <>
@@ -350,14 +538,20 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
             </div>
 
             <div className="projectorFullLibraryTabs" role="tablist" aria-label="Projector library sections">
-              <button className={tab === "items" ? "isActive" : ""} type="button" onClick={() => setTab("items")} disabled={!hasItems}>
+              <button data-projector-library-tab="items" className={tab === "items" ? "isActive" : ""} type="button" onClick={() => setTab("items")} disabled={!hasItems}>
                 Saved Items <span>{libraryItems.length}</span>
               </button>
-              <button className={tab === "scenes" ? "isActive" : ""} type="button" onClick={() => setTab("scenes")} disabled={!hasScenes && !loadingScenes}>
+              <button data-projector-library-tab="scenes" className={tab === "scenes" ? "isActive" : ""} type="button" onClick={() => setTab("scenes")} disabled={!hasScenes && !loadingScenes}>
                 Scenes <span>{sceneCountLabel}</span>
               </button>
+              {!playlistsMissing ? (
+                <button data-projector-library-tab="playlists" className={tab === "playlists" ? "isActive" : ""} type="button" onClick={() => setTab("playlists")}>
+                  Playlists <span>{playlistCountLabel}</span>
+                </button>
+              ) : null}
             </div>
 
+            {tab !== "playlists" ? (
             <div className="projectorFullLibraryControls">
               <label>
                 <span>Search</span>
@@ -388,11 +582,14 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
                 </div>
               )}
             </div>
+            ) : null}
 
             <p className="projectorFullLibrarySummary">
               {loadingScenes && tab === "scenes" && !scenes.length
                 ? "Loading scenes..."
-                : `Showing ${visibleCount} of ${totalCount} ${tab === "items" ? "saved items" : "scenes"}`}
+                : loadingPlaylists && tab === "playlists" && !playlists.length
+                  ? "Loading playlists..."
+                  : `Showing ${visibleCount} of ${totalCount} ${tab === "items" ? "saved items" : tab === "scenes" ? "scenes" : "playlists"}`}
             </p>
             {status ? <p className="projectorFullLibraryStatus">{status}</p> : null}
 
@@ -408,7 +605,7 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
                   </article>
                 )) : <p className="projectorFullLibraryEmpty">No saved items match your search.</p>}
               </div>
-            ) : (
+            ) : tab === "scenes" ? (
               <div className="projectorFullLibraryGrid">
                 {filteredScenes.length ? filteredScenes.map((scene) => {
                   const folderTitle = folderById.get(scene.folder_id)?.title || "Unfiled";
@@ -428,6 +625,103 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
                 }) : (
                   <p className="projectorFullLibraryEmpty">{loadingScenes ? "Loading scenes..." : "No scenes match this folder and search."}</p>
                 )}
+              </div>
+            ) : (
+              <div className="projectorPlaylistBuilder">
+                <aside className="projectorPlaylistList">
+                  <button className={!selectedPlaylistId ? "isActive" : ""} type="button" onClick={newPlaylistDraft}>
+                    <strong>New Playlist</strong>
+                    <span>Build a timed rotation</span>
+                  </button>
+                  {playlists.map((playlist) => (
+                    <button className={playlist.id === selectedPlaylistId ? "isActive" : ""} key={playlist.id} type="button" onClick={() => editPlaylist(playlist)}>
+                      <strong>{playlist.name}</strong>
+                      <span>{normalizePlaylistEntries(playlist.entries).length} entries · {playlistDurationLabel(playlist.entries)}{playlist.loop !== false ? " · loop" : ""}</span>
+                    </button>
+                  ))}
+                </aside>
+
+                <section className="projectorPlaylistEditor" aria-label="Playlist builder">
+                  <div className="projectorPlaylistEditorHeader">
+                    <label>
+                      <span>Name</span>
+                      <input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={80} placeholder="Warmup loop, station rotation..." />
+                    </label>
+                    <label className="projectorPlaylistLoopToggle">
+                      <input type="checkbox" checked={draftLoop} onChange={(event) => setDraftLoop(event.target.checked)} />
+                      <span>Loop</span>
+                    </label>
+                    <div className="projectorPlaylistEditorActions">
+                      <button type="button" onClick={savePlaylist} disabled={!draftName.trim()}>
+                        Save
+                      </button>
+                      <button type="button" onClick={() => selectedPlaylist ? playPlaylist(selectedPlaylist) : null} disabled={!selectedPlaylist || !normalizePlaylistEntries(selectedPlaylist.entries).length}>
+                        Play
+                      </button>
+                      <button type="button" onClick={deletePlaylist} disabled={!selectedPlaylistId}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="projectorPlaylistEntryList">
+                    {draftEntries.length ? draftEntries.map((entry, index) => (
+                      <article className="projectorPlaylistEntry" key={`${entry.type}-${entry.refId}-${index}`}>
+                        <span className="projectorPlaylistEntryThumb" aria-hidden="true">
+                          {entry.type === "item"
+                            ? previewForItem(libraryItems.find((item) => item.id === entry.refId) || {})
+                            : previewForState(scenes.find((scene) => scene.id === entry.refId)?.screen_states?.["1"])}
+                        </span>
+                        <div>
+                          <strong>{playlistEntryLabel(entry, libraryItems, scenes)}</strong>
+                          <em>{entry.type === "item" ? "Saved Item" : "Scene"}</em>
+                        </div>
+                        <label>
+                          <span>Seconds</span>
+                          <input
+                            type="number"
+                            min="5"
+                            max="3600"
+                            value={entry.durationSeconds}
+                            onChange={(event) => updateEntry(index, { durationSeconds: Math.max(Number(event.target.value) || 60, 5) })}
+                          />
+                        </label>
+                        <div className="projectorPlaylistEntryActions">
+                          <button type="button" onClick={() => moveEntry(index, -1)} disabled={index === 0}>Up</button>
+                          <button type="button" onClick={() => moveEntry(index, 1)} disabled={index === draftEntries.length - 1}>Down</button>
+                          <button type="button" onClick={() => removeEntry(index)}>Remove</button>
+                        </div>
+                      </article>
+                    )) : (
+                      <p className="projectorFullLibraryEmpty">Pick saved items or scenes below to build this playlist.</p>
+                    )}
+                  </div>
+
+                  <div className="projectorPlaylistPickers">
+                    <section>
+                      <h3>Saved Items</h3>
+                      <div className="projectorPlaylistPickerGrid">
+                        {libraryItems.map((item) => (
+                          <button key={item.id} type="button" onClick={() => addEntry("item", item.id)}>
+                            <span>{previewForItem(item)}</span>
+                            <strong>{item.title}</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                    <section>
+                      <h3>Scenes</h3>
+                      <div className="projectorPlaylistPickerGrid">
+                        {scenes.map((scene) => (
+                          <button key={scene.id} type="button" onClick={() => addEntry("scene", scene.id)}>
+                            <span>{previewForState(scene.screen_states?.["1"])}</span>
+                            <strong>{scene.title}</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </section>
               </div>
             )}
           </section>
@@ -509,9 +803,64 @@ export default function ProjectorFullLibrary({ libraryItems = [], sceneItems = [
           grid-column: 1 / -1; margin: 0; border: 2px dashed #c8d6df; border-radius: 8px;
           background: #fff; color: #51606d; padding: 0.75rem; font-weight: 800; text-align: center;
         }
+        .projectorPlaylistBuilder {
+          min-height: 0; display: grid; grid-template-columns: minmax(14rem, 20rem) minmax(0, 1fr);
+          gap: 0.9rem; overflow: hidden;
+        }
+        .projectorPlaylistList, .projectorPlaylistEditor, .projectorPlaylistEntryList, .projectorPlaylistPickers, .projectorPlaylistPickerGrid {
+          min-width: 0; display: grid; gap: 0.65rem;
+        }
+        .projectorPlaylistList { align-content: start; overflow: auto; }
+        .projectorPlaylistList button, .projectorPlaylistEditorActions button, .projectorPlaylistEntryActions button, .projectorPlaylistPickerGrid button {
+          border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy);
+          padding: 0.5rem 0.65rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer;
+        }
+        .projectorPlaylistList button { text-align: left; }
+        .projectorPlaylistList button.isActive { border-color: var(--navy); background: var(--navy); color: #fff; }
+        .projectorPlaylistList strong, .projectorPlaylistList span, .projectorPlaylistPickerGrid strong {
+          display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .projectorPlaylistList span { opacity: 0.82; font-size: 0.76rem; }
+        .projectorPlaylistEditor { min-height: 0; overflow: auto; }
+        .projectorPlaylistEditorHeader {
+          display: grid; grid-template-columns: minmax(12rem, 1fr) auto auto; gap: 0.65rem; align-items: end;
+          border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem;
+        }
+        .projectorPlaylistEditorHeader label, .projectorPlaylistEntry label {
+          display: grid; gap: 0.25rem; color: var(--navy); font-size: 0.78rem; font-weight: 900;
+        }
+        .projectorPlaylistEditorHeader input, .projectorPlaylistEntry input {
+          border: 2px solid #93a5b4; border-radius: 8px; background: #fff; color: var(--ink);
+          padding: 0.5rem 0.65rem; font: inherit; font-weight: 800;
+        }
+        .projectorPlaylistLoopToggle { align-items: center; grid-auto-flow: column; }
+        .projectorPlaylistEditorActions, .projectorPlaylistEntryActions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .projectorPlaylistEntry {
+          display: grid; grid-template-columns: 5rem minmax(0, 1fr) 6rem auto; gap: 0.65rem; align-items: center;
+          border: 2px solid var(--line); border-radius: 8px; background: #fff; padding: 0.55rem;
+        }
+        .projectorPlaylistEntryThumb, .projectorPlaylistPickerGrid span {
+          aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; border-radius: 6px;
+          background: #111; color: #fff; padding: 0.25rem; text-align: center; font-size: 0.7rem; font-weight: 900;
+        }
+        .projectorPlaylistEntryThumb img, .projectorPlaylistPickerGrid img { width: 100%; height: 100%; object-fit: contain; }
+        .projectorPlaylistEntry strong, .projectorPlaylistEntry em {
+          display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .projectorPlaylistEntry strong { color: var(--navy); }
+        .projectorPlaylistEntry em { color: #51606d; font-size: 0.74rem; font-style: normal; font-weight: 800; }
+        .projectorPlaylistPickers { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+        .projectorPlaylistPickers h3 { margin: 0; color: var(--navy); }
+        .projectorPlaylistPickerGrid {
+          grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); max-height: 18rem; overflow: auto;
+        }
+        .projectorPlaylistPickerGrid button { display: grid; gap: 0.35rem; text-align: left; }
         @media (max-width: 720px) {
           .projectorFullLibraryLauncher { right: 0.75rem; bottom: 0.75rem; }
           .projectorFullLibraryControls { grid-template-columns: 1fr; }
+          .projectorPlaylistBuilder, .projectorPlaylistEditorHeader, .projectorPlaylistPickers, .projectorPlaylistEntry {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </>

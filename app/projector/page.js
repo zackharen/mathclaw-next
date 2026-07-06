@@ -133,6 +133,22 @@ async function loadSceneFolders(supabase, teacherId) {
   return data || [];
 }
 
+async function loadPlaylists(supabase, teacherId) {
+  const { data, error } = await supabase
+    .from("projector_playlists")
+    .select("id, name, loop, entries, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(80);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return { playlists: [], setupMissing: true };
+    throw new Error(error.message);
+  }
+
+  return { playlists: data || [], setupMissing: false };
+}
+
 function defaultRoomProfile() {
   const now = new Date().toISOString();
   return {
@@ -244,6 +260,7 @@ export default async function ProjectorPage() {
   const libraryItems = await loadLibraryItems(supabase, user.id);
   const sceneItems = await loadSceneItems(supabase, user.id);
   const sceneFolders = await loadSceneFolders(supabase, user.id);
+  const playlistState = await loadPlaylists(supabase, user.id);
   const { rooms, activeRoom } = await loadRoomProfiles(supabase, user.id);
 
   return (
@@ -254,9 +271,17 @@ export default async function ProjectorPage() {
         libraryItems={libraryItems}
         sceneItems={sceneItems}
         sceneFolders={sceneFolders}
+        playlistItems={playlistState.playlists}
+        playlistsSetupMissing={playlistState.setupMissing}
       />
       <ProjectorRoomsManager session={session} initialRooms={rooms} initialActiveRoom={activeRoom} />
-      <ProjectorFullLibrary libraryItems={libraryItems} sceneItems={sceneItems} sceneFolders={sceneFolders} />
+      <ProjectorFullLibrary
+        libraryItems={libraryItems}
+        sceneItems={sceneItems}
+        sceneFolders={sceneFolders}
+        playlistItems={playlistState.playlists}
+        playlistsSetupMissing={playlistState.setupMissing}
+      />
     </>
   );
 }
