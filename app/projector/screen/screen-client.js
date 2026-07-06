@@ -307,6 +307,7 @@ export default function ScreenClient({ initialToken = null }) {
   const [sessionId, setSessionId] = useState("");
   const [screenName, setScreenName] = useState("");
   const [inputType, setInputType] = useState("display_only");
+  const [enabled, setEnabled] = useState(true);
   const [state, setState] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
@@ -333,6 +334,7 @@ export default function ScreenClient({ initialToken = null }) {
       setScreenNumber(String(payload.screenNumber || "1"));
       setScreenName(payload.screenName || `Screen ${payload.screenNumber || 1}`);
       setInputType(payload.inputType || "display_only");
+      setEnabled(payload.enabled !== false);
       setState(payload.state || null);
       setStatus("connected");
     } catch (error) {
@@ -468,13 +470,17 @@ export default function ScreenClient({ initialToken = null }) {
   }
 
   const tools = toolsForInputType(inputType);
+  const visibleState = enabled ? state : null;
 
   return (
     <main
       className={`projectorScreenStage inputType-${inputType} ${
-        state?.type === "image" || state?.type === "video" ? "hasMedia" : ""
+        visibleState?.type === "image" || visibleState?.type === "video" ? "hasMedia" : ""
+      } ${
+        enabled ? "" : "isInactive"
       }`}
       data-input-type={inputType}
+      data-enabled={enabled ? "true" : "false"}
     >
       <div className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
       {/* Fullscreen is display setup, not a student tool, so it stays available on every profile. */}
@@ -482,8 +488,16 @@ export default function ScreenClient({ initialToken = null }) {
         {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
       </button>
       {screenName ? <div className="projectorScreenProfileBadge">{screenName}</div> : null}
-      <ScreenContent state={state} />
-      {tools.interactive ? (
+      {enabled ? (
+        <ScreenContent state={state} />
+      ) : (
+        <div className="projectorScreenInactiveState">
+          <p className="eyebrow">Projector</p>
+          <h1>Screen inactive</h1>
+          <p>This screen is paused from the teacher dashboard. Content will return when it is reactivated.</p>
+        </div>
+      )}
+      {enabled && tools.interactive ? (
         // Interactive-capable screens (touch / keyboard_mouse) mount their student
         // tools here. The tool set is empty today; future per-screen tools register
         // in SCREEN_TOOLS above and render inside this gate.

@@ -84,6 +84,11 @@
   min-width: 0;
 }
 
+.projectorScreenCard.isInactive {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
 .projectorScreenCardHeader {
   display: flex;
   align-items: center;
@@ -130,7 +135,20 @@
   background: #edf5fa;
 }
 
+.projectorScreenCardHeader .projectorScreenActiveTag {
+  border-color: #2f855a;
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.projectorScreenCardHeader .projectorScreenActiveTag.isInactive {
+  border-color: #64748b;
+  background: #e2e8f0;
+  color: #334155;
+}
+
 .projectorScreenPreview {
+  position: relative;
   aspect-ratio: 16 / 9;
   display: grid;
   place-items: center;
@@ -139,6 +157,48 @@
   background: #0a0a0a;
   color: #fff;
   padding: 0.8rem;
+}
+
+.projectorScreenCard.isInactive .projectorScreenPreview {
+  filter: grayscale(0.35);
+  opacity: 0.74;
+}
+
+.projectorInactiveOverlay {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.84);
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.projectorScreenToggle {
+  border: 2px solid #14532d;
+  border-radius: 8px;
+  background: #dcfce7;
+  color: #14532d;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorScreenToggle.isInactive {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.projectorScreenToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .projectorEmpty {
@@ -1190,6 +1250,42 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
 .projectorScreenStage.hasMedia {
   padding: 0;
+}
+
+.projectorScreenStage.isInactive {
+  padding: clamp(1.5rem, 4vw, 4rem);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(49, 65, 82, 0.98)),
+    #0f172a;
+}
+
+.projectorScreenInactiveState {
+  width: min(92vw, 48rem);
+  display: grid;
+  gap: 0.65rem;
+  justify-items: center;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  text-align: center;
+}
+
+.projectorScreenInactiveState h1,
+.projectorScreenInactiveState p {
+  margin: 0;
+}
+
+.projectorScreenInactiveState h1 {
+  font-size: clamp(2.4rem, 7vw, 6rem);
+  line-height: 0.95;
+}
+
+.projectorScreenInactiveState p:not(.eyebrow) {
+  max-width: 34rem;
+  color: #dbeafe;
+  font-size: clamp(1rem, 2vw, 1.45rem);
+  font-weight: 800;
 }
 
 .projectorStatusDot {

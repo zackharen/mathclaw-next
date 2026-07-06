@@ -40,6 +40,7 @@ function normalizeRoomSlots(value) {
       inputType: ["touch", "keyboard_mouse", "display_only"].includes(slot?.inputType)
         ? slot.inputType
         : "display_only",
+      enabled: slot?.enabled !== false,
     }))
     .filter((slot, index, slots) => slots.findIndex((item) => item.name.toLowerCase() === slot.name.toLowerCase()) === index);
 }
@@ -47,6 +48,14 @@ function normalizeRoomSlots(value) {
 function roomScreenIds(room) {
   const slots = normalizeRoomSlots(room?.slots);
   return slots.length ? slots.map((_, index) => String(index + 1)) : DEFAULT_SCREEN_IDS;
+}
+
+function enabledRoomScreenIds(room) {
+  const slots = normalizeRoomSlots(room?.slots);
+  const source = slots.length ? slots : DEFAULT_SCREEN_IDS.map(() => ({ enabled: true }));
+  return source
+    .map((slot, index) => (slot.enabled === false ? null : String(index + 1)))
+    .filter(Boolean);
 }
 
 async function getActiveRoom(admin, teacherId) {
@@ -70,6 +79,11 @@ async function getActiveRoom(admin, teacherId) {
 async function getActiveRoomScreenIds(admin, teacherId) {
   const room = await getActiveRoom(admin, teacherId);
   return roomScreenIds(room);
+}
+
+async function getEnabledActiveRoomScreenIds(admin, teacherId) {
+  const room = await getActiveRoom(admin, teacherId);
+  return enabledRoomScreenIds(room);
 }
 
 function normalizeTopText(type, topText, content = "") {
@@ -643,7 +657,8 @@ async function loadScene(admin, teacherId, session, body) {
   const sceneScreenIds = Object.keys(rawSceneStates)
     .filter((screenId) => SCREEN_IDS.includes(screenId))
     .sort((left, right) => Number(left) - Number(right));
-  const activeScreenIds = await getActiveRoomScreenIds(admin, teacherId);
+  const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, teacherId);
+  if (!activeScreenIds.length) return jsonError("A Room needs at least one active screen.");
   let screenStates = {};
 
   if (sceneScreenIds.length > activeScreenIds.length) {
@@ -679,9 +694,14 @@ async function loadScene(admin, teacherId, session, body) {
       return states;
     }, {});
   }
+  const nextSessionStates = {
+    ...(session.screen_states && typeof session.screen_states === "object" ? session.screen_states : {}),
+    ...screenStates,
+  };
+
   const { error: updateError } = await admin
     .from("projector_sessions")
-    .update({ screen_states: screenStates, updated_at: new Date().toISOString() })
+    .update({ screen_states: nextSessionStates, updated_at: new Date().toISOString() })
     .eq("id", session.id)
     .eq("teacher_id", teacherId);
 
@@ -693,7 +713,7 @@ async function loadScene(admin, teacherId, session, body) {
     activeScreenIds.map((screenId) => buildBroadcastPayload(screenId, screenStates[screenId]))
   );
 
-  return NextResponse.json({ ok: true, title: scene.title, screenStates });
+  return NextResponse.json({ ok: true, title: scene.title, screenStates: nextSessionStates });
 }
 
 export async function GET(request) {
@@ -788,6 +808,8 @@ export async function POST(request) {
   if (body?.action === "reveal-answer") {
     const screenId = normalizeScreenNumber(body.screenId);
     if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
+    const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
+    if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
     const current = context.session.screen_states && typeof context.session.screen_states === "object"
       ? context.session.screen_states
       : {};
@@ -813,7 +835,8 @@ export async function POST(request) {
   }
 
   if (body?.action === "rotate-screens") {
-    const activeScreenIds = await getActiveRoomScreenIds(admin, context.user.id);
+    const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
+    if (!activeScreenIds.length) return jsonError("A Room needs at least one active screen.");
     const current = context.session.screen_states && typeof context.session.screen_states === "object"
       ? context.session.screen_states
       : {};
@@ -840,6 +863,9 @@ export async function POST(request) {
   }
 
   const screenIds = normalizeScreenIds(body.screenIds);
+  const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
+  const inactiveScreenIds = screenIds.filter((screenId) => !enabledScreenIds.includes(screenId));
+  if (inactiveScreenIds.length) return jsonError("Inactive screens cannot receive new content.");
   const state = normalizeState(body.type, body.content, body.topText, false);
 
   if (!screenIds.length) return jsonError("Choose at least one screen.");
@@ -885,6 +911,8 @@ export async function DELETE(request) {
 
   const screenId = normalizeScreenNumber(body.screenId);
   if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
+  const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
+  if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
 
   const nextStates = {
     ...(context.session.screen_states && typeof context.session.screen_states === "object"

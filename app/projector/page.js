@@ -12,6 +12,7 @@ const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const DEFAULT_ROOM_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   name: `Screen ${index + 1}`,
   inputType: "display_only",
+  enabled: true,
 }));
 
 function createScreenTokens() {
@@ -166,7 +167,15 @@ function normalizeRoomProfile(row) {
   return {
     id: row.id,
     name: row.name,
-    slots: Array.isArray(row.slots) && row.slots.length ? row.slots : DEFAULT_ROOM_SLOTS,
+    slots: (Array.isArray(row.slots) && row.slots.length ? row.slots : DEFAULT_ROOM_SLOTS)
+      .slice(0, 12)
+      .map((slot, index) => ({
+        name: String(slot?.name || `Screen ${index + 1}`),
+        inputType: ["touch", "keyboard_mouse", "display_only"].includes(slot?.inputType)
+          ? slot.inputType
+          : "display_only",
+        enabled: slot?.enabled !== false,
+      })),
     is_default: Boolean(row.is_default),
     is_active: Boolean(row.is_active),
     created_at: row.created_at,

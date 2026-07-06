@@ -11,6 +11,7 @@ const INPUT_TYPES = [
 const DEFAULT_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   name: `Screen ${index + 1}`,
   inputType: "display_only",
+  enabled: true,
 }));
 const MATHCLAW_ORIGIN = "https://mathclaw.com";
 
@@ -19,6 +20,7 @@ function normalizeSlots(slots) {
   return source.slice(0, 12).map((slot, index) => ({
     name: String(slot?.name || `Screen ${index + 1}`),
     inputType: INPUT_TYPES.some((type) => type.value === slot?.inputType) ? slot.inputType : "display_only",
+    enabled: slot?.enabled !== false,
   }));
 }
 
@@ -34,6 +36,10 @@ function defaultRoom() {
 
 function inputTypeLabel(value) {
   return INPUT_TYPES.find((type) => type.value === value)?.label || "Display Only";
+}
+
+function enabledSlotCount(slots) {
+  return normalizeSlots(slots).filter((slot) => slot.enabled !== false).length;
 }
 
 function notifyActiveRoomChanged(room) {
@@ -136,6 +142,10 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       }
       names.add(key);
     }
+    if (!enabledSlotCount(draftSlots)) {
+      setStatus("A Room needs at least one active screen.");
+      return;
+    }
     const payload = await postRoom({
       action: "update-room",
       roomId: selectedRoom.id,
@@ -154,6 +164,21 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       setActiveRoomId(payload.room.id);
       notifyActiveRoomChanged(payload.room);
       setStatus(`Active Room: ${payload.room.name}.`);
+    }
+  }
+
+  async function toggleActiveScreen(screenId, enabled) {
+    if (!selectedRoom?.id || selectedRoom.id === "default") return;
+    const payload = await postRoom({
+      action: "toggle-screen",
+      roomId: selectedRoom.id,
+      screenId,
+      enabled,
+    });
+    if (payload?.room) {
+      setRooms((current) => current.map((room) => (room.id === payload.room.id ? payload.room : room)));
+      if (payload.room.id === activeRoom.id) notifyActiveRoomChanged(payload.room);
+      setStatus(`${payload.room.slots[Number(screenId) - 1]?.name || `Screen ${screenId}`} is ${enabled ? "active" : "inactive"}.`);
     }
   }
 
@@ -181,7 +206,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
     if (draftSlots.length >= 12) return;
     setDraftSlots((current) => [
       ...current,
-      { name: `Screen ${current.length + 1}`, inputType: "display_only" },
+      { name: `Screen ${current.length + 1}`, inputType: "display_only", enabled: true },
     ]);
   }
 
@@ -236,7 +261,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
                 onClick={() => setSelectedRoomId(room.id)}
               >
                 <strong>{room.name}</strong>
-                <span>{normalizeSlots(room.slots).length} screens{room.id === activeRoom.id ? " · active" : ""}</span>
+                <span>{enabledSlotCount(room.slots)}/{normalizeSlots(room.slots).length} active{room.id === activeRoom.id ? " · current" : ""}</span>
               </button>
             ))}
             <div className="projectorRoomsNew">
@@ -282,8 +307,9 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
             <div className="projectorRoomSlots">
               {draftSlots.map((slot, index) => {
                 const screenId = String(index + 1);
+                const isEnabled = slot.enabled !== false;
                 return (
-                  <article className="projectorRoomSlot" key={`${screenId}-${index}`}>
+                  <article className={`projectorRoomSlot${isEnabled ? "" : " isInactive"}`} key={`${screenId}-${index}`}>
                     <strong>{screenId}</strong>
                     <label className="field">
                       <span>Name</span>
@@ -295,10 +321,23 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
                         {INPUT_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
                       </select>
                     </label>
+                    <label className="projectorRoomSlotToggle">
+                      <span>Active</span>
+                      <input
+                        type="checkbox"
+                        checked={isEnabled}
+                        onChange={(event) => updateSlot(index, { enabled: event.target.checked })}
+                      />
+                    </label>
                     <div className="projectorRoomSlotActions">
                       <button type="button" onClick={() => moveSlot(index, -1)} disabled={index === 0}>Up</button>
                       <button type="button" onClick={() => moveSlot(index, 1)} disabled={index === draftSlots.length - 1}>Down</button>
                       <button type="button" onClick={() => copyUrl(screenId)}>Copy URL</button>
+                      {selectedRoom.id !== "default" ? (
+                        <button type="button" onClick={() => toggleActiveScreen(screenId, !isEnabled)} disabled={saving || (isEnabled && enabledSlotCount(draftSlots) <= 1)}>
+                          {isEnabled ? "Make Inactive" : "Make Active"}
+                        </button>
+                      ) : null}
                       <button type="button" onClick={() => removeSlot(index)} disabled={draftSlots.length <= 1}>Remove</button>
                     </div>
                   </article>
@@ -317,7 +356,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
               <strong>Active Room URLs</strong>
               {normalizeSlots(activeRoom.slots).map((slot, index) => (
                 <button key={`${slot.name}-${index}`} type="button" onClick={() => copyUrl(String(index + 1))}>
-                  Screen {index + 1}: {slot.name} · {inputTypeLabel(slot.inputType)}
+                  Screen {index + 1}: {slot.name} · {inputTypeLabel(slot.inputType)} · {slot.enabled === false ? "Inactive" : "Active"}
                 </button>
               ))}
             </div>
@@ -342,8 +381,11 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         .projectorRoomsEditorHeader { align-items: end; }
         .projectorRoomsEditorActions { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: flex-end; }
         .projectorRoomSlots { padding-right: 0.25rem; }
-        .projectorRoomSlot { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 12rem); gap: 0.6rem; align-items: end; border: 2px solid var(--line); border-radius: 8px; background: #fff; padding: 0.7rem; }
+        .projectorRoomSlot { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 12rem) minmax(5.5rem, 7rem); gap: 0.6rem; align-items: end; border: 2px solid var(--line); border-radius: 8px; background: #fff; padding: 0.7rem; }
+        .projectorRoomSlot.isInactive { border-color: #94a3b8; background: #f1f5f9; }
         .projectorRoomSlot > strong { align-self: center; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--navy); color: #fff; }
+        .projectorRoomSlotToggle { display: grid; gap: 0.35rem; color: var(--navy); font-size: 0.82rem; font-weight: 900; }
+        .projectorRoomSlotToggle input { width: 1.25rem; height: 1.25rem; accent-color: var(--navy); }
         .projectorRoomSlotActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
         .projectorRoomSlotActions button:disabled, .projectorRoomsEditorActions button:disabled { cursor: not-allowed; opacity: 0.45; }
         .projectorRoomsActive { margin: 0.2rem 0 0; color: #51606d; font-size: 0.78rem; font-weight: 900; }

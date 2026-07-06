@@ -10,6 +10,7 @@ const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const DEFAULT_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   name: `Screen ${index + 1}`,
   inputType: "display_only",
+  enabled: true,
 }));
 const INPUT_TYPES = new Set(["touch", "keyboard_mouse", "display_only"]);
 
@@ -47,6 +48,7 @@ function normalizeSlots(value) {
     slots.push({
       name,
       inputType: INPUT_TYPES.has(slot.inputType) ? slot.inputType : "display_only",
+      enabled: slot.enabled !== false,
     });
   }
 
@@ -80,6 +82,12 @@ function defaultRoom() {
 
 function roomScreenIds(room) {
   return normalizeSlots(room?.slots).map((_, index) => String(index + 1));
+}
+
+function enabledRoomScreenIds(room) {
+  return normalizeSlots(room?.slots)
+    .map((slot, index) => (slot.enabled === false ? null : String(index + 1)))
+    .filter(Boolean);
 }
 
 async function ensureDefaultRoom(admin, teacherId) {
@@ -144,6 +152,30 @@ async function getTeacherSession(admin, teacherId) {
 
   if (error) throw new Error(error.message);
   return data || null;
+}
+
+async function broadcastScreenUpdates(admin, sessionId, payloads) {
+  if (!sessionId || !payloads.length) return;
+  const channel = admin.channel(`projector-session-${sessionId}`, {
+    config: { broadcast: { ack: true } },
+  });
+  try {
+    for (const payload of payloads) {
+      await channel.send({
+        type: "broadcast",
+        event: "screen-updated",
+        payload,
+      });
+    }
+  } finally {
+    await admin.removeChannel(channel);
+  }
+}
+
+async function notifyScreenProfileChanged(admin, teacherId, screenId) {
+  const session = await getTeacherSession(admin, teacherId);
+  if (!session) return;
+  await broadcastScreenUpdates(admin, session.id, [{ screenId, refetch: true }]);
 }
 
 async function listRooms(admin, teacherId) {
@@ -278,6 +310,7 @@ async function createRoom(admin, teacherId, body) {
   const slots = Array.from({ length: screenCount }, (_, index) => ({
     name: `Screen ${index + 1}`,
     inputType: "display_only",
+    enabled: true,
   }));
 
   const { data, error } = await admin
@@ -300,6 +333,7 @@ async function updateRoom(admin, teacherId, body) {
   const name = normalizeRoomName(body.name);
   if (!name) return jsonError("Name the Room before saving it.");
   const slots = normalizeSlots(body.slots);
+  if (!enabledRoomScreenIds({ slots }).length) return jsonError("A Room needs at least one active screen.");
 
   const { data, error } = await admin
     .from("projector_room_profiles")
@@ -315,6 +349,47 @@ async function updateRoom(admin, teacherId, body) {
   }
   if (!data) return jsonError("Room not found.", 404);
 
+  return NextResponse.json({ room: normalizeRoom(data) });
+}
+
+async function toggleScreen(admin, teacherId, body) {
+  const roomId = String(body.roomId || "");
+  if (!isUuid(roomId)) return jsonError("Choose a Room to update.");
+  const screenNumber = normalizeScreenNumber(body.screenId);
+  if (!screenNumber) return jsonError("Choose a screen number from 1 to 12.");
+
+  const { data: room, error: roomError } = await admin
+    .from("projector_room_profiles")
+    .select("id, name, slots, is_default, is_active, created_at, updated_at")
+    .eq("id", roomId)
+    .eq("teacher_id", teacherId)
+    .maybeSingle();
+
+  if (roomError) return jsonError(roomError.message, 500);
+  if (!room) return jsonError("Room not found.", 404);
+
+  const slots = normalizeSlots(room.slots);
+  const index = Number(screenNumber) - 1;
+  if (!slots[index]) return jsonError("That screen is not part of this Room.", 404);
+
+  const enabled = body.enabled !== false;
+  const nextSlots = slots.map((slot, slotIndex) => (slotIndex === index ? { ...slot, enabled } : slot));
+  if (!enabledRoomScreenIds({ slots: nextSlots }).length) {
+    return jsonError("A Room needs at least one active screen.");
+  }
+
+  const { data, error } = await admin
+    .from("projector_room_profiles")
+    .update({ slots: nextSlots, updated_at: new Date().toISOString() })
+    .eq("id", roomId)
+    .eq("teacher_id", teacherId)
+    .select("id, name, slots, is_default, is_active, created_at, updated_at")
+    .maybeSingle();
+
+  if (error) return jsonError(error.message, 500);
+  if (!data) return jsonError("Room not found.", 404);
+
+  if (data.is_active) await notifyScreenProfileChanged(admin, teacherId, screenNumber);
   return NextResponse.json({ room: normalizeRoom(data) });
 }
 
@@ -408,6 +483,7 @@ export async function GET(request) {
         state: session.screen_states?.[screenNumber] || null,
         screenName: slot?.name || `Screen ${screenNumber}`,
         inputType: INPUT_TYPES.has(slot?.inputType) ? slot.inputType : "display_only",
+        enabled: slot?.enabled !== false,
       });
     } catch (error) {
       return jsonError(error.message || "Could not load projector screen.", 500);
@@ -438,6 +514,7 @@ export async function POST(request) {
 
   if (body?.action === "create-room") return createRoom(admin, context.user.id, body);
   if (body?.action === "update-room") return updateRoom(admin, context.user.id, body);
+  if (body?.action === "toggle-screen") return toggleScreen(admin, context.user.id, body);
   if (body?.action === "set-active-room") return setActiveRoom(admin, context.user.id, body);
   if (body?.action === "delete-room") return deleteRoom(admin, context.user.id, body);
 

@@ -343,12 +343,32 @@ function renderContent(state, compact = false, options = {}) {
 }
 
 function normalizeRoomSlots(slots) {
-  return Array.isArray(slots) && slots.length ? slots.slice(0, 12) : null;
+  if (!Array.isArray(slots) || !slots.length) return null;
+  return slots.slice(0, 12).map((slot, index) => ({
+    name: String(slot?.name || `Screen ${index + 1}`),
+    inputType: ["touch", "keyboard_mouse", "display_only"].includes(slot?.inputType)
+      ? slot.inputType
+      : "display_only",
+    enabled: slot?.enabled !== false,
+  }));
 }
 
 function screenIdsForRoom(room) {
   const slots = normalizeRoomSlots(room?.slots);
   return slots ? slots.map((_, index) => String(index + 1)) : DEFAULT_SCREEN_IDS;
+}
+
+function enabledScreenIdsForRoom(room) {
+  const slots = normalizeRoomSlots(room?.slots);
+  if (!slots) return DEFAULT_SCREEN_IDS;
+  return slots
+    .map((slot, index) => (slot.enabled === false ? null : String(index + 1)))
+    .filter(Boolean);
+}
+
+function slotForScreen(room, screenId) {
+  const slots = normalizeRoomSlots(room?.slots);
+  return slots?.[Number(screenId) - 1] || null;
 }
 
 function libraryTypeLabel(item) {
@@ -517,7 +537,8 @@ export default function ProjectorClient({
   const assignmentResolverRef = useRef(null);
 
   const screenTokens = session.screen_tokens || {};
-  const activeScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
+  const roomScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
+  const activeScreenIds = useMemo(() => enabledScreenIdsForRoom(activeRoom), [activeRoom]);
   const targetScreenIds = useMemo(() => (target === "all" ? activeScreenIds : [target]), [activeScreenIds, target]);
   const currentPlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === playlistState.playlistId) || null,
@@ -687,6 +708,13 @@ export default function ProjectorClient({
   }, [activeScreenIds, target]);
 
   useEffect(() => {
+    setPlaylistTargetScreens((current) => {
+      const next = current.filter((screenId) => activeScreenIds.includes(screenId));
+      return next.length === current.length ? current : next;
+    });
+  }, [activeScreenIds]);
+
+  useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel(`projector-session-${session.id}`)
@@ -720,6 +748,38 @@ export default function ProjectorClient({
     const screenUrl = `${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`;
     await navigator.clipboard.writeText(screenUrl);
     setMessage(`Screen ${screenId} URL copied.`);
+  }
+
+  async function toggleActiveRoomScreen(screenId, enabled) {
+    if (!activeRoom?.id || activeRoom.id === "default") {
+      setMessage("Rooms are not ready for screen toggles yet.");
+      return;
+    }
+    setSending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle-screen",
+          roomId: activeRoom.id,
+          screenId,
+          enabled,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update that screen.");
+      setActiveRoom(payload.room);
+      if (playlistStateRef.current.status === "running" || playlistStateRef.current.status === "paused") {
+        stopPlaylist("Playlist stopped because screen availability changed.");
+      }
+      setMessage(`Screen ${screenId} is now ${enabled ? "active" : "inactive"}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
   }
 
   function currentComposerContent() {
@@ -1803,43 +1863,60 @@ export default function ProjectorClient({
       <div className="projectorLayout">
         <div className="projectorGridColumn">
           <section className="projectorGrid" aria-label="Projector screens">
-            {activeScreenIds.map((screenId) => (
-              <article className="projectorScreenCard" key={screenId}>
-                <div className="projectorScreenCardHeader">
-                  <div className="projectorScreenTitleRow">
-                    <strong>Screen {screenId}</strong>
+            {roomScreenIds.map((screenId) => {
+              const slot = slotForScreen(activeRoom, screenId);
+              const isEnabled = slot?.enabled !== false;
+              const canDisable = isEnabled && activeScreenIds.length <= 1;
+              return (
+                <article className={`projectorScreenCard${isEnabled ? "" : " isInactive"}`} key={screenId}>
+                  <div className="projectorScreenCardHeader">
+                    <div className="projectorScreenTitleRow">
+                      <strong>{slot?.name || `Screen ${screenId}`}</strong>
+                      <span className={`projectorScreenActiveTag${isEnabled ? "" : " isInactive"}`}>
+                        {isEnabled ? "Active" : "Inactive"}
+                      </span>
+                      <button
+                        className="projectorScreenEdit"
+                        type="button"
+                        onClick={() => editScreenContent(screenId)}
+                        disabled={!screenStates?.[screenId]?.type}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <span>{screenStates?.[screenId]?.type || "empty"}</span>
+                  </div>
+                  <div className="projectorScreenPreview">
+                    {!isEnabled ? <span className="projectorInactiveOverlay">Inactive</span> : null}
+                    {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
+                  </div>
+                  {isQuestionState(screenStates?.[screenId]) ? (
                     <button
-                      className="projectorScreenEdit"
+                      className="btn secondary projectorRevealAnswerButton"
                       type="button"
-                      onClick={() => editScreenContent(screenId)}
-                      disabled={!screenStates?.[screenId]?.type}
+                      onClick={() => toggleRevealAnswer(screenId)}
+                      disabled={sending || !isEnabled}
                     >
-                      Edit
+                      {screenStates?.[screenId]?.revealAnswer ? "Hide Answer" : "Reveal Answer"}
+                    </button>
+                  ) : null}
+                  <button
+                    className={`projectorScreenToggle${isEnabled ? "" : " isInactive"}`}
+                    type="button"
+                    onClick={() => toggleActiveRoomScreen(screenId, !isEnabled)}
+                    disabled={sending || canDisable}
+                  >
+                    {isEnabled ? "Make Inactive" : "Make Active"}
+                  </button>
+                  <div className="projectorScreenUrl">
+                    <code>{`${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`}</code>
+                    <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
+                      Copy
                     </button>
                   </div>
-                  <span>{screenStates?.[screenId]?.type || "empty"}</span>
-                </div>
-                <div className="projectorScreenPreview">
-                  {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
-                </div>
-                {isQuestionState(screenStates?.[screenId]) ? (
-                  <button
-                    className="btn secondary projectorRevealAnswerButton"
-                    type="button"
-                    onClick={() => toggleRevealAnswer(screenId)}
-                    disabled={sending}
-                  >
-                    {screenStates?.[screenId]?.revealAnswer ? "Hide Answer" : "Reveal Answer"}
-                  </button>
-                ) : null}
-                <div className="projectorScreenUrl">
-                  <code>{`${MATHCLAW_ORIGIN}/projector/screen/${session.pin}/${screenId}`}</code>
-                  <button className="btn secondary" type="button" onClick={() => copyUrl(screenId)}>
-                    Copy
-                  </button>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </section>
           <div className="projectorRotateRow">
             <button className="btn secondary" type="button" onClick={() => rotateScreens("backward")} disabled={sending}>
