@@ -69,6 +69,31 @@
   gap: 0.75rem;
 }
 
+.projectorSceneSaveRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.75rem 1rem;
+}
+
+.projectorSceneSaveRow .field {
+  margin: 0;
+  min-width: 200px;
+}
+
+.projectorComposerSave {
+  display: grid;
+  gap: 0.6rem;
+  border-top: 2px solid var(--line);
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+}
+
 .projectorScreenCard,
 .projectorComposer,
 .projectorJoinCard {

@@ -2091,6 +2091,31 @@ export default function ProjectorClient({
               ⟳ Timed Rotate
             </button>
           </div>
+          <div className="projectorSceneSaveRow" aria-label="Save current screens as a scene">
+            <label className="field">
+              <span>Save Current Screens As</span>
+              <input
+                value={sceneTitle}
+                onChange={(event) => setSceneTitle(event.target.value)}
+                placeholder="Start of Class, Exit Ticket..."
+                maxLength={80}
+              />
+            </label>
+            <label className="field">
+              <span>Folder</span>
+              <select value={sceneFolderId} onChange={(event) => setSceneFolderId(event.target.value)}>
+                <option value="">Uncategorized</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn secondary" type="button" onClick={saveScene} disabled={savingScene}>
+              Save Scene
+            </button>
+          </div>
         </div>
 
         <aside className="projectorComposer">
@@ -2374,6 +2399,34 @@ export default function ProjectorClient({
               </button>
               <button className="btn secondary" type="button" onClick={clearScreens} disabled={sending || uploadingVideo}>
                 Clear
+              </button>
+            </div>
+            <div className="projectorComposerSave" aria-label="Save current item">
+              <label className="field">
+                <span>Save Current Item As</span>
+                <input
+                  value={libraryTitle}
+                  onChange={(event) => setLibraryTitle(event.target.value)}
+                  placeholder="Warmup question, word wall..."
+                  maxLength={80}
+                />
+              </label>
+              <label className="field">
+                <span>Category</span>
+                <select value={libraryCategory} onChange={(event) => setLibraryCategory(event.target.value)}>
+                  <option value="">No Category</option>
+                  {LIBRARY_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={saveLibraryItem}
+                disabled={savingLibrary || uploadingVideo}
+              >
+                Save To Library
               </button>
             </div>
             {message ? <p className="projectorMessage">{message}</p> : null}
