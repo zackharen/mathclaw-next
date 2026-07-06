@@ -532,6 +532,7 @@ export default function ProjectorClient({
   const [timedRotation, setTimedRotation] = useState({
     status: "idle",
     intervalSeconds: 15,
+    remainingSeconds: 0,
     direction: "forward",
   });
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -541,6 +542,7 @@ export default function ProjectorClient({
   const playlistTimeoutRef = useRef(null);
   const playlistCountdownRef = useRef(null);
   const timedRotationIntervalRef = useRef(null);
+  const timedRotationCountdownRef = useRef(null);
   const playlistActionRef = useRef(false);
   const playlistStateRef = useRef(playlistState);
   const assignmentResolverRef = useRef(null);
@@ -630,11 +632,15 @@ export default function ProjectorClient({
       window.clearInterval(timedRotationIntervalRef.current);
       timedRotationIntervalRef.current = null;
     }
+    if (timedRotationCountdownRef.current) {
+      window.clearInterval(timedRotationCountdownRef.current);
+      timedRotationCountdownRef.current = null;
+    }
   }
 
   function stopTimedRotation(reason = "") {
     clearTimedRotationTimer();
-    setTimedRotation((current) => ({ ...current, status: "idle" }));
+    setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
     if (reason) setMessage(reason);
   }
 
@@ -682,7 +688,7 @@ export default function ProjectorClient({
           assignmentsBySceneId: {},
           targetScreens: [],
         }));
-        setTimedRotation((current) => ({ ...current, status: "idle" }));
+        setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
         setMessage("Playlist stopped because the active Room changed.");
       }
     }
@@ -748,7 +754,7 @@ export default function ProjectorClient({
   useEffect(() => {
     if (timedRotation.status === "running" && activeScreenIds.length < 2) {
       clearTimedRotationTimer();
-      setTimedRotation((current) => ({ ...current, status: "idle" }));
+      setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
       setMessage("Timed screen rotation stopped because fewer than two screens are active.");
     }
   }, [activeScreenIds.length, timedRotation.status]);
@@ -1445,6 +1451,11 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not rotate screens.");
       setScreenStates(payload.screenStates || {});
+      if (!manual) {
+        setTimedRotation((current) =>
+          current.status === "running" ? { ...current, remainingSeconds: current.intervalSeconds } : current
+        );
+      }
       if (manual) setMessage(direction === "backward" ? "Screens rotated left." : "Screens rotated right.");
     } catch (error) {
       setMessage(error.message);
@@ -1472,8 +1483,17 @@ export default function ProjectorClient({
     stopPlaylist("Playlist stopped because timed screen rotation started.");
     clearTimedRotationTimer();
     setRotationPromptOpen(false);
-    setTimedRotation({ status: "running", intervalSeconds, direction });
+    setTimedRotation({ status: "running", intervalSeconds, remainingSeconds: intervalSeconds, direction });
     setMessage(`Timed screen rotation started: every ${intervalSeconds}s.`);
+    timedRotationCountdownRef.current = window.setInterval(() => {
+      setTimedRotation((current) => {
+        if (current.status !== "running") return current;
+        const nextRemainingSeconds = current.remainingSeconds <= 1
+          ? current.intervalSeconds
+          : current.remainingSeconds - 1;
+        return { ...current, remainingSeconds: nextRemainingSeconds };
+      });
+    }, 1000);
     timedRotationIntervalRef.current = window.setInterval(() => {
       rotateScreens(direction, { manual: false });
     }, intervalSeconds * 1000);
@@ -1990,8 +2010,11 @@ export default function ProjectorClient({
         <section className="projectorTimedRotationDock" aria-label="Timed screen rotation">
           <div>
             <p className="eyebrow">Screen rotation running</p>
-            <h2>{timedRotation.direction === "backward" ? "Rotate Left" : "Rotate Right"}</h2>
-            <span>Every {timedRotation.intervalSeconds}s across {activeScreenIds.length} active screens</span>
+            <h2>Next rotation in {timedRotation.remainingSeconds || timedRotation.intervalSeconds}s</h2>
+            <span>
+              {timedRotation.direction === "backward" ? "Rotate Left" : "Rotate Right"} every{" "}
+              {timedRotation.intervalSeconds}s across {activeScreenIds.length} active screens
+            </span>
           </div>
           <button type="button" onClick={() => stopTimedRotation("Timed screen rotation stopped.")}>
             Stop
