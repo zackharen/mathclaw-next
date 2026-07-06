@@ -86,6 +86,17 @@
   min-width: 200px;
 }
 
+.projectorSceneSaveFolderCreator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.projectorSceneSaveFolderCreator .field {
+  min-width: 180px;
+}
+
 .projectorComposerSave {
   display: grid;
   gap: 0.6rem;

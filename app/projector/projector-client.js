@@ -483,6 +483,7 @@ export default function ProjectorClient({
   const [playlists, setPlaylists] = useState(playlistItems);
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
+  const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
   const [openPanels, setOpenPanels] = useState({ screens: true, scenes: false, library: false });
   const [target, setTarget] = useState("all");
   const [type, setType] = useState("text");
@@ -1073,6 +1074,7 @@ export default function ProjectorClient({
       setSceneFolderId(payload.folder.id);
       setNewFolderTitle("");
       setShowNewFolderForm(false);
+      setShowSceneSaveFolderForm(false);
       setMessage(`Created folder "${payload.folder.title}".`);
     } catch (error) {
       setMessage(error.message);
@@ -2112,6 +2114,37 @@ export default function ProjectorClient({
                 ))}
               </select>
             </label>
+            {showSceneSaveFolderForm ? (
+              <div className="projectorSceneSaveFolderCreator">
+                <label className="field">
+                  <span>New Folder</span>
+                  <input
+                    value={newFolderTitle}
+                    onChange={(event) => setNewFolderTitle(event.target.value)}
+                    placeholder="Period 1, Warmups..."
+                    maxLength={60}
+                    autoFocus
+                  />
+                </label>
+                <button className="btn secondary" type="button" onClick={createSceneFolder} disabled={savingScene || !newFolderTitle.trim()}>
+                  Add Folder
+                </button>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => {
+                    setShowSceneSaveFolderForm(false);
+                    setNewFolderTitle("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button className="btn secondary" type="button" onClick={() => setShowSceneSaveFolderForm(true)}>
+                + New Folder
+              </button>
+            )}
             <button className="btn secondary" type="button" onClick={saveScene} disabled={savingScene}>
               Save Scene
             </button>
