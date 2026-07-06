@@ -439,10 +439,23 @@ export default function ProjectorFullLibrary({
     setDraftEntries((current) => current.filter((_, entryIndex) => entryIndex !== index));
   }
 
+  function visibleDraftEntries() {
+    if (typeof document === "undefined") return null;
+    const nodes = Array.from(document.querySelectorAll(".projectorPlaylistEntry"));
+    if (!nodes.length) return null;
+    const entries = nodes.map((node) => ({
+      type: node.dataset.entryType,
+      refId: node.dataset.refId,
+      durationSeconds: Math.max(Number(node.querySelector('input[type="number"]')?.value) || 60, 5),
+    }));
+    return entries.every((entry) => entry.type && entry.refId) ? entries : null;
+  }
+
   async function savePlaylist() {
     setStatus("Saving playlist...");
     try {
       const action = selectedPlaylistId ? "update-playlist" : "create-playlist";
+      const entriesToSave = visibleDraftEntries() || draftEntries;
       const response = await fetch("/api/projector/playlists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -451,7 +464,7 @@ export default function ProjectorFullLibrary({
           playlistId: selectedPlaylistId,
           name: draftName,
           loop: draftLoop,
-          entries: draftEntries,
+          entries: entriesToSave,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -666,7 +679,12 @@ export default function ProjectorFullLibrary({
 
                   <div className="projectorPlaylistEntryList">
                     {draftEntries.length ? draftEntries.map((entry, index) => (
-                      <article className="projectorPlaylistEntry" key={`${entry.type}-${entry.refId}-${index}`}>
+                      <article
+                        className="projectorPlaylistEntry"
+                        data-entry-type={entry.type}
+                        data-ref-id={entry.refId}
+                        key={`${entry.type}-${entry.refId}-${index}`}
+                      >
                         <span className="projectorPlaylistEntryThumb" aria-hidden="true">
                           {entry.type === "item"
                             ? previewForItem(libraryItems.find((item) => item.id === entry.refId) || {})
