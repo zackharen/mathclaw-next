@@ -504,6 +504,8 @@ export default function ProjectorClient({
   const [renamingItemId, setRenamingItemId] = useState(null);
   const [renamingItemTitle, setRenamingItemTitle] = useState("");
   const [renamingItemCategory, setRenamingItemCategory] = useState("");
+  const [renamingSceneId, setRenamingSceneId] = useState(null);
+  const [renamingSceneTitle, setRenamingSceneTitle] = useState("");
   const [sceneTitle, setSceneTitle] = useState("");
   const [sceneFolderId, setSceneFolderId] = useState("");
   const [newFolderTitle, setNewFolderTitle] = useState("");
@@ -602,6 +604,31 @@ export default function ProjectorClient({
   function togglePanel(panelName) {
     setOpenPanels((current) => ({ ...current, [panelName]: !current[panelName] }));
   }
+
+  function syncSceneLibrary(nextScenes, nextFolders = folders) {
+    window.dispatchEvent(
+      new CustomEvent("projector:scene-library-updated", {
+        detail: { scenes: nextScenes, folders: nextFolders, source: "projector-client" },
+      })
+    );
+  }
+
+  function updateScenesAndSync(updater, nextFolders = folders) {
+    const nextScenes = typeof updater === "function" ? updater(scenes) : updater;
+    setScenes(nextScenes);
+    syncSceneLibrary(nextScenes, nextFolders);
+  }
+
+  useEffect(() => {
+    function updateSceneLibrary(event) {
+      if (event.detail?.source === "projector-client") return;
+      if (Array.isArray(event.detail?.scenes)) setScenes(event.detail.scenes);
+      if (Array.isArray(event.detail?.folders)) setFolders(event.detail.folders);
+    }
+
+    window.addEventListener("projector:scene-library-updated", updateSceneLibrary);
+    return () => window.removeEventListener("projector:scene-library-updated", updateSceneLibrary);
+  }, []);
 
   function clearPlaylistTimers() {
     if (playlistTimeoutRef.current) {
@@ -1047,7 +1074,7 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not save that room setup.");
 
-      setScenes((current) => [payload.scene, ...current.filter((scene) => scene.id !== payload.scene.id)]);
+      updateScenesAndSync((current) => [payload.scene, ...current.filter((scene) => scene.id !== payload.scene.id)]);
       setSceneTitle(payload.scene.title || "");
       setMessage(`Saved "${payload.scene.title}" as a room setup.`);
     } catch (error) {
@@ -1069,7 +1096,11 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not create that folder.");
 
-      setFolders((current) => [payload.folder, ...current.filter((folder) => folder.id !== payload.folder.id)]);
+      setFolders((current) => {
+        const nextFolders = [payload.folder, ...current.filter((folder) => folder.id !== payload.folder.id)];
+        syncSceneLibrary(scenes, nextFolders);
+        return nextFolders;
+      });
       setOpenFolderIds((current) => new Set([...current, payload.folder.id]));
       setSceneFolderId(payload.folder.id);
       setNewFolderTitle("");
@@ -1096,9 +1127,11 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not delete that folder.");
 
-      setFolders((current) => current.filter((item) => item.id !== folderId));
-      setScenes((current) =>
-        current.map((scene) => (scene.folder_id === folderId ? { ...scene, folder_id: null } : scene))
+      const nextFolders = folders.filter((item) => item.id !== folderId);
+      setFolders(nextFolders);
+      updateScenesAndSync(
+        (current) => current.map((scene) => (scene.folder_id === folderId ? { ...scene, folder_id: null } : scene)),
+        nextFolders
       );
       if (sceneFolderId === folderId) setSceneFolderId("");
       setMessage(`Deleted "${folder?.title || "Folder"}". Scenes Moved To Uncategorized.`);
@@ -1121,13 +1154,52 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not move that room setup.");
 
-      setScenes((current) => current.map((scene) => (scene.id === sceneId ? payload.scene : scene)));
+      updateScenesAndSync((current) => current.map((scene) => (scene.id === sceneId ? payload.scene : scene)));
       setMessage(`Moved "${payload.scene.title}" to ${sceneFolderLabel(payload.scene, folders)}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
       setSavingScene(false);
     }
+  }
+
+  async function renameScene(sceneId, title) {
+    const nextTitle = String(title || "").trim();
+    if (!nextTitle) {
+      setMessage("Enter a name for this room setup.");
+      return;
+    }
+
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename-scene", sceneId, title: nextTitle }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not rename that room setup.");
+
+      updateScenesAndSync((current) => current.map((scene) => (scene.id === sceneId ? payload.scene : scene)));
+      setRenamingSceneId(null);
+      setRenamingSceneTitle("");
+      setMessage(`Renamed room setup to "${payload.scene.title}".`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
+  function beginRenameScene(scene) {
+    setRenamingSceneId(scene.id);
+    setRenamingSceneTitle(scene.title || "");
+  }
+
+  function cancelRenameScene() {
+    setRenamingSceneId(null);
+    setRenamingSceneTitle("");
   }
 
   async function postLoadScene(scene, sceneAssignments = null) {
@@ -1241,13 +1313,93 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not delete that room setup.");
 
-      setScenes((current) => current.filter((scene) => scene.id !== sceneId));
+      updateScenesAndSync((current) => current.filter((scene) => scene.id !== sceneId));
       setMessage("Room setup deleted.");
     } catch (error) {
       setMessage(error.message);
     } finally {
       setSavingScene(false);
     }
+  }
+
+  function renderSceneItem(scene) {
+    const isRenaming = renamingSceneId === scene.id;
+    return (
+      <article className="projectorSceneItem" key={scene.id}>
+        <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
+          <span>
+            <strong>{scene.title}</strong>
+            <em>{sceneFilledCount(scene, activeScreenIds)} Of {activeScreenIds.length} Screens Filled</em>
+          </span>
+          <span className="projectorSceneThumb" aria-hidden="true">
+            {activeScreenIds.map((screenId) => (
+              <span key={screenId}>{renderContent(scene.screen_states?.[screenId], true)}</span>
+            ))}
+          </span>
+        </button>
+        <div className="projectorSceneControls">
+          {isRenaming ? (
+            <form
+              className="projectorSceneRenameForm"
+              onSubmit={(event) => {
+                event.preventDefault();
+                renameScene(scene.id, renamingSceneTitle);
+              }}
+            >
+              <label>
+                <span>Scene name</span>
+                <input
+                  value={renamingSceneTitle}
+                  onChange={(event) => setRenamingSceneTitle(event.target.value)}
+                  maxLength={80}
+                  autoFocus
+                />
+              </label>
+              <div className="projectorSceneRenameActions">
+                <button className="projectorLibraryRename" type="submit" disabled={savingScene || !renamingSceneTitle.trim()}>
+                  Save
+                </button>
+                <button className="projectorLibraryDelete" type="button" onClick={cancelRenameScene} disabled={savingScene}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              className="projectorLibraryRename"
+              type="button"
+              onClick={() => beginRenameScene(scene)}
+              disabled={savingScene}
+              aria-label={`Rename ${scene.title}`}
+            >
+              Rename
+            </button>
+          )}
+          <label>
+            <span>Move to folder</span>
+            <select
+              value={scene.folder_id || ""}
+              onChange={(event) => updateSceneFolder(scene.id, event.target.value)}
+              disabled={savingScene}
+            >
+              <option value="">Uncategorized</option>
+              {folders.map((folder) => (
+                <option key={folder.id} value={folder.id}>{folder.title}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="projectorLibraryDelete"
+            type="button"
+            onClick={() => deleteScene(scene.id)}
+            disabled={savingScene}
+            aria-label={`Delete ${scene.title}`}
+          >
+            Delete
+          </button>
+        </div>
+      </article>
+    );
   }
 
   function processImageFile(file) {
@@ -2519,45 +2671,7 @@ export default function ProjectorClient({
                   {isOpen ? (
                     <div className="projectorLibraryList">
                       {uncatScenes.length ? (
-                        uncatScenes.map((scene) => (
-                          <article className="projectorSceneItem" key={scene.id}>
-                            <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
-                              <span>
-                                <strong>{scene.title}</strong>
-                                <em>{sceneFilledCount(scene, activeScreenIds)} Of {activeScreenIds.length} Screens Filled</em>
-                              </span>
-                              <span className="projectorSceneThumb" aria-hidden="true">
-                                {activeScreenIds.map((screenId) => (
-                                  <span key={screenId}>{renderContent(scene.screen_states?.[screenId], true)}</span>
-                                ))}
-                              </span>
-                            </button>
-                            <div className="projectorSceneControls">
-                              <label>
-                                <span>Move to folder</span>
-                                <select
-                                  value={scene.folder_id || ""}
-                                  onChange={(event) => updateSceneFolder(scene.id, event.target.value)}
-                                  disabled={savingScene}
-                                >
-                                  <option value="">Uncategorized</option>
-                                  {folders.map((folder) => (
-                                    <option key={folder.id} value={folder.id}>{folder.title}</option>
-                                  ))}
-                                </select>
-                              </label>
-                              <button
-                                className="projectorLibraryDelete"
-                                type="button"
-                                onClick={() => deleteScene(scene.id)}
-                                disabled={savingScene}
-                                aria-label={`Delete ${scene.title}`}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </article>
-                        ))
+                        uncatScenes.map((scene) => renderSceneItem(scene))
                       ) : (
                         <p className="projectorLibraryEmpty">No scenes here yet.</p>
                       )}
@@ -2597,45 +2711,7 @@ export default function ProjectorClient({
                   {isOpen ? (
                     <div className="projectorLibraryList">
                       {folderScenes.length ? (
-                        folderScenes.map((scene) => (
-                          <article className="projectorSceneItem" key={scene.id}>
-                            <button type="button" onClick={() => loadScene(scene)} disabled={savingScene}>
-                              <span>
-                                <strong>{scene.title}</strong>
-                                <em>{sceneFilledCount(scene, activeScreenIds)} Of {activeScreenIds.length} Screens Filled</em>
-                              </span>
-                              <span className="projectorSceneThumb" aria-hidden="true">
-                                {activeScreenIds.map((screenId) => (
-                                  <span key={screenId}>{renderContent(scene.screen_states?.[screenId], true)}</span>
-                                ))}
-                              </span>
-                            </button>
-                            <div className="projectorSceneControls">
-                              <label>
-                                <span>Move to folder</span>
-                                <select
-                                  value={scene.folder_id || ""}
-                                  onChange={(event) => updateSceneFolder(scene.id, event.target.value)}
-                                  disabled={savingScene}
-                                >
-                                  <option value="">Uncategorized</option>
-                                  {folders.map((f) => (
-                                    <option key={f.id} value={f.id}>{f.title}</option>
-                                  ))}
-                                </select>
-                              </label>
-                              <button
-                                className="projectorLibraryDelete"
-                                type="button"
-                                onClick={() => deleteScene(scene.id)}
-                                disabled={savingScene}
-                                aria-label={`Delete ${scene.title}`}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </article>
-                        ))
+                        folderScenes.map((scene) => renderSceneItem(scene))
                       ) : (
                         <p className="projectorLibraryEmpty">No scenes in this folder yet.</p>
                       )}

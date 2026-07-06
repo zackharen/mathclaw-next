@@ -794,7 +794,7 @@
 
 .projectorSceneControls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.45rem;
   align-items: end;
 }
@@ -897,8 +897,35 @@
   padding: 0.55rem;
 }
 
+.projectorSceneRenameForm {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.45rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f5f8fb;
+  padding: 0.55rem;
+}
+
+.projectorSceneRenameForm input {
+  width: 100%;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  font-weight: 800;
+}
+
 .projectorLibraryRenameActions {
   display: flex;
+  gap: 0.35rem;
+}
+
+.projectorSceneRenameActions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
 }
 

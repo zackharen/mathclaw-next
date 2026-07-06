@@ -493,6 +493,32 @@ async function saveScene(admin, teacherId, session, body) {
   return NextResponse.json({ scene: normalizeSceneItem(data) });
 }
 
+async function renameScene(admin, teacherId, body) {
+  const sceneId = String(body.sceneId || "");
+  if (!isUuid(sceneId)) return jsonError("Choose a saved room setup to rename.");
+
+  const title = normalizeSceneTitle(body.title);
+  if (!title) return jsonError("Enter a name for this room setup.");
+
+  const { data, error } = await admin
+    .from("projector_scene_library_items")
+    .update({ title, updated_at: new Date().toISOString() })
+    .eq("id", sceneId)
+    .eq("teacher_id", teacherId)
+    .select("id, title, folder_id, screen_states, created_at, updated_at")
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+  if (!data) return jsonError("Saved room setup not found.", 404);
+
+  return NextResponse.json({ scene: normalizeSceneItem(data) });
+}
+
 async function createSceneFolder(admin, teacherId, body) {
   const title = normalizeSceneFolderTitle(body.title);
   if (!title) return jsonError("Name the folder before saving it.");
@@ -791,6 +817,10 @@ export async function POST(request) {
 
   if (body?.action === "update-scene-folder") {
     return updateSceneFolder(admin, context.user.id, body);
+  }
+
+  if (body?.action === "rename-scene") {
+    return renameScene(admin, context.user.id, body);
   }
 
   if (body?.action === "save-scene") {

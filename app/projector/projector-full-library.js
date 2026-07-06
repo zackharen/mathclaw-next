@@ -269,13 +269,15 @@ export default function ProjectorFullLibrary({
   const [playlistsMissing, setPlaylistsMissing] = useState(playlistsSetupMissing);
   const [loadingScenes, setLoadingScenes] = useState(false);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [renamingSceneId, setRenamingSceneId] = useState("");
+  const [renamingSceneTitle, setRenamingSceneTitle] = useState("");
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(playlistItems[0]?.id || "");
   const [draftName, setDraftName] = useState("");
   const [draftLoop, setDraftLoop] = useState(true);
   const [draftEntries, setDraftEntries] = useState([]);
   const lastSyncedPlaylistId = useRef("");
-  const scenes = sceneItems.length ? sceneItems : loadedScenes;
-  const folders = sceneFolders.length ? sceneFolders : loadedFolders;
+  const scenes = loadedScenes;
+  const folders = loadedFolders;
   const playlists = loadedPlaylists;
   const hasItems = libraryItems.length > 0;
   const hasScenes = scenes.length > 0;
@@ -286,6 +288,52 @@ export default function ProjectorFullLibrary({
     if (sceneItems.length) setLoadedScenes(sceneItems);
     if (sceneFolders.length) setLoadedFolders(sceneFolders);
   }, [sceneFolders, sceneItems]);
+
+  useEffect(() => {
+    function updateSceneLibrary(event) {
+      if (Array.isArray(event.detail?.scenes)) setLoadedScenes(event.detail.scenes);
+      if (Array.isArray(event.detail?.folders)) setLoadedFolders(event.detail.folders);
+    }
+
+    window.addEventListener("projector:scene-library-updated", updateSceneLibrary);
+    return () => window.removeEventListener("projector:scene-library-updated", updateSceneLibrary);
+  }, []);
+
+  function broadcastSceneLibrary(nextScenes, nextFolders = folders) {
+    window.dispatchEvent(
+      new CustomEvent("projector:scene-library-updated", {
+        detail: { scenes: nextScenes, folders: nextFolders, source: "projector-full-library" },
+      })
+    );
+  }
+
+  async function renameScene(sceneId, title) {
+    const nextTitle = String(title || "").trim();
+    if (!nextTitle) {
+      setStatus("Enter a name for this scene.");
+      return;
+    }
+
+    setStatus("Renaming scene...");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "rename-scene", sceneId, title: nextTitle }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not rename that scene.");
+
+      const nextScenes = scenes.map((scene) => (scene.id === sceneId ? payload.scene : scene));
+      setLoadedScenes(nextScenes);
+      broadcastSceneLibrary(nextScenes);
+      setRenamingSceneId("");
+      setRenamingSceneTitle("");
+      setStatus(`Renamed scene to "${payload.scene.title}".`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
 
   useEffect(() => {
     if (playlistItems.length) setLoadedPlaylists(playlistItems);
@@ -622,6 +670,7 @@ export default function ProjectorFullLibrary({
               <div className="projectorFullLibraryGrid">
                 {filteredScenes.length ? filteredScenes.map((scene) => {
                   const folderTitle = folderById.get(scene.folder_id)?.title || "Unfiled";
+                  const isRenaming = renamingSceneId === scene.id;
                   return (
                     <article className="projectorFullLibraryCard" key={scene.id}>
                       <button type="button" onClick={() => loadScene(scene)}>
@@ -633,6 +682,49 @@ export default function ProjectorFullLibrary({
                         <strong>{scene.title}</strong>
                         <em>{folderTitle} · {sceneFilledCount(scene)} of 4 screens filled</em>
                       </button>
+                      {isRenaming ? (
+                        <form
+                          className="projectorFullLibraryRenameForm"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            renameScene(scene.id, renamingSceneTitle);
+                          }}
+                        >
+                          <label>
+                            <span>Scene name</span>
+                            <input
+                              value={renamingSceneTitle}
+                              onChange={(event) => setRenamingSceneTitle(event.target.value)}
+                              maxLength={80}
+                              autoFocus
+                            />
+                          </label>
+                          <div className="projectorFullLibraryCardActions">
+                            <button type="submit" disabled={!renamingSceneTitle.trim()}>Save</button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRenamingSceneId("");
+                                setRenamingSceneTitle("");
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="projectorFullLibraryCardActions">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenamingSceneId(scene.id);
+                              setRenamingSceneTitle(scene.title || "");
+                            }}
+                          >
+                            Rename
+                          </button>
+                        </div>
+                      )}
                     </article>
                   );
                 }) : (
@@ -791,9 +883,27 @@ export default function ProjectorFullLibrary({
           gap: 0.75rem; overflow: auto; padding-right: 0.2rem;
         }
         .projectorFullLibraryCard { border: 2px solid var(--line); border-radius: 12px; background: #fff; padding: 0.55rem; }
-        .projectorFullLibraryCard button {
+        .projectorFullLibraryCard > button:first-child {
           width: 100%; display: grid; gap: 0.45rem; border: 0; background: transparent; color: var(--ink);
           padding: 0; text-align: left; font: inherit; cursor: pointer;
+        }
+        .projectorFullLibraryCardActions {
+          display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.55rem;
+        }
+        .projectorFullLibraryCardActions button {
+          border: 2px solid var(--line); border-radius: 8px; background: #f5f8fb; color: var(--ink);
+          padding: 0.35rem 0.55rem; font: inherit; font-size: 0.8rem; font-weight: 900; cursor: pointer;
+        }
+        .projectorFullLibraryRenameForm {
+          display: grid; gap: 0.45rem; margin-top: 0.55rem; border: 2px solid var(--line);
+          border-radius: 8px; background: #f5f8fb; padding: 0.55rem;
+        }
+        .projectorFullLibraryRenameForm label {
+          display: grid; gap: 0.25rem; color: var(--navy); font-size: 0.76rem; font-weight: 900;
+        }
+        .projectorFullLibraryRenameForm input {
+          width: 100%; border: 2px solid #c8d6df; border-radius: 8px; background: #fff;
+          color: var(--ink); padding: 0.45rem 0.55rem; font: inherit; font-weight: 800;
         }
         .projectorFullLibraryCard strong, .projectorFullLibraryCard em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .projectorFullLibraryCard strong { color: var(--navy); font-size: 1.05rem; }
