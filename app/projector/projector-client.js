@@ -1562,13 +1562,13 @@ export default function ProjectorClient({
       return;
     }
     setPlaylistStartPrompt(null);
-    setSavingScene(true);
     try {
       const assignmentsBySceneId = await collectPlaylistAssignments(entries, playlist.name);
       if (!assignmentsBySceneId) {
         setMessage("Playlist start cancelled.");
         return;
       }
+      setSavingScene(true);
       await playPlaylistEntry(playlist, entries, assignmentsBySceneId, playlistTargetScreens, 0, playlist.loop !== false);
     } catch (error) {
       setMessage(error.message);
