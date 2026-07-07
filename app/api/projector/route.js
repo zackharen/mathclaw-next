@@ -17,6 +17,7 @@ const SCENE_FOLDER_TITLE_LIMIT = 60;
 const TOP_TEXT_LIMIT = 500;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
+const BROADCAST_SEND_TIMEOUT_MS = 1500;
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -284,16 +285,17 @@ async function findSessionByToken(admin, token) {
 }
 
 async function broadcastScreenUpdates(admin, sessionId, payloads) {
-  const channel = admin.channel(`projector-session-${sessionId}`, {
-    config: { broadcast: { ack: true } },
-  });
+  const channel = admin.channel(`projector-session-${sessionId}`);
   try {
     for (const payload of payloads) {
-      await channel.send({
-        type: "broadcast",
-        event: "screen-updated",
-        payload,
-      });
+      await Promise.race([
+        channel.send({
+          type: "broadcast",
+          event: "screen-updated",
+          payload,
+        }),
+        new Promise((resolve) => setTimeout(resolve, BROADCAST_SEND_TIMEOUT_MS)),
+      ]);
     }
   } finally {
     await admin.removeChannel(channel);
