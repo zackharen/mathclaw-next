@@ -11,6 +11,7 @@ import {
   formatDoubleBoardAnswer,
   formatBoardLocation,
 } from "@/lib/question-engine/double-board";
+import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 function courseTitle(courses, courseId) {
   if (!courseId) return "Practice room";
@@ -872,6 +873,7 @@ export default function DoubleBoardClient({
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [answerSubmitting, setAnswerSubmitting] = useState(false);
   const [flashMessage, setFlashMessage] = useState("");
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [answerValue, setAnswerValue] = useState("");
@@ -887,6 +889,10 @@ export default function DoubleBoardClient({
   const [podiumOpen, setPodiumOpen] = useState(false);
   const [dismissedTeacherQuestionId, setDismissedTeacherQuestionId] = useState(null);
   const [redirectPickerOpen, setRedirectPickerOpen] = useState(false);
+  const supabaseRef = useRef(null);
+  const sessionRefreshInFlightRef = useRef(false);
+  const pendingSessionRefreshRef = useRef(false);
+  const claimInFlightRef = useRef(new Set());
   const [voteSettings, setVoteSettings] = useState({
     numberMode: "single_digit",
     answerMode: "typed",
@@ -908,6 +914,12 @@ export default function DoubleBoardClient({
   }, [canHost, courses]);
 
   const loadSession = useCallback(async (nextCourseId = courseId, options = {}) => {
+    if (options.quiet && sessionRefreshInFlightRef.current) {
+      pendingSessionRefreshRef.current = true;
+      return null;
+    }
+
+    sessionRefreshInFlightRef.current = true;
     if (!options.quiet) {
       setLoading(true);
     }
@@ -943,14 +955,23 @@ export default function DoubleBoardClient({
         console.warn("Double Board background refresh failed", error);
       }
     } finally {
+      sessionRefreshInFlightRef.current = false;
       if (!options.quiet) {
         setLoading(false);
+      }
+      if (pendingSessionRefreshRef.current) {
+        pendingSessionRefreshRef.current = false;
+        window.setTimeout(() => {
+          loadSession(nextCourseId, { quiet: true });
+        }, 0);
       }
     }
   }, [courseId]);
 
-  async function postAction(action, extra = {}) {
-    setBusy(true);
+  async function postAction(action, extra = {}, options = {}) {
+    if (!options.suppressBusy) {
+      setBusy(true);
+    }
     try {
       const response = await fetch("/api/play/double-board", {
         method: "POST",
@@ -1002,7 +1023,9 @@ export default function DoubleBoardClient({
       setFlashMessage(error.message || "Double Board request failed.");
       return null;
     } finally {
-      setBusy(false);
+      if (!options.suppressBusy) {
+        setBusy(false);
+      }
     }
   }
 
@@ -1013,13 +1036,47 @@ export default function DoubleBoardClient({
   useEffect(() => {
     if (!courseId && !canHost) return undefined;
 
-    const delay = session?.status === "live" ? 700 : 2200;
     const interval = window.setInterval(() => {
+      loadSession(courseId, { quiet: true });
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [canHost, courseId, loadSession]);
+
+  useEffect(() => {
+    if (!session?.id) return undefined;
+    if (!supabaseRef.current) {
+      supabaseRef.current = createBrowserSupabaseClient();
+    }
+
+    const channel = supabaseRef.current
+      .channel(`double-board:${session.id}`)
+      .on("broadcast", { event: "state_changed" }, () => {
+        loadSession(courseId, { quiet: true });
+      })
+      .subscribe();
+
+    return () => {
+      supabaseRef.current?.removeChannel(channel);
+    };
+  }, [courseId, loadSession, session?.id]);
+
+  useEffect(() => {
+    const now = Date.now() + clockOffsetRef.current;
+    const candidates = [session?.startCountdownEndsAt, session?.turnPhaseEndsAt]
+      .map((value) => Date.parse(String(value || "")))
+      .filter((value) => Number.isFinite(value) && value > now);
+
+    if (!candidates.length) return undefined;
+
+    const nextExpiry = Math.min(...candidates);
+    const delay = Math.max(0, nextExpiry - now + 250);
+    const timeout = window.setTimeout(() => {
       loadSession(courseId, { quiet: true });
     }, delay);
 
-    return () => window.clearInterval(interval);
-  }, [canHost, courseId, loadSession, session?.status]);
+    return () => window.clearTimeout(timeout);
+  }, [courseId, loadSession, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
 
   useEffect(() => {
     function refreshOnFocus() {
@@ -1326,16 +1383,23 @@ export default function DoubleBoardClient({
 
   async function handleSelect(question) {
     if (!canAnswer || !question || question.solved) return;
+    if (claimInFlightRef.current.has(question.id)) return;
 
     if (
       (session?.playMode || playMode) === "free_for_all" ||
       (session?.playMode || playMode) === "one_at_a_time"
     ) {
+      claimInFlightRef.current.add(question.id);
+      setSelectedQuestion(question);
+      setAnswerValue("");
       const payload = await postAction("claim_question", {
         questionId: question.id,
-      });
+      }, { suppressBusy: true });
+      claimInFlightRef.current.delete(question.id);
 
       if (!payload?.result?.claimed) {
+        setSelectedQuestion(null);
+        setAnswerValue("");
         return;
       }
     }
@@ -1345,14 +1409,19 @@ export default function DoubleBoardClient({
   }
 
   async function handleSubmitAnswer(nextAnswer = answerValue) {
-    if (!selectedQuestion) return;
-    const payload = await postAction("answer", {
-      questionId: selectedQuestion.id,
-      answer: nextAnswer,
-    });
-    if (payload) {
-      setSelectedQuestion(null);
-      setAnswerValue("");
+    if (!selectedQuestion || answerSubmitting) return;
+    setAnswerSubmitting(true);
+    try {
+      const payload = await postAction("answer", {
+        questionId: selectedQuestion.id,
+        answer: nextAnswer,
+      }, { suppressBusy: true });
+      if (payload) {
+        setSelectedQuestion(null);
+        setAnswerValue("");
+      }
+    } finally {
+      setAnswerSubmitting(false);
     }
   }
 
@@ -1862,7 +1931,7 @@ export default function DoubleBoardClient({
           onAnswerChange={setAnswerValue}
           onCancel={handleCancelQuestion}
           onSubmit={handleSubmitAnswer}
-          busy={busy}
+          busy={answerSubmitting}
           canUnclaim={
             session?.playMode !== "one_at_a_time" || Number(session?.turnUnclaimCount || 0) < 1
           }

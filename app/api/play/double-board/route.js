@@ -165,38 +165,8 @@ function buildResolvedStudentSettings(session, sessionMetadata) {
   };
 }
 
-function buildSessionMetadata(metadata = {}, questions = []) {
+function buildSessionMetadata(metadata = {}) {
   const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
-  const questionMap = new Map((questions || []).map((question) => [question.id, question]));
-  const activeClaims = {};
-  const freeForAllLockouts = {};
-
-  for (const [questionId, claim] of Object.entries(safeMetadata.activeClaims || {})) {
-    const question = questionMap.get(questionId);
-    if (questionMap.size > 0 && (!question || question.solved)) continue;
-    if (!claim || typeof claim !== "object" || !claim.userId || !claim.displayName) continue;
-
-    const expiresAt = parseFutureTime(claim.expiresAt);
-    if (!expiresAt) continue;
-
-    activeClaims[questionId] = {
-      userId: claim.userId,
-      displayName: claim.displayName,
-      firstName: firstNameFromDisplayName(claim.displayName),
-      claimedAt: claim.claimedAt || nowIso(),
-      expiresAt,
-    };
-  }
-
-  for (const [questionId, userIds] of Object.entries(safeMetadata.freeForAllLockouts || {})) {
-    const question = questionMap.get(questionId);
-    if (questionMap.size > 0 && (!question || question.solved)) continue;
-    if (!Array.isArray(userIds)) continue;
-    const sanitizedUserIds = userIds.map((value) => normalizeId(value)).filter(Boolean);
-    if (sanitizedUserIds.length) {
-      freeForAllLockouts[questionId] = sanitizedUserIds;
-    }
-  }
 
   return {
     ...safeMetadata,
@@ -228,8 +198,8 @@ function buildSessionMetadata(metadata = {}, questions = []) {
         : null,
     freeForAllTimerSeconds: normalizeFreeForAllTimerSeconds(safeMetadata.freeForAllTimerSeconds),
     startCountdownEndsAt: parseFutureTime(safeMetadata.startCountdownEndsAt),
-    activeClaims,
-    freeForAllLockouts,
+    activeClaims: {},
+    freeForAllLockouts: {},
   };
 }
 
@@ -242,6 +212,21 @@ function questionClaimForPayload(claim) {
     firstName: claim.firstName || firstNameFromDisplayName(claim.displayName),
     claimedAt: claim.claimedAt,
     expiresAt: claim.expiresAt,
+  };
+}
+
+function rowClaimForPayload(row) {
+  if (!row?.claimed_by_user_id) return null;
+  const expiresAt = parseFutureTime(row.claim_expires_at);
+  if (!expiresAt) return null;
+  const displayName = row.claimed_by_display_name || "Player";
+
+  return {
+    userId: row.claimed_by_user_id,
+    displayName,
+    firstName: firstNameFromDisplayName(displayName),
+    claimedAt: parseAnyTime(row.claimed_at) || nowIso(),
+    expiresAt,
   };
 }
 
@@ -302,6 +287,36 @@ async function clearDestinationGroupRedirect(admin, redirectTo, courseId) {
         .eq("id", session.id);
     })
   );
+}
+
+async function broadcastSessionChanged(sessionId) {
+  if (!sessionId) return;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) return;
+
+  try {
+    await fetch(`${supabaseUrl.replace(/\/$/, "")}/realtime/v1/api/broadcast`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: `double-board:${sessionId}`,
+            event: "state_changed",
+            payload: { at: nowIso() },
+          },
+        ],
+      }),
+    });
+  } catch (error) {
+    console.warn("Double Board realtime broadcast failed", error);
+  }
 }
 
 function viewerCanAccessSession(session, courses, user) {
@@ -366,6 +381,8 @@ function serializeQuestion(
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
   const expressionText = row.expression_text || "Hidden";
   const answerDisplay = formatDoubleBoardAnswer(row.correct_answer, metadata);
+  const rowClaim = rowClaimForPayload(row);
+  const rowLockoutUserIds = row.locked_user_id ? [row.locked_user_id] : [];
   const pointValue = getDoubleBoardPointValue({
     previousAttemptCount: attemptCount,
     question: row,
@@ -389,8 +406,8 @@ function serializeQuestion(
     pointValue,
     isHidden: !revealExpression,
     metadata,
-    claim: questionClaimForPayload(claim),
-    lockoutUserIds,
+    claim: questionClaimForPayload(rowClaim || claim),
+    lockoutUserIds: rowLockoutUserIds.length ? rowLockoutUserIds : lockoutUserIds,
     state: solved ? (everMissed ? "solved-after-miss" : "solved") : everMissed ? "missed" : "unanswered",
     displayValue: solved ? `${expressionText} = ${answerDisplay}` : everMissed ? "X" : " ",
   };
@@ -1199,8 +1216,6 @@ async function createFreshSession(
         resolvedStudentVoteSummary: null,
         freeForAllTimerSeconds,
         startCountdownEndsAt: null,
-        activeClaims: {},
-        freeForAllLockouts: {},
         turnQuestionId: null,
         turnPhase: null,
         turnPhaseEndsAt: null,
@@ -1260,6 +1275,7 @@ async function createFreshSession(
     return NextResponse.json({ error: questionsError.message }, { status: 400 });
   }
 
+  await broadcastSessionChanged(session.id);
   const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
   return NextResponse.json({ session: bundle });
 }
@@ -1494,6 +1510,7 @@ export async function POST(request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
       await ensurePlayer(admin, currentSession.id, user, displayName, "teacher");
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
@@ -1520,6 +1537,7 @@ export async function POST(request) {
           .eq("id", currentSession.id);
       }
       await recordSessionResultsIfNeeded(admin, currentSession.id);
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
@@ -1562,6 +1580,7 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Turn order updated." } });
     }
@@ -1581,6 +1600,7 @@ export async function POST(request) {
         .select("*")
         .eq("session_id", currentSession.id);
       await advanceTurn(admin, currentSession, sessionPlayers || []);
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Moved to the next student." } });
     }
@@ -1629,6 +1649,7 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle, result: { message: "Vote submitted." } });
     }
@@ -1665,6 +1686,7 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({
         session: bundle,
@@ -1684,6 +1706,7 @@ export async function POST(request) {
         displayName,
         canManage ? "teacher" : "student"
       );
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
@@ -1731,12 +1754,6 @@ export async function POST(request) {
           },
         });
       }
-
-      const activeClaims = {
-        ...sessionMetadata.activeClaims,
-      };
-      const freeForAllLockouts = sessionMetadata.freeForAllLockouts;
-      const existingClaim = activeClaims[question.id];
 
       if (sessionMetadata.playMode === "one_at_a_time") {
         const { data: sessionPlayers } = await admin
@@ -1812,6 +1829,7 @@ export async function POST(request) {
           return NextResponse.json({ error: error.message }, { status: 400 });
         }
 
+        await broadcastSessionChanged(currentSession.id);
         const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
@@ -1822,18 +1840,24 @@ export async function POST(request) {
         });
       }
 
-      if (freeForAllLockouts?.[question.id]?.includes(user.id)) {
-        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
-        return NextResponse.json({
-          session: bundle,
-          result: {
-            claimed: false,
-            message: "That tile is locked for you until another student tries it.",
-          },
-        });
+      const { data: claimedRows, error: claimError } = await admin.rpc(
+        "double_board_claim_question",
+        {
+          p_question_id: question.id,
+          p_session_id: currentSession.id,
+          p_user_id: user.id,
+          p_display_name: displayName,
+          p_claim_seconds: sessionMetadata.freeForAllTimerSeconds,
+        }
+      );
+      const claimedQuestion = Array.isArray(claimedRows) ? claimedRows[0] : claimedRows;
+
+      if (claimError) {
+        return NextResponse.json({ error: claimError.message }, { status: 400 });
       }
 
-      if (existingClaim?.userId === user.id) {
+      if (claimedQuestion) {
+        await broadcastSessionChanged(currentSession.id);
         const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
@@ -1844,71 +1868,27 @@ export async function POST(request) {
         });
       }
 
-      if (existingClaim?.userId && existingClaim.userId !== user.id) {
-        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
-        return NextResponse.json({
-          session: bundle,
-          result: {
-            claimed: false,
-            message: `${existingClaim.firstName} is answering that one right now.`,
-          },
-        });
-      }
-
-      const { data: freshSession } = await admin
-        .from("double_board_sessions")
-        .select("metadata")
-        .eq("id", currentSession.id)
-        .single();
-      const freshMetadata = buildSessionMetadata(freshSession?.metadata, []);
-      const freshClaim = freshMetadata.activeClaims?.[question.id];
-
-      if (freshClaim && freshClaim.userId !== user.id) {
-        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
-        return NextResponse.json({
-          session: bundle,
-          result: {
-            claimed: false,
-            message: `${freshClaim.firstName} is answering that one right now.`,
-          },
-        });
-      }
-
-      const freshActiveClaims = {
-        ...freshMetadata.activeClaims,
-      };
-
-      freshActiveClaims[question.id] = {
-        userId: user.id,
-        displayName,
-        firstName: firstNameFromDisplayName(displayName),
-        claimedAt: nowIso(),
-        expiresAt: new Date(
-          Date.now() + freshMetadata.freeForAllTimerSeconds * 1000
-        ).toISOString(),
-      };
-
-      const { error } = await admin
-        .from("double_board_sessions")
-        .update({
-          metadata: {
-            ...freshMetadata,
-            activeClaims: freshActiveClaims,
-          },
-          updated_at: nowIso(),
-        })
-        .eq("id", currentSession.id);
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-      }
+      const { data: latestQuestion } = await admin
+        .from("double_board_questions")
+        .select("*")
+        .eq("id", question.id)
+        .eq("session_id", currentSession.id)
+        .maybeSingle();
+      const latestClaim = rowClaimForPayload(latestQuestion);
+      const claimedByOther = latestClaim?.userId && latestClaim.userId !== user.id;
 
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({
         session: bundle,
         result: {
-          claimed: true,
-          playerId: player.id,
+          claimed: false,
+          message: latestQuestion?.solved
+            ? "That question is already solved."
+            : latestQuestion?.locked_user_id === user.id
+              ? "That tile is locked for you until another student tries it."
+              : claimedByOther
+                ? `${latestClaim.firstName} is answering that one right now.`
+                : "Click the tile to claim it before answering.",
         },
       });
     }
@@ -1980,6 +1960,7 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({
         session: bundle,
@@ -2102,8 +2083,7 @@ export async function POST(request) {
       }
 
       if (playMode === "free_for_all") {
-        const questionScopedMetadata = buildSessionMetadata(currentSession.metadata);
-        const activeClaim = questionScopedMetadata.activeClaims[question.id];
+        const activeClaim = rowClaimForPayload(question);
 
         if (!activeClaim || activeClaim.userId !== user.id) {
           const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
@@ -2120,35 +2100,20 @@ export async function POST(request) {
         }
       }
 
-      const currentLockouts = {
-        ...sessionMetadata.freeForAllLockouts,
-      };
-      if (playMode === "free_for_all") {
-        const questionLockouts = Array.isArray(currentLockouts[question.id])
-          ? currentLockouts[question.id].filter((lockedUserId) => lockedUserId !== user.id)
-          : [];
-        if (questionLockouts.length) {
-          currentLockouts[question.id] = questionLockouts;
-        } else {
-          delete currentLockouts[question.id];
-        }
-      }
-
       const isCorrect = submittedAnswer === Number(question.correct_answer);
 
       if (isCorrect) {
-        const nextClaims = {
-          ...sessionMetadata.activeClaims,
-        };
-        delete nextClaims[question.id];
-        delete currentLockouts[question.id];
-
         const { data: solvedQuestion, error: solveError } = await admin
           .from("double_board_questions")
           .update({
             solved: true,
             solved_by_player_id: user.id,
             solved_at: nowIso(),
+            claimed_by_user_id: null,
+            claimed_by_display_name: null,
+            claimed_at: null,
+            claim_expires_at: null,
+            locked_user_id: null,
             updated_at: nowIso(),
           })
           .eq("id", question.id)
@@ -2197,11 +2162,7 @@ export async function POST(request) {
           currentSession = await advanceTurn(admin, currentSession, sessionPlayers || []);
         }
 
-        let nextSessionMetadata = {
-          ...sessionMetadata,
-          activeClaims: nextClaims,
-          freeForAllLockouts: currentLockouts,
-        };
+        let nextSessionMetadata = sessionMetadata;
 
         if (playMode === "one_at_a_time" && sessionMetadata.turnAdvanceMode === "until_wrong") {
           nextSessionMetadata = buildSelectPhaseMetadata(
@@ -2211,13 +2172,15 @@ export async function POST(request) {
         }
 
         if (!(playMode === "one_at_a_time" && sessionMetadata.turnAdvanceMode === "one_per_turn")) {
-          await admin
-            .from("double_board_sessions")
-            .update({
-              metadata: nextSessionMetadata,
-              updated_at: nowIso(),
-            })
-            .eq("id", currentSession.id);
+          if (playMode === "one_at_a_time") {
+            await admin
+              .from("double_board_sessions")
+              .update({
+                metadata: nextSessionMetadata,
+                updated_at: nowIso(),
+              })
+              .eq("id", currentSession.id);
+          }
         }
 
         const syncedSession = await syncSolvedCount(admin, currentSession.id);
@@ -2243,6 +2206,7 @@ export async function POST(request) {
           await recordSessionResultsIfNeeded(admin, currentSession.id);
         }
 
+        await broadcastSessionChanged(currentSession.id);
         const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
         return NextResponse.json({
           session: bundle,
@@ -2281,6 +2245,11 @@ export async function POST(request) {
         .update({
           attempt_count: Number(wrongCount || 0),
           ever_missed: true,
+          claimed_by_user_id: null,
+          claimed_by_display_name: null,
+          claimed_at: null,
+          claim_expires_at: null,
+          locked_user_id: playMode === "free_for_all" ? user.id : null,
           updated_at: nowIso(),
         })
         .eq("id", question.id);
@@ -2289,29 +2258,20 @@ export async function POST(request) {
         return NextResponse.json({ error: questionError.message }, { status: 400 });
       }
 
-      await admin
-        .from("double_board_sessions")
-        .update({
-          metadata: {
-            ...clearTurnQuestionState(sessionMetadata),
-            activeClaims: buildSessionMetadata(currentSession.metadata).activeClaims,
-            freeForAllLockouts:
-              playMode === "free_for_all"
-                ? {
-                    ...currentLockouts,
-                    [question.id]: [user.id],
-                  }
-                : currentLockouts,
-          },
-          updated_at: nowIso(),
-        })
-        .eq("id", currentSession.id);
+      let refreshedSession = currentSession;
 
-      const { data: refreshedSession } = await admin
-        .from("double_board_sessions")
-        .select("*")
-        .eq("id", currentSession.id)
-        .single();
+      if (playMode === "one_at_a_time") {
+        const { data } = await admin
+          .from("double_board_sessions")
+          .update({
+            metadata: clearTurnQuestionState(sessionMetadata),
+            updated_at: nowIso(),
+          })
+          .eq("id", currentSession.id)
+          .select("*")
+          .single();
+        refreshedSession = data || currentSession;
+      }
 
       if (playMode === "one_at_a_time") {
         const { data: sessionPlayers } = await admin
@@ -2322,6 +2282,7 @@ export async function POST(request) {
         if (advancedSession) currentSession = advancedSession;
       }
 
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({
         session: bundle,
@@ -2353,6 +2314,7 @@ export async function POST(request) {
         })
         .eq("id", currentSession.id);
       if (redirectError) return NextResponse.json({ error: redirectError.message }, { status: 400 });
+      await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
     }
