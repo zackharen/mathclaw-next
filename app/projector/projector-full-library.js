@@ -335,6 +335,32 @@ export default function ProjectorFullLibrary({
     }
   }
 
+  async function deleteScene(scene) {
+    if (!window.confirm(`Delete "${scene.title}"?`)) return;
+
+    setStatus("Deleting scene...");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-scene", sceneId: scene.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not delete that scene.");
+
+      const nextScenes = scenes.filter((item) => item.id !== scene.id);
+      setLoadedScenes(nextScenes);
+      broadcastSceneLibrary(nextScenes);
+      if (renamingSceneId === scene.id) {
+        setRenamingSceneId("");
+        setRenamingSceneTitle("");
+      }
+      setStatus(`Deleted "${scene.title}".`);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
   useEffect(() => {
     if (playlistItems.length) setLoadedPlaylists(playlistItems);
     setPlaylistsMissing(playlistsSetupMissing);
@@ -723,6 +749,13 @@ export default function ProjectorFullLibrary({
                           >
                             Rename
                           </button>
+                          <button
+                            className="projectorFullLibraryDelete"
+                            type="button"
+                            onClick={() => deleteScene(scene)}
+                          >
+                            Delete
+                          </button>
                         </div>
                       )}
                     </article>
@@ -893,6 +926,9 @@ export default function ProjectorFullLibrary({
         .projectorFullLibraryCardActions button {
           border: 2px solid var(--line); border-radius: 8px; background: #f5f8fb; color: var(--ink);
           padding: 0.35rem 0.55rem; font: inherit; font-size: 0.8rem; font-weight: 900; cursor: pointer;
+        }
+        .projectorFullLibraryCardActions button.projectorFullLibraryDelete {
+          border-color: #d6b3b3; background: #fff6f6; color: #7c1f1f;
         }
         .projectorFullLibraryRenameForm {
           display: grid; gap: 0.45rem; margin-top: 0.55rem; border: 2px solid var(--line);
