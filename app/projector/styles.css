@@ -2130,6 +2130,18 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   color: var(--navy);
 }
 
+.projectorWorkshopEditTag {
+  align-self: center;
+  border: 2px solid #0f766e;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #115e59;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .projectorWorkshopRowHeader .field {
   flex: 1 1 12rem;
   margin: 0;

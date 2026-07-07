@@ -503,7 +503,7 @@ async function saveScene(admin, teacherId, session, body) {
   return createSceneFromStates(admin, teacherId, body, screenStates);
 }
 
-function sceneStatesFromPayload(body) {
+function sceneStatesFromPayload(body, { requireContent = true } = {}) {
   const normalized = normalizeSceneStates(body.screenStates);
   const requestedScreenIds = Array.isArray(body.screenIds)
     ? normalizeScreenIds(body.screenIds)
@@ -517,7 +517,7 @@ function sceneStatesFromPayload(body) {
     states[screenId] = normalized[screenId] || null;
     return states;
   }, {});
-  if (!Object.values(screenStates).some(Boolean)) {
+  if (requireContent && !Object.values(screenStates).some(Boolean)) {
     return { error: jsonError("Add content to at least one screen slot before saving.") };
   }
   return { screenStates };
@@ -525,7 +525,7 @@ function sceneStatesFromPayload(body) {
 
 async function saveSceneFromPayload(admin, teacherId, body) {
   if (!String(body.title || "").trim()) return jsonError("Name this scene before saving it.");
-  const { error, screenStates } = sceneStatesFromPayload(body);
+  const { error, screenStates } = sceneStatesFromPayload(body, { requireContent: false });
   if (error) return error;
 
   return createSceneFromStates(admin, teacherId, body, screenStates);
@@ -556,6 +556,37 @@ async function saveScenesFromPayload(admin, teacherId, body) {
   }
 
   return NextResponse.json({ scenes: savedScenes });
+}
+
+async function updateSceneFromPayload(admin, teacherId, body) {
+  const sceneId = String(body.sceneId || "");
+  if (!isUuid(sceneId)) return jsonError("Choose a saved room setup to update.");
+
+  const { error, screenStates } = sceneStatesFromPayload(body);
+  if (error) return error;
+
+  const serialized = JSON.stringify(screenStates);
+  if (serialized.length > SCENE_STATE_LIMIT) {
+    return jsonError("That room setup is too large to save. Try smaller images or shorter media URLs.");
+  }
+
+  const { data, error: updateError } = await admin
+    .from("projector_scene_library_items")
+    .update({ screen_states: screenStates, updated_at: new Date().toISOString() })
+    .eq("id", sceneId)
+    .eq("teacher_id", teacherId)
+    .select("id, title, folder_id, screen_states, created_at, updated_at")
+    .maybeSingle();
+
+  if (updateError) {
+    if (updateError.code === "42P01" || updateError.code === "PGRST205") {
+      return jsonError("Projector scene library is not set up yet.", 503);
+    }
+    return jsonError(updateError.message, 500);
+  }
+  if (!data) return jsonError("Saved room setup not found.", 404);
+
+  return NextResponse.json({ scene: normalizeSceneItem(data) });
 }
 
 async function renameScene(admin, teacherId, body) {
@@ -886,6 +917,10 @@ export async function POST(request) {
 
   if (body?.action === "rename-scene") {
     return renameScene(admin, context.user.id, body);
+  }
+
+  if (body?.action === "update-scene") {
+    return updateSceneFromPayload(admin, context.user.id, body);
   }
 
   if (body?.action === "save-scene") {

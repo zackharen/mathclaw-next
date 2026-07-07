@@ -69,8 +69,10 @@ function defaultSlot() {
 function makeSceneRow(slotCount = 4) {
   return {
     id: crypto.randomUUID(),
+    editingSceneId: "",
     title: "",
     folderId: "__batch__",
+    saveAsNew: false,
     saved: false,
     status: "",
     slots: Array.from({ length: Math.max(1, Math.min(12, slotCount)) }, () => defaultSlot()),
@@ -90,6 +92,15 @@ function stateFromPoolItem(item) {
     type: item.type,
     content: item.content,
     sourceLabel: item.title || "Upload",
+  };
+}
+
+function slotFromSceneState(state) {
+  if (!state?.type) return defaultSlot();
+  return {
+    type: state.type,
+    content: state.content || "",
+    sourceLabel: "",
   };
 }
 
@@ -127,6 +138,27 @@ function scenePayload(row, batchFolderId) {
   };
 }
 
+function sceneRowFromExisting(scene, defaultSlotCount = 4) {
+  const states = scene?.screen_states && typeof scene.screen_states === "object" ? scene.screen_states : {};
+  const filledIds = Object.keys(states)
+    .filter((screenId) => states[screenId]?.type)
+    .sort((left, right) => Number(left) - Number(right));
+  const slotCount = Math.max(
+    1,
+    Math.min(12, filledIds.length ? Number(filledIds[filledIds.length - 1]) : defaultSlotCount)
+  );
+  return {
+    id: crypto.randomUUID(),
+    editingSceneId: scene.id,
+    title: scene.title || "Saved room setup",
+    folderId: scene.folder_id || "",
+    saveAsNew: false,
+    saved: false,
+    status: "Editing existing scene",
+    slots: Array.from({ length: slotCount }, (_, index) => slotFromSceneState(states[String(index + 1)])),
+  };
+}
+
 function renderMiniPreview(slot) {
   if (!isFilledSlot(slot)) return <span className="projectorWorkshopEmpty">Empty</span>;
   if (slot.type === "image") return <img src={slot.content} alt="" />;
@@ -142,8 +174,10 @@ export default function ProjectorSceneWorkshop({
   activeRoom = null,
   folders = [],
   libraryItems = [],
+  sceneItems = [],
   onFoldersChanged,
   onScenesSaved,
+  onSceneUpdated,
 }) {
   const activeRoomSlots = normalizeSlots(activeRoom?.slots);
   const defaultSlotCount = Math.max(1, activeRoomSlots.filter((slot) => slot.enabled !== false).length || activeRoomSlots.length || 4);
@@ -152,6 +186,7 @@ export default function ProjectorSceneWorkshop({
   const [poolItems, setPoolItems] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [librarySearch, setLibrarySearch] = useState("");
+  const [sceneSearch, setSceneSearch] = useState("");
   const [batchFolderId, setBatchFolderId] = useState("");
   const [newFolderTitle, setNewFolderTitle] = useState("");
   const [status, setStatus] = useState("");
@@ -173,6 +208,15 @@ export default function ProjectorSceneWorkshop({
       .slice(0, 40);
   }, [libraryItems, librarySearch]);
 
+  const filteredScenes = useMemo(() => {
+    const query = sceneSearch.trim().toLowerCase();
+    const source = sceneItems || [];
+    if (!query) return source.slice(0, 40);
+    return source
+      .filter((scene) => String(scene.title || "").toLowerCase().includes(query))
+      .slice(0, 40);
+  }, [sceneItems, sceneSearch]);
+
   function updateRow(rowId, updater, options = {}) {
     setRows((current) =>
       current.map((row) => {
@@ -192,6 +236,11 @@ export default function ProjectorSceneWorkshop({
 
   function addScene() {
     setRows((current) => [...current, makeSceneRow(defaultSlotCount)]);
+  }
+
+  function editExistingScene(scene) {
+    setRows((current) => [sceneRowFromExisting(scene, defaultSlotCount), ...current]);
+    setStatus(`Opened "${scene.title}" for Workshop editing.`);
   }
 
   function setSlotCount(rowId, nextCount) {
@@ -345,6 +394,23 @@ export default function ProjectorSceneWorkshop({
     return "";
   }
 
+  async function persistRow(row, batchFolderId) {
+    const payload = scenePayload(row, batchFolderId);
+    const isUpdate = row.editingSceneId && !row.saveAsNew;
+    const response = await fetch("/api/projector", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        isUpdate
+          ? { action: "update-scene", sceneId: row.editingSceneId, ...payload }
+          : { action: "save-workshop-scene", ...payload }
+      ),
+    });
+    const responsePayload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(responsePayload.error || "Could not save that scene.");
+    return { scene: responsePayload.scene, isUpdate };
+  }
+
   async function saveRow(rowId) {
     const row = rows.find((candidate) => candidate.id === rowId);
     if (!row) return;
@@ -361,16 +427,14 @@ export default function ProjectorSceneWorkshop({
     setSaving(true);
     setStatus("");
     try {
-      const response = await fetch("/api/projector", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save-workshop-scene", ...scenePayload(row, batchFolderId) }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not save that scene.");
-      onScenesSaved?.([payload.scene]);
-      updateRow(rowId, { ...row, saved: true, status: "Saved" }, { preserveSaved: true });
-      setStatus(`Saved "${payload.scene.title}".`);
+      const { scene, isUpdate } = await persistRow(row, batchFolderId);
+      if (isUpdate) {
+        onSceneUpdated?.(scene);
+      } else {
+        onScenesSaved?.([scene]);
+      }
+      updateRow(rowId, { ...row, saved: true, status: isUpdate ? "Updated" : "Saved" }, { preserveSaved: true });
+      setStatus(`${isUpdate ? "Updated" : "Saved"} "${scene.title}".`);
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -393,22 +457,20 @@ export default function ProjectorSceneWorkshop({
     setSaving(true);
     setStatus("");
     try {
-      const response = await fetch("/api/projector", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "save-workshop-scenes",
-          scenes: rowsToSave.map((row) => scenePayload(row, batchFolderId)),
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not save those scenes.");
-      onScenesSaved?.(payload.scenes || []);
+      const createdScenes = [];
+      const updatedScenes = [];
+      for (const row of rowsToSave) {
+        const { scene, isUpdate } = await persistRow(row, batchFolderId);
+        if (isUpdate) updatedScenes.push(scene);
+        else createdScenes.push(scene);
+      }
+      if (createdScenes.length) onScenesSaved?.(createdScenes);
+      updatedScenes.forEach((scene) => onSceneUpdated?.(scene));
       const savedIds = new Set(rowsToSave.map((row) => row.id));
       setRows((current) =>
-        current.map((row) => (savedIds.has(row.id) ? { ...row, saved: true, status: "Saved" } : row))
+        current.map((row) => (savedIds.has(row.id) ? { ...row, saved: true, status: row.editingSceneId && !row.saveAsNew ? "Updated" : "Saved" } : row))
       );
-      setStatus(`Saved ${payload.scenes?.length || rowsToSave.length} scenes.`);
+      setStatus(`Saved ${createdScenes.length} new scenes and updated ${updatedScenes.length} scenes.`);
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -467,6 +529,22 @@ export default function ProjectorSceneWorkshop({
 
           <div className="projectorWorkshopBody">
             <aside className="projectorWorkshopPool">
+              <label className="field">
+                <span>Edit Existing Scene</span>
+                <input value={sceneSearch} onChange={(event) => setSceneSearch(event.target.value)} placeholder="Search saved scenes..." />
+              </label>
+              <div className="projectorWorkshopPoolList">
+                {filteredScenes.length ? filteredScenes.map((scene) => (
+                  <button key={scene.id} type="button" onClick={() => editExistingScene(scene)}>
+                    <span className="projectorWorkshopAssetThumb">
+                      {renderMiniPreview(slotFromSceneState(scene.screen_states?.["1"]))}
+                    </span>
+                    <strong>{scene.title}</strong>
+                    <em>Open in Workshop</em>
+                  </button>
+                )) : <p className="projectorWorkshopEmptyNote">No saved scenes match that search.</p>}
+              </div>
+
               <div className="projectorWorkshopPoolHeader">
                 <strong>Upload Pool</strong>
                 <button className="btn secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
@@ -514,13 +592,26 @@ export default function ProjectorSceneWorkshop({
                 <article className={`projectorWorkshopRow${row.saved ? " isSaved" : ""}`} key={row.id}>
                   <div className="projectorWorkshopRowHeader">
                     <strong>Scene {rowIndex + 1}</strong>
+                    {row.editingSceneId && !row.saveAsNew ? (
+                      <span className="projectorWorkshopEditTag">Editing existing</span>
+                    ) : null}
                     <label className="field">
                       <span>Name</span>
-                      <input value={row.title} onChange={(event) => updateRow(row.id, { title: event.target.value })} maxLength={80} placeholder="Warmup, Exit Ticket..." />
+                      <input
+                        value={row.title}
+                        onChange={(event) => updateRow(row.id, { title: event.target.value })}
+                        maxLength={80}
+                        placeholder="Warmup, Exit Ticket..."
+                        disabled={Boolean(row.editingSceneId && !row.saveAsNew)}
+                      />
                     </label>
                     <label className="field">
                       <span>Folder</span>
-                      <select value={row.folderId} onChange={(event) => updateRow(row.id, { folderId: event.target.value })}>
+                      <select
+                        value={row.folderId}
+                        onChange={(event) => updateRow(row.id, { folderId: event.target.value })}
+                        disabled={Boolean(row.editingSceneId && !row.saveAsNew)}
+                      >
                         <option value="__batch__">Use batch folder</option>
                         <option value="">Uncategorized</option>
                         {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.title}</option>)}
@@ -532,8 +623,13 @@ export default function ProjectorSceneWorkshop({
                       <button type="button" onClick={() => setSlotCount(row.id, row.slots.length + 1)} disabled={row.slots.length >= 12}>+</button>
                     </div>
                     <button className="btn secondary" type="button" onClick={() => saveRow(row.id)} disabled={saving || row.saved}>
-                      {row.saved ? "Saved" : "Save"}
+                      {row.saved ? row.status || "Saved" : row.editingSceneId && !row.saveAsNew ? "Update" : "Save"}
                     </button>
+                    {row.editingSceneId && !row.saveAsNew ? (
+                      <button className="btn secondary" type="button" onClick={() => updateRow(row.id, { saveAsNew: true, saved: false, status: "" })} disabled={saving}>
+                        Save as new instead
+                      </button>
+                    ) : null}
                   </div>
 
                   <div className="projectorWorkshopSlots">

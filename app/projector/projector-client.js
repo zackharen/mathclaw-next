@@ -520,6 +520,7 @@ export default function ProjectorClient({
   const [renamingItemCategory, setRenamingItemCategory] = useState("");
   const [renamingSceneId, setRenamingSceneId] = useState(null);
   const [renamingSceneTitle, setRenamingSceneTitle] = useState("");
+  const [loadedScene, setLoadedScene] = useState(null);
   const [sceneTitle, setSceneTitle] = useState("");
   const [sceneFolderId, setSceneFolderId] = useState("");
   const [newFolderTitle, setNewFolderTitle] = useState("");
@@ -654,10 +655,49 @@ export default function ProjectorClient({
     ]);
   }
 
+  function updateSceneInLibrary(updatedScene) {
+    if (!updatedScene?.id) return;
+    updateScenesAndSync((current) => [
+      updatedScene,
+      ...current.filter((scene) => scene.id !== updatedScene.id),
+    ]);
+    setLoadedScene((current) =>
+      current?.id === updatedScene.id
+        ? { id: updatedScene.id, title: updatedScene.title || current.title }
+        : current
+    );
+  }
+
+  function scenePayloadFromStates(sourceStates, screenIds) {
+    const safeStates = sourceStates && typeof sourceStates === "object" ? sourceStates : {};
+    return {
+      screenIds,
+      screenStates: screenIds.reduce((states, screenId) => {
+        const state = safeStates[screenId];
+        states[screenId] = state?.type
+          ? {
+              type: state.type,
+              content: state.content || "",
+              topText: state.topText || "",
+              revealAnswer: Boolean(state.revealAnswer),
+            }
+          : null;
+        return states;
+      }, {}),
+    };
+  }
+
   useEffect(() => {
     function updateSceneLibrary(event) {
       if (event.detail?.source === "projector-client") return;
-      if (Array.isArray(event.detail?.scenes)) setScenes(event.detail.scenes);
+      if (Array.isArray(event.detail?.scenes)) {
+        setScenes(event.detail.scenes);
+        setLoadedScene((current) => {
+          if (!current) return current;
+          const nextScene = event.detail.scenes.find((scene) => scene.id === current.id);
+          return nextScene ? { id: nextScene.id, title: nextScene.title || current.title } : null;
+        });
+      }
       if (Array.isArray(event.detail?.folders)) setFolders(event.detail.folders);
     }
 
@@ -733,6 +773,7 @@ export default function ProjectorClient({
     function updateActiveRoom(event) {
       if (event.detail?.room) {
         setActiveRoom(event.detail.room);
+        setLoadedScene(null);
         if (playlistTimeoutRef.current) {
           window.clearTimeout(playlistTimeoutRef.current);
           playlistTimeoutRef.current = null;
@@ -758,6 +799,19 @@ export default function ProjectorClient({
 
     window.addEventListener("projector:active-room-changed", updateActiveRoom);
     return () => window.removeEventListener("projector:active-room-changed", updateActiveRoom);
+  }, []);
+
+  useEffect(() => {
+    function applyLoadedScene(event) {
+      const scene = event.detail?.scene;
+      if (!scene?.id) return;
+      if (event.detail?.screenStates) setScreenStates(event.detail.screenStates);
+      setLoadedScene({ id: scene.id, title: scene.title || "Saved room setup" });
+      setMessage(`Loaded "${scene.title || "Saved room setup"}" to all screens.`);
+    }
+
+    window.addEventListener("projector:scene-loaded", applyLoadedScene);
+    return () => window.removeEventListener("projector:scene-loaded", applyLoadedScene);
   }, []);
 
   useEffect(() => () => {
@@ -1146,6 +1200,34 @@ export default function ProjectorClient({
     }
   }
 
+  async function updateLoadedScene() {
+    if (!loadedScene?.id) return;
+    if (!window.confirm(`Overwrite "${loadedScene.title}" with the current screens?`)) return;
+    setSavingScene(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update-scene",
+          sceneId: loadedScene.id,
+          ...scenePayloadFromStates(screenStates, roomScreenIds),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update that room setup.");
+
+      updateSceneInLibrary(payload.scene);
+      setLoadedScene({ id: payload.scene.id, title: payload.scene.title || loadedScene.title });
+      setMessage(`Updated "${payload.scene.title || loadedScene.title}".`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSavingScene(false);
+    }
+  }
+
   async function createSceneFolder() {
     setSavingScene(true);
     setMessage("");
@@ -1244,6 +1326,9 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not rename that room setup.");
 
       updateScenesAndSync((current) => current.map((scene) => (scene.id === sceneId ? payload.scene : scene)));
+      setLoadedScene((current) =>
+        current?.id === sceneId ? { id: payload.scene.id, title: payload.scene.title || current.title } : current
+      );
       setRenamingSceneId(null);
       setRenamingSceneTitle("");
       setMessage(`Renamed room setup to "${payload.scene.title}".`);
@@ -1302,6 +1387,7 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
 
       setScreenStates(payload.screenStates || scene.screen_states || {});
+      setLoadedScene({ id: scene.id, title: payload.title || scene.title });
       setMessage(`Loaded "${payload.title || scene.title}" to all screens.`);
     } catch (error) {
       setMessage(error.message);
@@ -1353,6 +1439,7 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
 
       setScreenStates(payload.screenStates || {});
+      setLoadedScene({ id: assignmentPrompt.sceneId, title: payload.title || assignmentPrompt.title });
       setMessage(`Loaded "${payload.title || assignmentPrompt.title}" to all screens.`);
       setAssignmentPrompt(null);
       setAssignments({});
@@ -1376,6 +1463,7 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not delete that room setup.");
 
       updateScenesAndSync((current) => current.filter((scene) => scene.id !== sceneId));
+      setLoadedScene((current) => (current?.id === sceneId ? null : current));
       setMessage("Room setup deleted.");
     } catch (error) {
       setMessage(error.message);
@@ -2362,6 +2450,11 @@ export default function ProjectorClient({
             <button className="btn secondary" type="button" onClick={saveScene} disabled={savingScene}>
               Save Scene
             </button>
+            {loadedScene ? (
+              <button className="btn secondary projectorSceneUpdateButton" type="button" onClick={updateLoadedScene} disabled={savingScene}>
+                Update &quot;{loadedScene.title}&quot;
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -2388,8 +2481,10 @@ export default function ProjectorClient({
             activeRoom={activeRoom}
             folders={folders}
             libraryItems={library}
+            sceneItems={scenes}
             onFoldersChanged={updateFoldersAndSync}
             onScenesSaved={addWorkshopScenes}
+            onSceneUpdated={updateSceneInLibrary}
           />
           <SidebarPanel
             ariaLabel="Screen Selection"
@@ -2722,6 +2817,11 @@ export default function ProjectorClient({
             <button className="btn secondary" type="button" onClick={saveScene} disabled={savingScene}>
               Save Scene
             </button>
+            {loadedScene ? (
+              <button className="btn secondary projectorSceneUpdateButton" type="button" onClick={updateLoadedScene} disabled={savingScene}>
+                Update &quot;{loadedScene.title}&quot;
+              </button>
+            ) : null}
 
             {/* Uncategorized folder */}
             {(() => {

@@ -588,9 +588,16 @@ export default function ProjectorFullLibrary({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not load that scene.");
+      window.dispatchEvent(
+        new CustomEvent("projector:scene-loaded", {
+          detail: {
+            scene: { ...scene, title: payload.title || scene.title },
+            screenStates: payload.screenStates || scene.screen_states || {},
+          },
+        })
+      );
       setStatus(`Loaded "${payload.title || scene.title}".`);
       setOpen(false);
-      window.setTimeout(() => window.location.reload(), 120);
     } catch (error) {
       setStatus(error.message);
     }
