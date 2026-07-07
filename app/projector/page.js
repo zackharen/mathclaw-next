@@ -9,6 +9,7 @@ import ProjectorFullLibrary from "./projector-full-library-sorted";
 export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 const DEFAULT_ROOM_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   name: `Screen ${index + 1}`,
   inputType: "display_only",
@@ -27,6 +28,31 @@ function createEmptyScreenStates() {
     states[screenId] = null;
     return states;
   }, {});
+}
+
+function sanitizeSessionForClient(session) {
+  const screenStates = session?.screen_states && typeof session.screen_states === "object" ? session.screen_states : {};
+  const takeover = screenStates[TAKEOVER_STATE_KEY];
+  if (!takeover || typeof takeover !== "object") return session;
+
+  const sourceScreenId = SCREEN_IDS.includes(String(takeover.sourceScreenId || ""))
+    ? String(takeover.sourceScreenId)
+    : null;
+  const activeScreenIds = Array.isArray(takeover.activeScreenIds)
+    ? takeover.activeScreenIds.map(String).filter((screenId) => SCREEN_IDS.includes(screenId))
+    : [];
+  const nextScreenStates = { ...screenStates };
+  if (sourceScreenId && activeScreenIds.length) {
+    nextScreenStates[TAKEOVER_STATE_KEY] = {
+      sourceScreenId,
+      activeScreenIds,
+      startedAt: takeover.startedAt || null,
+    };
+  } else {
+    delete nextScreenStates[TAKEOVER_STATE_KEY];
+  }
+
+  return { ...session, screen_states: nextScreenStates };
 }
 
 async function createUniquePinSession(supabase, teacherId) {
@@ -271,19 +297,20 @@ export default async function ProjectorPage() {
   const sceneFolders = await loadSceneFolders(supabase, user.id);
   const playlistState = await loadPlaylists(supabase, user.id);
   const { rooms, activeRoom } = await loadRoomProfiles(supabase, user.id);
+  const clientSession = sanitizeSessionForClient(session);
 
   return (
     <>
       <ProjectorClient
         activeRoom={activeRoom}
-        session={session}
+        session={clientSession}
         libraryItems={libraryItems}
         sceneItems={sceneItems}
         sceneFolders={sceneFolders}
         playlistItems={playlistState.playlists}
         playlistsSetupMissing={playlistState.setupMissing}
       />
-      <ProjectorRoomsManager session={session} initialRooms={rooms} initialActiveRoom={activeRoom} />
+      <ProjectorRoomsManager session={clientSession} initialRooms={rooms} initialActiveRoom={activeRoom} />
       <ProjectorFullLibrary
         libraryItems={libraryItems}
         sceneItems={sceneItems}

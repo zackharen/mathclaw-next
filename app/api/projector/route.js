@@ -150,6 +150,24 @@ function takeoverStateFrom(screenStates) {
   };
 }
 
+function publicTakeoverStateFrom(screenStates) {
+  const takeover = takeoverStateFrom(screenStates);
+  if (!takeover) return null;
+  return {
+    sourceScreenId: takeover.sourceScreenId,
+    activeScreenIds: takeover.activeScreenIds,
+    startedAt: takeover.startedAt,
+  };
+}
+
+function clientScreenStates(screenStates) {
+  const source = screenStates && typeof screenStates === "object" ? screenStates : {};
+  const nextStates = { ...source };
+  const takeover = publicTakeoverStateFrom(source);
+  if (takeover) nextStates[TAKEOVER_STATE_KEY] = takeover;
+  return nextStates;
+}
+
 function stripTakeoverState(screenStates) {
   const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
   delete nextStates[TAKEOVER_STATE_KEY];
@@ -943,8 +961,8 @@ async function startTakeover(admin, teacherId, session, body) {
 
   return NextResponse.json({
     ok: true,
-    screenStates: nextStates,
-    takeover: takeoverStateFrom(nextStates),
+    screenStates: clientScreenStates(nextStates),
+    takeover: publicTakeoverStateFrom(nextStates),
   });
 }
 
