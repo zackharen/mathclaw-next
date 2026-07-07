@@ -1400,19 +1400,35 @@ export async function POST(request) {
         }
       }
 
-      const staleSessionUpdate = admin
+      const staleSessionQuery = admin
         .from("double_board_sessions")
-        .update({
-          status: "ended",
-          ended_at: nowIso(),
-          updated_at: nowIso(),
-        })
+        .select("id")
         .in("status", ["waiting", "live"]);
 
       if (courseId) {
-        await staleSessionUpdate.eq("course_id", courseId);
+        staleSessionQuery.eq("course_id", courseId);
       } else {
-        await staleSessionUpdate.eq("host_teacher_id", user.id).is("course_id", null);
+        staleSessionQuery.eq("host_teacher_id", user.id).is("course_id", null);
+      }
+
+      const { data: staleSessions } = await staleSessionQuery;
+      const staleSessionIds = (staleSessions || []).map((staleSession) => staleSession.id).filter(Boolean);
+
+      if (staleSessionIds.length) {
+        const { error: staleUpdateError } = await admin
+          .from("double_board_sessions")
+          .update({
+            status: "ended",
+            ended_at: nowIso(),
+            updated_at: nowIso(),
+          })
+          .in("id", staleSessionIds);
+
+        if (staleUpdateError) {
+          return NextResponse.json({ error: staleUpdateError.message }, { status: 400 });
+        }
+
+        await Promise.all(staleSessionIds.map((staleSessionId) => broadcastSessionChanged(staleSessionId)));
       }
 
       return createFreshSession(
