@@ -349,13 +349,15 @@ export default function ScreenClient({ initialToken = null }) {
 
   useEffect(() => {
     function syncFullscreenState() {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      setIsFullscreen(Boolean(document.fullscreenElement || document.webkitFullscreenElement));
     }
 
     syncFullscreenState();
     document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
     return () => {
       document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
     };
   }, []);
 
@@ -418,10 +420,17 @@ export default function ScreenClient({ initialToken = null }) {
   async function toggleFullscreen() {
     setMessage("");
     try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
+      // iPad Safari before 16.4 (e.g. iPad Air 2, stuck on iPadOS 15) only exposes the webkit-prefixed API.
+      const root = document.documentElement;
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else document.webkitExitFullscreen();
+      } else if (root.requestFullscreen) {
+        await root.requestFullscreen();
+      } else if (root.webkitRequestFullscreen) {
+        root.webkitRequestFullscreen();
       } else {
-        await document.documentElement.requestFullscreen();
+        throw new Error("Fullscreen API unavailable");
       }
     } catch {
       setMessage("Fullscreen is not available in this browser.");
