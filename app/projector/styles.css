@@ -1904,6 +1904,11 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   text-align: center;
 }
 
+.projectorWorkshopLauncher .projectorLibraryHeader {
+  justify-content: center;
+  text-align: center;
+}
+
 .projectorPlaylistsLauncherSummary {
   display: grid;
   justify-items: center;
@@ -1919,6 +1924,309 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   margin: 0;
 }
 
+.projectorWorkshopOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  overflow: auto;
+  background: rgba(8, 18, 28, 0.62);
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.projectorWorkshopModal {
+  width: min(96rem, 100%);
+  min-height: min(48rem, calc(100vh - 3rem));
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.85rem;
+  border: 2px solid var(--navy);
+  border-radius: 12px;
+  background: #f7fafc;
+  padding: clamp(0.85rem, 1.6vw, 1.25rem);
+}
+
+.projectorWorkshopHeader,
+.projectorWorkshopDefaults,
+.projectorWorkshopPoolHeader,
+.projectorWorkshopRowHeader,
+.projectorWorkshopSlotTop,
+.projectorWorkshopSlotActions,
+.projectorWorkshopHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-end;
+}
+
+.projectorWorkshopHeader {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.projectorWorkshopHeader h2,
+.projectorWorkshopHeader p,
+.projectorWorkshopStatus,
+.projectorWorkshopEmptyNote {
+  margin: 0;
+}
+
+.projectorWorkshopHeader p:not(.eyebrow),
+.projectorWorkshopStatus,
+.projectorWorkshopEmptyNote {
+  color: #51606d;
+  font-weight: 800;
+}
+
+.projectorWorkshopDefaults {
+  align-items: flex-end;
+  border: 2px solid #d3dee7;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.7rem;
+}
+
+.projectorWorkshopDefaults > .field {
+  min-width: 14rem;
+  margin: 0;
+}
+
+.projectorWorkshopStatus {
+  flex: 1 1 15rem;
+  border: 2px solid #d3dee7;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 0.55rem 0.7rem;
+}
+
+.projectorWorkshopBody {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+.projectorWorkshopPool,
+.projectorWorkshopScenes {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  overflow: auto;
+}
+
+.projectorWorkshopPool {
+  border-right: 2px solid #d3dee7;
+  padding-right: 0.75rem;
+}
+
+.projectorWorkshopPoolHeader {
+  justify-content: space-between;
+}
+
+.projectorWorkshopPoolHeader strong {
+  color: var(--navy);
+}
+
+.projectorWorkshopPoolList {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.projectorWorkshopPoolList button {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.45rem 0.55rem;
+  align-items: center;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.45rem;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.projectorWorkshopPoolList button.isActive {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(16, 42, 67, 0.1);
+}
+
+.projectorWorkshopPoolList strong,
+.projectorWorkshopPoolList em {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectorWorkshopPoolList strong {
+  color: var(--navy);
+  font-size: 0.86rem;
+}
+
+.projectorWorkshopPoolList em {
+  grid-column: 2;
+  color: #51606d;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.projectorWorkshopAssetThumb,
+.projectorWorkshopSlotPreview {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0a0a0a;
+  color: #fff;
+  padding: 0.35rem;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.projectorWorkshopAssetThumb {
+  grid-row: span 2;
+}
+
+.projectorWorkshopAssetThumb img,
+.projectorWorkshopSlotPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.projectorWorkshopRow {
+  display: grid;
+  gap: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.projectorWorkshopRow.isSaved {
+  border-color: #2f855a;
+  background: #f0fdf4;
+}
+
+.projectorWorkshopRowHeader {
+  align-items: end;
+}
+
+.projectorWorkshopRowHeader > strong {
+  align-self: center;
+  color: var(--navy);
+}
+
+.projectorWorkshopRowHeader .field {
+  flex: 1 1 12rem;
+  margin: 0;
+}
+
+.projectorWorkshopSlotControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.projectorWorkshopSlotControls button,
+.projectorWorkshopSlotActions button,
+.projectorWorkshopSlotTop select {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f7fafc;
+  color: var(--navy);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorWorkshopSlotControls button:disabled,
+.projectorWorkshopSlotActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.projectorWorkshopSlots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.65rem;
+}
+
+.projectorWorkshopSlot {
+  min-width: 0;
+  display: grid;
+  gap: 0.5rem;
+  border: 2px solid #d3dee7;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 0.55rem;
+}
+
+.projectorWorkshopSlotTop {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.projectorWorkshopSlotTop strong {
+  color: var(--navy);
+  font-size: 0.86rem;
+}
+
+.projectorWorkshopSlot textarea {
+  width: 100%;
+  min-height: 5.25rem;
+  resize: vertical;
+  border: 2px solid #93a5b4;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.projectorWorkshopVideo,
+.projectorWorkshopEmpty {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.projectorWorkshopLatex,
+.projectorWorkshopLatex .katex {
+  color: #fff;
+}
+
+.projectorWorkshopLatex .katex-display {
+  margin: 0;
+}
+
+.projectorWorkshopEmptyNote {
+  border: 2px dashed #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.65rem;
+  text-align: center;
+}
+
 @media (max-width: 760px) {
   .projectorPlaylistDock {
     grid-template-columns: 1fr;
@@ -1932,6 +2240,26 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
   .projectorPlaylistTransport {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) {
+  .projectorWorkshopBody {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorWorkshopPool {
+    border-right: 0;
+    border-bottom: 2px solid #d3dee7;
+    padding-right: 0;
+    padding-bottom: 0.75rem;
+  }
+
+  .projectorWorkshopHeader,
+  .projectorWorkshopHeaderActions,
+  .projectorWorkshopDefaults {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
 

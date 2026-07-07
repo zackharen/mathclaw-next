@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import ProjectorSceneWorkshop from "./projector-scene-workshop";
 import "./styles.css";
 
 const ALL_SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
@@ -638,6 +639,19 @@ export default function ProjectorClient({
     const nextScenes = typeof updater === "function" ? updater(scenes) : updater;
     setScenes(nextScenes);
     syncSceneLibrary(nextScenes, nextFolders);
+  }
+
+  function updateFoldersAndSync(nextFolders) {
+    setFolders(nextFolders);
+    syncSceneLibrary(scenes, nextFolders);
+  }
+
+  function addWorkshopScenes(savedScenes) {
+    if (!Array.isArray(savedScenes) || !savedScenes.length) return;
+    updateScenesAndSync((current) => [
+      ...savedScenes,
+      ...current.filter((scene) => !savedScenes.some((savedScene) => savedScene.id === scene.id)),
+    ]);
   }
 
   useEffect(() => {
@@ -2370,6 +2384,13 @@ export default function ProjectorClient({
               </button>
             </section>
           ) : null}
+          <ProjectorSceneWorkshop
+            activeRoom={activeRoom}
+            folders={folders}
+            libraryItems={library}
+            onFoldersChanged={updateFoldersAndSync}
+            onScenesSaved={addWorkshopScenes}
+          />
           <SidebarPanel
             ariaLabel="Screen Selection"
             count={targetSummary}

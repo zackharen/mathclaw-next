@@ -441,13 +441,26 @@ async function renameLibraryItem(admin, teacherId, body) {
   return NextResponse.json({ item: normalizeLibraryItem(data) });
 }
 
-async function saveScene(admin, teacherId, session, body) {
-  const activeScreenIds = await getActiveRoomScreenIds(admin, teacherId);
-  const normalized = normalizeSceneStates(session.screen_states);
-  const screenStates = activeScreenIds.reduce((states, screenId) => {
-    states[screenId] = normalized[screenId] || null;
-    return states;
-  }, {});
+async function validateSceneFolder(admin, teacherId, folderId) {
+  if (!folderId) return null;
+  const { data: folder, error: folderError } = await admin
+    .from("projector_scene_folders")
+    .select("id")
+    .eq("id", folderId)
+    .eq("teacher_id", teacherId)
+    .maybeSingle();
+
+  if (folderError) {
+    if (folderError.code === "42P01" || folderError.code === "PGRST205") {
+      return jsonError("Projector scene folders are not set up yet.", 503);
+    }
+    return jsonError(folderError.message, 500);
+  }
+  if (!folder) return jsonError("Choose one of your room setup folders.");
+  return null;
+}
+
+async function createSceneFromStates(admin, teacherId, body, screenStates) {
   const serialized = JSON.stringify(screenStates);
   if (serialized.length > SCENE_STATE_LIMIT) {
     return jsonError("That room setup is too large to save. Try smaller images or shorter media URLs.");
@@ -455,22 +468,8 @@ async function saveScene(admin, teacherId, session, body) {
 
   const title = normalizeSceneTitle(body.title);
   const folderId = normalizeSceneFolderId(body.folderId);
-  if (folderId) {
-    const { data: folder, error: folderError } = await admin
-      .from("projector_scene_folders")
-      .select("id")
-      .eq("id", folderId)
-      .eq("teacher_id", teacherId)
-      .maybeSingle();
-
-    if (folderError) {
-      if (folderError.code === "42P01" || folderError.code === "PGRST205") {
-        return jsonError("Projector scene folders are not set up yet.", 503);
-      }
-      return jsonError(folderError.message, 500);
-    }
-    if (!folder) return jsonError("Choose one of your room setup folders.");
-  }
+  const folderError = await validateSceneFolder(admin, teacherId, folderId);
+  if (folderError) return folderError;
 
   const { data, error } = await admin
     .from("projector_scene_library_items")
@@ -491,6 +490,72 @@ async function saveScene(admin, teacherId, session, body) {
   }
 
   return NextResponse.json({ scene: normalizeSceneItem(data) });
+}
+
+async function saveScene(admin, teacherId, session, body) {
+  const activeScreenIds = await getActiveRoomScreenIds(admin, teacherId);
+  const normalized = normalizeSceneStates(session.screen_states);
+  const screenStates = activeScreenIds.reduce((states, screenId) => {
+    states[screenId] = normalized[screenId] || null;
+    return states;
+  }, {});
+
+  return createSceneFromStates(admin, teacherId, body, screenStates);
+}
+
+function sceneStatesFromPayload(body) {
+  const normalized = normalizeSceneStates(body.screenStates);
+  const requestedScreenIds = Array.isArray(body.screenIds)
+    ? normalizeScreenIds(body.screenIds)
+    : Object.keys(body.screenStates && typeof body.screenStates === "object" ? body.screenStates : {})
+        .map(normalizeScreenNumber)
+        .filter(Boolean);
+  const screenIds = [...new Set(requestedScreenIds)].sort((left, right) => Number(left) - Number(right));
+  if (!screenIds.length) return { error: jsonError("Add at least one screen slot before saving.") };
+
+  const screenStates = screenIds.reduce((states, screenId) => {
+    states[screenId] = normalized[screenId] || null;
+    return states;
+  }, {});
+  if (!Object.values(screenStates).some(Boolean)) {
+    return { error: jsonError("Add content to at least one screen slot before saving.") };
+  }
+  return { screenStates };
+}
+
+async function saveSceneFromPayload(admin, teacherId, body) {
+  if (!String(body.title || "").trim()) return jsonError("Name this scene before saving it.");
+  const { error, screenStates } = sceneStatesFromPayload(body);
+  if (error) return error;
+
+  return createSceneFromStates(admin, teacherId, body, screenStates);
+}
+
+async function saveScenesFromPayload(admin, teacherId, body) {
+  const scenes = Array.isArray(body.scenes) ? body.scenes.slice(0, 30) : [];
+  if (!scenes.length) return jsonError("Add at least one scene before saving.");
+
+  const normalizedScenes = [];
+  for (const scene of scenes) {
+    if (!String(scene.title || "").trim()) return jsonError("Every scene needs a name before saving.");
+    const title = normalizeSceneTitle(scene.title);
+    const folderId = normalizeSceneFolderId(scene.folderId);
+    const folderError = await validateSceneFolder(admin, teacherId, folderId);
+    if (folderError) return folderError;
+    const { error, screenStates } = sceneStatesFromPayload(scene);
+    if (error) return error;
+    normalizedScenes.push({ title, folderId, screenStates });
+  }
+
+  const savedScenes = [];
+  for (const scene of normalizedScenes) {
+    const response = await createSceneFromStates(admin, teacherId, scene, scene.screenStates);
+    if (!response.ok) return response;
+    const payload = await response.json();
+    savedScenes.push(payload.scene);
+  }
+
+  return NextResponse.json({ scenes: savedScenes });
 }
 
 async function renameScene(admin, teacherId, body) {
@@ -825,6 +890,14 @@ export async function POST(request) {
 
   if (body?.action === "save-scene") {
     return saveScene(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "save-workshop-scene") {
+    return saveSceneFromPayload(admin, context.user.id, body);
+  }
+
+  if (body?.action === "save-workshop-scenes") {
+    return saveScenesFromPayload(admin, context.user.id, body);
   }
 
   if (body?.action === "delete-scene") {
