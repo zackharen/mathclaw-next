@@ -708,6 +708,13 @@ export default function ProjectorClient({
     setTakeoverState(takeoverStateFrom(safeStates));
   }
 
+  function screenStateForDisplay(screenId) {
+    if (takeoverState?.activeScreenIds.includes(screenId)) {
+      return screenStates?.[takeoverState.sourceScreenId] || null;
+    }
+    return screenStates?.[screenId] || null;
+  }
+
   async function endTakeover(options = {}) {
     const { silent = false } = options;
     const response = await fetch("/api/projector", {
@@ -2466,6 +2473,7 @@ export default function ProjectorClient({
               const canDisable = isEnabled && activeScreenIds.length <= 1;
               const takeoverSource = takeoverState?.sourceScreenId === screenId;
               const takeoverMirrored = Boolean(takeoverState && takeoverState.activeScreenIds.includes(screenId));
+              const displayState = screenStateForDisplay(screenId);
               return (
                 <article
                   className={`projectorScreenCard${isEnabled ? "" : " isInactive"}${takeoverSource ? " isTakeoverSource" : ""}${takeoverMirrored && !takeoverSource ? " isTakeoverMirror" : ""}`}
@@ -2486,11 +2494,11 @@ export default function ProjectorClient({
                         Edit
                       </button>
                     </div>
-                    <span>{screenStates?.[screenId]?.type || "empty"}</span>
+                    <span>{displayState?.type || "empty"}</span>
                   </div>
                   <div className="projectorScreenPreview">
                     {!isEnabled ? <span className="projectorInactiveOverlay">Inactive</span> : null}
-                    {renderContent(screenStates?.[screenId], true, { playCompactVideo: true })}
+                    {renderContent(displayState, true, { playCompactVideo: true })}
                   </div>
                   {isQuestionState(screenStates?.[screenId]) ? (
                     <button

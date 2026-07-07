@@ -178,10 +178,20 @@ function restoreTakeoverState(screenStates) {
   const takeover = takeoverStateFrom(screenStates);
   if (!takeover) return { screenStates: stripTakeoverState(screenStates), takeover: null };
   const nextStates = stripTakeoverState(screenStates);
-  takeover.activeScreenIds.forEach((screenId) => {
-    nextStates[screenId] = cloneJson(takeover.heldScreenStates?.[screenId]);
-  });
+  if (Object.keys(takeover.heldScreenStates || {}).length) {
+    takeover.activeScreenIds.forEach((screenId) => {
+      nextStates[screenId] = cloneJson(takeover.heldScreenStates?.[screenId]);
+    });
+  }
   return { screenStates: nextStates, takeover };
+}
+
+function effectiveScreenState(screenStates, screenId) {
+  const takeover = takeoverStateFrom(screenStates);
+  if (takeover?.activeScreenIds.includes(String(screenId))) {
+    return screenStates?.[takeover.sourceScreenId] || null;
+  }
+  return screenStates?.[screenId] || null;
 }
 
 function normalizeSceneStates(value) {
@@ -938,26 +948,22 @@ async function startTakeover(admin, teacherId, session, body) {
   const sourceState = current[sourceScreenId] || null;
   if (!sourceState?.type) return jsonError("Add content to that screen before showing it on all screens.");
 
-  const heldScreenStates = activeScreenIds.reduce((states, screenId) => {
-    states[screenId] = cloneJson(current[screenId] || null);
-    return states;
-  }, {});
   const nextStates = {
     ...current,
     [TAKEOVER_STATE_KEY]: {
       sourceScreenId,
       activeScreenIds,
-      heldScreenStates,
       startedAt: new Date().toISOString(),
     },
   };
 
-  activeScreenIds.forEach((screenId) => {
-    nextStates[screenId] = cloneJson(sourceState);
-  });
-
-  const result = await persistScreenStates(admin, session, teacherId, nextStates, activeScreenIds);
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
   if (result.error) return jsonError(result.error.message, 500);
+  await broadcastScreenUpdates(
+    admin,
+    session.id,
+    activeScreenIds.map((screenId) => buildBroadcastPayload(screenId, sourceState))
+  );
 
   return NextResponse.json({
     ok: true,
@@ -1013,7 +1019,7 @@ export async function GET(request) {
     return NextResponse.json({
       sessionId: session.id,
       screenNumber,
-      state: session.screen_states?.[screenNumber] || null,
+      state: effectiveScreenState(session.screen_states, screenNumber),
     });
   } catch (error) {
     return jsonError(error.message || "Could not load projector screen.", 500);
