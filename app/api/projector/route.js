@@ -16,6 +16,7 @@ const SCENE_STATE_LIMIT = 24 * 1024 * 1024;
 const SCENE_FOLDER_TITLE_LIMIT = 60;
 const TOP_TEXT_LIMIT = 500;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
+const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -123,6 +124,48 @@ function normalizeState(type, content, topText = "", revealAnswer = false) {
   };
 }
 
+function cloneJson(value) {
+  if (value == null) return null;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function sessionScreenStates(session) {
+  return session?.screen_states && typeof session.screen_states === "object" ? session.screen_states : {};
+}
+
+function takeoverStateFrom(screenStates) {
+  const takeover = screenStates?.[TAKEOVER_STATE_KEY];
+  if (!takeover || typeof takeover !== "object") return null;
+  const sourceScreenId = normalizeScreenNumber(takeover.sourceScreenId);
+  const activeScreenIds = normalizeScreenIds(takeover.activeScreenIds);
+  const heldScreenStates = takeover.heldScreenStates && typeof takeover.heldScreenStates === "object"
+    ? takeover.heldScreenStates
+    : {};
+  if (!sourceScreenId || !activeScreenIds.length) return null;
+  return {
+    sourceScreenId,
+    activeScreenIds,
+    heldScreenStates,
+    startedAt: takeover.startedAt || null,
+  };
+}
+
+function stripTakeoverState(screenStates) {
+  const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
+  delete nextStates[TAKEOVER_STATE_KEY];
+  return nextStates;
+}
+
+function restoreTakeoverState(screenStates) {
+  const takeover = takeoverStateFrom(screenStates);
+  if (!takeover) return { screenStates: stripTakeoverState(screenStates), takeover: null };
+  const nextStates = stripTakeoverState(screenStates);
+  takeover.activeScreenIds.forEach((screenId) => {
+    nextStates[screenId] = cloneJson(takeover.heldScreenStates?.[screenId]);
+  });
+  return { screenStates: nextStates, takeover };
+}
+
 function normalizeSceneStates(value) {
   const source = value && typeof value === "object" ? value : {};
   return SCREEN_IDS.reduce((states, screenId) => {
@@ -227,6 +270,26 @@ async function broadcastScreenUpdates(admin, sessionId, payloads) {
   } finally {
     await admin.removeChannel(channel);
   }
+}
+
+async function persistScreenStates(admin, session, teacherId, screenStates, broadcastScreenIds = []) {
+  const { error } = await admin
+    .from("projector_sessions")
+    .update({ screen_states: screenStates, updated_at: new Date().toISOString() })
+    .eq("id", session.id)
+    .eq("teacher_id", teacherId);
+
+  if (error) return { error };
+
+  const uniqueScreenIds = [...new Set(broadcastScreenIds.map(normalizeScreenNumber).filter(Boolean))];
+  if (uniqueScreenIds.length) {
+    await broadcastScreenUpdates(
+      admin,
+      session.id,
+      uniqueScreenIds.map((screenId) => buildBroadcastPayload(screenId, screenStates[screenId]))
+    );
+  }
+  return { ok: true };
 }
 
 function buildBroadcastPayload(screenId, state) {
@@ -816,8 +879,9 @@ async function loadScene(admin, teacherId, session, body) {
       return states;
     }, {});
   }
+  const restored = restoreTakeoverState(sessionScreenStates(session));
   const nextSessionStates = {
-    ...(session.screen_states && typeof session.screen_states === "object" ? session.screen_states : {}),
+    ...restored.screenStates,
     ...screenStates,
   };
 
@@ -835,7 +899,66 @@ async function loadScene(admin, teacherId, session, body) {
     activeScreenIds.map((screenId) => buildBroadcastPayload(screenId, screenStates[screenId]))
   );
 
-  return NextResponse.json({ ok: true, title: scene.title, screenStates: nextSessionStates });
+  return NextResponse.json({
+    ok: true,
+    title: scene.title,
+    screenStates: nextSessionStates,
+    takeoverEnded: Boolean(restored.takeover),
+  });
+}
+
+async function startTakeover(admin, teacherId, session, body) {
+  const sourceScreenId = normalizeScreenNumber(body.screenId);
+  if (!sourceScreenId) return jsonError("Choose a screen to show on all screens.");
+
+  const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, teacherId);
+  if (!activeScreenIds.includes(sourceScreenId)) return jsonError("Choose an active screen to show on all screens.");
+
+  const current = sessionScreenStates(session);
+  if (takeoverStateFrom(current)) return jsonError("End the current takeover before starting another.");
+
+  const sourceState = current[sourceScreenId] || null;
+  if (!sourceState?.type) return jsonError("Add content to that screen before showing it on all screens.");
+
+  const heldScreenStates = activeScreenIds.reduce((states, screenId) => {
+    states[screenId] = cloneJson(current[screenId] || null);
+    return states;
+  }, {});
+  const nextStates = {
+    ...current,
+    [TAKEOVER_STATE_KEY]: {
+      sourceScreenId,
+      activeScreenIds,
+      heldScreenStates,
+      startedAt: new Date().toISOString(),
+    },
+  };
+
+  activeScreenIds.forEach((screenId) => {
+    nextStates[screenId] = cloneJson(sourceState);
+  });
+
+  const result = await persistScreenStates(admin, session, teacherId, nextStates, activeScreenIds);
+  if (result.error) return jsonError(result.error.message, 500);
+
+  return NextResponse.json({
+    ok: true,
+    screenStates: nextStates,
+    takeover: takeoverStateFrom(nextStates),
+  });
+}
+
+async function endTakeover(admin, teacherId, session) {
+  const current = sessionScreenStates(session);
+  const { screenStates, takeover } = restoreTakeoverState(current);
+  if (!takeover) {
+    return NextResponse.json({ ok: true, ended: false, screenStates });
+  }
+
+  const result = await persistScreenStates(admin, session, teacherId, screenStates, takeover.activeScreenIds);
+  if (result.error) return jsonError(result.error.message, 500);
+
+  return NextResponse.json({ ok: true, ended: true, screenStates });
 }
 
 export async function GET(request) {
@@ -923,7 +1046,18 @@ export async function POST(request) {
     return updateSceneFromPayload(admin, context.user.id, body);
   }
 
+  if (body?.action === "start-takeover") {
+    return startTakeover(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "end-takeover") {
+    return endTakeover(admin, context.user.id, context.session);
+  }
+
   if (body?.action === "save-scene") {
+    if (takeoverStateFrom(sessionScreenStates(context.session))) {
+      return jsonError("End the screen takeover before saving a scene.");
+    }
     return saveScene(admin, context.user.id, context.session, body);
   }
 
@@ -948,9 +1082,8 @@ export async function POST(request) {
     if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
     const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
     if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
-    const current = context.session.screen_states && typeof context.session.screen_states === "object"
-      ? context.session.screen_states
-      : {};
+    const restored = restoreTakeoverState(sessionScreenStates(context.session));
+    const current = restored.screenStates;
     const currentState = normalizeState(
       current[screenId]?.type,
       current[screenId]?.content,
@@ -962,22 +1095,17 @@ export async function POST(request) {
     }
     const nextState = { ...currentState, revealAnswer: !currentState.revealAnswer };
     const nextStates = { ...current, [screenId]: nextState };
-    const { error } = await admin
-      .from("projector_sessions")
-      .update({ screen_states: nextStates, updated_at: new Date().toISOString() })
-      .eq("id", context.session.id)
-      .eq("teacher_id", context.user.id);
-    if (error) return jsonError(error.message, 500);
-    await broadcastScreenUpdates(admin, context.session.id, [buildBroadcastPayload(screenId, nextState)]);
-    return NextResponse.json({ screenId, state: nextState });
+    const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, screenId] : [screenId];
+    const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);
+    if (result.error) return jsonError(result.error.message, 500);
+    return NextResponse.json({ screenId, state: nextState, screenStates: nextStates, takeoverEnded: Boolean(restored.takeover) });
   }
 
   if (body?.action === "rotate-screens") {
     const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
     if (!activeScreenIds.length) return jsonError("A Room needs at least one active screen.");
-    const current = context.session.screen_states && typeof context.session.screen_states === "object"
-      ? context.session.screen_states
-      : {};
+    const restored = restoreTakeoverState(sessionScreenStates(context.session));
+    const current = restored.screenStates;
     const rotateBackward = body.direction === "backward";
     const rotated = { ...current };
     activeScreenIds.forEach((screenId, index) => {
@@ -986,18 +1114,10 @@ export async function POST(request) {
         : (index - 1 + activeScreenIds.length) % activeScreenIds.length;
       rotated[screenId] = current[activeScreenIds[sourceIndex]] || null;
     });
-    const { error } = await admin
-      .from("projector_sessions")
-      .update({ screen_states: rotated, updated_at: new Date().toISOString() })
-      .eq("id", context.session.id)
-      .eq("teacher_id", context.user.id);
-    if (error) return jsonError(error.message, 500);
-    await broadcastScreenUpdates(
-      admin,
-      context.session.id,
-      activeScreenIds.map((screenId) => buildBroadcastPayload(screenId, rotated[screenId]))
-    );
-    return NextResponse.json({ screenStates: rotated });
+    const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, ...activeScreenIds] : activeScreenIds;
+    const result = await persistScreenStates(admin, context.session, context.user.id, rotated, broadcastIds);
+    if (result.error) return jsonError(result.error.message, 500);
+    return NextResponse.json({ screenStates: rotated, takeoverEnded: Boolean(restored.takeover) });
   }
 
   const screenIds = normalizeScreenIds(body.screenIds);
@@ -1014,30 +1134,17 @@ export async function POST(request) {
     return jsonError("Add content before sending.");
   }
 
-  const nextStates = {
-    ...(context.session.screen_states && typeof context.session.screen_states === "object"
-      ? context.session.screen_states
-      : {}),
-  };
+  const restored = restoreTakeoverState(sessionScreenStates(context.session));
+  const nextStates = { ...restored.screenStates };
   for (const screenId of screenIds) {
     nextStates[screenId] = state;
   }
 
-  const { error } = await admin
-    .from("projector_sessions")
-    .update({ screen_states: nextStates, updated_at: new Date().toISOString() })
-    .eq("id", context.session.id)
-    .eq("teacher_id", context.user.id);
+  const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, ...screenIds] : screenIds;
+  const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);
+  if (result.error) return jsonError(result.error.message, 500);
 
-  if (error) return jsonError(error.message, 500);
-
-  await broadcastScreenUpdates(
-    admin,
-    context.session.id,
-    screenIds.map((screenId) => buildBroadcastPayload(screenId, state))
-  );
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, takeoverEnded: Boolean(restored.takeover), screenStates: nextStates });
 }
 
 export async function DELETE(request) {
@@ -1052,22 +1159,11 @@ export async function DELETE(request) {
   const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
   if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
 
-  const nextStates = {
-    ...(context.session.screen_states && typeof context.session.screen_states === "object"
-      ? context.session.screen_states
-      : {}),
-    [screenId]: null,
-  };
+  const restored = restoreTakeoverState(sessionScreenStates(context.session));
+  const nextStates = { ...restored.screenStates, [screenId]: null };
+  const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, screenId] : [screenId];
+  const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);
+  if (result.error) return jsonError(result.error.message, 500);
 
-  const { error } = await admin
-    .from("projector_sessions")
-    .update({ screen_states: nextStates, updated_at: new Date().toISOString() })
-    .eq("id", context.session.id)
-    .eq("teacher_id", context.user.id);
-
-  if (error) return jsonError(error.message, 500);
-
-  await broadcastScreenUpdates(admin, context.session.id, [{ screenId, type: null, content: null }]);
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, takeoverEnded: Boolean(restored.takeover), screenStates: nextStates });
 }

@@ -47,6 +47,17 @@ function notifyActiveRoomChanged(room) {
   window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room } }));
 }
 
+async function endProjectorTakeover() {
+  const response = await fetch("/api/projector", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "end-takeover" }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Could not end the screen takeover.");
+  return payload;
+}
+
 export default function ProjectorRoomsManager({ session, initialActiveRoom = null, initialRooms = [] }) {
   const [rooms, setRooms] = useState(initialRooms.length ? initialRooms : [defaultRoom()]);
   const [activeRoomId, setActiveRoomId] = useState(initialActiveRoom?.id || rooms.find((room) => room.is_active)?.id || "default");
@@ -102,6 +113,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
     setSaving(true);
     setStatus("");
     try {
+      await endProjectorTakeover();
       const response = await fetch("/api/projector/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

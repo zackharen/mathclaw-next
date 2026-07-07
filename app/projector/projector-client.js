@@ -15,6 +15,20 @@ const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
 const DIRECT_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
+const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
+
+function takeoverStateFrom(screenStates) {
+  const takeover = screenStates?.[TAKEOVER_STATE_KEY];
+  if (!takeover || typeof takeover !== "object") return null;
+  const sourceScreenId = ALL_SCREEN_IDS.includes(String(takeover.sourceScreenId || ""))
+    ? String(takeover.sourceScreenId)
+    : null;
+  const activeScreenIds = Array.isArray(takeover.activeScreenIds)
+    ? takeover.activeScreenIds.map(String).filter((screenId) => ALL_SCREEN_IDS.includes(screenId))
+    : [];
+  if (!sourceScreenId || !activeScreenIds.length) return null;
+  return { ...takeover, sourceScreenId, activeScreenIds };
+}
 
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
@@ -489,6 +503,7 @@ export default function ProjectorClient({
   playlistsSetupMissing = false,
 }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
+  const [takeoverState, setTakeoverState] = useState(() => takeoverStateFrom(session.screen_states || {}));
   const [activeRoom, setActiveRoom] = useState(initialActiveRoom);
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
@@ -687,6 +702,31 @@ export default function ProjectorClient({
     };
   }
 
+  function applyScreenStates(nextScreenStates) {
+    const safeStates = nextScreenStates && typeof nextScreenStates === "object" ? nextScreenStates : {};
+    setScreenStates(safeStates);
+    setTakeoverState(takeoverStateFrom(safeStates));
+  }
+
+  async function endTakeover(options = {}) {
+    const { silent = false } = options;
+    const response = await fetch("/api/projector", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "end-takeover" }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Could not end the screen takeover.");
+    applyScreenStates(payload.screenStates || {});
+    if (!silent) setMessage(payload.ended ? "Screen takeover ended." : "No screen takeover is running.");
+    return Boolean(payload.ended);
+  }
+
+  async function endTakeoverForManualAction() {
+    if (!takeoverState) return false;
+    return endTakeover({ silent: true });
+  }
+
   useEffect(() => {
     function updateSceneLibrary(event) {
       if (event.detail?.source === "projector-client") return;
@@ -774,6 +814,7 @@ export default function ProjectorClient({
       if (event.detail?.room) {
         setActiveRoom(event.detail.room);
         setLoadedScene(null);
+        setTakeoverState(null);
         if (playlistTimeoutRef.current) {
           window.clearTimeout(playlistTimeoutRef.current);
           playlistTimeoutRef.current = null;
@@ -805,7 +846,7 @@ export default function ProjectorClient({
     function applyLoadedScene(event) {
       const scene = event.detail?.scene;
       if (!scene?.id) return;
-      if (event.detail?.screenStates) setScreenStates(event.detail.screenStates);
+      if (event.detail?.screenStates) applyScreenStates(event.detail.screenStates);
       setLoadedScene({ id: scene.id, title: scene.title || "Saved room setup" });
       setMessage(`Loaded "${scene.title || "Saved room setup"}" to all screens.`);
     }
@@ -919,6 +960,41 @@ export default function ProjectorClient({
     setMessage(`Screen ${screenId} URL copied.`);
   }
 
+  async function startTakeover(screenId) {
+    pausePlaylist("Playlist paused because screen takeover started.");
+    stopTimedRotation("Timed screen rotation stopped because screen takeover started.");
+    setSending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start-takeover", screenId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not start screen takeover.");
+      applyScreenStates(payload.screenStates || {});
+      setTakeoverState(payload.takeover || takeoverStateFrom(payload.screenStates || {}));
+      setMessage(`Screen ${screenId} is showing on all active screens.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function endTakeoverFromDock() {
+    setSending(true);
+    setMessage("");
+    try {
+      await endTakeover();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function toggleActiveRoomScreen(screenId, enabled) {
     if (!activeRoom?.id || activeRoom.id === "default") {
       setMessage("Rooms are not ready for screen toggles yet.");
@@ -927,6 +1003,7 @@ export default function ProjectorClient({
     setSending(true);
     setMessage("");
     try {
+      await endTakeoverForManualAction();
       const response = await fetch("/api/projector/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1175,6 +1252,10 @@ export default function ProjectorClient({
   }
 
   async function saveScene() {
+    if (takeoverState) {
+      setMessage("End the screen takeover before saving a scene.");
+      return;
+    }
     setSavingScene(true);
     setMessage("");
     try {
@@ -1202,6 +1283,10 @@ export default function ProjectorClient({
 
   async function updateLoadedScene() {
     if (!loadedScene?.id) return;
+    if (takeoverState) {
+      setMessage("End the screen takeover before updating a saved scene.");
+      return;
+    }
     if (!window.confirm(`Overwrite "${loadedScene.title}" with the current screens?`)) return;
     setSavingScene(true);
     setMessage("");
@@ -1369,6 +1454,7 @@ export default function ProjectorClient({
     setSavingScene(true);
     setMessage("");
     try {
+      const takeoverEnded = await endTakeoverForManualAction();
       const { response, payload } = await postLoadScene(scene);
       // The scene has more screens than the active Room: the server returns
       // needsAssignment (HTTP 409) instead of loading. Open the chooser BEFORE
@@ -1386,9 +1472,9 @@ export default function ProjectorClient({
       }
       if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
 
-      setScreenStates(payload.screenStates || scene.screen_states || {});
+      applyScreenStates(payload.screenStates || scene.screen_states || {});
       setLoadedScene({ id: scene.id, title: payload.title || scene.title });
-      setMessage(`Loaded "${payload.title || scene.title}" to all screens.`);
+      setMessage(`${takeoverEnded ? "Screen takeover ended. " : ""}Loaded "${payload.title || scene.title}" to all screens.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1438,7 +1524,7 @@ export default function ProjectorClient({
       const { response, payload } = await postLoadScene({ id: assignmentPrompt.sceneId }, assignments);
       if (!response.ok) throw new Error(payload.error || "Could not load that room setup.");
 
-      setScreenStates(payload.screenStates || {});
+      applyScreenStates(payload.screenStates || {});
       setLoadedScene({ id: assignmentPrompt.sceneId, title: payload.title || assignmentPrompt.title });
       setMessage(`Loaded "${payload.title || assignmentPrompt.title}" to all screens.`);
       setAssignmentPrompt(null);
@@ -1709,6 +1795,7 @@ export default function ProjectorClient({
     const nextTopText = state?.topText || "";
 
     try {
+      const takeoverEnded = await endTakeoverForManualAction();
       const response = await fetch("/api/projector", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1723,14 +1810,18 @@ export default function ProjectorClient({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not send content.");
 
-      setScreenStates((current) => {
-        const next = { ...current };
-        targetScreenIds.forEach((screenId) => {
-          next[screenId] = nextTopText ? { type, content, topText: nextTopText } : { type, content };
+      if (payload.screenStates) {
+        applyScreenStates(payload.screenStates);
+      } else {
+        setScreenStates((current) => {
+          const next = { ...current };
+          targetScreenIds.forEach((screenId) => {
+            next[screenId] = nextTopText ? { type, content, topText: nextTopText } : { type, content };
+          });
+          return next;
         });
-        return next;
-      });
-      setMessage(`Sent to ${targetDescription}.`);
+      }
+      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Sent to ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1747,6 +1838,7 @@ export default function ProjectorClient({
     setSending(true);
     if (manual) setMessage("");
     try {
+      const takeoverEnded = manual ? await endTakeoverForManualAction() : false;
       const response = await fetch("/api/projector", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1754,13 +1846,16 @@ export default function ProjectorClient({
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not rotate screens.");
-      setScreenStates(payload.screenStates || {});
+      applyScreenStates(payload.screenStates || {});
       if (!manual) {
         setTimedRotation((current) =>
           current.status === "running" ? { ...current, remainingSeconds: current.intervalSeconds } : current
         );
       }
-      if (manual) setMessage(direction === "backward" ? "Screens rotated left." : "Screens rotated right.");
+      if (manual) {
+        const actionMessage = direction === "backward" ? "Screens rotated left." : "Screens rotated right.";
+        setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}${actionMessage}`);
+      }
     } catch (error) {
       setMessage(error.message);
       if (!manual) stopTimedRotation();
@@ -1777,36 +1872,45 @@ export default function ProjectorClient({
     setRotationPromptOpen(true);
   }
 
-  function startTimedRotation() {
+  async function startTimedRotation() {
     const intervalSeconds = Math.min(Math.max(Number(rotationIntervalSeconds) || 15, 3), 3600);
     const direction = rotationDirection === "backward" ? "backward" : "forward";
     if (activeScreenIds.length < 2) {
       setMessage("Turn on at least two active screens before starting timed rotation.");
       return;
     }
-    stopPlaylist("Playlist stopped because timed screen rotation started.");
-    clearTimedRotationTimer();
-    setRotationPromptOpen(false);
-    setTimedRotation({ status: "running", intervalSeconds, remainingSeconds: intervalSeconds, direction });
-    setMessage(`Timed screen rotation started: every ${intervalSeconds}s.`);
-    timedRotationCountdownRef.current = window.setInterval(() => {
-      setTimedRotation((current) => {
-        if (current.status !== "running") return current;
-        const nextRemainingSeconds = current.remainingSeconds <= 1
-          ? current.intervalSeconds
-          : current.remainingSeconds - 1;
-        return { ...current, remainingSeconds: nextRemainingSeconds };
-      });
-    }, 1000);
-    timedRotationIntervalRef.current = window.setInterval(() => {
-      rotateScreens(direction, { manual: false });
-    }, intervalSeconds * 1000);
+    setSending(true);
+    try {
+      const takeoverEnded = await endTakeoverForManualAction();
+      stopPlaylist("Playlist stopped because timed screen rotation started.");
+      clearTimedRotationTimer();
+      setRotationPromptOpen(false);
+      setTimedRotation({ status: "running", intervalSeconds, remainingSeconds: intervalSeconds, direction });
+      setMessage(`${takeoverEnded ? "Screen takeover ended. " : ""}Timed screen rotation started: every ${intervalSeconds}s.`);
+      timedRotationCountdownRef.current = window.setInterval(() => {
+        setTimedRotation((current) => {
+          if (current.status !== "running") return current;
+          const nextRemainingSeconds = current.remainingSeconds <= 1
+            ? current.intervalSeconds
+            : current.remainingSeconds - 1;
+          return { ...current, remainingSeconds: nextRemainingSeconds };
+        });
+      }, 1000);
+      timedRotationIntervalRef.current = window.setInterval(() => {
+        rotateScreens(direction, { manual: false });
+      }, intervalSeconds * 1000);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
   }
 
   async function toggleRevealAnswer(screenId) {
     setSending(true);
     setMessage("");
     try {
+      const takeoverEnded = await endTakeoverForManualAction();
       const response = await fetch("/api/projector", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1814,8 +1918,13 @@ export default function ProjectorClient({
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not reveal that answer.");
-      setScreenStates((current) => ({ ...current, [screenId]: payload.state || current[screenId] || null }));
-      setMessage(payload.state?.revealAnswer ? `Screen ${screenId} answer revealed.` : `Screen ${screenId} answer hidden.`);
+      if (payload.screenStates) {
+        applyScreenStates(payload.screenStates);
+      } else {
+        setScreenStates((current) => ({ ...current, [screenId]: payload.state || current[screenId] || null }));
+      }
+      const actionMessage = payload.state?.revealAnswer ? `Screen ${screenId} answer revealed.` : `Screen ${screenId} answer hidden.`;
+      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}${actionMessage}`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1829,6 +1938,8 @@ export default function ProjectorClient({
     setSending(true);
     setMessage("");
     try {
+      const takeoverEnded = await endTakeoverForManualAction();
+      let latestScreenStates = null;
       for (const screenId of targetScreenIds) {
         const response = await fetch("/api/projector", {
           method: "DELETE",
@@ -1837,15 +1948,20 @@ export default function ProjectorClient({
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Could not clear content.");
+        if (payload.screenStates) latestScreenStates = payload.screenStates;
       }
-      setScreenStates((current) => {
-        const next = { ...current };
-        targetScreenIds.forEach((screenId) => {
-          next[screenId] = null;
+      if (latestScreenStates) {
+        applyScreenStates(latestScreenStates);
+      } else {
+        setScreenStates((current) => {
+          const next = { ...current };
+          targetScreenIds.forEach((screenId) => {
+            next[screenId] = null;
+          });
+          return next;
         });
-        return next;
-      });
-      setMessage(`Cleared ${targetDescription}.`);
+      }
+      setMessage(`${takeoverEnded ? "Screen takeover ended. " : ""}Cleared ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2022,6 +2138,7 @@ export default function ProjectorClient({
     }
     setPlaylistStartPrompt(null);
     try {
+      const takeoverEnded = await endTakeoverForManualAction();
       const assignmentsBySceneId = await collectPlaylistAssignments(entries, playlist.name);
       if (!assignmentsBySceneId) {
         setMessage("Playlist start cancelled.");
@@ -2029,6 +2146,7 @@ export default function ProjectorClient({
       }
       setSavingScene(true);
       await playPlaylistEntry(playlist, entries, assignmentsBySceneId, playlistTargetScreens, 0, playlist.loop !== false);
+      if (takeoverEnded) setMessage(`Screen takeover ended. Playing "${playlistEntryLabel(entries[0], library, scenes)}" from "${playlist.name}".`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2276,6 +2394,19 @@ export default function ProjectorClient({
         </div>
       </section>
 
+      {takeoverState ? (
+        <section className="projectorTakeoverDock" aria-label="Screen takeover">
+          <div>
+            <p className="eyebrow">Screen takeover running</p>
+            <h2>Screen {takeoverState.sourceScreenId} is showing on all screens</h2>
+            <span>{takeoverState.activeScreenIds.length} active screens are mirrored. End takeover to restore the held contents.</span>
+          </div>
+          <button type="button" onClick={endTakeoverFromDock} disabled={sending}>
+            End takeover
+          </button>
+        </section>
+      ) : null}
+
       {currentPlaylist ? (
         <section className={`projectorPlaylistDock is-${playlistState.status}`} aria-label="Playlist playback">
           <div>
@@ -2333,8 +2464,13 @@ export default function ProjectorClient({
               const slot = slotForScreen(activeRoom, screenId);
               const isEnabled = slot?.enabled !== false;
               const canDisable = isEnabled && activeScreenIds.length <= 1;
+              const takeoverSource = takeoverState?.sourceScreenId === screenId;
+              const takeoverMirrored = Boolean(takeoverState && takeoverState.activeScreenIds.includes(screenId));
               return (
-                <article className={`projectorScreenCard${isEnabled ? "" : " isInactive"}`} key={screenId}>
+                <article
+                  className={`projectorScreenCard${isEnabled ? "" : " isInactive"}${takeoverSource ? " isTakeoverSource" : ""}${takeoverMirrored && !takeoverSource ? " isTakeoverMirror" : ""}`}
+                  key={screenId}
+                >
                   <div className="projectorScreenCardHeader">
                     <div className="projectorScreenTitleRow">
                       <strong>{slot?.name || `Screen ${screenId}`}</strong>
@@ -2364,6 +2500,16 @@ export default function ProjectorClient({
                       disabled={sending || !isEnabled}
                     >
                       {screenStates?.[screenId]?.revealAnswer ? "Hide Answer" : "Reveal Answer"}
+                    </button>
+                  ) : null}
+                  {isEnabled ? (
+                    <button
+                      className="btn secondary projectorTakeoverButton"
+                      type="button"
+                      onClick={() => startTakeover(screenId)}
+                      disabled={sending || Boolean(takeoverState) || !screenStates?.[screenId]?.type}
+                    >
+                      Show on all
                     </button>
                   ) : null}
                   <button
