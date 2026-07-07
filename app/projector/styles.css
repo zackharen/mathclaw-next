@@ -1029,6 +1029,14 @@
   cursor: not-allowed;
 }
 
+.projectorTargetSummary {
+  margin: 0;
+  color: #51606d;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-align: center;
+}
+
 .projectorDashboard .field,
 .projectorScreenJoin .field {
   display: grid;

@@ -445,6 +445,18 @@ function sceneFolderLabel(scene, folders) {
   return folders.find((folder) => folder.id === scene.folder_id)?.title || "Folder";
 }
 
+function describeScreenTargets(targetScreenIds, targetMode = "custom") {
+  if (targetMode === "all") return "all screens";
+  if (targetScreenIds.length === 1) return `screen ${targetScreenIds[0]}`;
+  return `screens ${targetScreenIds.join(", ")}`;
+}
+
+function screenTargetSummary(targetScreenIds, targetMode = "custom") {
+  if (targetMode === "all") return "All";
+  if (targetScreenIds.length <= 3) return targetScreenIds.join(",");
+  return `${targetScreenIds.length} selected`;
+}
+
 function SidebarPanel({ ariaLabel, children, className = "", count, eyebrow, onToggle, open, title }) {
   return (
     <section className={`projectorLibrary ${className}`} aria-label={ariaLabel || title}>
@@ -485,7 +497,8 @@ export default function ProjectorClient({
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
   const [openPanels, setOpenPanels] = useState({ screens: true, scenes: false, library: false });
-  const [target, setTarget] = useState("all");
+  const [targetMode, setTargetMode] = useState("all");
+  const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
   const [type, setType] = useState("text");
   const [text, setText] = useState("Welcome to class");
   const [latex, setLatex] = useState("\\frac{3}{4} + \\frac{1}{8}");
@@ -553,7 +566,15 @@ export default function ProjectorClient({
   const screenTokens = session.screen_tokens || {};
   const roomScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
   const activeScreenIds = useMemo(() => enabledScreenIdsForRoom(activeRoom), [activeRoom]);
-  const targetScreenIds = useMemo(() => (target === "all" ? activeScreenIds : [target]), [activeScreenIds, target]);
+  const targetScreenIds = useMemo(
+    () =>
+      targetMode === "all"
+        ? activeScreenIds
+        : selectedTargetScreens.filter((screenId) => activeScreenIds.includes(screenId)),
+    [activeScreenIds, selectedTargetScreens, targetMode]
+  );
+  const targetSummary = screenTargetSummary(targetScreenIds, targetMode);
+  const targetDescription = describeScreenTargets(targetScreenIds, targetMode);
   const currentPlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === playlistState.playlistId) || null,
     [playlistState.playlistId, playlists]
@@ -769,8 +790,15 @@ export default function ProjectorClient({
   }, [activeScreenIds]);
 
   useEffect(() => {
-    if (target !== "all" && !activeScreenIds.includes(target)) setTarget("all");
-  }, [activeScreenIds, target]);
+    if (targetMode === "all") return;
+    const next = selectedTargetScreens.filter((screenId) => activeScreenIds.includes(screenId));
+    if (!next.length) {
+      setSelectedTargetScreens([]);
+      setTargetMode("all");
+    } else if (next.length !== selectedTargetScreens.length) {
+      setSelectedTargetScreens(next);
+    }
+  }, [activeScreenIds, selectedTargetScreens, targetMode]);
 
   useEffect(() => {
     setPlaylistTargetScreens((current) => {
@@ -923,6 +951,25 @@ export default function ProjectorClient({
     });
   }
 
+  function chooseAllTargetScreens() {
+    setTargetMode("all");
+    setSelectedTargetScreens([]);
+  }
+
+  function toggleTargetScreen(screenId) {
+    if (!activeScreenIds.includes(screenId)) return;
+    if (targetMode === "custom" && selectedTargetScreens.includes(screenId) && selectedTargetScreens.length === 1) {
+      chooseAllTargetScreens();
+      return;
+    }
+    setTargetMode("custom");
+    setSelectedTargetScreens((current) => {
+      return current.includes(screenId)
+        ? current.filter((candidate) => candidate !== screenId)
+        : [...current, screenId].sort((left, right) => Number(left) - Number(right));
+    });
+  }
+
   function editScreenContent(screenId) {
     const state = screenStates?.[screenId];
     if (!state?.type) {
@@ -930,7 +977,8 @@ export default function ProjectorClient({
       return;
     }
 
-    setTarget(screenId);
+    setTargetMode("custom");
+    setSelectedTargetScreens([screenId]);
     setType(state.type);
     setShowTopText(Boolean(state.topText));
     setTopText(state.topText || "");
@@ -1580,7 +1628,7 @@ export default function ProjectorClient({
         });
         return next;
       });
-      setMessage(`Sent to ${target === "all" ? "all screens" : `screen ${target}`}.`);
+      setMessage(`Sent to ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1695,7 +1743,7 @@ export default function ProjectorClient({
         });
         return next;
       });
-      setMessage(`Cleared ${target === "all" ? "all screens" : `screen ${target}`}.`);
+      setMessage(`Cleared ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2324,7 +2372,7 @@ export default function ProjectorClient({
           ) : null}
           <SidebarPanel
             ariaLabel="Screen Selection"
-            count={target === "all" ? "All" : target}
+            count={targetSummary}
             eyebrow="Controls"
             onToggle={() => togglePanel("screens")}
             open={openPanels.screens}
@@ -2332,28 +2380,32 @@ export default function ProjectorClient({
           >
             <div className="projectorTargetPicker" aria-label="Screen Selection">
               <button
-                className={`projectorTargetAll${target === "all" ? " isActive" : ""}`}
+                className={`projectorTargetAll${targetMode === "all" ? " isActive" : ""}`}
                 type="button"
-                onClick={() => setTarget("all")}
+                aria-pressed={targetMode === "all"}
+                onClick={chooseAllTargetScreens}
               >
                 All
               </button>
               <div className="projectorTargetButtons">
                 {ALL_SCREEN_IDS.map((screenId) => {
                   const available = activeScreenIds.includes(screenId);
+                  const selected = targetMode === "custom" && targetScreenIds.includes(screenId);
                   return (
                     <button
-                      className={target === screenId ? "isActive" : ""}
+                      className={selected ? "isActive" : ""}
                       key={screenId}
                       type="button"
                       disabled={!available}
-                      onClick={() => setTarget(screenId)}
+                      aria-pressed={selected}
+                      onClick={() => toggleTargetScreen(screenId)}
                     >
                       {screenId}
                     </button>
                   );
                 })}
               </div>
+              <p className="projectorTargetSummary">Sending to {targetDescription}.</p>
             </div>
             <div className="projectorTabs" role="tablist" aria-label="Content Type">
               {["text", "latex", "image", "video"].map((tab) => (
