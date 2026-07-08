@@ -670,6 +670,14 @@ export default function ProjectorClient({
     ]);
   }
 
+  function addAutoSavedItems(items) {
+    if (!Array.isArray(items) || !items.length) return;
+    setLibrary((current) => [
+      ...items.filter((item) => item?.id && !current.some((existing) => existing.id === item.id)),
+      ...current,
+    ]);
+  }
+
   function updateSceneInLibrary(updatedScene) {
     if (!updatedScene?.id) return;
     updateScenesAndSync((current) => [
@@ -1279,6 +1287,7 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not save that room setup.");
 
       updateScenesAndSync((current) => [payload.scene, ...current.filter((scene) => scene.id !== payload.scene.id)]);
+      addAutoSavedItems(payload.autoSavedItems);
       setSceneTitle(payload.scene.title || "");
       setMessage(`Saved "${payload.scene.title}" as a room setup.`);
     } catch (error) {
@@ -1311,6 +1320,7 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not update that room setup.");
 
       updateSceneInLibrary(payload.scene);
+      addAutoSavedItems(payload.autoSavedItems);
       setLoadedScene({ id: payload.scene.id, title: payload.scene.title || loadedScene.title });
       setMessage(`Updated "${payload.scene.title || loadedScene.title}".`);
     } catch (error) {
@@ -2639,6 +2649,7 @@ export default function ProjectorClient({
             onFoldersChanged={updateFoldersAndSync}
             onScenesSaved={addWorkshopScenes}
             onSceneUpdated={updateSceneInLibrary}
+            onItemsSaved={addAutoSavedItems}
           />
           <SidebarPanel
             ariaLabel="Screen Selection"

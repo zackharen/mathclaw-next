@@ -178,6 +178,7 @@ export default function ProjectorSceneWorkshop({
   onFoldersChanged,
   onScenesSaved,
   onSceneUpdated,
+  onItemsSaved,
 }) {
   const activeRoomSlots = normalizeSlots(activeRoom?.slots);
   const defaultSlotCount = Math.max(1, activeRoomSlots.filter((slot) => slot.enabled !== false).length || activeRoomSlots.length || 4);
@@ -408,7 +409,11 @@ export default function ProjectorSceneWorkshop({
     });
     const responsePayload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(responsePayload.error || "Could not save that scene.");
-    return { scene: responsePayload.scene, isUpdate };
+    return {
+      scene: responsePayload.scene,
+      isUpdate,
+      autoSavedItems: Array.isArray(responsePayload.autoSavedItems) ? responsePayload.autoSavedItems : [],
+    };
   }
 
   async function saveRow(rowId) {
@@ -427,12 +432,13 @@ export default function ProjectorSceneWorkshop({
     setSaving(true);
     setStatus("");
     try {
-      const { scene, isUpdate } = await persistRow(row, batchFolderId);
+      const { scene, isUpdate, autoSavedItems } = await persistRow(row, batchFolderId);
       if (isUpdate) {
         onSceneUpdated?.(scene);
       } else {
         onScenesSaved?.([scene]);
       }
+      if (autoSavedItems.length) onItemsSaved?.(autoSavedItems);
       updateRow(rowId, { ...row, saved: true, status: isUpdate ? "Updated" : "Saved" }, { preserveSaved: true });
       setStatus(`${isUpdate ? "Updated" : "Saved"} "${scene.title}".`);
     } catch (error) {
@@ -459,13 +465,16 @@ export default function ProjectorSceneWorkshop({
     try {
       const createdScenes = [];
       const updatedScenes = [];
+      const savedItems = [];
       for (const row of rowsToSave) {
-        const { scene, isUpdate } = await persistRow(row, batchFolderId);
+        const { scene, isUpdate, autoSavedItems } = await persistRow(row, batchFolderId);
         if (isUpdate) updatedScenes.push(scene);
         else createdScenes.push(scene);
+        savedItems.push(...autoSavedItems);
       }
       if (createdScenes.length) onScenesSaved?.(createdScenes);
       updatedScenes.forEach((scene) => onSceneUpdated?.(scene));
+      if (savedItems.length) onItemsSaved?.(savedItems);
       const savedIds = new Set(rowsToSave.map((row) => row.id));
       setRows((current) =>
         current.map((row) => (savedIds.has(row.id) ? { ...row, saved: true, status: row.editingSceneId && !row.saveAsNew ? "Updated" : "Saved" } : row))

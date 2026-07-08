@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
+import { sceneItemCandidates, sceneItemContentHash } from "@/lib/projector/scene-item-extraction.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -472,6 +473,7 @@ async function saveLibraryItem(admin, teacherId, body) {
       title,
       content_type: state.type,
       content: state.content,
+      content_hash: sceneItemContentHash(state.type, state.content),
       ...(category ? { category } : {}),
     })
     .select("id, title, content_type, content, category, created_at, updated_at")
@@ -553,6 +555,42 @@ async function validateSceneFolder(admin, teacherId, folderId) {
   return null;
 }
 
+async function extractSceneItemsToLibrary(admin, teacherId, screenStates) {
+  try {
+    const candidates = sceneItemCandidates(screenStates);
+    if (!candidates.length) return [];
+
+    const { data: existing, error: existingError } = await admin
+      .from("projector_library_items")
+      .select("content_hash")
+      .eq("teacher_id", teacherId)
+      .in("content_hash", candidates.map((candidate) => candidate.contentHash));
+    if (existingError) return [];
+
+    const existingHashes = new Set((existing || []).map((row) => row.content_hash));
+    const missing = candidates.filter((candidate) => !existingHashes.has(candidate.contentHash));
+    if (!missing.length) return [];
+
+    const { data, error } = await admin
+      .from("projector_library_items")
+      .insert(
+        missing.map((candidate) => ({
+          teacher_id: teacherId,
+          title: candidate.title,
+          content_type: candidate.contentType,
+          content: candidate.content,
+          content_hash: candidate.contentHash,
+        }))
+      )
+      .select("id, title, content_type, content, category, created_at, updated_at");
+    if (error) return [];
+
+    return (data || []).map(normalizeLibraryItem);
+  } catch {
+    return [];
+  }
+}
+
 async function createSceneFromStates(admin, teacherId, body, screenStates) {
   const serialized = JSON.stringify(screenStates);
   if (serialized.length > SCENE_STATE_LIMIT) {
@@ -582,7 +620,8 @@ async function createSceneFromStates(admin, teacherId, body, screenStates) {
     return jsonError(error.message, 500);
   }
 
-  return NextResponse.json({ scene: normalizeSceneItem(data) });
+  const autoSavedItems = await extractSceneItemsToLibrary(admin, teacherId, screenStates);
+  return NextResponse.json({ scene: normalizeSceneItem(data), autoSavedItems });
 }
 
 async function saveScene(admin, teacherId, session, body) {
@@ -641,14 +680,16 @@ async function saveScenesFromPayload(admin, teacherId, body) {
   }
 
   const savedScenes = [];
+  const autoSavedItems = [];
   for (const scene of normalizedScenes) {
     const response = await createSceneFromStates(admin, teacherId, scene, scene.screenStates);
     if (!response.ok) return response;
     const payload = await response.json();
     savedScenes.push(payload.scene);
+    if (Array.isArray(payload.autoSavedItems)) autoSavedItems.push(...payload.autoSavedItems);
   }
 
-  return NextResponse.json({ scenes: savedScenes });
+  return NextResponse.json({ scenes: savedScenes, autoSavedItems });
 }
 
 async function updateSceneFromPayload(admin, teacherId, body) {
@@ -679,7 +720,8 @@ async function updateSceneFromPayload(admin, teacherId, body) {
   }
   if (!data) return jsonError("Saved room setup not found.", 404);
 
-  return NextResponse.json({ scene: normalizeSceneItem(data) });
+  const autoSavedItems = await extractSceneItemsToLibrary(admin, teacherId, screenStates);
+  return NextResponse.json({ scene: normalizeSceneItem(data), autoSavedItems });
 }
 
 async function renameScene(admin, teacherId, body) {
