@@ -2060,6 +2060,64 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   padding-right: 0.75rem;
 }
 
+.projectorWorkshopSidebarSection {
+  display: grid;
+  gap: 0.55rem;
+  border: 2px solid #d3dee7;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.55rem;
+}
+
+.projectorWorkshopSidebarSection.isCollapsed {
+  gap: 0;
+}
+
+.projectorWorkshopSidebarSection .field {
+  margin: 0;
+}
+
+.projectorWorkshopSectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.projectorWorkshopSectionToggle {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.projectorWorkshopSectionToggle span {
+  width: 1.45rem;
+  height: 1.45rem;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #f7fafc;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.projectorWorkshopSectionToggle strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .projectorWorkshopPoolHeader {
   justify-content: space-between;
 }

@@ -170,6 +170,26 @@ function renderMiniPreview(slot) {
   return <span>{slot.content}</span>;
 }
 
+function WorkshopSidebarSection({ title, isOpen, onToggle, action, children }) {
+  return (
+    <section className={`projectorWorkshopSidebarSection${isOpen ? "" : " isCollapsed"}`}>
+      <div className="projectorWorkshopSectionHeader">
+        <button
+          className="projectorWorkshopSectionToggle"
+          type="button"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+        >
+          <span>{isOpen ? "-" : "+"}</span>
+          <strong>{title}</strong>
+        </button>
+        {action}
+      </div>
+      {isOpen ? children : null}
+    </section>
+  );
+}
+
 export default function ProjectorSceneWorkshop({
   activeRoom = null,
   folders = [],
@@ -193,6 +213,11 @@ export default function ProjectorSceneWorkshop({
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [openSidebarSections, setOpenSidebarSections] = useState({
+    uploads: true,
+    scenes: true,
+    items: true,
+  });
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -242,6 +267,10 @@ export default function ProjectorSceneWorkshop({
   function editExistingScene(scene) {
     setRows((current) => [sceneRowFromExisting(scene, defaultSlotCount), ...current]);
     setStatus(`Opened "${scene.title}" for Workshop editing.`);
+  }
+
+  function toggleSidebarSection(section) {
+    setOpenSidebarSections((current) => ({ ...current, [section]: !current[section] }));
   }
 
   function setSlotCount(rowId, nextCount) {
@@ -538,62 +567,79 @@ export default function ProjectorSceneWorkshop({
 
           <div className="projectorWorkshopBody">
             <aside className="projectorWorkshopPool">
-              <label className="field">
-                <span>Edit Existing Scene</span>
-                <input value={sceneSearch} onChange={(event) => setSceneSearch(event.target.value)} placeholder="Search saved scenes..." />
-              </label>
-              <div className="projectorWorkshopPoolList">
-                {filteredScenes.length ? filteredScenes.map((scene) => (
-                  <button key={scene.id} type="button" onClick={() => editExistingScene(scene)}>
-                    <span className="projectorWorkshopAssetThumb">
-                      {renderMiniPreview(slotFromSceneState(scene.screen_states?.["1"]))}
-                    </span>
-                    <strong>{scene.title}</strong>
-                    <em>Open in Workshop</em>
+              <WorkshopSidebarSection
+                title="Upload Pool"
+                isOpen={openSidebarSections.uploads}
+                onToggle={() => toggleSidebarSection("uploads")}
+                action={(
+                  <button className="btn secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                    {uploading ? "Uploading..." : "Add Files"}
                   </button>
-                )) : <p className="projectorWorkshopEmptyNote">No saved scenes match that search.</p>}
-              </div>
-
-              <div className="projectorWorkshopPoolHeader">
-                <strong>Upload Pool</strong>
-                <button className="btn secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                  {uploading ? "Uploading..." : "Add Files"}
-                </button>
+                )}
+              >
                 <input ref={fileInputRef} hidden multiple accept="image/*,video/*,.mov,.m4v,.webm" type="file" onChange={onFilesChosen} />
-              </div>
-              <div className="projectorWorkshopPoolList">
-                {poolItems.length ? poolItems.map((item) => (
-                  <button
-                    className={selectedAsset?.kind === "pool" && selectedAsset.item.id === item.id ? "isActive" : ""}
-                    key={item.id}
-                    type="button"
-                    onClick={() => setSelectedAsset({ kind: "pool", item })}
-                  >
-                    <span className="projectorWorkshopAssetThumb">{renderMiniPreview(item)}</span>
-                    <strong>{item.title}</strong>
-                    <em>{item.type === "image" ? "Image" : "Video"}</em>
-                  </button>
-                )) : <p className="projectorWorkshopEmptyNote">Uploaded files will appear here.</p>}
-              </div>
+                <div className="projectorWorkshopPoolList">
+                  {poolItems.length ? poolItems.map((item) => (
+                    <button
+                      className={selectedAsset?.kind === "pool" && selectedAsset.item.id === item.id ? "isActive" : ""}
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedAsset({ kind: "pool", item })}
+                    >
+                      <span className="projectorWorkshopAssetThumb">{renderMiniPreview(item)}</span>
+                      <strong>{item.title}</strong>
+                      <em>{item.type === "image" ? "Image" : "Video"}</em>
+                    </button>
+                  )) : <p className="projectorWorkshopEmptyNote">Uploaded files will appear here.</p>}
+                </div>
+              </WorkshopSidebarSection>
 
-              <label className="field">
-                <span>Saved Items</span>
-                <input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search saved items..." />
-              </label>
-              <div className="projectorWorkshopPoolList">
-                {filteredLibrary.length ? filteredLibrary.map((item) => (
-                  <button
-                    className={selectedAsset?.kind === "library" && selectedAsset.item.id === item.id ? "isActive" : ""}
-                    key={item.id}
-                    type="button"
-                    onClick={() => setSelectedAsset({ kind: "library", item })}
-                  >
-                    <span className="projectorWorkshopAssetThumb">{renderMiniPreview(stateFromLibraryItem(item))}</span>
-                    <strong>{item.title}</strong>
-                    <em>{item.content_type === "latex" ? "LaTeX" : item.content_type}</em>
-                  </button>
-                )) : <p className="projectorWorkshopEmptyNote">No saved items match that search.</p>}
-              </div>
+              <WorkshopSidebarSection
+                title="Edit Existing Scene"
+                isOpen={openSidebarSections.scenes}
+                onToggle={() => toggleSidebarSection("scenes")}
+              >
+                <label className="field">
+                  <span>Search</span>
+                  <input value={sceneSearch} onChange={(event) => setSceneSearch(event.target.value)} placeholder="Search saved scenes..." />
+                </label>
+                <div className="projectorWorkshopPoolList">
+                  {filteredScenes.length ? filteredScenes.map((scene) => (
+                    <button key={scene.id} type="button" onClick={() => editExistingScene(scene)}>
+                      <span className="projectorWorkshopAssetThumb">
+                        {renderMiniPreview(slotFromSceneState(scene.screen_states?.["1"]))}
+                      </span>
+                      <strong>{scene.title}</strong>
+                      <em>Open in Workshop</em>
+                    </button>
+                  )) : <p className="projectorWorkshopEmptyNote">No saved scenes match that search.</p>}
+                </div>
+              </WorkshopSidebarSection>
+
+              <WorkshopSidebarSection
+                title="Saved Items"
+                isOpen={openSidebarSections.items}
+                onToggle={() => toggleSidebarSection("items")}
+              >
+                <label className="field">
+                  <span>Search</span>
+                  <input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search saved items..." />
+                </label>
+                <div className="projectorWorkshopPoolList">
+                  {filteredLibrary.length ? filteredLibrary.map((item) => (
+                    <button
+                      className={selectedAsset?.kind === "library" && selectedAsset.item.id === item.id ? "isActive" : ""}
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedAsset({ kind: "library", item })}
+                    >
+                      <span className="projectorWorkshopAssetThumb">{renderMiniPreview(stateFromLibraryItem(item))}</span>
+                      <strong>{item.title}</strong>
+                      <em>{item.content_type === "latex" ? "LaTeX" : item.content_type}</em>
+                    </button>
+                  )) : <p className="projectorWorkshopEmptyNote">No saved items match that search.</p>}
+                </div>
+              </WorkshopSidebarSection>
             </aside>
 
             <main className="projectorWorkshopScenes">
