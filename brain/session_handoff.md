@@ -13,6 +13,7 @@ This file represents the **current state only**. It should stay short enough to 
 ## What Changed (2026-07-08 Session - Projector Scene Workshop Sidebar)
 
 - `app/projector/projector-scene-workshop.js` now renders the Workshop left rail as collapsible sections, with `Upload Pool` moved above `Edit Existing Scene` and `Saved Items`.
+- Follow-up `f8f2b90` makes all three Workshop sidebar sections collapsed by default.
 - `app/projector/styles.css` adds the matching section header/toggle styling while preserving the existing Workshop visual language.
 - Verification: `node --check app/projector/projector-scene-workshop.js`, targeted `npx eslint app/projector/projector-scene-workshop.js` (0 errors, existing `<img>` warnings only), `git diff --check`, and `npm run build` all passed.
 - Shipped to `origin/main` at `af0af5f` (`Polish projector scene workshop sidebar`); `https://www.mathclaw.com/projector` responds from Vercel with the expected unauthenticated 307 redirect to `/auth/sign-in?redirect=/projector`, and `/` responds 200.
