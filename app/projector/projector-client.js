@@ -30,6 +30,12 @@ function takeoverStateFrom(screenStates) {
   return { ...takeover, sourceScreenId, activeScreenIds };
 }
 
+function formatQueueTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "just now";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
     const link = document.createElement("link");
@@ -512,7 +518,7 @@ export default function ProjectorClient({
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
-  const [openPanels, setOpenPanels] = useState({ screens: true, scenes: false, library: false });
+  const [openPanels, setOpenPanels] = useState({ workQueue: true, screens: true, scenes: false, library: false });
   const [targetMode, setTargetMode] = useState("all");
   const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
   const [type, setType] = useState("text");
@@ -570,6 +576,10 @@ export default function ProjectorClient({
   });
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [imageDragActive, setImageDragActive] = useState(false);
+  const [workQueue, setWorkQueue] = useState([]);
+  const [workQueueSetupMissing, setWorkQueueSetupMissing] = useState(false);
+  const [workQueueBusy, setWorkQueueBusy] = useState(false);
+  const [previewWorkEntry, setPreviewWorkEntry] = useState(null);
   const latexTextareaRef = useRef(null);
   const imageDragDepthRef = useRef(0);
   const playlistTimeoutRef = useRef(null);
@@ -614,6 +624,7 @@ export default function ProjectorClient({
     }
     return items;
   }, [library, libraryCategoryFilter, librarySearch]);
+  const newWorkCount = workQueue.filter((entry) => entry.status !== "sent").length;
 
   function toggleFolder(folderId) {
     setOpenFolderIds((current) => {
@@ -758,6 +769,24 @@ export default function ProjectorClient({
 
     window.addEventListener("projector:scene-library-updated", updateSceneLibrary);
     return () => window.removeEventListener("projector:scene-library-updated", updateSceneLibrary);
+  }, []);
+
+  async function loadWorkQueue({ silent = false } = {}) {
+    try {
+      const response = await fetch("/api/projector/work-queue");
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load submitted work.");
+      setWorkQueue(Array.isArray(payload.entries) ? payload.entries : []);
+      setWorkQueueSetupMissing(Boolean(payload.setupMissing));
+    } catch (error) {
+      if (!silent) setMessage(error.message);
+    }
+  }
+
+  useEffect(() => {
+    loadWorkQueue({ silent: true });
+    const id = window.setInterval(() => loadWorkQueue({ silent: true }), 12000);
+    return () => window.clearInterval(id);
   }, []);
 
   function clearPlaylistTimers() {
@@ -1846,6 +1875,114 @@ export default function ProjectorClient({
     }
   }
 
+  async function sendWorkEntry(entry) {
+    if (!entry?.url) return;
+    pausePlaylistForManualAction();
+    stopTimedRotationForManualAction();
+    setWorkQueueBusy(true);
+    setMessage("");
+    try {
+      const takeoverEnded = await endTakeoverForManualAction();
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "push",
+          screenIds: targetScreenIds,
+          type: "image",
+          content: entry.url,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not send submitted work.");
+
+      if (payload.screenStates) applyScreenStates(payload.screenStates);
+
+      const markResponse = await fetch("/api/projector/work-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark-sent", entryId: entry.id }),
+      });
+      const markPayload = await markResponse.json().catch(() => ({}));
+      if (markResponse.ok && markPayload.entry) {
+        setWorkQueue((current) => current.map((item) => (item.id === markPayload.entry.id ? markPayload.entry : item)));
+      }
+      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Submitted work sent to ${targetDescription}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorkQueueBusy(false);
+    }
+  }
+
+  async function saveWorkEntryToLibrary(entry) {
+    if (!entry?.url) return;
+    setWorkQueueBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-library-item",
+          title: `${entry.screenName || "Submitted work"} ${formatQueueTime(entry.createdAt)}`,
+          type: "image",
+          content: entry.url,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not save submitted work.");
+      if (payload.item) addAutoSavedItems([payload.item]);
+      setMessage("Submitted work saved to Items.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorkQueueBusy(false);
+    }
+  }
+
+  async function deleteWorkEntry(entryId) {
+    setWorkQueueBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/projector/work-queue?entryId=${encodeURIComponent(entryId)}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not delete submitted work.");
+      setWorkQueue((current) => current.filter((entry) => entry.id !== entryId));
+      setPreviewWorkEntry((current) => (current?.id === entryId ? null : current));
+      setMessage("Submitted work deleted.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorkQueueBusy(false);
+    }
+  }
+
+  async function clearWorkQueue() {
+    if (!workQueue.length) return;
+    if (!window.confirm("Clear all submitted work from the queue?")) return;
+    setWorkQueueBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector/work-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not clear submitted work.");
+      setWorkQueue([]);
+      setPreviewWorkEntry(null);
+      setMessage("Submitted work queue cleared.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorkQueueBusy(false);
+    }
+  }
+
   async function rotateScreens(direction = "forward", options = {}) {
     const manual = options.manual !== false;
     if (manual) {
@@ -2400,6 +2537,44 @@ export default function ProjectorClient({
           </section>
         </div>
       ) : null}
+      {previewWorkEntry ? (
+        <div className="projectorPlaylistOverlay" role="presentation" onClick={() => setPreviewWorkEntry(null)}>
+          <section
+            className="projectorWorkPreviewModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="projector-work-preview-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="projectorAssignmentHeader">
+              <div>
+                <p className="eyebrow">Submitted work</p>
+                <h2 id="projector-work-preview-title">{previewWorkEntry.screenName}</h2>
+                <p className="projectorAssignmentHint">
+                  {formatQueueTime(previewWorkEntry.createdAt)} · send to {targetDescription}
+                </p>
+              </div>
+              <button className="projectorAssignmentClose" type="button" onClick={() => setPreviewWorkEntry(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="projectorWorkPreviewImage">
+              <img src={previewWorkEntry.url} alt={`Submitted work from ${previewWorkEntry.screenName}`} />
+            </div>
+            <div className="projectorAssignmentFooter">
+              <button className="btn" type="button" onClick={() => sendWorkEntry(previewWorkEntry)} disabled={workQueueBusy}>
+                Send to {targetDescription}
+              </button>
+              <button className="btn secondary" type="button" onClick={() => saveWorkEntryToLibrary(previewWorkEntry)} disabled={workQueueBusy}>
+                Save to Items
+              </button>
+              <button className="btn secondary" type="button" onClick={() => deleteWorkEntry(previewWorkEntry.id)} disabled={workQueueBusy}>
+                Delete
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <section className="projectorHeader">
         <div>
           <p className="eyebrow">Projector Party</p>
@@ -2623,6 +2798,71 @@ export default function ProjectorClient({
         </div>
 
         <aside className="projectorComposer">
+          {!workQueueSetupMissing ? (
+            <section className="projectorLibrary projectorWorkQueue" aria-label="Submitted work queue">
+              <button
+                className="projectorLibraryHeader projectorPanelToggle"
+                type="button"
+                onClick={() => togglePanel("workQueue")}
+              >
+                <div className="projectorPlaylistsLauncherSummary">
+                  <h2>
+                    Submitted Work <span className="projectorLibraryLaunchCount">{workQueue.length}</span>
+                  </h2>
+                  <p className="projectorRoomsActive">
+                    {newWorkCount ? `${newWorkCount} new photo${newWorkCount === 1 ? "" : "s"}` : "Teacher approval queue"}
+                  </p>
+                </div>
+                <strong className="projectorPanelChevron">{openPanels.workQueue ? "Hide" : "Show"}</strong>
+              </button>
+              {openPanels.workQueue ? (
+                <div className="projectorPanelBody">
+                  <div className="projectorWorkQueueActions">
+                    <button className="btn secondary" type="button" onClick={() => loadWorkQueue()} disabled={workQueueBusy}>
+                      Refresh
+                    </button>
+                    <button className="btn secondary" type="button" onClick={clearWorkQueue} disabled={workQueueBusy || !workQueue.length}>
+                      Clear Queue
+                    </button>
+                  </div>
+                  <div className="projectorWorkQueueList">
+                    {workQueue.length ? (
+                      workQueue.map((entry) => (
+                        <article className={`projectorWorkQueueItem${entry.status === "sent" ? " isSent" : ""}`} key={entry.id}>
+                          <button className="projectorWorkQueueThumb" type="button" onClick={() => setPreviewWorkEntry(entry)}>
+                            <img src={entry.url} alt={`Submitted work from ${entry.screenName}`} />
+                          </button>
+                          <div className="projectorWorkQueueInfo">
+                            <strong>{entry.screenName}</strong>
+                            <span>
+                              {formatQueueTime(entry.createdAt)}
+                              {entry.status === "sent" ? " · sent" : ""}
+                            </span>
+                            <div className="projectorWorkQueueControls">
+                              <button type="button" onClick={() => setPreviewWorkEntry(entry)} disabled={workQueueBusy}>
+                                Preview
+                              </button>
+                              <button type="button" onClick={() => sendWorkEntry(entry)} disabled={workQueueBusy || !targetScreenIds.length}>
+                                Send
+                              </button>
+                              <button type="button" onClick={() => saveWorkEntryToLibrary(entry)} disabled={workQueueBusy}>
+                                Save
+                              </button>
+                              <button type="button" onClick={() => deleteWorkEntry(entry.id)} disabled={workQueueBusy}>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="projectorLibraryEmpty">No submitted work yet.</p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           {!playlistsSetupMissing ? (
             <section className="projectorLibrary projectorPlaylistsLauncher" aria-label="Projector Playlists">
               <button

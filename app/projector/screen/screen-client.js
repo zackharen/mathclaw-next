@@ -13,12 +13,10 @@ const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 // Capability -> controls matrix, keyed by the screen's inputType.
 // THIS is the extension point where future per-screen student tools
 // (future #10 calculators, future #11 stylus/drawing) register and gate
-// themselves by capability. `interactive:false` receivers render no student
-// tools (display-only); touch / keyboard_mouse screens may. Today the tool set
-// is empty, so `interactive` only wires the gate — it renders no controls yet.
+// themselves by capability.
 const SCREEN_TOOLS = {
   display_only: { interactive: false },
-  touch: { interactive: true },
+  touch: { interactive: true, submitWork: true },
   keyboard_mouse: { interactive: true },
 };
 
@@ -198,6 +196,51 @@ function displayContent(content) {
   return payload ? payload.content : String(content || "");
 }
 
+function dataUrlToFile(dataUrl, fileName = "student-work.jpg") {
+  const [header, data] = String(dataUrl || "").split(",");
+  const match = header.match(/^data:(.+);base64$/);
+  if (!match || !data) return null;
+  const binary = window.atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new File([bytes], fileName, { type: match[1] || "image/jpeg" });
+}
+
+async function compressImageFile(file) {
+  if (!file?.type?.startsWith("image/")) throw new Error("Take a photo of the work before submitting.");
+  if (file.type === "image/gif") return file;
+
+  const image = new Image();
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error("Could not read that photo. Try retaking it."));
+      image.src = objectUrl;
+    });
+
+    const maxSide = 1600;
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+    const width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+    const height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not prepare that photo. Try retaking it.");
+    context.drawImage(image, 0, 0, width, height);
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+    const compressed = dataUrlToFile(dataUrl);
+    if (!compressed) throw new Error("Could not prepare that photo. Try retaking it.");
+    return compressed.size < file.size ? compressed : file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function QuestionAnswer({ children, latex }) {
   if (latex) return <LatexDisplay content={children} />;
   return <span>{children}</span>;
@@ -313,6 +356,16 @@ export default function ScreenClient({ initialToken = null }) {
   const [message, setMessage] = useState("");
   const [reconnectKey, setReconnectKey] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [workPreviewUrl, setWorkPreviewUrl] = useState("");
+  const [workFile, setWorkFile] = useState(null);
+  const [workStatus, setWorkStatus] = useState("idle");
+  const workInputRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+    };
+  }, [workPreviewUrl]);
 
   useEffect(() => {
     ensureKatexAssets();
@@ -437,6 +490,65 @@ export default function ScreenClient({ initialToken = null }) {
     }
   }
 
+  async function chooseWorkPhoto(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+    setWorkPreviewUrl("");
+    setWorkFile(null);
+    setWorkStatus("idle");
+    setMessage("");
+    if (!file) return;
+
+    try {
+      const compressed = await compressImageFile(file);
+      if (compressed.size > 3 * 1024 * 1024) {
+        throw new Error("That photo is too large. Retake it closer to the page.");
+      }
+      setWorkFile(compressed);
+      setWorkPreviewUrl(URL.createObjectURL(compressed));
+    } catch (error) {
+      setMessage(error.message);
+    }
+  }
+
+  function retakeWorkPhoto() {
+    if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+    setWorkPreviewUrl("");
+    setWorkFile(null);
+    setWorkStatus("idle");
+    setMessage("");
+    workInputRef.current?.click();
+  }
+
+  async function submitWorkPhoto() {
+    if (!workFile) {
+      setMessage("Take a photo before submitting.");
+      return;
+    }
+    setWorkStatus("submitting");
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("token", token);
+      formData.append("file", workFile, "student-work.jpg");
+      const response = await fetch("/api/projector/work-queue", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not submit that photo.");
+      if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+      setWorkPreviewUrl("");
+      setWorkFile(null);
+      setWorkStatus("sent");
+      setMessage("Sent to teacher.");
+    } catch (error) {
+      setWorkStatus("idle");
+      setMessage(error.message);
+    }
+  }
+
   if (!token) {
     return (
       <main className="projectorScreenJoin">
@@ -507,10 +619,42 @@ export default function ScreenClient({ initialToken = null }) {
         </div>
       )}
       {enabled && tools.interactive ? (
-        // Interactive-capable screens (touch / keyboard_mouse) mount their student
-        // tools here. The tool set is empty today; future per-screen tools register
-        // in SCREEN_TOOLS above and render inside this gate.
-        <div className="projectorScreenTools" data-interactive="true" aria-hidden="true" />
+        <div className="projectorScreenTools" data-interactive="true">
+          {tools.submitWork ? (
+            <section className="projectorSubmitWork" aria-label="Submit work">
+              <input
+                ref={workInputRef}
+                className="projectorSubmitWorkInput"
+                accept="image/*"
+                capture="environment"
+                type="file"
+                onChange={chooseWorkPhoto}
+              />
+              {!workPreviewUrl ? (
+                <button
+                  className="projectorSubmitWorkButton"
+                  type="button"
+                  onClick={() => workInputRef.current?.click()}
+                  disabled={workStatus === "submitting"}
+                >
+                  {workStatus === "sent" ? "Submit Another" : "Submit work"}
+                </button>
+              ) : (
+                <div className="projectorSubmitWorkPreview">
+                  <img src={workPreviewUrl} alt="Work preview" />
+                  <div className="projectorSubmitWorkActions">
+                    <button type="button" onClick={retakeWorkPhoto} disabled={workStatus === "submitting"}>
+                      Retake
+                    </button>
+                    <button type="button" onClick={submitWorkPhoto} disabled={workStatus === "submitting"}>
+                      {workStatus === "submitting" ? "Sending..." : "Send to teacher"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : null}
+        </div>
       ) : null}
       {message ? <div className="projectorScreenError">{message}</div> : null}
     </main>
