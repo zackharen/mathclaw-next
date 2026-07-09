@@ -214,9 +214,9 @@ export default function ProjectorSceneWorkshop({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [openSidebarSections, setOpenSidebarSections] = useState({
-    uploads: true,
-    scenes: true,
-    items: true,
+    uploads: false,
+    scenes: false,
+    items: false,
   });
   const fileInputRef = useRef(null);
 
