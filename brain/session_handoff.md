@@ -15,7 +15,9 @@ This file represents the **current state only**. It should stay short enough to 
 - `app/projector/projector-scene-workshop.js` now renders the Workshop left rail as collapsible sections, with `Upload Pool` moved above `Edit Existing Scene` and `Saved Items`.
 - `app/projector/styles.css` adds the matching section header/toggle styling while preserving the existing Workshop visual language.
 - Verification: `node --check app/projector/projector-scene-workshop.js`, targeted `npx eslint app/projector/projector-scene-workshop.js` (0 errors, existing `<img>` warnings only), `git diff --check`, and `npm run build` all passed.
+- Shipped to `origin/main` at `af0af5f` (`Polish projector scene workshop sidebar`); `https://www.mathclaw.com/projector` responds from Vercel with the expected unauthenticated 307 redirect to `/auth/sign-in?redirect=/projector`, and `/` responds 200.
 - Local browser QA limitation: the dev server starts, but route rendering is blocked in this checkout by missing Supabase URL/key env vars, and the dev watcher logs `EMFILE: too many open files` warnings.
+- Deployment status limitation: Vercel connector still returns 403 for `zack-arensteins-projects`, so deployment ID/readiness could not be read directly from the connector.
 
 ## What Was Built (2026-06-10 Session — Assignments, marking periods, and announcement generation)
 
