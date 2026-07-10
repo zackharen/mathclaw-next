@@ -213,7 +213,7 @@ export async function saveAccountSettingsAction(formData) {
   const selectedSchoolName = String(formData.get("school_name") || "").trim();
   const newSchoolName = String(formData.get("new_school_name") || "").trim();
   const schoolName = newSchoolName || selectedSchoolName;
-  const nextType = normalizeAccountType(String(formData.get("account_type") || "teacher").trim());
+  const nextType = normalizeAccountType(String(formData.get("account_type") || "student").trim());
   const discoverable = nextType === "teacher" && String(formData.get("discoverable") || "") === "true";
   const courseId = String(formData.get("course_id") || "").trim();
   const returnTo = adminReturnPath(formData, { open: userId });
@@ -324,7 +324,7 @@ export async function updateAccountTypeAction(formData) {
   const { admin, context } = await requireAdminActor();
 
   const userId = String(formData.get("user_id") || "").trim();
-  const nextTypeRaw = String(formData.get("account_type") || "teacher").trim();
+  const nextTypeRaw = String(formData.get("account_type") || "student").trim();
   const nextType = nextTypeRaw === "student" ? "student" : "teacher";
 
   if (!userId) {

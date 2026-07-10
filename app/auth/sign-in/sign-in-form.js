@@ -62,7 +62,7 @@ export default function SignInForm({ redirectTo }) {
       data: { user: refreshedUser },
     } = await supabase.auth.getUser();
     const activeUser = refreshedUser || user;
-    const accountType = await getAccountTypeForUser(supabase, activeUser, "teacher");
+    const accountType = await getAccountTypeForUser(supabase, activeUser, "student");
 
     router.push(sanitizeNextForAccountType(redirectTo, accountType));
     router.refresh();

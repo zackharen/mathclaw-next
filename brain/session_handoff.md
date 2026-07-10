@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-07-08 America/New_York (Projector Scene Workshop sidebar polish)
+2026-07-10 America/New_York (default new/unknown accounts to student)
+
+## What Changed (2026-07-10 Session - Account Type Defaults)
+
+- New and unknown MathClaw accounts now default to `student` instead of `teacher` across shared auth helpers, sign-in/callback fallbacks, admin account-save defaults, onboarding profile fallback props, and admin user-list display.
+- Legacy/incomplete accounts that already own a course still infer `teacher`; explicit `teacher`, `student`, and `player` values remain respected.
+- Added `supabase/migrations_20260710_default_profiles_to_student.sql` and updated `supabase/schema.sql` so profile rows inserted without an `account_type` default to `student` at the database layer.
+- Added `tests/account-type.test.mjs` covering unknown-account student fallback, legacy teacher inference from owned courses, and student redirect safety.
+- Verification: `node --test tests/account-type.test.mjs`, `npm test`, `node --check` on changed JS files, `git diff --check`, and `npm run build` passed. Targeted eslint was blocked by an existing `app/admin/page.js` React purity error at `Date.now()` that predates this change.
 
 ## What Changed (2026-07-08 Session - Projector Scene Workshop Sidebar)
 

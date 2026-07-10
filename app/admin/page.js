@@ -629,7 +629,7 @@ export default async function AdminPage({ searchParams }) {
         const displayName = getBestDisplayName(profile, metadata, authUser.email, "-");
         const nickname = String(profile.nickname || metadata.nickname || "").trim();
         const { firstName, lastName } = splitDisplayName(displayName === "-" ? "" : displayName);
-        const accountType = profile.account_type || metadata.account_type || "teacher";
+        const accountType = profile.account_type || metadata.account_type || "student";
         const isOwner = isOwnerUser(authUser);
         const isBootstrapOwner = isOwnerEmail(authUser.email || "");
         const isAdmin = isOwner || isAdminUser(authUser);

@@ -65,7 +65,7 @@ export async function GET(request) {
   const requestedSchoolName = String(requestUrl.searchParams.get("school_name") || "").trim();
   const requestedJoinCode = requestUrl.searchParams.get("join_code");
 
-  let next = sanitizeNextForAccountType(requestedNext, requestedAccountType || "teacher");
+  let next = sanitizeNextForAccountType(requestedNext, requestedAccountType || "student");
 
   if (code) {
     const supabase = await createClient();
@@ -77,7 +77,7 @@ export async function GET(request) {
 
     if (user) {
       const currentAccountType =
-        requestedAccountType || (await getAccountTypeForUser(supabase, user, "teacher"));
+        requestedAccountType || (await getAccountTypeForUser(supabase, user, "student"));
 
       if (
         user.user_metadata?.account_type !== currentAccountType ||

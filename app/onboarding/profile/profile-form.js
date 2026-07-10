@@ -12,7 +12,7 @@ export default function ProfileForm({
   schoolOptions = [],
   initialTimezone,
   initialDiscoverable = true,
-  accountType = "teacher",
+  accountType = "student",
 }) {
   const isTeacher = accountType === "teacher";
   const showNickname = accountType === "student" || accountType === "player";
