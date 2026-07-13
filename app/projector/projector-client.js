@@ -17,6 +17,7 @@ const DIRECT_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
+const REVIEW_STATE_KEY = "__mathclaw_projector_review_v1__";
 const PREVIEW_REFERENCE_WIDTH = 1280;
 
 function minutesFromTime(value) {
@@ -65,6 +66,21 @@ function takeoverStateFrom(screenStates) {
     : [];
   if (!sourceScreenId || !activeScreenIds.length) return null;
   return { ...takeover, sourceScreenId, activeScreenIds };
+}
+
+function reviewStateFrom(screenStates) {
+  const review = screenStates?.[REVIEW_STATE_KEY];
+  if (!review || typeof review !== "object") return null;
+  const screenIds = Array.isArray(review.screenIds) ? review.screenIds.map(String).filter((screenId) => ALL_SCREEN_IDS.includes(screenId)) : [];
+  const pages = Array.isArray(review.pages) ? review.pages : [];
+  if (!screenIds.length || !pages.length) return null;
+  return {
+    screenIds,
+    pages,
+    pageIndex: Math.min(Math.max(Number.parseInt(review.pageIndex, 10) || 0, 0), pages.length - 1),
+    showCaptions: review.showCaptions !== false,
+    startedAt: review.startedAt || null,
+  };
 }
 
 function formatQueueTime(value) {
@@ -628,6 +644,7 @@ export default function ProjectorClient({
 }) {
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [takeoverState, setTakeoverState] = useState(() => takeoverStateFrom(session.screen_states || {}));
+  const [reviewState, setReviewState] = useState(() => reviewStateFrom(session.screen_states || {}));
   const [activeRoom, setActiveRoom] = useState(initialActiveRoom);
   const [library, setLibrary] = useState(libraryItems);
   const [scenes, setScenes] = useState(sceneItems);
@@ -699,6 +716,9 @@ export default function ProjectorClient({
   const [workQueueBusy, setWorkQueueBusy] = useState(false);
   const [previewWorkEntry, setPreviewWorkEntry] = useState(null);
   const [showWorkCaption, setShowWorkCaption] = useState(false);
+  const [selectedWorkEntryIds, setSelectedWorkEntryIds] = useState([]);
+  const [reviewShowCaptions, setReviewShowCaptions] = useState(true);
+  const [workQueueFilter, setWorkQueueFilter] = useState("all");
   const [scheduleBlocks, setScheduleBlocks] = useState([]);
   const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
   const [dismissedScheduleKey, setDismissedScheduleKey] = useState("");
@@ -771,6 +791,17 @@ export default function ProjectorClient({
     return items;
   }, [library, libraryCategoryFilter, librarySearch]);
   const newWorkCount = workQueue.filter((entry) => entry.status !== "sent").length;
+  const visibleWorkQueue = useMemo(() => {
+    if (workQueueFilter === "notReviewed") return workQueue.filter((entry) => !entry.reviewedAt);
+    if (workQueueFilter === "flagged") return workQueue.filter((entry) => entry.flaggedAt);
+    return workQueue;
+  }, [workQueue, workQueueFilter]);
+  const workQueueEmptyText =
+    workQueueFilter === "notReviewed"
+      ? "No unreviewed submissions."
+      : workQueueFilter === "flagged"
+        ? "No flagged submissions."
+        : "No submitted work yet.";
 
   function toggleFolder(folderId) {
     setOpenFolderIds((current) => {
@@ -872,9 +903,18 @@ export default function ProjectorClient({
     const safeStates = nextScreenStates && typeof nextScreenStates === "object" ? nextScreenStates : {};
     setScreenStates(safeStates);
     setTakeoverState(takeoverStateFrom(safeStates));
+    setReviewState(reviewStateFrom(safeStates));
   }
 
   function screenStateForDisplay(screenId) {
+    const reviewedEntry = reviewState?.pages?.[reviewState.pageIndex]?.assignments?.[screenId];
+    if (reviewedEntry?.url) {
+      return {
+        type: "image",
+        content: reviewedEntry.url,
+        ...(reviewState.showCaptions && reviewedEntry.caption ? { caption: reviewedEntry.caption } : {}),
+      };
+    }
     if (takeoverState?.activeScreenIds.includes(screenId)) {
       return screenStates?.[takeoverState.sourceScreenId] || null;
     }
@@ -898,6 +938,25 @@ export default function ProjectorClient({
   async function endTakeoverForManualAction() {
     if (!takeoverState) return false;
     return endTakeover({ silent: true });
+  }
+
+  async function endReview(options = {}) {
+    const { silent = false } = options;
+    const response = await fetch("/api/projector", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "end-review" }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Could not end review mode.");
+    applyScreenStates(payload.screenStates || {});
+    if (!silent) setMessage(payload.ended ? "Review mode ended." : "Review mode is not running.");
+    return Boolean(payload.ended);
+  }
+
+  async function endReviewForManualAction() {
+    if (!reviewState) return false;
+    return endReview({ silent: true });
   }
 
   useEffect(() => {
@@ -1245,6 +1304,7 @@ export default function ProjectorClient({
     setSending(true);
     setMessage("");
     try {
+      await endReviewForManualAction();
       const response = await fetch("/api/projector", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1822,6 +1882,10 @@ export default function ProjectorClient({
       setMessage("End the screen takeover before saving a scene.");
       return;
     }
+    if (reviewState) {
+      setMessage("End review mode before saving a scene.");
+      return;
+    }
     setSavingScene(true);
     setMessage("");
     try {
@@ -1852,6 +1916,10 @@ export default function ProjectorClient({
     if (!loadedScene?.id) return;
     if (takeoverState) {
       setMessage("End the screen takeover before updating a saved scene.");
+      return;
+    }
+    if (reviewState) {
+      setMessage("End review mode before updating a saved scene.");
       return;
     }
     if (!window.confirm(`Overwrite "${loadedScene.title}" with the current screens?`)) return;
@@ -2022,6 +2090,7 @@ export default function ProjectorClient({
     setSavingScene(true);
     setMessage("");
     try {
+      const reviewEnded = await endReviewForManualAction();
       const takeoverEnded = await endTakeoverForManualAction();
       const { response, payload } = await postLoadScene(scene);
       // The scene has more screens than the active Room: the server returns
@@ -2042,7 +2111,7 @@ export default function ProjectorClient({
 
       applyScreenStates(payload.screenStates || scene.screen_states || {});
       setLoadedScene({ id: scene.id, title: payload.title || scene.title });
-      setMessage(`${takeoverEnded ? "Screen takeover ended. " : ""}Loaded "${payload.title || scene.title}" to all screens.`);
+      setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded ? "Screen takeover ended. " : ""}Loaded "${payload.title || scene.title}" to all screens.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2364,6 +2433,7 @@ export default function ProjectorClient({
     const nextTopText = state?.topText || "";
 
     try {
+      const reviewEnded = await endReviewForManualAction();
       const takeoverEnded = await endTakeoverForManualAction();
       const response = await fetch("/api/projector", {
         method: "POST",
@@ -2390,7 +2460,7 @@ export default function ProjectorClient({
           return next;
         });
       }
-      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Sent to ${targetDescription}.`);
+      setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Sent to ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2407,6 +2477,7 @@ export default function ProjectorClient({
     setWorkQueueBusy(true);
     setMessage("");
     try {
+      const reviewEnded = await endReviewForManualAction();
       const takeoverEnded = await endTakeoverForManualAction();
       const response = await fetch("/api/projector", {
         method: "POST",
@@ -2433,7 +2504,7 @@ export default function ProjectorClient({
       if (markResponse.ok && markPayload.entry) {
         setWorkQueue((current) => current.map((item) => (item.id === markPayload.entry.id ? markPayload.entry : item)));
       }
-      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Submitted work sent to ${targetDescription}.`);
+      setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Submitted work sent to ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2486,6 +2557,93 @@ export default function ProjectorClient({
     }
   }
 
+  function toggleWorkEntrySelection(entryId) {
+    setSelectedWorkEntryIds((current) =>
+      current.includes(entryId) ? current.filter((id) => id !== entryId) : [...current, entryId]
+    );
+  }
+
+  async function startWorkReview() {
+    if (!selectedWorkEntryIds.length) return;
+    pausePlaylistForManualAction();
+    stopTimedRotationForManualAction();
+    setWorkQueueBusy(true);
+    setMessage("");
+    try {
+      const takeoverEnded = await endTakeoverForManualAction();
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start-review", entryIds: selectedWorkEntryIds, showCaptions: reviewShowCaptions }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not start review mode.");
+      applyScreenStates(payload.screenStates || {});
+      setSelectedWorkEntryIds([]);
+      await loadWorkQueue({ silent: true });
+      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Review mode started.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorkQueueBusy(false);
+    }
+  }
+
+  async function setReviewPage(pageIndex) {
+    if (!reviewState) return;
+    setSending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-review-page", pageIndex }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not change review page.");
+      applyScreenStates(payload.screenStates || {});
+      setMessage(`Review page ${payload.review?.pageIndex + 1 || pageIndex + 1}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function endReviewFromDock() {
+    setSending(true);
+    setMessage("");
+    try {
+      await endReview();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function toggleWorkFlag(entry) {
+    if (!entry?.id) return;
+    setWorkQueueBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector/work-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggle-flag", entryId: entry.id, flagged: !entry.flaggedAt }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not update flag.");
+      if (payload.entry) {
+        setWorkQueue((current) => current.map((item) => (item.id === payload.entry.id ? payload.entry : item)));
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setWorkQueueBusy(false);
+    }
+  }
+
   async function clearWorkQueue() {
     if (!workQueue.length) return;
     if (!window.confirm("Clear all submitted work from the queue?")) return;
@@ -2518,6 +2676,7 @@ export default function ProjectorClient({
     setSending(true);
     if (manual) setMessage("");
     try {
+      const reviewEnded = manual ? await endReviewForManualAction() : false;
       const takeoverEnded = manual ? await endTakeoverForManualAction() : false;
       const response = await fetch("/api/projector", {
         method: "POST",
@@ -2534,7 +2693,7 @@ export default function ProjectorClient({
       }
       if (manual) {
         const actionMessage = direction === "backward" ? "Screens rotated left." : "Screens rotated right.";
-        setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}${actionMessage}`);
+        setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}${actionMessage}`);
       }
     } catch (error) {
       setMessage(error.message);
@@ -2591,6 +2750,7 @@ export default function ProjectorClient({
     setSending(true);
     setMessage("");
     try {
+      const reviewEnded = await endReviewForManualAction();
       const takeoverEnded = await endTakeoverForManualAction();
       const response = await fetch("/api/projector", {
         method: "POST",
@@ -2605,7 +2765,7 @@ export default function ProjectorClient({
         setScreenStates((current) => ({ ...current, [screenId]: payload.state || current[screenId] || null }));
       }
       const actionMessage = payload.state?.revealAnswer ? `Screen ${screenId} answer revealed.` : `Screen ${screenId} answer hidden.`;
-      setMessage(`${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}${actionMessage}`);
+      setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}${actionMessage}`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2620,6 +2780,7 @@ export default function ProjectorClient({
     setSending(true);
     setMessage("");
     try {
+      const reviewEnded = await endReviewForManualAction();
       const takeoverEnded = await endTakeoverForManualAction();
       let latestScreenStates = null;
       for (const screenId of targetScreenIds) {
@@ -2643,7 +2804,7 @@ export default function ProjectorClient({
           return next;
         });
       }
-      setMessage(`${takeoverEnded ? "Screen takeover ended. " : ""}Cleared ${targetDescription}.`);
+      setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded ? "Screen takeover ended. " : ""}Cleared ${targetDescription}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -3142,6 +3303,27 @@ export default function ProjectorClient({
         </section>
       ) : null}
 
+      {reviewState ? (
+        <section className="projectorReviewDock" aria-label="Submitted work review mode">
+          <div>
+            <p className="eyebrow">Review mode running</p>
+            <h2>Submitted work page {reviewState.pageIndex + 1} of {reviewState.pages.length}</h2>
+            <span>{Object.keys(reviewState.pages[reviewState.pageIndex]?.assignments || {}).length} submissions showing on screens</span>
+          </div>
+          <div className="projectorReviewTransport">
+            <button type="button" onClick={() => setReviewPage(reviewState.pageIndex - 1)} disabled={sending || reviewState.pageIndex <= 0}>
+              Previous
+            </button>
+            <button type="button" onClick={() => setReviewPage(reviewState.pageIndex + 1)} disabled={sending || reviewState.pageIndex >= reviewState.pages.length - 1}>
+              Next
+            </button>
+            <button type="button" onClick={endReviewFromDock} disabled={sending}>
+              End Review
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {currentPlaylist ? (
         <section className={`projectorPlaylistDock is-${playlistState.status}`} aria-label="Playlist playback">
           <div>
@@ -3548,9 +3730,28 @@ export default function ProjectorClient({
                     <button className="btn secondary" type="button" onClick={() => loadWorkQueue()} disabled={workQueueBusy}>
                       Refresh
                     </button>
+                    <button className="btn" type="button" onClick={startWorkReview} disabled={workQueueBusy || !selectedWorkEntryIds.length}>
+                      Review on screens
+                    </button>
                     <button className="btn secondary" type="button" onClick={clearWorkQueue} disabled={workQueueBusy || !workQueue.length}>
                       Clear Queue
                     </button>
+                    <label className="projectorWorkQueueFilter">
+                      <span>Filter</span>
+                      <select value={workQueueFilter} onChange={(event) => setWorkQueueFilter(event.target.value)}>
+                        <option value="all">All</option>
+                        <option value="notReviewed">Not reviewed</option>
+                        <option value="flagged">Flagged</option>
+                      </select>
+                    </label>
+                    <label className="projectorWorkCaptionToggle">
+                      <input
+                        type="checkbox"
+                        checked={reviewShowCaptions}
+                        onChange={(event) => setReviewShowCaptions(event.target.checked)}
+                      />
+                      <span>Review captions</span>
+                    </label>
                     <label className="projectorWorkCaptionToggle">
                       <input
                         type="checkbox"
@@ -3561,9 +3762,17 @@ export default function ProjectorClient({
                     </label>
                   </div>
                   <div className="projectorWorkQueueList">
-                    {workQueue.length ? (
-                      workQueue.map((entry) => (
+                    {visibleWorkQueue.length ? (
+                      visibleWorkQueue.map((entry) => (
                         <article className={`projectorWorkQueueItem${entry.status === "sent" ? " isSent" : ""}`} key={entry.id}>
+                          <label className="projectorWorkQueueSelect">
+                            <input
+                              type="checkbox"
+                              checked={selectedWorkEntryIds.includes(entry.id)}
+                              onChange={() => toggleWorkEntrySelection(entry.id)}
+                              disabled={workQueueBusy}
+                            />
+                          </label>
                           <button className="projectorWorkQueueThumb" type="button" onClick={() => setPreviewWorkEntry(entry)}>
                             <img src={entry.url} alt={`Submitted work from ${entry.screenName}`} />
                           </button>
@@ -3578,6 +3787,8 @@ export default function ProjectorClient({
                             <span>
                               {formatQueueTime(entry.createdAt)}
                               {entry.status === "sent" ? " · sent" : ""}
+                              {entry.reviewedAt ? " · reviewed" : ""}
+                              {entry.flaggedAt ? " · flagged" : ""}
                             </span>
                             <div className="projectorWorkQueueControls">
                               <button type="button" onClick={() => setPreviewWorkEntry(entry)} disabled={workQueueBusy}>
@@ -3589,6 +3800,9 @@ export default function ProjectorClient({
                               <button type="button" onClick={() => saveWorkEntryToLibrary(entry)} disabled={workQueueBusy}>
                                 Save
                               </button>
+                              <button type="button" onClick={() => toggleWorkFlag(entry)} disabled={workQueueBusy}>
+                                {entry.flaggedAt ? "Unflag" : "Flag"}
+                              </button>
                               <button type="button" onClick={() => deleteWorkEntry(entry.id)} disabled={workQueueBusy}>
                                 Delete
                               </button>
@@ -3597,7 +3811,7 @@ export default function ProjectorClient({
                         </article>
                       ))
                     ) : (
-                      <p className="projectorLibraryEmpty">No submitted work yet.</p>
+                      <p className="projectorLibraryEmpty">{workQueueEmptyText}</p>
                     )}
                   </div>
                 </div>

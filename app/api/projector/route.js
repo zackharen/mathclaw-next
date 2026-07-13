@@ -19,6 +19,7 @@ const TOP_TEXT_LIMIT = 500;
 const CAPTION_LIMIT = 140;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
+const REVIEW_STATE_KEY = "__mathclaw_projector_review_v1__";
 const BROADCAST_SEND_TIMEOUT_MS = 1500;
 
 function jsonError(message, status = 400) {
@@ -202,6 +203,50 @@ function takeoverStateFrom(screenStates) {
   };
 }
 
+function reviewStateFrom(screenStates) {
+  const review = screenStates?.[REVIEW_STATE_KEY];
+  if (!review || typeof review !== "object") return null;
+  const screenIds = normalizeScreenIds(review.screenIds);
+  const pages = Array.isArray(review.pages)
+    ? review.pages.map((page) => {
+        const assignments = page?.assignments && typeof page.assignments === "object" ? page.assignments : {};
+        return {
+          assignments: Object.fromEntries(
+            Object.entries(assignments)
+              .map(([screenId, entry]) => {
+                const safeScreenId = normalizeScreenNumber(screenId);
+                if (!safeScreenId || !entry?.url) return null;
+                return [
+                  safeScreenId,
+                  {
+                    id: String(entry.id || ""),
+                    url: String(entry.url || ""),
+                    caption: normalizeCaption(entry.caption || ""),
+                  },
+                ];
+              })
+              .filter(Boolean)
+          ),
+        };
+      })
+    : [];
+  const pageIndex = Math.min(Math.max(Number.parseInt(review.pageIndex, 10) || 0, 0), Math.max(pages.length - 1, 0));
+  if (!screenIds.length || !pages.length) return null;
+  return {
+    screenIds,
+    pages,
+    pageIndex,
+    showCaptions: review.showCaptions !== false,
+    startedAt: review.startedAt || null,
+  };
+}
+
+function publicReviewStateFrom(screenStates) {
+  const review = reviewStateFrom(screenStates);
+  if (!review) return null;
+  return review;
+}
+
 function publicTakeoverStateFrom(screenStates) {
   const takeover = takeoverStateFrom(screenStates);
   if (!takeover) return null;
@@ -217,12 +262,20 @@ function clientScreenStates(screenStates) {
   const nextStates = { ...source };
   const takeover = publicTakeoverStateFrom(source);
   if (takeover) nextStates[TAKEOVER_STATE_KEY] = takeover;
+  const review = publicReviewStateFrom(source);
+  if (review) nextStates[REVIEW_STATE_KEY] = review;
   return nextStates;
 }
 
 function stripTakeoverState(screenStates) {
   const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
   delete nextStates[TAKEOVER_STATE_KEY];
+  return nextStates;
+}
+
+function stripReviewState(screenStates) {
+  const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
+  delete nextStates[REVIEW_STATE_KEY];
   return nextStates;
 }
 
@@ -239,11 +292,24 @@ function restoreTakeoverState(screenStates) {
 }
 
 function effectiveScreenState(screenStates, screenId) {
+  const review = reviewStateFrom(screenStates);
+  const reviewedEntry = review?.pages?.[review.pageIndex]?.assignments?.[String(screenId)];
+  if (reviewedEntry?.url) {
+    return {
+      type: "image",
+      content: reviewedEntry.url,
+      ...(review.showCaptions && reviewedEntry.caption ? { caption: reviewedEntry.caption } : {}),
+    };
+  }
   const takeover = takeoverStateFrom(screenStates);
   if (takeover?.activeScreenIds.includes(String(screenId))) {
     return screenStates?.[takeover.sourceScreenId] || null;
   }
   return screenStates?.[screenId] || null;
+}
+
+function reviewBroadcastPayload(screenStates, screenId) {
+  return buildBroadcastPayload(screenId, effectiveScreenState(screenStates, screenId));
 }
 
 function normalizeSceneStates(value) {
@@ -1079,7 +1145,7 @@ async function loadScene(admin, teacherId, session, body) {
       return states;
     }, {});
   }
-  const restored = restoreTakeoverState(sessionScreenStates(session));
+  const restored = restoreTakeoverState(stripReviewState(sessionScreenStates(session)));
   const nextSessionStates = {
     ...restored.screenStates,
     ...screenStates,
@@ -1155,6 +1221,101 @@ async function endTakeover(admin, teacherId, session) {
   if (result.error) return jsonError(result.error.message, 500);
 
   return NextResponse.json({ ok: true, ended: true, screenStates });
+}
+
+function workCaption(entry) {
+  const parts = [entry.student_name, entry.label].map((part) => String(part || "").trim()).filter(Boolean);
+  return parts.join(" · ");
+}
+
+async function startReview(admin, teacherId, session, body) {
+  const entryIds = Array.isArray(body.entryIds) ? [...new Set(body.entryIds.map(String).filter(isUuid))] : [];
+  if (!entryIds.length) return jsonError("Choose at least one submitted photo to review.");
+
+  const screenIds = await getEnabledActiveRoomScreenIds(admin, teacherId, { excludeAutopilot: true });
+  if (!screenIds.length) return jsonError("Turn on at least one non-autopilot screen before starting review.");
+
+  const { data: entries, error: entryError } = await admin
+    .from("projector_work_queue")
+    .select("id, public_url, student_name, label")
+    .eq("teacher_id", teacherId)
+    .in("id", entryIds);
+  if (entryError) return jsonError(entryError.message, 500);
+  const entriesById = new Map((entries || []).map((entry) => [entry.id, entry]));
+  const orderedEntries = entryIds.map((id) => entriesById.get(id)).filter(Boolean);
+  if (!orderedEntries.length) return jsonError("Selected submitted photos were not found.");
+
+  const pages = [];
+  for (let index = 0; index < orderedEntries.length; index += screenIds.length) {
+    const pageEntries = orderedEntries.slice(index, index + screenIds.length);
+    const assignments = {};
+    pageEntries.forEach((entry, entryIndex) => {
+      assignments[screenIds[entryIndex]] = {
+        id: entry.id,
+        url: entry.public_url,
+        caption: workCaption(entry),
+      };
+    });
+    pages.push({ assignments });
+  }
+
+  const restored = restoreTakeoverState(stripReviewState(sessionScreenStates(session)));
+  const nextStates = {
+    ...restored.screenStates,
+    [REVIEW_STATE_KEY]: {
+      screenIds,
+      pages,
+      pageIndex: 0,
+      showCaptions: body.showCaptions !== false,
+      startedAt: new Date().toISOString(),
+    },
+  };
+
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+
+  await admin
+    .from("projector_work_queue")
+    .update({ reviewed_at: new Date().toISOString() })
+    .eq("teacher_id", teacherId)
+    .in("id", orderedEntries.map((entry) => entry.id));
+
+  await broadcastScreenUpdates(admin, session.id, screenIds.map((screenId) => reviewBroadcastPayload(nextStates, screenId)));
+  return NextResponse.json({
+    ok: true,
+    screenStates: clientScreenStates(nextStates),
+    review: publicReviewStateFrom(nextStates),
+    takeoverEnded: Boolean(restored.takeover),
+  });
+}
+
+async function setReviewPage(admin, teacherId, session, body) {
+  const current = sessionScreenStates(session);
+  const review = reviewStateFrom(current);
+  if (!review) return jsonError("Review mode is not running.", 404);
+  const pageIndex = Math.min(Math.max(Number.parseInt(body.pageIndex, 10) || 0, 0), review.pages.length - 1);
+  const nextStates = {
+    ...current,
+    [REVIEW_STATE_KEY]: {
+      ...review,
+      pageIndex,
+    },
+  };
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  await broadcastScreenUpdates(admin, session.id, review.screenIds.map((screenId) => reviewBroadcastPayload(nextStates, screenId)));
+  return NextResponse.json({ ok: true, screenStates: clientScreenStates(nextStates), review: publicReviewStateFrom(nextStates) });
+}
+
+async function endReview(admin, teacherId, session) {
+  const current = sessionScreenStates(session);
+  const review = reviewStateFrom(current);
+  if (!review) return NextResponse.json({ ok: true, ended: false, screenStates: clientScreenStates(current) });
+  const nextStates = stripReviewState(current);
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  await broadcastScreenUpdates(admin, session.id, review.screenIds.map((screenId) => reviewBroadcastPayload(nextStates, screenId)));
+  return NextResponse.json({ ok: true, ended: true, screenStates: clientScreenStates(nextStates) });
 }
 
 export async function GET(request) {
@@ -1258,6 +1419,10 @@ export async function POST(request) {
   }
 
   if (body?.action === "start-takeover") {
+    if (reviewStateFrom(sessionScreenStates(context.session))) {
+      await endReview(admin, context.user.id, context.session);
+      context.session.screen_states = stripReviewState(sessionScreenStates(context.session));
+    }
     return startTakeover(admin, context.user.id, context.session, body);
   }
 
@@ -1265,9 +1430,22 @@ export async function POST(request) {
     return endTakeover(admin, context.user.id, context.session);
   }
 
+  if (body?.action === "start-review") {
+    return startReview(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "set-review-page") {
+    return setReviewPage(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "end-review") {
+    return endReview(admin, context.user.id, context.session);
+  }
+
   if (body?.action === "save-scene") {
-    if (takeoverStateFrom(sessionScreenStates(context.session))) {
-      return jsonError("End the screen takeover before saving a scene.");
+    const currentStates = sessionScreenStates(context.session);
+    if (takeoverStateFrom(currentStates) || reviewStateFrom(currentStates)) {
+      return jsonError("End the screen takeover or review mode before saving a scene.");
     }
     return saveScene(admin, context.user.id, context.session, body);
   }
@@ -1293,7 +1471,7 @@ export async function POST(request) {
     if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
     const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id, { excludeAutopilot: true });
     if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
-    const restored = restoreTakeoverState(sessionScreenStates(context.session));
+    const restored = restoreTakeoverState(stripReviewState(sessionScreenStates(context.session)));
     const current = restored.screenStates;
     const currentState = normalizeState(
       current[screenId]?.type,
@@ -1315,7 +1493,7 @@ export async function POST(request) {
   if (body?.action === "rotate-screens") {
     const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id, { excludeAutopilot: true });
     if (!activeScreenIds.length) return jsonError("A Room needs at least one active screen.");
-    const restored = restoreTakeoverState(sessionScreenStates(context.session));
+    const restored = restoreTakeoverState(stripReviewState(sessionScreenStates(context.session)));
     const current = restored.screenStates;
     const rotateBackward = body.direction === "backward";
     const rotated = { ...current };
@@ -1345,7 +1523,7 @@ export async function POST(request) {
     return jsonError("Add content before sending.");
   }
 
-  const restored = restoreTakeoverState(sessionScreenStates(context.session));
+  const restored = restoreTakeoverState(stripReviewState(sessionScreenStates(context.session)));
   const nextStates = { ...restored.screenStates };
   for (const screenId of screenIds) {
     nextStates[screenId] = state;
@@ -1370,7 +1548,7 @@ export async function DELETE(request) {
   const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
   if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
 
-  const restored = restoreTakeoverState(sessionScreenStates(context.session));
+  const restored = restoreTakeoverState(stripReviewState(sessionScreenStates(context.session)));
   const nextStates = { ...restored.screenStates, [screenId]: null };
   const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, screenId] : [screenId];
   const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);

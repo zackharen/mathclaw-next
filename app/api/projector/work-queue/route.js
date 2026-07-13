@@ -13,7 +13,7 @@ const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 const STUDENT_NAME_LIMIT = 40;
 const WORK_LABEL_LIMIT = 80;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const WORK_QUEUE_SELECT = "id, screen_number, screen_name, student_name, label, public_url, content_type, size_bytes, status, created_at, sent_at";
+const WORK_QUEUE_SELECT = "id, screen_number, screen_name, student_name, label, public_url, content_type, size_bytes, status, created_at, sent_at, reviewed_at, flagged_at";
 const LEGACY_WORK_QUEUE_SELECT = "id, screen_number, screen_name, public_url, content_type, size_bytes, status, created_at, sent_at";
 
 function jsonError(message, status = 400) {
@@ -33,6 +33,10 @@ function isUuid(value) {
 
 function isMissingNamingColumns(error) {
   return error?.code === "PGRST204" || error?.code === "42703" || /student_name|label/i.test(error?.message || "");
+}
+
+function isMissingReviewColumns(error) {
+  return error?.code === "PGRST204" || error?.code === "42703" || /reviewed_at|flagged_at/i.test(error?.message || "");
 }
 
 function normalizeOptionalText(value, limit, fieldLabel) {
@@ -70,6 +74,8 @@ function publicEntry(row) {
     status: row.status,
     studentName: row.student_name || null,
     label: row.label || null,
+    reviewedAt: row.reviewed_at || null,
+    flaggedAt: row.flagged_at || null,
     createdAt: row.created_at,
     sentAt: row.sent_at || null,
   };
@@ -216,7 +222,7 @@ async function uploadWork(admin, request) {
     .select(WORK_QUEUE_SELECT)
     .single();
 
-  if (isMissingNamingColumns(insertError)) {
+  if (isMissingNamingColumns(insertError) || isMissingReviewColumns(insertError)) {
     const legacyPayload = { ...insertPayload };
     delete legacyPayload.student_name;
     delete legacyPayload.label;
@@ -246,7 +252,7 @@ async function listQueue(admin, teacherId) {
     .order("created_at", { ascending: false })
     .limit(80);
 
-  if (isMissingNamingColumns(error)) {
+  if (isMissingNamingColumns(error) || isMissingReviewColumns(error)) {
     ({ data, error } = await admin
       .from("projector_work_queue")
       .select(LEGACY_WORK_QUEUE_SELECT)
@@ -277,7 +283,7 @@ async function markSent(admin, teacherId, body) {
     .select(WORK_QUEUE_SELECT)
     .maybeSingle();
 
-  if (isMissingNamingColumns(error)) {
+  if (isMissingNamingColumns(error) || isMissingReviewColumns(error)) {
     ({ data, error } = await admin
       .from("projector_work_queue")
       .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -291,6 +297,49 @@ async function markSent(admin, teacherId, body) {
     if (error.code === "42P01" || error.code === "PGRST205") return jsonError("The work queue is not set up yet.", 503);
     return jsonError(error.message, 500);
   }
+  if (!data) return jsonError("Submitted photo not found.", 404);
+  return NextResponse.json({ entry: publicEntry(data) });
+}
+
+async function markReviewed(admin, teacherId, body) {
+  const entryIds = Array.isArray(body.entryIds) ? body.entryIds.map(String).filter(isUuid) : [];
+  if (!entryIds.length) return jsonError("Choose submitted photos to mark reviewed.");
+
+  let { data, error } = await admin
+    .from("projector_work_queue")
+    .update({ reviewed_at: new Date().toISOString() })
+    .eq("teacher_id", teacherId)
+    .in("id", entryIds)
+    .select(WORK_QUEUE_SELECT);
+
+  if (isMissingReviewColumns(error)) {
+    ({ data, error } = await admin
+      .from("projector_work_queue")
+      .update({ status: "sent", sent_at: new Date().toISOString() })
+      .eq("teacher_id", teacherId)
+      .in("id", entryIds)
+      .select(LEGACY_WORK_QUEUE_SELECT));
+  }
+
+  if (error) return jsonError(error.message, 500);
+  return NextResponse.json({ entries: (data || []).map(publicEntry) });
+}
+
+async function toggleFlag(admin, teacherId, body) {
+  const entryId = String(body.entryId || "");
+  if (!isUuid(entryId)) return jsonError("Choose a submitted photo.");
+  const flagged = body.flagged !== false;
+
+  const { data, error } = await admin
+    .from("projector_work_queue")
+    .update({ flagged_at: flagged ? new Date().toISOString() : null })
+    .eq("id", entryId)
+    .eq("teacher_id", teacherId)
+    .select(WORK_QUEUE_SELECT)
+    .maybeSingle();
+
+  if (isMissingReviewColumns(error)) return jsonError("Review flags are not set up yet.", 503);
+  if (error) return jsonError(error.message, 500);
   if (!data) return jsonError("Submitted photo not found.", 404);
   return NextResponse.json({ entry: publicEntry(data) });
 }
@@ -369,6 +418,8 @@ export async function POST(request) {
 
   const body = await request.json().catch(() => ({}));
   if (body.action === "mark-sent") return markSent(admin, context.user.id, body);
+  if (body.action === "mark-reviewed") return markReviewed(admin, context.user.id, body);
+  if (body.action === "toggle-flag") return toggleFlag(admin, context.user.id, body);
   if (body.action === "clear") return clearQueue(admin, context.user.id);
   return jsonError("Choose a work queue action.");
 }

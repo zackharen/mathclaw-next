@@ -751,6 +751,25 @@
   align-items: center;
 }
 
+.projectorWorkQueueFilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #51606d;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.projectorWorkQueueFilter select {
+  min-height: 2.15rem;
+  border: 1px solid #c8d6df;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--navy);
+  font-weight: 900;
+  padding: 0.25rem 0.5rem;
+}
+
 .projectorWorkQueueList {
   display: grid;
   gap: 0.55rem;
@@ -761,13 +780,25 @@
 
 .projectorWorkQueueItem {
   display: grid;
-  grid-template-columns: 5.25rem minmax(0, 1fr);
+  grid-template-columns: auto 5.25rem minmax(0, 1fr);
   gap: 0.55rem;
   align-items: stretch;
   border: 2px solid var(--line);
   border-radius: 8px;
   background: #fff;
   padding: 0.45rem;
+}
+
+.projectorWorkQueueSelect {
+  display: grid;
+  place-items: center;
+  min-height: 4.2rem;
+}
+
+.projectorWorkQueueSelect input {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--navy);
 }
 
 .projectorWorkQueueItem.isSent {
@@ -2347,6 +2378,53 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   background: #f5f3ff;
   box-shadow: 0 10px 24px rgba(8, 18, 28, 0.1);
   padding: 0.75rem 0.9rem;
+}
+
+.projectorReviewDock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 2px solid #0f766e;
+  border-radius: 8px;
+  background: #ccfbf1;
+  color: #134e4a;
+  padding: 0.85rem 1rem;
+}
+
+.projectorReviewDock h2,
+.projectorReviewDock p {
+  margin: 0;
+}
+
+.projectorReviewDock span {
+  display: block;
+  margin-top: 0.2rem;
+  font-weight: 850;
+}
+
+.projectorReviewTransport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.projectorReviewTransport button {
+  border: 2px solid #0f766e;
+  border-radius: 8px;
+  background: #fff;
+  color: #134e4a;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorReviewTransport button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .projectorTimedRotationDock {
