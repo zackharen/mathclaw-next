@@ -633,6 +633,59 @@ export async function POST(request) {
       return NextResponse.json(await loadPayload(admin, tournament, viewer));
     }
 
+    if (action === "end") {
+      if (!canManageCourse(viewer.courses, tournament.course_id)) {
+        return NextResponse.json({ error: "Only a teacher can end the tournament." }, { status: 403 });
+      }
+
+      const endedAt = nowIso();
+      const bracket =
+        tournament.bracket && typeof tournament.bracket === "object"
+          ? tournament.bracket
+          : {};
+      if (tournament.status === "finished" && !bracket.endedEarlyAt) {
+        return NextResponse.json({ error: "This tournament already finished." }, { status: 400 });
+      }
+      const { data: updatedTournament, error: tournamentError } = await admin
+        .from("connect4_tournaments")
+        .update({
+          status: "finished",
+          champion_id: null,
+          bracket: {
+            ...bracket,
+            endedEarlyAt: bracket.endedEarlyAt || endedAt,
+            endedEarlyBy: bracket.endedEarlyBy || user.id,
+          },
+          updated_at: endedAt,
+        })
+        .eq("id", tournament.id)
+        .select("*")
+        .single();
+
+      if (tournamentError) throw new Error(tournamentError.message);
+
+      const { connect4Matches } = await loadTournamentRows(admin, updatedTournament);
+      const activeMatchIds = connect4Matches
+        .filter((match) => match.status === "active")
+        .map((match) => match.id);
+
+      if (activeMatchIds.length) {
+        const { error: matchError } = await admin
+          .from("connect4_matches")
+          .update({
+            status: "finished",
+            winner_id: null,
+            current_turn_id: null,
+            updated_at: endedAt,
+          })
+          .in("id", activeMatchIds);
+
+        if (matchError) throw new Error(matchError.message);
+      }
+
+      return NextResponse.json(await loadPayload(admin, updatedTournament, viewer));
+    }
+
     if (action === "generate") {
       if (!canManageCourse(viewer.courses, tournament.course_id)) {
         return NextResponse.json({ error: "Only a teacher can generate the bracket." }, { status: 403 });

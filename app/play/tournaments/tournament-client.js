@@ -221,6 +221,7 @@ function LargeBoardModal({ match, game, onClose }) {
 
 function Bracket({ tournament, matches }) {
   const rounds = tournament?.bracket?.rounds || [];
+  const endedEarly = Boolean(tournament?.bracket?.endedEarlyAt);
   const matchesByRound = new Map();
 
   for (const match of matches || []) {
@@ -251,35 +252,45 @@ function Bracket({ tournament, matches }) {
       <div className="tournamentBracketHeader">
         <div>
           <h2>Bracket</h2>
-          <p>{tournament.championName ? `${tournament.championName} wins the tournament.` : "Winners advance automatically."}</p>
+          <p>
+            {tournament.championName
+              ? `${tournament.championName} wins the tournament.`
+              : endedEarly
+                ? "Tournament ended before completion."
+                : "Winners advance automatically."}
+          </p>
         </div>
         <span className={`pill tournamentStatus ${tournament.status}`}>{tournament.status}</span>
       </div>
-      <div className="tournamentBracketScroller">
-        <div
-          className="tournamentBracketGrid"
-          style={{ gridTemplateColumns: `repeat(${Math.max(1, rounds.length)}, minmax(13rem, 1fr))` }}
-        >
-          {rounds.map((round) => (
-            <div key={round.roundIndex} className="tournamentRound">
-              <h3>{round.name}</h3>
-              <div className="tournamentRoundMatches">
-                {(matchesByRound.get(round.roundIndex) || []).map((match) => (
-                  <article key={match.id} className={`tournamentBracketMatch status-${match.status}`}>
-                    <div className={match.winnerId === match.playerOneId ? "winner" : ""}>
-                      {matchPlayerName(match, "one")}
-                    </div>
-                    <div className={match.winnerId === match.playerTwoId ? "winner" : ""}>
-                      {matchPlayerName(match, "two")}
-                    </div>
-                    <span>{seriesLine(match) || statusLabel(match)}</span>
-                  </article>
-                ))}
+      {rounds.length ? (
+        <div className="tournamentBracketScroller">
+          <div
+            className="tournamentBracketGrid"
+            style={{ gridTemplateColumns: `repeat(${Math.max(1, rounds.length)}, minmax(13rem, 1fr))` }}
+          >
+            {rounds.map((round) => (
+              <div key={round.roundIndex} className="tournamentRound">
+                <h3>{round.name}</h3>
+                <div className="tournamentRoundMatches">
+                  {(matchesByRound.get(round.roundIndex) || []).map((match) => (
+                    <article key={match.id} className={`tournamentBracketMatch status-${match.status}`}>
+                      <div className={match.winnerId === match.playerOneId ? "winner" : ""}>
+                        {matchPlayerName(match, "one")}
+                      </div>
+                      <div className={match.winnerId === match.playerTwoId ? "winner" : ""}>
+                        {matchPlayerName(match, "two")}
+                      </div>
+                      <span>{seriesLine(match) || statusLabel(match)}</span>
+                    </article>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      ) : endedEarly ? (
+        <p>No bracket was generated before the tournament ended.</p>
+      ) : null}
     </section>
   );
 }
@@ -379,6 +390,14 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
     setPayload(data);
     if (action === "create_lobby") setStatus("Tournament lobby is open.");
     if (action === "generate") setStatus("Bracket generated.");
+    if (action === "end") setStatus("Tournament ended.");
+  }
+
+  function handleEndTournament() {
+    if (!window.confirm("End this tournament now? Unfinished games will stop, and no champion will be named.")) {
+      return;
+    }
+    postAction("end");
   }
 
   useEffect(() => {
@@ -458,6 +477,11 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
               >
                 Generate Bracket
               </button>
+              {tournament && tournament.status !== "finished" ? (
+                <button className="btn danger" type="button" onClick={handleEndTournament} disabled={busy}>
+                  End Tournament
+                </button>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -542,24 +566,26 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
 
       {canManage && tournament?.status !== "waiting" ? (
         <>
-          <section className="card">
-            <h2>Live Games</h2>
-            {liveMatches.length === 0 ? (
-              <p>No live games right now. The next games will appear as soon as their matchups are known.</p>
-            ) : (
-              <div className="tournamentGameGrid">
-                {liveMatches.map((match) => (
-                  <MatchCard
-                    key={match.id}
-                    match={match}
-                    viewerId={userId}
-                    canManage
-                    onOpenBoard={(selectedMatch, game) => setSelectedBoard({ matchId: selectedMatch.id, game })}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+          {tournament.status === "active" ? (
+            <section className="card">
+              <h2>Live Games</h2>
+              {liveMatches.length === 0 ? (
+                <p>No live games right now. The next games will appear as soon as their matchups are known.</p>
+              ) : (
+                <div className="tournamentGameGrid">
+                  {liveMatches.map((match) => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      viewerId={userId}
+                      canManage
+                      onOpenBoard={(selectedMatch, game) => setSelectedBoard({ matchId: selectedMatch.id, game })}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
           <section className="card">
             <h2>Finished Games</h2>
             {completedMatches.length === 0 ? (
