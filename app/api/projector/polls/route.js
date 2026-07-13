@@ -371,7 +371,6 @@ async function vote(admin, body) {
   const token = String(body.token || "").trim();
   const pollId = String(body.pollId || "");
   if (!token) return jsonError("Connect this screen before voting.", 401);
-  if (!isUuid(pollId)) return jsonError("Choose a poll.");
 
   const resolved = await findSessionByToken(admin, token);
   if (!resolved?.session || !resolved.screenNumber) return jsonError("Projector token not found.", 404);
@@ -379,18 +378,22 @@ async function vote(admin, body) {
   if (slot.enabled === false) return jsonError("This screen is inactive right now.", 403);
   if (slot.inputType !== "touch") return jsonError("This screen is not set up for voting.", 403);
 
-  const { data: poll, error: pollError } = await admin
+  let pollQuery = admin
     .from("projector_polls")
     .select("*")
-    .eq("id", pollId)
     .eq("teacher_id", resolved.session.teacher_id)
     .eq("session_id", resolved.session.id)
-    .maybeSingle();
+    .eq("status", "open");
+  if (isUuid(pollId)) {
+    pollQuery = pollQuery.eq("id", pollId);
+  } else {
+    pollQuery = pollQuery.order("created_at", { ascending: false }).limit(1);
+  }
+  const { data: poll, error: pollError } = await pollQuery.maybeSingle();
 
   if (isMissingPollTables(pollError)) return jsonError("Projector polls are not set up yet.", 503);
   if (pollError) return jsonError(pollError.message, 500);
   if (!poll) return jsonError("Poll not found.", 404);
-  if (poll.status !== "open") return jsonError("This poll is closed.", 409);
   if (!Array.isArray(poll.target_screen_ids) || !poll.target_screen_ids.map(String).includes(String(resolved.screenNumber))) {
     return jsonError("This screen is not part of the current poll.", 403);
   }
