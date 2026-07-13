@@ -1771,6 +1771,8 @@ body:has(.projectorScreenJoin),
 body:has(.projectorScreenStage) {
   background: #0a0a0a;
   overflow: hidden;
+  /* 100vh fallback first: dvh needs Safari 15.4+, and old iPads drop the declaration entirely. */
+  height: 100vh;
   height: 100dvh;
 }
 
@@ -1806,7 +1808,9 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
 .projectorScreenStage {
   width: 100vw;
+  height: 100vh;
   height: 100dvh;
+  max-height: 100vh;
   max-height: 100dvh;
   display: grid;
   place-items: center;
@@ -2110,8 +2114,10 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorScreenMedia {
   display: block;
   width: 100vw;
+  height: 100vh;
   height: 100dvh;
   max-width: 100vw;
+  max-height: 100vh;
   max-height: 100dvh;
   object-fit: contain;
 }

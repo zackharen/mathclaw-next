@@ -354,12 +354,15 @@ function ProjectorScreenContentBody({ state }) {
   }
   if (state.type === "latex") return <LatexDisplay content={content} />;
   if (state.type === "image" || isGif(content)) {
-    return <img className="projectorScreenMedia" src={content} alt="" />;
+    // Keyed by content so a swap remounts a fresh element; iPad Safari keeps the
+    // previous image's object-fit geometry when src changes in place on the same node.
+    return <img className="projectorScreenMedia" key={content} src={content} alt="" />;
   }
   if (state.type === "video") {
     return (
       <video
         className="projectorScreenMedia"
+        key={content}
         src={content}
         autoPlay
         loop
