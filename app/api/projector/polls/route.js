@@ -360,14 +360,16 @@ async function createPoll(admin, teacherId, sessionId, body) {
 
 async function closePoll(admin, teacherId, sessionId, body) {
   const pollId = String(body.pollId || "");
-  if (!isUuid(pollId)) return jsonError("Choose a poll to close.");
-  const { data: poll, error } = await admin
+  let pollQuery = admin
     .from("projector_polls")
     .update({ status: "closed", closed_at: new Date().toISOString() })
     .eq("teacher_id", teacherId)
-    .eq("id", pollId)
-    .select("*")
-    .maybeSingle();
+    .eq("session_id", sessionId)
+    .eq("status", "open");
+  if (isUuid(pollId)) {
+    pollQuery = pollQuery.eq("id", pollId);
+  }
+  const { data: poll, error } = await pollQuery.select("*").maybeSingle();
 
   if (isMissingPollTables(error)) return jsonError("Projector polls are not set up yet.", 503);
   if (error) return jsonError(error.message, 500);
