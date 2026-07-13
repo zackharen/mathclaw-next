@@ -6,6 +6,7 @@ import { ProjectorScreenContent, ProjectorScreenInactiveState } from "../project
 import "../styles.css";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const WORK_NAME_STORAGE_KEY = "mathclaw.projector.submitWorkName";
 
 // Capability -> controls matrix, keyed by the screen's inputType.
 // THIS is the extension point where future per-screen student tools
@@ -82,6 +83,8 @@ export default function ScreenClient({ initialToken = null }) {
   const [workPreviewUrl, setWorkPreviewUrl] = useState("");
   const [workFile, setWorkFile] = useState(null);
   const [workStatus, setWorkStatus] = useState("idle");
+  const [workStudentName, setWorkStudentName] = useState("");
+  const [workLabel, setWorkLabel] = useState("");
   const workInputRef = useRef(null);
 
   useEffect(() => {
@@ -96,6 +99,14 @@ export default function ScreenClient({ initialToken = null }) {
       setToken(String(params.get("token") || "").trim());
     }
   }, [initialToken]);
+
+  useEffect(() => {
+    try {
+      setWorkStudentName(window.localStorage.getItem(WORK_NAME_STORAGE_KEY) || "");
+    } catch {
+      // localStorage can be unavailable in locked-down browser modes; the field still works without memory.
+    }
+  }, []);
 
   const loadScreen = useCallback(async () => {
     if (!token) return;
@@ -254,6 +265,8 @@ export default function ScreenClient({ initialToken = null }) {
       const formData = new FormData();
       formData.append("token", token);
       formData.append("file", workFile, "student-work.jpg");
+      formData.append("studentName", workStudentName);
+      formData.append("label", workLabel);
       const response = await fetch("/api/projector/work-queue", {
         method: "POST",
         body: formData,
@@ -264,6 +277,12 @@ export default function ScreenClient({ initialToken = null }) {
       setWorkPreviewUrl("");
       setWorkFile(null);
       setWorkStatus("sent");
+      setWorkLabel("");
+      try {
+        window.localStorage.setItem(WORK_NAME_STORAGE_KEY, workStudentName.trim().slice(0, 40));
+      } catch {
+        // Best-effort only; submitting work should not depend on browser storage.
+      }
       setMessage("Sent to teacher.");
     } catch (error) {
       setWorkStatus("idle");
@@ -360,6 +379,27 @@ export default function ScreenClient({ initialToken = null }) {
               ) : (
                 <div className="projectorSubmitWorkPreview">
                   <img src={workPreviewUrl} alt="Work preview" />
+                  <div className="projectorSubmitWorkFields">
+                    <label>
+                      <span>Your name</span>
+                      <input
+                        autoComplete="name"
+                        maxLength={40}
+                        value={workStudentName}
+                        onChange={(event) => setWorkStudentName(event.target.value)}
+                        placeholder="Optional"
+                      />
+                    </label>
+                    <label>
+                      <span>Question</span>
+                      <input
+                        maxLength={80}
+                        value={workLabel}
+                        onChange={(event) => setWorkLabel(event.target.value)}
+                        placeholder="Optional"
+                      />
+                    </label>
+                  </div>
                   <div className="projectorSubmitWorkActions">
                     <button type="button" onClick={retakeWorkPhoto} disabled={workStatus === "submitting"}>
                       Retake

@@ -38,6 +38,13 @@ function formatQueueTime(value) {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function workEntryCaption(entry) {
+  return [entry?.studentName, entry?.label]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function ensureKatexAssets() {
   if (!document.querySelector(`link[href="${KATEX_CSS}"]`)) {
     const link = document.createElement("link");
@@ -624,6 +631,7 @@ export default function ProjectorClient({
   const [workQueueSetupMissing, setWorkQueueSetupMissing] = useState(false);
   const [workQueueBusy, setWorkQueueBusy] = useState(false);
   const [previewWorkEntry, setPreviewWorkEntry] = useState(null);
+  const [showWorkCaption, setShowWorkCaption] = useState(false);
   const latexTextareaRef = useRef(null);
   const imageDragDepthRef = useRef(0);
   const playlistTimeoutRef = useRef(null);
@@ -1921,6 +1929,7 @@ export default function ProjectorClient({
 
   async function sendWorkEntry(entry) {
     if (!entry?.url) return;
+    const caption = showWorkCaption ? workEntryCaption(entry) : "";
     pausePlaylistForManualAction();
     stopTimedRotationForManualAction();
     setWorkQueueBusy(true);
@@ -1935,6 +1944,7 @@ export default function ProjectorClient({
           screenIds: targetScreenIds,
           type: "image",
           content: entry.url,
+          caption,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -2597,6 +2607,12 @@ export default function ProjectorClient({
                 <p className="projectorAssignmentHint">
                   {formatQueueTime(previewWorkEntry.createdAt)} · send to {targetDescription}
                 </p>
+                {(previewWorkEntry.studentName || previewWorkEntry.label) ? (
+                  <p className="projectorWorkPreviewMeta">
+                    {previewWorkEntry.studentName ? <span>Name: {previewWorkEntry.studentName}</span> : null}
+                    {previewWorkEntry.label ? <span>Question: {previewWorkEntry.label}</span> : null}
+                  </p>
+                ) : null}
               </div>
               <button className="projectorAssignmentClose" type="button" onClick={() => setPreviewWorkEntry(null)}>
                 ✕
@@ -2605,6 +2621,14 @@ export default function ProjectorClient({
             <div className="projectorWorkPreviewImage">
               <img src={previewWorkEntry.url} alt={`Submitted work from ${previewWorkEntry.screenName}`} />
             </div>
+            <label className="projectorWorkCaptionToggle">
+              <input
+                type="checkbox"
+                checked={showWorkCaption}
+                onChange={(event) => setShowWorkCaption(event.target.checked)}
+              />
+              <span>Show name on screens</span>
+            </label>
             <div className="projectorAssignmentFooter">
               <button className="btn" type="button" onClick={() => sendWorkEntry(previewWorkEntry)} disabled={workQueueBusy}>
                 Send to {targetDescription}
@@ -2865,6 +2889,14 @@ export default function ProjectorClient({
                     <button className="btn secondary" type="button" onClick={clearWorkQueue} disabled={workQueueBusy || !workQueue.length}>
                       Clear Queue
                     </button>
+                    <label className="projectorWorkCaptionToggle">
+                      <input
+                        type="checkbox"
+                        checked={showWorkCaption}
+                        onChange={(event) => setShowWorkCaption(event.target.checked)}
+                      />
+                      <span>Show name</span>
+                    </label>
                   </div>
                   <div className="projectorWorkQueueList">
                     {workQueue.length ? (
@@ -2875,6 +2907,12 @@ export default function ProjectorClient({
                           </button>
                           <div className="projectorWorkQueueInfo">
                             <strong>{entry.screenName}</strong>
+                            {(entry.studentName || entry.label) ? (
+                              <div className="projectorWorkQueueMeta">
+                                {entry.studentName ? <span title={entry.studentName}>{entry.studentName}</span> : null}
+                                {entry.label ? <span title={entry.label}>{entry.label}</span> : null}
+                              </div>
+                            ) : null}
                             <span>
                               {formatQueueTime(entry.createdAt)}
                               {entry.status === "sent" ? " · sent" : ""}

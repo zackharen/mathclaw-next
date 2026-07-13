@@ -16,6 +16,7 @@ const SCENE_TITLE_LIMIT = 80;
 const SCENE_STATE_LIMIT = 24 * 1024 * 1024;
 const SCENE_FOLDER_TITLE_LIMIT = 60;
 const TOP_TEXT_LIMIT = 500;
+const CAPTION_LIMIT = 140;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 const BROADCAST_SEND_TIMEOUT_MS = 1500;
@@ -94,6 +95,14 @@ function normalizeTopText(type, topText, content = "") {
   return String(topText || "").trim().slice(0, TOP_TEXT_LIMIT);
 }
 
+function normalizeCaption(caption) {
+  return String(caption || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, CAPTION_LIMIT);
+}
+
 function displayContent(content) {
   const source = String(content || "");
   if (!source.startsWith(QUESTION_CONTENT_PREFIX)) return source;
@@ -109,7 +118,7 @@ function isQuestionContent(content) {
   return String(content || "").startsWith(QUESTION_CONTENT_PREFIX);
 }
 
-function normalizeState(type, content, topText = "", revealAnswer = false) {
+function normalizeState(type, content, topText = "", revealAnswer = false, caption = "") {
   if (!CONTENT_TYPES.has(type)) return null;
   const rawContent = String(content || "");
   const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
@@ -118,10 +127,12 @@ function normalizeState(type, content, topText = "", revealAnswer = false) {
   if (type === "video" && mediaContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(mediaContent)) return null;
   const safeTopText = normalizeTopText(type, topText, safeContent);
+  const safeCaption = normalizeCaption(caption);
   return {
     type,
     content: safeContent,
     ...(safeTopText ? { topText: safeTopText } : {}),
+    ...(safeCaption ? { caption: safeCaption } : {}),
     ...(isQuestionContent(safeContent) && revealAnswer ? { revealAnswer: true } : {}),
   };
 }
@@ -1192,7 +1203,7 @@ export async function POST(request) {
   const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
   const inactiveScreenIds = screenIds.filter((screenId) => !enabledScreenIds.includes(screenId));
   if (inactiveScreenIds.length) return jsonError("Inactive screens cannot receive new content.");
-  const state = normalizeState(body.type, body.content, body.topText, false);
+  const state = normalizeState(body.type, body.content, body.topText, false, body.caption);
 
   if (!screenIds.length) return jsonError("Choose at least one screen.");
   if (!state) {

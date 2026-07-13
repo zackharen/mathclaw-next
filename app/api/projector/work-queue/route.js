@@ -10,7 +10,11 @@ export const runtime = "nodejs";
 const BUCKET = "projector-work-queue";
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+const STUDENT_NAME_LIMIT = 40;
+const WORK_LABEL_LIMIT = 80;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const WORK_QUEUE_SELECT = "id, screen_number, screen_name, student_name, label, public_url, content_type, size_bytes, status, created_at, sent_at";
+const LEGACY_WORK_QUEUE_SELECT = "id, screen_number, screen_name, public_url, content_type, size_bytes, status, created_at, sent_at";
 
 function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -25,6 +29,21 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
     String(value || "")
   );
+}
+
+function isMissingNamingColumns(error) {
+  return error?.code === "PGRST204" || error?.code === "42703" || /student_name|label/i.test(error?.message || "");
+}
+
+function normalizeOptionalText(value, limit, fieldLabel) {
+  const text = String(value || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+  if (text.length > limit) {
+    return { error: `${fieldLabel} can be at most ${limit} characters.` };
+  }
+  return { value: text || null };
 }
 
 function normalizeRoomSlots(value) {
@@ -49,6 +68,8 @@ function publicEntry(row) {
     contentType: row.content_type,
     sizeBytes: row.size_bytes,
     status: row.status,
+    studentName: row.student_name || null,
+    label: row.label || null,
     createdAt: row.created_at,
     sentAt: row.sent_at || null,
   };
@@ -140,9 +161,13 @@ async function ensureBucket(admin) {
 async function uploadWork(admin, request) {
   const formData = await request.formData();
   const token = String(formData.get("token") || "").trim();
+  const studentName = normalizeOptionalText(formData.get("studentName"), STUDENT_NAME_LIMIT, "Name");
+  const label = normalizeOptionalText(formData.get("label"), WORK_LABEL_LIMIT, "Question");
   const file = formData.get("file");
 
   if (!token) return jsonError("Connect this screen before submitting work.", 401);
+  if (studentName.error) return jsonError(studentName.error);
+  if (label.error) return jsonError(label.error);
   if (!file || typeof file.arrayBuffer !== "function") return jsonError("Take a photo before submitting.");
   if (file.size > MAX_UPLOAD_BYTES) return jsonError("That photo is too large. Retake it or move closer to the page.");
 
@@ -171,21 +196,36 @@ async function uploadWork(admin, request) {
   if (uploadError) return jsonError(uploadError.message, 500);
 
   const { data } = admin.storage.from(BUCKET).getPublicUrl(storagePath);
-  const { data: row, error: insertError } = await admin
+  const insertPayload = {
+    teacher_id: resolved.session.teacher_id,
+    session_id: resolved.session.id,
+    screen_number: Number(resolved.screenNumber),
+    screen_name: slot.name || `Screen ${resolved.screenNumber}`,
+    student_name: studentName.value,
+    label: label.value,
+    storage_bucket: BUCKET,
+    storage_path: storagePath,
+    public_url: data.publicUrl,
+    content_type: contentType,
+    size_bytes: file.size,
+  };
+
+  let { data: row, error: insertError } = await admin
     .from("projector_work_queue")
-    .insert({
-      teacher_id: resolved.session.teacher_id,
-      session_id: resolved.session.id,
-      screen_number: Number(resolved.screenNumber),
-      screen_name: slot.name || `Screen ${resolved.screenNumber}`,
-      storage_bucket: BUCKET,
-      storage_path: storagePath,
-      public_url: data.publicUrl,
-      content_type: contentType,
-      size_bytes: file.size,
-    })
-    .select("id, screen_number, screen_name, public_url, content_type, size_bytes, status, created_at, sent_at")
+    .insert(insertPayload)
+    .select(WORK_QUEUE_SELECT)
     .single();
+
+  if (isMissingNamingColumns(insertError)) {
+    const legacyPayload = { ...insertPayload };
+    delete legacyPayload.student_name;
+    delete legacyPayload.label;
+    ({ data: row, error: insertError } = await admin
+      .from("projector_work_queue")
+      .insert(legacyPayload)
+      .select(LEGACY_WORK_QUEUE_SELECT)
+      .single());
+  }
 
   if (insertError) {
     await admin.storage.from(BUCKET).remove([storagePath]);
@@ -199,12 +239,21 @@ async function uploadWork(admin, request) {
 }
 
 async function listQueue(admin, teacherId) {
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("projector_work_queue")
-    .select("id, screen_number, screen_name, public_url, content_type, size_bytes, status, created_at, sent_at")
+    .select(WORK_QUEUE_SELECT)
     .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false })
     .limit(80);
+
+  if (isMissingNamingColumns(error)) {
+    ({ data, error } = await admin
+      .from("projector_work_queue")
+      .select(LEGACY_WORK_QUEUE_SELECT)
+      .eq("teacher_id", teacherId)
+      .order("created_at", { ascending: false })
+      .limit(80));
+  }
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") {
@@ -220,13 +269,23 @@ async function markSent(admin, teacherId, body) {
   const entryId = String(body.entryId || "");
   if (!isUuid(entryId)) return jsonError("Choose a submitted photo.");
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("projector_work_queue")
     .update({ status: "sent", sent_at: new Date().toISOString() })
     .eq("id", entryId)
     .eq("teacher_id", teacherId)
-    .select("id, screen_number, screen_name, public_url, content_type, size_bytes, status, created_at, sent_at")
+    .select(WORK_QUEUE_SELECT)
     .maybeSingle();
+
+  if (isMissingNamingColumns(error)) {
+    ({ data, error } = await admin
+      .from("projector_work_queue")
+      .update({ status: "sent", sent_at: new Date().toISOString() })
+      .eq("id", entryId)
+      .eq("teacher_id", teacherId)
+      .select(LEGACY_WORK_QUEUE_SELECT)
+      .maybeSingle());
+  }
 
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return jsonError("The work queue is not set up yet.", 503);

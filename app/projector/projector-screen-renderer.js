@@ -285,7 +285,17 @@ export function ProjectorScreenContent({ state }) {
   const question = parseQuestionContent(state?.content);
   const promptContent = displayContent(state?.content);
   const hasBodyContent = Boolean(promptContent.trim()) && !(question && state?.type === "text");
-  if (!state?.topText && !question) return <ProjectorScreenContentBody state={state} />;
+  const caption = String(state?.caption || "").trim();
+  const showCaption = Boolean(caption && (state?.type === "image" || state?.type === "video"));
+  if (!state?.topText && !question && !showCaption) return <ProjectorScreenContentBody state={state} />;
+  if (!state?.topText && !question && showCaption) {
+    return (
+      <div className="projectorScreenBody projectorScreenBodyWithCaption">
+        <ProjectorScreenContentBody state={state} />
+        <div className="projectorScreenCaption">{caption}</div>
+      </div>
+    );
+  }
   if (question && !state?.topText && !hasBodyContent) {
     return (
       <QuestionDisplay
@@ -302,8 +312,10 @@ export function ProjectorScreenContent({ state }) {
       {hasBodyContent ? (
         <div className="projectorScreenBody">
           <ProjectorScreenContentBody state={state} />
+          {showCaption ? <div className="projectorScreenCaption">{caption}</div> : null}
         </div>
       ) : null}
+      {!hasBodyContent && showCaption ? <div className="projectorScreenCaption">{caption}</div> : null}
       {question ? (
         <QuestionDisplay
           promptContent={state?.type === "text" ? promptContent : ""}

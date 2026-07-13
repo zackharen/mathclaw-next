@@ -684,6 +684,24 @@
   font-weight: 800;
 }
 
+.projectorWorkQueueMeta {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.projectorWorkQueueMeta span {
+  max-width: 100%;
+  border-radius: 999px;
+  background: #eef5fb;
+  color: var(--navy);
+  padding: 0.12rem 0.45rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .projectorWorkQueueControls button,
 .projectorSubmitWorkActions button {
   border: 1px solid #c8d6df;
@@ -728,6 +746,38 @@
   max-height: 68vh;
   object-fit: contain;
   display: block;
+}
+
+.projectorWorkPreviewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0;
+}
+
+.projectorWorkPreviewMeta span {
+  border: 1px solid #c8d6df;
+  border-radius: 999px;
+  background: #f4f8fb;
+  color: var(--navy);
+  padding: 0.22rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.projectorWorkCaptionToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--navy);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.projectorWorkCaptionToggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--navy);
 }
 
 .projectorLibraryItem {
@@ -1587,6 +1637,11 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   overflow: hidden;
 }
 
+.projectorScreenBodyWithCaption {
+  width: 100%;
+  height: 100%;
+}
+
 .projectorScreenBody .projectorScreenMedia {
   position: absolute;
   inset: 0;
@@ -1595,6 +1650,27 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+.projectorScreenCaption {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(0.75rem, 2vw, 1.5rem);
+  z-index: 2;
+  max-width: min(86vw, 52rem);
+  transform: translateX(-50%);
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: rgba(8, 12, 18, 0.72);
+  color: #fff;
+  padding: clamp(0.35rem, 0.9vw, 0.65rem) clamp(0.75rem, 1.8vw, 1.25rem);
+  font-size: clamp(1rem, 2vw, 1.7rem);
+  font-weight: 900;
+  line-height: 1.1;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .projectorScreenText {
@@ -1808,6 +1884,13 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   height: 100%;
   max-width: 100%;
   max-height: 100%;
+}
+
+.projectorScreenPreviewStage .projectorScreenCaption {
+  bottom: 26px;
+  max-width: 1101px;
+  padding: 8px 20px;
+  font-size: 26px;
 }
 
 .projectorScreenPreviewStage .projectorWaiting {
@@ -2688,6 +2771,31 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   object-fit: contain;
   border-radius: 6px;
   background: #111;
+}
+
+.projectorSubmitWorkFields {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.projectorSubmitWorkFields label {
+  display: grid;
+  gap: 0.18rem;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.projectorSubmitWorkFields input {
+  min-height: 2.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--navy);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .projectorSubmitWorkActions {
