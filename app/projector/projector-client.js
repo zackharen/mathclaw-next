@@ -727,6 +727,9 @@ export default function ProjectorClient({
   const [selectedWorkEntryIds, setSelectedWorkEntryIds] = useState([]);
   const [reviewShowCaptions, setReviewShowCaptions] = useState(true);
   const [workQueueFilter, setWorkQueueFilter] = useState("all");
+  // Queue-local feedback: the global `message` renders inside the collapsed-by-default
+  // Library panel, so delete/clear results were invisible to teachers.
+  const [workQueueMessage, setWorkQueueMessage] = useState("");
   const [pollsSetupMissing, setPollsSetupMissing] = useState(false);
   const [pollBusy, setPollBusy] = useState(false);
   const [activePoll, setActivePoll] = useState(null);
@@ -1009,7 +1012,8 @@ export default function ProjectorClient({
 
   async function loadWorkQueue({ silent = false } = {}) {
     try {
-      const response = await fetch("/api/projector/work-queue");
+      // Cache-busted like loadPolls: stale cached lists resurrected deleted rows on the 12s poll.
+      const response = await fetch(`/api/projector/work-queue?_=${Date.now()}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not load submitted work.");
       setWorkQueue(Array.isArray(payload.entries) ? payload.entries : []);
@@ -2617,7 +2621,7 @@ export default function ProjectorClient({
 
   async function deleteWorkEntry(entryId) {
     setWorkQueueBusy(true);
-    setMessage("");
+    setWorkQueueMessage("");
     try {
       const response = await fetch(`/api/projector/work-queue?entryId=${encodeURIComponent(entryId)}`, {
         method: "DELETE",
@@ -2625,10 +2629,11 @@ export default function ProjectorClient({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not delete submitted work.");
       setWorkQueue((current) => current.filter((entry) => entry.id !== entryId));
+      setSelectedWorkEntryIds((current) => current.filter((id) => id !== entryId));
       setPreviewWorkEntry((current) => (current?.id === entryId ? null : current));
-      setMessage("Submitted work deleted.");
+      setWorkQueueMessage("Submitted work deleted.");
     } catch (error) {
-      setMessage(error.message);
+      setWorkQueueMessage(`Delete failed: ${error.message}`);
     } finally {
       setWorkQueueBusy(false);
     }
@@ -2844,7 +2849,7 @@ export default function ProjectorClient({
     if (!workQueue.length) return;
     if (!window.confirm("Clear all submitted work from the queue?")) return;
     setWorkQueueBusy(true);
-    setMessage("");
+    setWorkQueueMessage("");
     try {
       const response = await fetch("/api/projector/work-queue", {
         method: "POST",
@@ -2854,10 +2859,11 @@ export default function ProjectorClient({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not clear submitted work.");
       setWorkQueue([]);
+      setSelectedWorkEntryIds([]);
       setPreviewWorkEntry(null);
-      setMessage("Submitted work queue cleared.");
+      setWorkQueueMessage("Submitted work queue cleared.");
     } catch (error) {
-      setMessage(error.message);
+      setWorkQueueMessage(`Clear failed: ${error.message}`);
     } finally {
       setWorkQueueBusy(false);
     }
@@ -3472,6 +3478,7 @@ export default function ProjectorClient({
                 Delete
               </button>
             </div>
+            {workQueueMessage ? <p className="projectorMessage">{workQueueMessage}</p> : null}
           </section>
         </div>
       ) : null}
@@ -4091,6 +4098,7 @@ export default function ProjectorClient({
                       <span>Show name</span>
                     </label>
                   </div>
+                  {workQueueMessage ? <p className="projectorMessage">{workQueueMessage}</p> : null}
                   <div className="projectorWorkQueueList">
                     {visibleWorkQueue.length ? (
                       visibleWorkQueue.map((entry) => (
