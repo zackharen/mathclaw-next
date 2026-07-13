@@ -68,6 +68,50 @@ function WordWallWidget({ content }) {
   );
 }
 
+function PollResultsWidget({ content }) {
+  const results = useMemo(() => parseWidgetContent(content), [content]);
+  const choices = Array.isArray(results.choices) ? results.choices : [];
+  const totalVotes = Number.parseInt(results.totalVotes, 10) || 0;
+  const expectedVotes = Number.parseInt(results.expectedVotes, 10) || 0;
+  return (
+    <div className="projectorScreenWidget projectorPollResultsWidget">
+      <div className="projectorPollResultsHeader">
+        <p className="eyebrow">Live Poll Results</p>
+        <h1>
+          {results.questionType === "latex" && results.question ? (
+            <LatexDisplay content={results.question} />
+          ) : (
+            results.question || "Poll results"
+          )}
+        </h1>
+        <span>
+          {totalVotes} vote{totalVotes === 1 ? "" : "s"}
+          {expectedVotes ? ` / ${expectedVotes} screens` : ""}
+        </span>
+      </div>
+      <div className="projectorPollResultsBars">
+        {choices.map((choice) => {
+          const count = Number.parseInt(choice.count, 10) || 0;
+          const percent = totalVotes ? Math.round((count / totalVotes) * 100) : 0;
+          return (
+            <div className="projectorPollResultsBar" key={choice.id || choice.label}>
+              <div className="projectorPollResultsBarLabel">
+                <strong>{choice.label || choice.id}</strong>
+                <span>
+                  {count} · {percent}%
+                </span>
+              </div>
+              <div className="projectorPollResultsTrack">
+                <div className="projectorPollResultsFill" style={{ width: `${percent}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function isEscapedLatexCharacter(source, index) {
   let slashCount = 0;
   for (let i = index - 1; i >= 0 && source[i] === "\\"; i -= 1) slashCount += 1;
@@ -304,6 +348,7 @@ function ProjectorScreenContentBody({ state }) {
   const content = displayContent(state.content);
   if (state.type === "clock") return <ClockWidget content={state.content} />;
   if (state.type === "word_wall") return <WordWallWidget content={state.content} />;
+  if (state.type === "poll_results") return <PollResultsWidget content={state.content} />;
   if (state.type === "text") {
     return <div className="projectorScreenText">{content}</div>;
   }

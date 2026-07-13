@@ -506,6 +506,14 @@ function enabledScreenIdsForRoom(room) {
     .filter(Boolean);
 }
 
+function touchScreenIdsForRoom(room) {
+  const slots = normalizeRoomSlots(room?.slots);
+  if (!slots) return [];
+  return slots
+    .map((slot, index) => (slot.enabled !== false && slot.inputType === "touch" ? String(index + 1) : null))
+    .filter(Boolean);
+}
+
 function slotForScreen(room, screenId) {
   const slots = normalizeRoomSlots(room?.slots);
   return slots?.[Number(screenId) - 1] || null;
@@ -653,7 +661,7 @@ export default function ProjectorClient({
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
-  const [openPanels, setOpenPanels] = useState({ workQueue: true, wordWalls: false, screens: true, scenes: false, library: false });
+  const [openPanels, setOpenPanels] = useState({ polls: true, workQueue: true, wordWalls: false, screens: true, scenes: false, library: false });
   const [targetMode, setTargetMode] = useState("all");
   const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
   const [type, setType] = useState("text");
@@ -719,6 +727,15 @@ export default function ProjectorClient({
   const [selectedWorkEntryIds, setSelectedWorkEntryIds] = useState([]);
   const [reviewShowCaptions, setReviewShowCaptions] = useState(true);
   const [workQueueFilter, setWorkQueueFilter] = useState("all");
+  const [pollsSetupMissing, setPollsSetupMissing] = useState(false);
+  const [pollBusy, setPollBusy] = useState(false);
+  const [activePoll, setActivePoll] = useState(null);
+  const [pollResults, setPollResults] = useState(null);
+  const [recentPolls, setRecentPolls] = useState([]);
+  const [pollQuestion, setPollQuestion] = useState("How are you feeling about this problem?");
+  const [pollQuestionType, setPollQuestionType] = useState("text");
+  const [pollType, setPollType] = useState("multiple_choice");
+  const [pollChoices, setPollChoices] = useState(["A", "B", "C", "D"]);
   const [scheduleBlocks, setScheduleBlocks] = useState([]);
   const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
   const [dismissedScheduleKey, setDismissedScheduleKey] = useState("");
@@ -745,6 +762,7 @@ export default function ProjectorClient({
   const screenTokens = session.screen_tokens || {};
   const roomScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
   const activeScreenIds = useMemo(() => enabledScreenIdsForRoom(activeRoom), [activeRoom]);
+  const touchScreenIds = useMemo(() => touchScreenIdsForRoom(activeRoom), [activeRoom]);
   const configuredAutopilotScreenIds = useMemo(
     () => activeScreenIds.filter((screenId) => isAutopilotConfigured(activeRoom, screenId)),
     [activeRoom, activeScreenIds]
@@ -767,6 +785,15 @@ export default function ProjectorClient({
   );
   const targetSummary = screenTargetSummary(targetScreenIds, targetMode);
   const targetDescription = describeScreenTargets(targetScreenIds, targetMode);
+  const activePollId = activePoll?.id || "";
+  const pollLaunchScreenIds = useMemo(() => {
+    if (targetMode === "custom") {
+      const selectedTouchIds = selectedTargetScreens.filter((screenId) => touchScreenIds.includes(screenId));
+      if (selectedTouchIds.length) return selectedTouchIds;
+    }
+    return touchScreenIds;
+  }, [selectedTargetScreens, targetMode, touchScreenIds]);
+  const pollLaunchDescription = describeScreenTargets(pollLaunchScreenIds, targetMode === "custom" && pollLaunchScreenIds.length ? "custom" : "all");
   const currentPlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === playlistState.playlistId) || null,
     [playlistState.playlistId, playlists]
@@ -994,6 +1021,53 @@ export default function ProjectorClient({
     const id = window.setInterval(() => loadWorkQueue({ silent: true }), 12000);
     return () => window.clearInterval(id);
   }, []);
+
+  async function loadPolls({ silent = false } = {}) {
+    try {
+      const response = await fetch("/api/projector/polls", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load polls.");
+      setPollsSetupMissing(Boolean(payload.setupMissing));
+      setActivePoll(payload.activePoll || null);
+      setPollResults(payload.activeResults || null);
+      setRecentPolls(Array.isArray(payload.recentPolls) ? payload.recentPolls : []);
+    } catch (error) {
+      if (!silent) setMessage(error.message);
+    }
+  }
+
+  async function loadPollResults(pollId, { silent = false } = {}) {
+    if (!pollId) return;
+    try {
+      const response = await fetch(`/api/projector/polls?action=results&pollId=${encodeURIComponent(pollId)}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load poll results.");
+      if (payload.results) setPollResults(payload.results);
+    } catch (error) {
+      if (!silent) setMessage(error.message);
+    }
+  }
+
+  useEffect(() => {
+    loadPolls({ silent: true });
+    const id = window.setInterval(() => loadPolls({ silent: true }), activePollId ? 1500 : 6000);
+    return () => window.clearInterval(id);
+  }, [activePollId]);
+
+  useEffect(() => {
+    if (!session.id) return undefined;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`projector-session-${session.id}`)
+      .on("broadcast", { event: "poll-updated" }, ({ payload }) => {
+        if (payload?.pollId && activePollId === payload.pollId) loadPollResults(payload.pollId, { silent: true });
+        else loadPolls({ silent: true });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activePollId, session.id]);
 
   async function loadProjectorSchedule({ silent = false } = {}) {
     try {
@@ -2563,6 +2637,125 @@ export default function ProjectorClient({
     );
   }
 
+  function pollChoicesForLaunch() {
+    if (pollType === "thumbs") {
+      return [
+        { id: "up", label: "Thumbs up" },
+        { id: "down", label: "Thumbs down" },
+      ];
+    }
+    if (pollType === "scale") {
+      return ["1", "2", "3", "4", "5"].map((value) => ({ id: value, label: value }));
+    }
+    return pollChoices.slice(0, 6).map((choice, index) => ({
+      id: QUESTION_OPTION_LABELS[index] || String(index + 1),
+      label: String(choice || "").trim() || QUESTION_OPTION_LABELS[index] || String(index + 1),
+    }));
+  }
+
+  function pollResultsContent(results = pollResults) {
+    if (!results?.poll) return "";
+    return JSON.stringify({
+      pollId: results.poll.id,
+      question: results.poll.question,
+      questionType: results.poll.questionType || "text",
+      choices: results.choices || [],
+      totalVotes: results.totalVotes || 0,
+      expectedVotes: results.expectedVotes || 0,
+    });
+  }
+
+  async function launchPoll() {
+    if (!pollLaunchScreenIds.length) {
+      setMessage("Turn on at least one active touch screen before launching a poll.");
+      return;
+    }
+    pausePlaylistForManualAction();
+    stopTimedRotationForManualAction();
+    pauseAutopilotScreens(pollLaunchScreenIds, "Autopilot paused because poll started.");
+    setPollBusy(true);
+    setMessage("");
+    try {
+      await endReviewForManualAction();
+      const response = await fetch("/api/projector/polls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          question: pollQuestion,
+          questionType: pollQuestionType,
+          pollType,
+          choices: pollChoicesForLaunch(),
+          screenIds: pollLaunchScreenIds,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not launch poll.");
+      setActivePoll(payload.poll || null);
+      setPollResults(payload.results || null);
+      await loadPolls({ silent: true });
+      setMessage(`Poll launched to ${pollLaunchDescription}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setPollBusy(false);
+    }
+  }
+
+  async function closePoll() {
+    if (!activePoll?.id) return;
+    setPollBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector/polls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "close", pollId: activePoll.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not close poll.");
+      setActivePoll(null);
+      setPollResults(payload.results || pollResults);
+      await loadPolls({ silent: true });
+      setMessage("Poll closed.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setPollBusy(false);
+    }
+  }
+
+  async function showPollResults() {
+    const content = pollResultsContent();
+    if (!content) return;
+    pausePlaylistForManualAction();
+    stopTimedRotationForManualAction();
+    setPollBusy(true);
+    setMessage("");
+    try {
+      const reviewEnded = await endReviewForManualAction();
+      const takeoverEnded = await endTakeoverForManualAction();
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "push",
+          screenIds: targetScreenIds,
+          type: "poll_results",
+          content,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not show poll results.");
+      if (payload.screenStates) applyScreenStates(payload.screenStates);
+      setMessage(`${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Poll results shown on ${targetDescription}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setPollBusy(false);
+    }
+  }
+
   async function startWorkReview() {
     if (!selectedWorkEntryIds.length) return;
     pausePlaylistForManualAction();
@@ -3707,6 +3900,140 @@ export default function ProjectorClient({
         </div>
 
         <aside className="projectorComposer">
+          {!pollsSetupMissing ? (
+            <SidebarPanel
+              ariaLabel="Live polls"
+              className="projectorPollPanel"
+              count={activePoll ? "Live" : recentPolls.length}
+              eyebrow="Touch screens"
+              onToggle={() => togglePanel("polls")}
+              open={openPanels.polls}
+              title="Poll"
+            >
+              <div className="projectorPollComposer">
+                <label>
+                  Question
+                  <textarea
+                    value={pollQuestion}
+                    onChange={(event) => setPollQuestion(event.target.value)}
+                    maxLength={500}
+                    rows={3}
+                  />
+                </label>
+                <div className="projectorPollInlineControls">
+                  <label>
+                    Question type
+                    <select value={pollQuestionType} onChange={(event) => setPollQuestionType(event.target.value)}>
+                      <option value="text">Text</option>
+                      <option value="latex">LaTeX</option>
+                    </select>
+                  </label>
+                  <label>
+                    Poll type
+                    <select value={pollType} onChange={(event) => setPollType(event.target.value)}>
+                      <option value="multiple_choice">Multiple choice</option>
+                      <option value="thumbs">Thumbs up/down</option>
+                      <option value="scale">1-5 scale</option>
+                    </select>
+                  </label>
+                </div>
+                {pollType === "multiple_choice" ? (
+                  <div className="projectorPollChoicesEditor">
+                    {pollChoices.map((choice, index) => (
+                      <label key={index}>
+                        {QUESTION_OPTION_LABELS[index] || index + 1}
+                        <input
+                          value={choice}
+                          onChange={(event) =>
+                            setPollChoices((current) => current.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)))
+                          }
+                          maxLength={120}
+                        />
+                      </label>
+                    ))}
+                    <div className="projectorPollActions">
+                      <button
+                        className="btn secondary"
+                        type="button"
+                        onClick={() => setPollChoices((current) => [...current, QUESTION_OPTION_LABELS[current.length] || ""].slice(0, 6))}
+                        disabled={pollChoices.length >= 6}
+                      >
+                        Add Choice
+                      </button>
+                      <button
+                        className="btn secondary"
+                        type="button"
+                        onClick={() => setPollChoices((current) => current.slice(0, Math.max(2, current.length - 1)))}
+                        disabled={pollChoices.length <= 2}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="projectorPollActions">
+                  <button className="btn" type="button" onClick={launchPoll} disabled={pollBusy || !pollQuestion.trim() || !pollLaunchScreenIds.length}>
+                    Launch Poll
+                  </button>
+                  {activePoll ? (
+                    <button className="btn secondary" type="button" onClick={closePoll} disabled={pollBusy}>
+                      Close Poll
+                    </button>
+                  ) : null}
+                  <button className="btn secondary" type="button" onClick={showPollResults} disabled={pollBusy || !pollResults?.poll || !targetScreenIds.length}>
+                    Show results
+                  </button>
+                </div>
+                <p className="projectorPollTargetSummary">
+                  Launch target: {pollLaunchScreenIds.length ? pollLaunchDescription : "no active touch screens"}.
+                </p>
+                {pollResults?.poll ? (
+                  <div className="projectorPollResultsCard">
+                    <strong>{pollResults.poll.question}</strong>
+                    <span>
+                      {pollResults.totalVotes || 0} vote{pollResults.totalVotes === 1 ? "" : "s"}
+                      {pollResults.expectedVotes ? ` / ${pollResults.expectedVotes} screens` : ""}
+                    </span>
+                    <div className="projectorPollResultBars">
+                      {(pollResults.choices || []).map((choice) => {
+                        const total = pollResults.totalVotes || 0;
+                        const count = choice.count || 0;
+                        const percent = total ? Math.round((count / total) * 100) : 0;
+                        return (
+                          <div className="projectorPollResultRow" key={choice.id}>
+                            <div>
+                              <span>{choice.label}</span>
+                              <strong>{count}</strong>
+                            </div>
+                            <div className="projectorPollResultTrack">
+                              <div className="projectorPollResultFill" style={{ width: `${percent}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="projectorLibraryEmpty">No active poll results yet.</p>
+                )}
+                {recentPolls.length ? (
+                  <div className="projectorPollRecent">
+                    {recentPolls.slice(0, 4).map((poll) => (
+                      <button
+                        key={poll.id}
+                        type="button"
+                        onClick={() => loadPollResults(poll.id)}
+                        disabled={pollBusy}
+                      >
+                        <span>{poll.question}</span>
+                        <strong>{poll.status}</strong>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </SidebarPanel>
+          ) : null}
           {!workQueueSetupMissing ? (
             <section className="projectorLibrary projectorWorkQueue" aria-label="Submitted work queue">
               <button

@@ -14,7 +14,7 @@ const WORK_NAME_STORAGE_KEY = "mathclaw.projector.submitWorkName";
 // themselves by capability.
 const SCREEN_TOOLS = {
   display_only: { interactive: false },
-  touch: { interactive: true, submitWork: true },
+  touch: { interactive: true, submitWork: true, polls: true },
   keyboard_mouse: { interactive: true },
 };
 
@@ -85,6 +85,10 @@ export default function ScreenClient({ initialToken = null }) {
   const [workStatus, setWorkStatus] = useState("idle");
   const [workStudentName, setWorkStudentName] = useState("");
   const [workLabel, setWorkLabel] = useState("");
+  const [activePoll, setActivePoll] = useState(null);
+  const [pollVote, setPollVote] = useState(null);
+  const [pollStudentName, setPollStudentName] = useState("");
+  const [pollStatus, setPollStatus] = useState("idle");
   const workInputRef = useRef(null);
 
   useEffect(() => {
@@ -102,7 +106,9 @@ export default function ScreenClient({ initialToken = null }) {
 
   useEffect(() => {
     try {
-      setWorkStudentName(window.localStorage.getItem(WORK_NAME_STORAGE_KEY) || "");
+      const savedName = window.localStorage.getItem(WORK_NAME_STORAGE_KEY) || "";
+      setWorkStudentName(savedName);
+      setPollStudentName(savedName);
     } catch {
       // localStorage can be unavailable in locked-down browser modes; the field still works without memory.
     }
@@ -129,9 +135,31 @@ export default function ScreenClient({ initialToken = null }) {
     }
   }, [token]);
 
+  const loadActivePoll = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`/api/projector/polls?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load poll.");
+      setActivePoll(payload.poll || null);
+      setPollVote(payload.vote || null);
+      setPollStatus("idle");
+    } catch (error) {
+      setPollStatus("error");
+      setMessage(error.message);
+    }
+  }, [token]);
+
   useEffect(() => {
     loadScreen();
-  }, [loadScreen, reconnectKey]);
+    loadActivePoll();
+  }, [loadActivePoll, loadScreen, reconnectKey]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    const id = window.setInterval(loadActivePoll, 2000);
+    return () => window.clearInterval(id);
+  }, [loadActivePoll, token]);
 
   useEffect(() => {
     function syncFullscreenState() {
@@ -170,6 +198,9 @@ export default function ScreenClient({ initialToken = null }) {
             : null
         );
       })
+      .on("broadcast", { event: "poll-updated" }, () => {
+        loadActivePoll();
+      })
       .subscribe((nextStatus) => {
         if (nextStatus === "SUBSCRIBED") setStatus("connected");
         if (nextStatus === "CHANNEL_ERROR" || nextStatus === "TIMED_OUT") {
@@ -181,7 +212,7 @@ export default function ScreenClient({ initialToken = null }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadScreen, reconnectKey, sessionId, screenNumber]);
+  }, [loadActivePoll, loadScreen, reconnectKey, sessionId, screenNumber]);
 
   async function resolvePin(event) {
     event.preventDefault();
@@ -291,6 +322,37 @@ export default function ScreenClient({ initialToken = null }) {
     }
   }
 
+  async function submitPollVote(choice) {
+    if (!activePoll) return;
+    setPollStatus("submitting");
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector/polls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "vote",
+          token,
+          pollId: activePoll.id,
+          choice,
+          studentName: pollStudentName,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not record your vote.");
+      setPollVote(payload.vote || { choice, studentName: pollStudentName });
+      setPollStatus("sent");
+      try {
+        window.localStorage.setItem(WORK_NAME_STORAGE_KEY, pollStudentName.trim().slice(0, 40));
+      } catch {
+        // Best-effort only; voting should not depend on browser storage.
+      }
+    } catch (error) {
+      setPollStatus("error");
+      setMessage(error.message);
+    }
+  }
+
   if (!token) {
     return (
       <main className="projectorScreenJoin">
@@ -334,6 +396,7 @@ export default function ScreenClient({ initialToken = null }) {
 
   const tools = toolsForInputType(inputType);
   const visibleState = enabled ? state : null;
+  const pollChoiceLabel = activePoll?.choices?.find((choice) => String(choice.id) === String(pollVote?.choice))?.label || pollVote?.choice || "";
 
   return (
     <main
@@ -351,7 +414,46 @@ export default function ScreenClient({ initialToken = null }) {
         {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
       </button>
       {screenName ? <div className="projectorScreenProfileBadge">{screenName}</div> : null}
-      {enabled ? (
+      {enabled && tools.polls && activePoll ? (
+        <section className="projectorPollOverlay" aria-label="Live poll">
+          <div className="projectorPollQuestion">
+            <p className="eyebrow">Live Poll</p>
+            {activePoll.questionType === "latex" ? (
+              <ProjectorScreenContent state={{ type: "latex", content: activePoll.question }} />
+            ) : (
+              <h1>{activePoll.question}</h1>
+            )}
+          </div>
+          <label className="projectorPollNameField">
+            <span>Your name</span>
+            <input
+              autoComplete="name"
+              maxLength={40}
+              value={pollStudentName}
+              onChange={(event) => setPollStudentName(event.target.value)}
+              placeholder="Optional"
+            />
+          </label>
+          <div className={`projectorPollChoices projectorPollChoices-${activePoll.type || "multiple_choice"}`}>
+            {(activePoll.choices || []).map((choice) => (
+              <button
+                className={String(pollVote?.choice) === String(choice.id) ? "isSelected" : ""}
+                key={choice.id}
+                type="button"
+                onClick={() => submitPollVote(choice.id)}
+                disabled={pollStatus === "submitting"}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+          {pollVote?.choice ? (
+            <p className="projectorPollRecorded">
+              Answer recorded: <strong>{pollChoiceLabel}</strong>. Tap another choice to change your vote.
+            </p>
+          ) : null}
+        </section>
+      ) : enabled ? (
         <ProjectorScreenContent state={state} />
       ) : (
         <ProjectorScreenInactiveState />

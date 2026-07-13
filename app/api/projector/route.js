@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const DEFAULT_SCREEN_IDS = ["1", "2", "3", "4"];
-const CONTENT_TYPES = new Set(["text", "latex", "image", "video", "clock", "word_wall"]);
+const CONTENT_TYPES = new Set(["text", "latex", "image", "video", "clock", "word_wall", "poll_results"]);
 const LIBRARY_CATEGORIES = new Set(["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"]);
 const LIBRARY_TITLE_LIMIT = 80;
 const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
@@ -160,7 +160,7 @@ function normalizeState(type, content, topText = "", revealAnswer = false, capti
   const rawContent = String(content || "");
   const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
   if (!safeContent.trim()) return null;
-  if (type === "clock" || type === "word_wall") {
+  if (type === "clock" || type === "word_wall" || type === "poll_results") {
     return { type, content: safeContent };
   }
   const mediaContent = displayContent(safeContent).trim();
