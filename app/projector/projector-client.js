@@ -1025,19 +1025,19 @@ export default function ProjectorClient({
     return () => window.clearInterval(id);
   }, []);
 
-  async function loadPolls({ silent = false } = {}) {
+  const loadPolls = useCallback(async ({ silent = false } = {}) => {
     try {
       const response = await fetch(`/api/projector/polls?_=${Date.now()}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not load polls.");
       setPollsSetupMissing(Boolean(payload.setupMissing));
-      setActivePoll(payload.activePoll || null);
-      setPollResults(payload.activeResults || null);
+      if (payload.activePoll || !activePollId) setActivePoll(payload.activePoll || null);
+      if (payload.activeResults || payload.activePoll || !activePollId) setPollResults(payload.activeResults || null);
       setRecentPolls(Array.isArray(payload.recentPolls) ? payload.recentPolls : []);
     } catch (error) {
       if (!silent) setMessage(error.message);
     }
-  }
+  }, [activePollId]);
 
   async function loadPollResults(pollId, { silent = false } = {}) {
     if (!pollId) return;
@@ -1055,7 +1055,7 @@ export default function ProjectorClient({
     loadPolls({ silent: true });
     const id = window.setInterval(() => loadPolls({ silent: true }), activePollId ? 1500 : 6000);
     return () => window.clearInterval(id);
-  }, [activePollId]);
+  }, [activePollId, loadPolls]);
 
   useEffect(() => {
     if (!session.id) return undefined;
@@ -1070,7 +1070,7 @@ export default function ProjectorClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activePollId, session.id]);
+  }, [activePollId, loadPolls, session.id]);
 
   async function loadProjectorSchedule({ silent = false } = {}) {
     try {
@@ -2694,9 +2694,9 @@ export default function ProjectorClient({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not launch poll.");
+      if (!payload.poll) throw new Error("Poll launched, but the dashboard did not receive the live poll payload.");
       setActivePoll(payload.poll || null);
       setPollResults(payload.results || null);
-      await loadPolls({ silent: true });
       setMessage(`Poll launched to ${pollLaunchDescription}.`);
     } catch (error) {
       setMessage(error.message);
