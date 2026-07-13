@@ -33,6 +33,26 @@ function normalizeScreenNumber(value) {
   return SCREEN_IDS.includes(screenNumber) ? screenNumber : null;
 }
 
+function normalizeAutopilotConfig(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const mode = ["items", "playlist", "word_wall", "clock"].includes(source.mode) ? source.mode : "clock";
+  const config = {
+    enabled: source.enabled === true,
+    mode,
+    intervalSeconds: Math.min(Math.max(Number.parseInt(source.intervalSeconds, 10) || 60, 10), 3600),
+    shuffle: source.shuffle === true,
+  };
+  if (mode === "items") {
+    config.itemIds = Array.isArray(source.itemIds)
+      ? source.itemIds.filter((id) => isUuid(id)).slice(0, 60)
+      : [];
+  }
+  if (mode === "playlist") config.playlistId = isUuid(source.playlistId) ? source.playlistId : "";
+  if (mode === "word_wall") config.wordListId = isUuid(source.wordListId) ? source.wordListId : "";
+  if (mode === "clock") config.showPeriod = source.showPeriod === true;
+  return config;
+}
+
 function normalizeSlots(value) {
   const source = Array.isArray(value) ? value : DEFAULT_SLOTS;
   const seenNames = new Set();
@@ -49,6 +69,7 @@ function normalizeSlots(value) {
       name,
       inputType: INPUT_TYPES.has(slot.inputType) ? slot.inputType : "display_only",
       enabled: slot.enabled !== false,
+      ...(slot.autopilot && typeof slot.autopilot === "object" ? { autopilot: normalizeAutopilotConfig(slot.autopilot) } : {}),
     });
   }
 

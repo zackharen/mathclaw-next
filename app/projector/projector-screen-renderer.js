@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -23,6 +23,49 @@ function ensureKatexAssets() {
 
 function isGif(content) {
   return /^data:image\/gif/i.test(content || "") || /\.gif(\?|#|$)/i.test(content || "");
+}
+
+function parseWidgetContent(content) {
+  try {
+    const parsed = JSON.parse(String(content || "{}"));
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function formatClockTime(date) {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatClockDate(date) {
+  return date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+}
+
+function ClockWidget({ content }) {
+  const settings = parseWidgetContent(content);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <div className="projectorScreenWidget projectorClockWidget">
+      <div className="projectorClockTime">{formatClockTime(now)}</div>
+      <div className="projectorClockDate">{formatClockDate(now)}</div>
+      {settings.periodName ? <div className="projectorClockPeriod">{settings.periodName}</div> : null}
+    </div>
+  );
+}
+
+function WordWallWidget({ content }) {
+  const word = useMemo(() => parseWidgetContent(content), [content]);
+  return (
+    <div className="projectorScreenWidget projectorWordWallWidget">
+      <div className="projectorWordWallWord">{word.word || "Word Wall"}</div>
+      {word.definition ? <div className="projectorWordWallDefinition">{word.definition}</div> : null}
+    </div>
+  );
 }
 
 function isEscapedLatexCharacter(source, index) {
@@ -259,6 +302,8 @@ function QuestionDisplay({ promptContent = "", promptType = "text", question, re
 function ProjectorScreenContentBody({ state }) {
   if (!state) return <div className="projectorWaiting">waiting for content</div>;
   const content = displayContent(state.content);
+  if (state.type === "clock") return <ClockWidget content={state.content} />;
+  if (state.type === "word_wall") return <WordWallWidget content={state.content} />;
   if (state.type === "text") {
     return <div className="projectorScreenText">{content}</div>;
   }

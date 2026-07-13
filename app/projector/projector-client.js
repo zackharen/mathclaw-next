@@ -453,7 +453,24 @@ function normalizeRoomSlots(slots) {
       ? slot.inputType
       : "display_only",
     enabled: slot?.enabled !== false,
+    ...(slot?.autopilot && typeof slot.autopilot === "object" ? { autopilot: normalizeAutopilotConfig(slot.autopilot) } : {}),
   }));
+}
+
+function normalizeAutopilotConfig(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const mode = ["items", "playlist", "word_wall", "clock"].includes(source.mode) ? source.mode : "clock";
+  const config = {
+    enabled: source.enabled === true,
+    mode,
+    intervalSeconds: Math.min(Math.max(Number.parseInt(source.intervalSeconds, 10) || 60, 10), 3600),
+    shuffle: source.shuffle === true,
+  };
+  if (mode === "items") config.itemIds = Array.isArray(source.itemIds) ? source.itemIds.map(String).filter(Boolean).slice(0, 60) : [];
+  if (mode === "playlist") config.playlistId = String(source.playlistId || "");
+  if (mode === "word_wall") config.wordListId = String(source.wordListId || "");
+  if (mode === "clock") config.showPeriod = source.showPeriod === true;
+  return config;
 }
 
 function screenIdsForRoom(room) {
@@ -472,6 +489,21 @@ function enabledScreenIdsForRoom(room) {
 function slotForScreen(room, screenId) {
   const slots = normalizeRoomSlots(room?.slots);
   return slots?.[Number(screenId) - 1] || null;
+}
+
+function autopilotConfigForScreen(room, screenId) {
+  return slotForScreen(room, screenId)?.autopilot || null;
+}
+
+function isAutopilotConfigured(room, screenId) {
+  return autopilotConfigForScreen(room, screenId)?.enabled === true;
+}
+
+function autopilotModeLabel(mode) {
+  if (mode === "items") return "Items";
+  if (mode === "playlist") return "Playlist";
+  if (mode === "word_wall") return "Word Wall";
+  return "Clock";
 }
 
 function libraryTypeLabel(item) {
@@ -600,7 +632,7 @@ export default function ProjectorClient({
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
-  const [openPanels, setOpenPanels] = useState({ workQueue: true, screens: true, scenes: false, library: false });
+  const [openPanels, setOpenPanels] = useState({ workQueue: true, wordWalls: false, screens: true, scenes: false, library: false });
   const [targetMode, setTargetMode] = useState("all");
   const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
   const [type, setType] = useState("text");
@@ -667,6 +699,12 @@ export default function ProjectorClient({
   const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
   const [dismissedScheduleKey, setDismissedScheduleKey] = useState("");
   const [schedulePrompt, setSchedulePrompt] = useState(null);
+  const [wordLists, setWordLists] = useState([]);
+  const [wordListsSetupMissing, setWordListsSetupMissing] = useState(false);
+  const [wordListDraftName, setWordListDraftName] = useState("");
+  const [wordListDraftEntries, setWordListDraftEntries] = useState([{ word: "", definition: "" }]);
+  const [autopilotRuntime, setAutopilotRuntime] = useState({});
+  const [autopilotConfigOpen, setAutopilotConfigOpen] = useState(null);
   const latexTextareaRef = useRef(null);
   const imageDragDepthRef = useRef(0);
   const playlistTimeoutRef = useRef(null);
@@ -676,16 +714,31 @@ export default function ProjectorClient({
   const playlistActionRef = useRef(false);
   const playlistStateRef = useRef(playlistState);
   const assignmentResolverRef = useRef(null);
+  const autopilotTimersRef = useRef({});
+  const autopilotRuntimeRef = useRef(autopilotRuntime);
 
   const screenTokens = session.screen_tokens || {};
   const roomScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
   const activeScreenIds = useMemo(() => enabledScreenIdsForRoom(activeRoom), [activeRoom]);
+  const configuredAutopilotScreenIds = useMemo(
+    () => activeScreenIds.filter((screenId) => isAutopilotConfigured(activeRoom, screenId)),
+    [activeRoom, activeScreenIds]
+  );
+  const runningAutopilotScreenIds = useMemo(
+    () =>
+      configuredAutopilotScreenIds.filter((screenId) => autopilotRuntime[screenId]?.status !== "paused"),
+    [autopilotRuntime, configuredAutopilotScreenIds]
+  );
+  const manualAllScreenIds = useMemo(
+    () => activeScreenIds.filter((screenId) => !runningAutopilotScreenIds.includes(screenId)),
+    [activeScreenIds, runningAutopilotScreenIds]
+  );
   const targetScreenIds = useMemo(
     () =>
       targetMode === "all"
-        ? activeScreenIds
+        ? manualAllScreenIds
         : selectedTargetScreens.filter((screenId) => activeScreenIds.includes(screenId)),
-    [activeScreenIds, selectedTargetScreens, targetMode]
+    [activeScreenIds, manualAllScreenIds, selectedTargetScreens, targetMode]
   );
   const targetSummary = screenTargetSummary(targetScreenIds, targetMode);
   const targetDescription = describeScreenTargets(targetScreenIds, targetMode);
@@ -801,6 +854,7 @@ export default function ProjectorClient({
               type: state.type,
               content: state.content || "",
               topText: state.topText || "",
+              caption: state.caption || "",
               revealAnswer: Boolean(state.revealAnswer),
             }
           : null;
@@ -893,6 +947,22 @@ export default function ProjectorClient({
     loadProjectorSchedule({ silent: true });
     const id = window.setInterval(() => loadProjectorSchedule({ silent: true }), 60000);
     return () => window.clearInterval(id);
+  }, []);
+
+  async function loadWordLists({ silent = false } = {}) {
+    try {
+      const response = await fetch("/api/projector?action=word-lists", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load Word Wall lists.");
+      setWordLists(Array.isArray(payload.wordLists) ? payload.wordLists : []);
+      setWordListsSetupMissing(Boolean(payload.setupMissing));
+    } catch (error) {
+      if (!silent) setMessage(error.message);
+    }
+  }
+
+  useEffect(() => {
+    loadWordLists({ silent: true });
   }, []);
 
   useEffect(() => {
@@ -995,6 +1065,7 @@ export default function ProjectorClient({
           playlistCountdownRef.current = null;
         }
         clearTimedRotationTimer();
+        clearAllAutopilotTimers();
         setPlaylistState((current) => ({
           ...current,
           status: "idle",
@@ -1005,6 +1076,7 @@ export default function ProjectorClient({
           targetScreens: [],
         }));
         setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
+        setAutopilotRuntime({});
         setMessage("Playlist stopped because the active Room changed.");
       }
     }
@@ -1029,11 +1101,16 @@ export default function ProjectorClient({
   useEffect(() => () => {
     clearPlaylistTimers();
     clearTimedRotationTimer();
+    clearAllAutopilotTimers();
   }, []);
 
   useEffect(() => {
     playlistStateRef.current = playlistState;
   }, [playlistState]);
+
+  useEffect(() => {
+    autopilotRuntimeRef.current = autopilotRuntime;
+  }, [autopilotRuntime]);
 
   useEffect(() => {
     function updatePlaylists(event) {
@@ -1056,7 +1133,7 @@ export default function ProjectorClient({
         return;
       }
       setPlaylistStartPrompt(playlist);
-      setPlaylistTargetScreens(activeScreenIds);
+      setPlaylistTargetScreens(manualAllScreenIds);
     }
 
     window.addEventListener("projector:playlists-updated", updatePlaylists);
@@ -1067,7 +1144,7 @@ export default function ProjectorClient({
       window.removeEventListener("projector:open-playlists", openPlaylists);
       window.removeEventListener("projector:play-playlist", playPlaylistFromLibrary);
     };
-  }, [activeScreenIds]);
+  }, [manualAllScreenIds]);
 
   useEffect(() => {
     if (targetMode === "all") return;
@@ -1082,18 +1159,40 @@ export default function ProjectorClient({
 
   useEffect(() => {
     setPlaylistTargetScreens((current) => {
-      const next = current.filter((screenId) => activeScreenIds.includes(screenId));
+      const next = current.filter((screenId) => manualAllScreenIds.includes(screenId));
       return next.length === current.length ? current : next;
     });
-  }, [activeScreenIds]);
+  }, [manualAllScreenIds]);
 
   useEffect(() => {
-    if (timedRotation.status === "running" && activeScreenIds.length < 2) {
+    if (timedRotation.status === "running" && manualAllScreenIds.length < 2) {
       clearTimedRotationTimer();
       setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
       setMessage("Timed screen rotation stopped because fewer than two screens are active.");
     }
-  }, [activeScreenIds.length, timedRotation.status]);
+  }, [manualAllScreenIds.length, timedRotation.status]);
+
+  useEffect(() => {
+    const configuredIds = new Set(configuredAutopilotScreenIds);
+    Object.keys(autopilotTimersRef.current).forEach((screenId) => {
+      if (!configuredIds.has(screenId)) clearAutopilotTimer(screenId);
+    });
+    setAutopilotRuntime((current) => {
+      const next = {};
+      configuredAutopilotScreenIds.forEach((screenId) => {
+        if (current[screenId]?.status === "paused") next[screenId] = current[screenId];
+      });
+      return next;
+    });
+    configuredAutopilotScreenIds.forEach((screenId) => {
+      if (autopilotRuntimeRef.current[screenId]?.status === "paused") return;
+      clearAutopilotTimer(screenId);
+      window.setTimeout(() => runAutopilotStep(screenId, { force: true }), 0);
+    });
+    return () => {
+      configuredAutopilotScreenIds.forEach(clearAutopilotTimer);
+    };
+  }, [activeRoom, configuredAutopilotScreenIds, library, playlists, scheduleBlocks, wordLists]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -1113,6 +1212,7 @@ export default function ProjectorClient({
                 type: payload.type,
                 content: payload.content || "",
                 topText: payload.topText || "",
+                caption: payload.caption || "",
                 revealAnswer: Boolean(payload.revealAnswer),
               }
             : null,
@@ -1217,6 +1317,7 @@ export default function ProjectorClient({
       if (!response.ok) throw new Error(payload.error || "Could not switch Rooms.");
       clearPlaylistTimers();
       clearTimedRotationTimer();
+      clearAllAutopilotTimers();
       setActiveRoom(payload.room);
       setLoadedScene(null);
       setTakeoverState(null);
@@ -1230,6 +1331,7 @@ export default function ProjectorClient({
         targetScreens: [],
       }));
       setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
+      setAutopilotRuntime({});
       setSchedulePrompt(null);
       window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room: payload.room, source: "schedule-prompt" } }));
       setMessage(`Active Room: ${payload.room?.name || schedulePrompt.roomName}.`);
@@ -1238,6 +1340,226 @@ export default function ProjectorClient({
     } finally {
       setSending(false);
     }
+  }
+
+  function currentPeriodName() {
+    const block = findCurrentScheduleBlock(scheduleBlocks);
+    if (!block || block.roomId !== activeRoom?.id) return "";
+    return scheduleBlockName(block);
+  }
+
+  function autopilotItemStates(config) {
+    if (config.mode === "clock") {
+      return [{ state: { type: "clock", content: JSON.stringify({ periodName: config.showPeriod ? currentPeriodName() : "" }) }, label: "Clock" }];
+    }
+    if (config.mode === "word_wall") {
+      const list = wordLists.find((candidate) => candidate.id === config.wordListId);
+      return (list?.entries || []).map((entry) => ({
+        state: { type: "word_wall", content: JSON.stringify({ word: entry.word, definition: entry.definition || "" }) },
+        label: entry.word,
+      }));
+    }
+    if (config.mode === "items") {
+      const ids = Array.isArray(config.itemIds) ? config.itemIds : [];
+      return ids
+        .map((itemId) => library.find((item) => item.id === itemId))
+        .filter(Boolean)
+        .map((item) => ({
+          state: { type: item.content_type, content: item.content },
+          label: item.title || libraryTypeLabel(item),
+        }));
+    }
+    if (config.mode === "playlist") {
+      const playlist = playlists.find((candidate) => candidate.id === config.playlistId);
+      return normalizePlaylistEntries(playlist?.entries)
+        .filter((entry) => entry.type === "item")
+        .map((entry) => library.find((item) => item.id === entry.refId))
+        .filter(Boolean)
+        .map((item) => ({
+          state: { type: item.content_type, content: item.content },
+          label: item.title || libraryTypeLabel(item),
+        }));
+    }
+    return [];
+  }
+
+  function clearAutopilotTimer(screenId) {
+    if (autopilotTimersRef.current[screenId]) {
+      window.clearTimeout(autopilotTimersRef.current[screenId]);
+      delete autopilotTimersRef.current[screenId];
+    }
+  }
+
+  function clearAllAutopilotTimers() {
+    Object.keys(autopilotTimersRef.current).forEach(clearAutopilotTimer);
+  }
+
+  async function sendAutopilotState(screenId, state) {
+    const response = await fetch("/api/projector", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "push", screenIds: [screenId], type: state.type, content: state.content }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Could not advance Autopilot.");
+    if (payload.screenStates) applyScreenStates(payload.screenStates);
+  }
+
+  async function runAutopilotStep(screenId, options = {}) {
+    const config = autopilotConfigForScreen(activeRoom, screenId);
+    if (!config?.enabled || !activeScreenIds.includes(screenId)) return;
+    const currentRuntime = autopilotRuntimeRef.current[screenId];
+    if (currentRuntime?.status === "paused" && !options.force) return;
+    const entries = autopilotItemStates(config);
+    if (!entries.length) {
+      clearAutopilotTimer(screenId);
+      setAutopilotRuntime((current) => ({
+        ...current,
+        [screenId]: { status: "blocked", mode: config.mode, label: "Needs content", index: 0 },
+      }));
+      return;
+    }
+    const currentIndex = Number.isInteger(currentRuntime?.index) ? currentRuntime.index : -1;
+    const nextIndex = config.shuffle
+      ? Math.floor(Math.random() * entries.length)
+      : (currentIndex + 1 + entries.length) % entries.length;
+    const entry = entries[nextIndex];
+    try {
+      await sendAutopilotState(screenId, entry.state);
+      setAutopilotRuntime((current) => ({
+        ...current,
+        [screenId]: { status: "running", mode: config.mode, label: entry.label, index: nextIndex },
+      }));
+      clearAutopilotTimer(screenId);
+      const intervalSeconds = config.mode === "clock" ? 60 : config.intervalSeconds;
+      autopilotTimersRef.current[screenId] = window.setTimeout(() => {
+        runAutopilotStep(screenId);
+      }, intervalSeconds * 1000);
+    } catch (error) {
+      clearAutopilotTimer(screenId);
+      setAutopilotRuntime((current) => ({
+        ...current,
+        [screenId]: { status: "paused", mode: config.mode, label: error.message, index: currentIndex },
+      }));
+      setMessage(error.message);
+    }
+  }
+
+  function pauseAutopilotScreens(screenIds, reason = "") {
+    const ids = screenIds.filter((screenId) => isAutopilotConfigured(activeRoom, screenId));
+    if (!ids.length) return;
+    ids.forEach(clearAutopilotTimer);
+    setAutopilotRuntime((current) => {
+      const next = { ...current };
+      ids.forEach((screenId) => {
+        const config = autopilotConfigForScreen(activeRoom, screenId);
+        next[screenId] = {
+          status: "paused",
+          mode: config?.mode || current[screenId]?.mode || "clock",
+          label: current[screenId]?.label || "Paused",
+          index: Number.isInteger(current[screenId]?.index) ? current[screenId].index : -1,
+        };
+      });
+      return next;
+    });
+    if (reason) setMessage(reason);
+  }
+
+  function resumeAutopilotScreen(screenId) {
+    if (!isAutopilotConfigured(activeRoom, screenId)) return;
+    setAutopilotRuntime((current) => ({
+      ...current,
+      [screenId]: { ...(current[screenId] || {}), status: "running" },
+    }));
+    window.setTimeout(() => runAutopilotStep(screenId, { force: true }), 0);
+  }
+
+  async function saveActiveRoomAutopilot(screenId, config) {
+    if (!activeRoom?.id || activeRoom.id === "default") {
+      setMessage("Rooms are not ready for Autopilot yet.");
+      return;
+    }
+    setSending(true);
+    setMessage("");
+    try {
+      const normalizedConfig = normalizeAutopilotConfig(config);
+      if (normalizedConfig.enabled && normalizedConfig.mode === "playlist") {
+        const playlist = playlists.find((candidate) => candidate.id === normalizedConfig.playlistId);
+        const entries = normalizePlaylistEntries(playlist?.entries);
+        if (entries.some((entry) => entry.type === "scene")) {
+          throw new Error("Autopilot playlists can only use saved item entries. Remove room setup entries before saving.");
+        }
+      }
+      const slots = normalizeRoomSlots(activeRoom.slots).map((slot, index) =>
+        String(index + 1) === String(screenId)
+          ? { ...slot, autopilot: normalizedConfig }
+          : slot
+      );
+      const response = await fetch("/api/projector/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-room", roomId: activeRoom.id, name: activeRoom.name, slots }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not save Autopilot.");
+      setActiveRoom(payload.room);
+      window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room: payload.room, source: "autopilot" } }));
+      setAutopilotConfigOpen(null);
+      setMessage(normalizedConfig.enabled ? `Autopilot saved for screen ${screenId}.` : `Autopilot turned off for screen ${screenId}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function saveWordList() {
+    setSending(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-word-list",
+          name: wordListDraftName,
+          entries: wordListDraftEntries,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not save Word Wall list.");
+      setWordLists((current) => [payload.wordList, ...current.filter((list) => list.id !== payload.wordList.id)]);
+      setWordListDraftName("");
+      setWordListDraftEntries([{ word: "", definition: "" }]);
+      setMessage(`Saved Word Wall list "${payload.wordList.name}".`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function updateWordListDraftEntry(index, patch) {
+    setWordListDraftEntries((current) =>
+      current.map((entry, entryIndex) => (entryIndex === index ? { ...entry, ...patch } : entry))
+    );
+  }
+
+  function addWordListDraftEntry() {
+    setWordListDraftEntries((current) => [...current, { word: "", definition: "" }]);
+  }
+
+  function defaultAutopilotConfig(existing) {
+    return normalizeAutopilotConfig(existing || { enabled: false, mode: "clock", intervalSeconds: 60 });
+  }
+
+  function updateAutopilotDraft(screenId, patch) {
+    setAutopilotConfigOpen((current) => {
+      const base = current?.screenId === screenId
+        ? current.config
+        : defaultAutopilotConfig(autopilotConfigForScreen(activeRoom, screenId));
+      return { screenId, config: normalizeAutopilotConfig({ ...base, ...patch }) };
+    });
   }
 
   function dismissSchedulePrompt() {
@@ -2004,6 +2326,7 @@ export default function ProjectorClient({
   async function sendContent() {
     pausePlaylistForManualAction();
     stopTimedRotationForManualAction();
+    if (targetMode === "custom") pauseAutopilotScreens(targetScreenIds, "Autopilot paused for your manual change.");
     setSending(true);
     setMessage("");
     const state = currentComposerState();
@@ -2050,6 +2373,7 @@ export default function ProjectorClient({
     const caption = showWorkCaption ? workEntryCaption(entry) : "";
     pausePlaylistForManualAction();
     stopTimedRotationForManualAction();
+    if (targetMode === "custom") pauseAutopilotScreens(targetScreenIds, "Autopilot paused for your manual change.");
     setWorkQueueBusy(true);
     setMessage("");
     try {
@@ -2191,7 +2515,7 @@ export default function ProjectorClient({
   }
 
   function openTimedRotationPrompt() {
-    if (activeScreenIds.length < 2) {
+    if (manualAllScreenIds.length < 2) {
       setMessage("Turn on at least two active screens before starting timed rotation.");
       return;
     }
@@ -2201,7 +2525,7 @@ export default function ProjectorClient({
   async function startTimedRotation() {
     const intervalSeconds = Math.min(Math.max(Number(rotationIntervalSeconds) || 15, 3), 3600);
     const direction = rotationDirection === "backward" ? "backward" : "forward";
-    if (activeScreenIds.length < 2) {
+    if (manualAllScreenIds.length < 2) {
       setMessage("Turn on at least two active screens before starting timed rotation.");
       return;
     }
@@ -2233,6 +2557,7 @@ export default function ProjectorClient({
   }
 
   async function toggleRevealAnswer(screenId) {
+    pauseAutopilotScreens([screenId], "Autopilot paused for your manual change.");
     setSending(true);
     setMessage("");
     try {
@@ -2261,6 +2586,7 @@ export default function ProjectorClient({
   async function clearScreens() {
     pausePlaylistForManualAction();
     stopTimedRotationForManualAction();
+    if (targetMode === "custom") pauseAutopilotScreens(targetScreenIds, "Autopilot paused for your manual change.");
     setSending(true);
     setMessage("");
     try {
@@ -2302,7 +2628,7 @@ export default function ProjectorClient({
       return;
     }
     setPlaylistStartPrompt(playlist);
-    setPlaylistTargetScreens(activeScreenIds);
+    setPlaylistTargetScreens(manualAllScreenIds);
   }
 
   function togglePlaylistTarget(screenId) {
@@ -2316,7 +2642,7 @@ export default function ProjectorClient({
   }
 
   function chooseAllPlaylistTargets() {
-    setPlaylistTargetScreens(activeScreenIds);
+    setPlaylistTargetScreens(manualAllScreenIds);
   }
 
   function promptForPlaylistAssignment(scene, playlistName) {
@@ -2330,7 +2656,7 @@ export default function ProjectorClient({
           screenId,
           state: scene.screen_states?.[screenId] || null,
         })),
-        roomScreens: activeScreenIds,
+        roomScreens: manualAllScreenIds,
       });
       setAssignments({});
       setMessage(`"${playlistName}" needs a screen assignment for "${scene.title}" before it can play.`);
@@ -2343,7 +2669,7 @@ export default function ProjectorClient({
       if (entry.type !== "scene" || assignmentsBySceneId[entry.refId]) continue;
       const scene = scenes.find((candidate) => candidate.id === entry.refId);
       if (!scene) throw new Error("One playlist scene is missing from your saved scenes.");
-      if (sceneSavedScreenIds(scene).length <= activeScreenIds.length) continue;
+      if (sceneSavedScreenIds(scene).length <= manualAllScreenIds.length) continue;
       const sceneAssignments = await promptForPlaylistAssignment(scene, playlistName);
       if (!sceneAssignments) return null;
       assignmentsBySceneId[scene.id] = sceneAssignments;
@@ -2863,9 +3189,14 @@ export default function ProjectorClient({
               const takeoverSource = takeoverState?.sourceScreenId === screenId;
               const takeoverMirrored = Boolean(takeoverState && takeoverState.activeScreenIds.includes(screenId));
               const displayState = screenStateForDisplay(screenId);
+              const autopilotConfig = autopilotConfigForScreen(activeRoom, screenId);
+              const autopilotRunning = autopilotConfig?.enabled && autopilotRuntime[screenId]?.status !== "paused";
+              const autopilotDraft = autopilotConfigOpen?.screenId === screenId
+                ? autopilotConfigOpen.config
+                : defaultAutopilotConfig(autopilotConfig);
               return (
                 <article
-                  className={`projectorScreenCard${isEnabled ? "" : " isInactive"}${takeoverSource ? " isTakeoverSource" : ""}${takeoverMirrored && !takeoverSource ? " isTakeoverMirror" : ""}`}
+                  className={`projectorScreenCard${isEnabled ? "" : " isInactive"}${takeoverSource ? " isTakeoverSource" : ""}${takeoverMirrored && !takeoverSource ? " isTakeoverMirror" : ""}${autopilotConfig?.enabled ? " isAutopilot" : ""}`}
                   key={screenId}
                 >
                   <div className="projectorScreenCardHeader">
@@ -2874,6 +3205,11 @@ export default function ProjectorClient({
                       <span className={`projectorScreenActiveTag${isEnabled ? "" : " isInactive"}`}>
                         {isEnabled ? "Active" : "Inactive"}
                       </span>
+                      {autopilotConfig?.enabled ? (
+                        <span className="projectorScreenAutopilotTag">
+                          Autopilot {autopilotRunning ? "On" : "Paused"}
+                        </span>
+                      ) : null}
                       <button
                         className="projectorScreenEdit"
                         type="button"
@@ -2885,6 +3221,158 @@ export default function ProjectorClient({
                     </div>
                     <span>{displayState?.type || "empty"}</span>
                   </div>
+                  {autopilotConfig?.enabled ? (
+                    <div className="projectorAutopilotStatus">
+                      <strong>{autopilotModeLabel(autopilotRuntime[screenId]?.mode || autopilotConfig.mode)}</strong>
+                      <span>{autopilotRuntime[screenId]?.label || (autopilotRunning ? "Starting" : "Paused")}</span>
+                      {autopilotRuntime[screenId]?.status === "paused" ? (
+                        <button type="button" onClick={() => resumeAutopilotScreen(screenId)} disabled={sending || takeoverMirrored}>
+                          Resume
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => pauseAutopilotScreens([screenId], `Autopilot paused on screen ${screenId}.`)} disabled={sending}>
+                          Pause
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
+                  <button
+                    className="btn secondary projectorAutopilotConfigButton"
+                    type="button"
+                    onClick={() =>
+                      setAutopilotConfigOpen((current) =>
+                        current?.screenId === screenId
+                          ? null
+                          : { screenId, config: defaultAutopilotConfig(autopilotConfig) }
+                      )
+                    }
+                    disabled={!isEnabled || sending}
+                  >
+                    Autopilot
+                  </button>
+                  {autopilotConfigOpen?.screenId === screenId ? (
+                    <div className="projectorAutopilotPanel">
+                      <label className="projectorCheckboxLine">
+                        <input
+                          type="checkbox"
+                          checked={autopilotDraft.enabled}
+                          onChange={(event) => updateAutopilotDraft(screenId, { enabled: event.target.checked })}
+                        />
+                        <span>Run when this screen is idle</span>
+                      </label>
+                      <label>
+                        Mode
+                        <select
+                          value={autopilotDraft.mode}
+                          onChange={(event) => updateAutopilotDraft(screenId, { mode: event.target.value })}
+                        >
+                          <option value="clock">Clock</option>
+                          <option value="items">Saved Items</option>
+                          <option value="playlist">Saved Playlist</option>
+                          {!wordListsSetupMissing ? <option value="word_wall">Word Wall</option> : null}
+                        </select>
+                      </label>
+                      {autopilotDraft.mode === "items" ? (
+                        <div className="projectorAutopilotPicker">
+                          <label>
+                            Interval
+                            <input
+                              type="number"
+                              min="10"
+                              max="3600"
+                              value={autopilotDraft.intervalSeconds}
+                              onChange={(event) => updateAutopilotDraft(screenId, { intervalSeconds: event.target.value })}
+                            />
+                          </label>
+                          <label className="projectorCheckboxLine">
+                            <input
+                              type="checkbox"
+                              checked={autopilotDraft.shuffle}
+                              onChange={(event) => updateAutopilotDraft(screenId, { shuffle: event.target.checked })}
+                            />
+                            <span>Shuffle</span>
+                          </label>
+                          <div className="projectorAutopilotChecklist">
+                            {library.slice(0, 40).map((item) => {
+                              const checked = (autopilotDraft.itemIds || []).includes(item.id);
+                              return (
+                                <label key={item.id}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(event) => {
+                                      const current = autopilotDraft.itemIds || [];
+                                      updateAutopilotDraft(screenId, {
+                                        itemIds: event.target.checked
+                                          ? [...current, item.id]
+                                          : current.filter((id) => id !== item.id),
+                                      });
+                                    }}
+                                  />
+                                  <span>{item.title}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                      {autopilotDraft.mode === "playlist" ? (
+                        <div className="projectorAutopilotPicker">
+                          <label>
+                            Playlist
+                            <select
+                              value={autopilotDraft.playlistId || ""}
+                              onChange={(event) => updateAutopilotDraft(screenId, { playlistId: event.target.value })}
+                            >
+                              <option value="">Choose a playlist</option>
+                              {playlists.map((playlist) => (
+                                <option key={playlist.id} value={playlist.id}>
+                                  {playlist.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <p>Only saved item entries can run in Autopilot.</p>
+                        </div>
+                      ) : null}
+                      {autopilotDraft.mode === "word_wall" ? (
+                        <div className="projectorAutopilotPicker">
+                          <label>
+                            Word list
+                            <select
+                              value={autopilotDraft.wordListId || ""}
+                              onChange={(event) => updateAutopilotDraft(screenId, { wordListId: event.target.value })}
+                            >
+                              <option value="">Choose a list</option>
+                              {wordLists.map((list) => (
+                                <option key={list.id} value={list.id}>
+                                  {list.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      ) : null}
+                      {autopilotDraft.mode === "clock" ? (
+                        <label className="projectorCheckboxLine">
+                          <input
+                            type="checkbox"
+                            checked={autopilotDraft.showPeriod}
+                            onChange={(event) => updateAutopilotDraft(screenId, { showPeriod: event.target.checked })}
+                          />
+                          <span>Show current schedule block</span>
+                        </label>
+                      ) : null}
+                      <div className="projectorAutopilotActions">
+                        <button className="btn" type="button" onClick={() => saveActiveRoomAutopilot(screenId, autopilotDraft)} disabled={sending}>
+                          Save
+                        </button>
+                        <button className="btn secondary" type="button" onClick={() => setAutopilotConfigOpen(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   <ProjectorReceiverPreview enabled={isEnabled} state={displayState} />
                   {isQuestionState(screenStates?.[screenId]) ? (
                     <button
@@ -3077,6 +3565,62 @@ export default function ProjectorClient({
                 </div>
               ) : null}
             </section>
+          ) : null}
+          {!wordListsSetupMissing ? (
+            <SidebarPanel
+              ariaLabel="Word Wall lists"
+              className="projectorWordWallPanel"
+              count={wordLists.length}
+              eyebrow="Autopilot"
+              onToggle={() => togglePanel("wordWalls")}
+              open={openPanels.wordWalls}
+              title="Word Wall"
+            >
+              <div className="projectorWordWallEditor">
+                <label>
+                  List name
+                  <input
+                    type="text"
+                    value={wordListDraftName}
+                    onChange={(event) => setWordListDraftName(event.target.value)}
+                    placeholder="Unit vocabulary"
+                  />
+                </label>
+                {wordListDraftEntries.map((entry, index) => (
+                  <div className="projectorWordWallRow" key={index}>
+                    <input
+                      type="text"
+                      value={entry.word}
+                      onChange={(event) => updateWordListDraftEntry(index, { word: event.target.value })}
+                      placeholder="Word"
+                    />
+                    <input
+                      type="text"
+                      value={entry.definition}
+                      onChange={(event) => updateWordListDraftEntry(index, { definition: event.target.value })}
+                      placeholder="Definition"
+                    />
+                  </div>
+                ))}
+                <div className="projectorAutopilotActions">
+                  <button className="btn secondary" type="button" onClick={addWordListDraftEntry}>
+                    Add Word
+                  </button>
+                  <button className="btn" type="button" onClick={saveWordList} disabled={sending}>
+                    Save List
+                  </button>
+                </div>
+                {wordLists.length ? (
+                  <div className="projectorWordWallSaved">
+                    {wordLists.slice(0, 6).map((list) => (
+                      <span key={list.id}>{list.name}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="projectorLibraryEmpty">No Word Wall lists yet.</p>
+                )}
+              </div>
+            </SidebarPanel>
           ) : null}
           {!playlistsSetupMissing ? (
             <section className="projectorLibrary projectorPlaylistsLauncher" aria-label="Projector Playlists">

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const DEFAULT_SCREEN_IDS = ["1", "2", "3", "4"];
-const CONTENT_TYPES = new Set(["text", "latex", "image", "video"]);
+const CONTENT_TYPES = new Set(["text", "latex", "image", "video", "clock", "word_wall"]);
 const LIBRARY_CATEGORIES = new Set(["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"]);
 const LIBRARY_TITLE_LIMIT = 80;
 const LIBRARY_CONTENT_LIMIT = 8 * 1024 * 1024;
@@ -45,8 +45,34 @@ function normalizeRoomSlots(value) {
         ? slot.inputType
         : "display_only",
       enabled: slot?.enabled !== false,
+      ...(slot?.autopilot && typeof slot.autopilot === "object" ? { autopilot: normalizeAutopilotConfig(slot.autopilot) } : {}),
     }))
     .filter((slot, index, slots) => slots.findIndex((item) => item.name.toLowerCase() === slot.name.toLowerCase()) === index);
+}
+
+function normalizeAutopilotConfig(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const mode = ["items", "playlist", "word_wall", "clock"].includes(source.mode) ? source.mode : "clock";
+  const intervalSeconds = Math.min(Math.max(Number.parseInt(source.intervalSeconds, 10) || 60, 10), 3600);
+  const config = {
+    enabled: source.enabled === true,
+    mode,
+    intervalSeconds,
+    shuffle: source.shuffle === true,
+  };
+  if (mode === "items") {
+    config.itemIds = Array.isArray(source.itemIds) ? source.itemIds.filter(isUuid).slice(0, 60) : [];
+  }
+  if (mode === "playlist") {
+    config.playlistId = isUuid(source.playlistId) ? source.playlistId : "";
+  }
+  if (mode === "word_wall") {
+    config.wordListId = isUuid(source.wordListId) ? source.wordListId : "";
+  }
+  if (mode === "clock") {
+    config.showPeriod = source.showPeriod === true;
+  }
+  return config;
 }
 
 function roomScreenIds(room) {
@@ -59,6 +85,13 @@ function enabledRoomScreenIds(room) {
   const source = slots.length ? slots : DEFAULT_SCREEN_IDS.map(() => ({ enabled: true }));
   return source
     .map((slot, index) => (slot.enabled === false ? null : String(index + 1)))
+    .filter(Boolean);
+}
+
+function autopilotRoomScreenIds(room) {
+  const slots = normalizeRoomSlots(room?.slots);
+  return slots
+    .map((slot, index) => (slot.enabled !== false && slot.autopilot?.enabled ? String(index + 1) : null))
     .filter(Boolean);
 }
 
@@ -85,9 +118,12 @@ async function getActiveRoomScreenIds(admin, teacherId) {
   return roomScreenIds(room);
 }
 
-async function getEnabledActiveRoomScreenIds(admin, teacherId) {
+async function getEnabledActiveRoomScreenIds(admin, teacherId, options = {}) {
   const room = await getActiveRoom(admin, teacherId);
-  return enabledRoomScreenIds(room);
+  const enabledIds = enabledRoomScreenIds(room);
+  if (!options.excludeAutopilot) return enabledIds;
+  const autopilotIds = new Set(autopilotRoomScreenIds(room));
+  return enabledIds.filter((screenId) => !autopilotIds.has(screenId));
 }
 
 function normalizeTopText(type, topText, content = "") {
@@ -123,6 +159,9 @@ function normalizeState(type, content, topText = "", revealAnswer = false, capti
   const rawContent = String(content || "");
   const safeContent = type === "text" || type === "latex" ? rawContent : rawContent.trim();
   if (!safeContent.trim()) return null;
+  if (type === "clock" || type === "word_wall") {
+    return { type, content: safeContent };
+  }
   const mediaContent = displayContent(safeContent).trim();
   if (type === "video" && mediaContent.startsWith("data:")) return null;
   if (type === "video" && /\.(mov|avi|wmv|mkv)(\?|#|$)/i.test(mediaContent)) return null;
@@ -211,7 +250,7 @@ function normalizeSceneStates(value) {
   const source = value && typeof value === "object" ? value : {};
   return SCREEN_IDS.reduce((states, screenId) => {
     const state = source[screenId];
-    states[screenId] = state ? normalizeState(state.type, state.content, state.topText, state.revealAnswer) : null;
+    states[screenId] = state ? normalizeState(state.type, state.content, state.topText, state.revealAnswer, state.caption) : null;
     return states;
   }, {});
 }
@@ -266,6 +305,27 @@ function normalizeSceneFolder(row) {
   return {
     id: row.id,
     title: row.title,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function normalizeWordListEntries(entries) {
+  const source = Array.isArray(entries) ? entries : [];
+  return source
+    .map((entry) => ({
+      word: String(entry?.word || "").trim().replace(/\s+/g, " ").slice(0, 80),
+      definition: String(entry?.definition || "").trim().replace(/\s+/g, " ").slice(0, 240),
+    }))
+    .filter((entry) => entry.word)
+    .slice(0, 200);
+}
+
+function normalizeWordList(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    entries: normalizeWordListEntries(row.entries),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -336,7 +396,7 @@ async function persistScreenStates(admin, session, teacherId, screenStates, broa
 
 function buildBroadcastPayload(screenId, state) {
   if (!state) return { screenId, type: null, content: null };
-  if (state.type === "image") {
+  if (state.type === "image" && !state.caption) {
     return { screenId, type: state.type, refetch: true };
   }
   return {
@@ -344,6 +404,7 @@ function buildBroadcastPayload(screenId, state) {
     type: state.type,
     content: state.content,
     topText: state.topText || "",
+    caption: state.caption || "",
     revealAnswer: Boolean(state.revealAnswer),
   };
 }
@@ -465,6 +526,62 @@ async function listScenes(admin, teacherId) {
     scenes: (data || []).map(normalizeSceneItem),
     folders: (folderData || []).map(normalizeSceneFolder),
   });
+}
+
+async function listWordLists(admin, teacherId) {
+  const { data, error } = await admin
+    .from("projector_word_lists")
+    .select("id, name, entries, created_at, updated_at")
+    .eq("teacher_id", teacherId)
+    .order("updated_at", { ascending: false })
+    .limit(60);
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return NextResponse.json({ wordLists: [], setupMissing: true });
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ wordLists: (data || []).map(normalizeWordList) });
+}
+
+async function saveWordList(admin, teacherId, body) {
+  const name = String(body.name || "").trim().replace(/\s+/g, " ").slice(0, LIBRARY_TITLE_LIMIT);
+  const entries = normalizeWordListEntries(body.entries);
+  if (!name) return jsonError("Name the word list before saving it.");
+  if (!entries.length) return jsonError("Add at least one word before saving the list.");
+
+  const wordListId = String(body.wordListId || "");
+  const query = isUuid(wordListId)
+    ? admin
+        .from("projector_word_lists")
+        .update({ name, entries, updated_at: new Date().toISOString() })
+        .eq("id", wordListId)
+        .eq("teacher_id", teacherId)
+    : admin.from("projector_word_lists").insert({ teacher_id: teacherId, name, entries });
+
+  const { data, error } = await query.select("id, name, entries, created_at, updated_at").single();
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return jsonError("Projector word lists are not set up yet.", 503);
+    }
+    return jsonError(error.message, 500);
+  }
+
+  return NextResponse.json({ wordList: normalizeWordList(data) });
+}
+
+async function deleteWordList(admin, teacherId, body) {
+  const wordListId = String(body.wordListId || "");
+  if (!isUuid(wordListId)) return jsonError("Choose a word list to delete.");
+  const { error } = await admin
+    .from("projector_word_lists")
+    .delete()
+    .eq("id", wordListId)
+    .eq("teacher_id", teacherId);
+  if (error) return jsonError(error.message, 500);
+  return NextResponse.json({ ok: true });
 }
 
 async function saveLibraryItem(admin, teacherId, body) {
@@ -925,7 +1042,7 @@ async function loadScene(admin, teacherId, session, body) {
   const sceneScreenIds = Object.keys(rawSceneStates)
     .filter((screenId) => SCREEN_IDS.includes(screenId))
     .sort((left, right) => Number(left) - Number(right));
-  const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, teacherId);
+  const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, teacherId, { excludeAutopilot: true });
   if (!activeScreenIds.length) return jsonError("A Room needs at least one active screen.");
   let screenStates = {};
 
@@ -1063,6 +1180,13 @@ export async function GET(request) {
     return listScenes(admin, context.user.id);
   }
 
+  if (action === "word-lists") {
+    const supabase = await createClient();
+    const context = await getTeacherSession(admin, supabase);
+    if (context.error) return context.error;
+    return listWordLists(admin, context.user.id);
+  }
+
   const token = String(searchParams.get("token") || "").trim();
   if (!token) return jsonError("Missing projector token.");
 
@@ -1103,6 +1227,14 @@ export async function POST(request) {
 
   if (body?.action === "rename-library-item") {
     return renameLibraryItem(admin, context.user.id, body);
+  }
+
+  if (body?.action === "save-word-list") {
+    return saveWordList(admin, context.user.id, body);
+  }
+
+  if (body?.action === "delete-word-list") {
+    return deleteWordList(admin, context.user.id, body);
   }
 
   if (body?.action === "create-scene-folder") {
@@ -1159,7 +1291,7 @@ export async function POST(request) {
   if (body?.action === "reveal-answer") {
     const screenId = normalizeScreenNumber(body.screenId);
     if (!screenId) return jsonError("Choose a screen number from 1 to 12.");
-    const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
+    const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id, { excludeAutopilot: true });
     if (!enabledScreenIds.includes(screenId)) return jsonError("Inactive screens cannot receive new actions.");
     const restored = restoreTakeoverState(sessionScreenStates(context.session));
     const current = restored.screenStates;
@@ -1181,7 +1313,7 @@ export async function POST(request) {
   }
 
   if (body?.action === "rotate-screens") {
-    const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id);
+    const activeScreenIds = await getEnabledActiveRoomScreenIds(admin, context.user.id, { excludeAutopilot: true });
     if (!activeScreenIds.length) return jsonError("A Room needs at least one active screen.");
     const restored = restoreTakeoverState(sessionScreenStates(context.session));
     const current = restored.screenStates;

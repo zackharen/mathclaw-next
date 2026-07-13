@@ -164,6 +164,7 @@ export default function ScreenClient({ initialToken = null }) {
                 type: payload.type,
                 content: payload.content || "",
                 topText: payload.topText || "",
+                caption: payload.caption || "",
                 revealAnswer: Boolean(payload.revealAnswer),
               }
             : null

@@ -30,6 +30,7 @@ function normalizeSlots(slots) {
     name: String(slot?.name || `Screen ${index + 1}`),
     inputType: INPUT_TYPES.some((type) => type.value === slot?.inputType) ? slot.inputType : "display_only",
     enabled: slot?.enabled !== false,
+    ...(slot?.autopilot && typeof slot.autopilot === "object" ? { autopilot: slot.autopilot } : {}),
   }));
 }
 
