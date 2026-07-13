@@ -66,6 +66,8 @@ function defaultScheduleDraft(activeRoomId = "") {
     roomId: activeRoomId,
     courseId: "",
     label: "",
+    attachmentType: "",
+    attachmentId: "",
   };
 }
 
@@ -75,6 +77,11 @@ function dayLabel(dayOfWeek) {
 
 function blockTitle(block) {
   return block.label || block.courseName || "Schedule block";
+}
+
+function attachmentLabel(block) {
+  if (!block?.attachmentType || !block?.attachmentName) return "";
+  return `${block.attachmentType === "scene" ? "Scene" : "Playlist"}: ${block.attachmentName}`;
 }
 
 function formatBlockTime(block) {
@@ -107,7 +114,10 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
   const [tab, setTab] = useState("rooms");
   const [scheduleBlocks, setScheduleBlocks] = useState([]);
   const [scheduleCourses, setScheduleCourses] = useState([]);
+  const [scheduleScenes, setScheduleScenes] = useState([]);
+  const [schedulePlaylists, setSchedulePlaylists] = useState([]);
   const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
+  const [scheduleAttachmentSetupMissing, setScheduleAttachmentSetupMissing] = useState(false);
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState(() => defaultScheduleDraft(activeRoomId));
 
@@ -172,7 +182,10 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
     if (!response.ok) throw new Error(payload.error || "Could not load Schedule.");
     setScheduleBlocks(payload.blocks || []);
     setScheduleCourses(payload.courses || []);
+    setScheduleScenes(payload.scenes || []);
+    setSchedulePlaylists(payload.playlists || []);
     setScheduleSetupMissing(Boolean(payload.setupMissing));
+    setScheduleAttachmentSetupMissing(Boolean(payload.attachmentSetupMissing));
     if (payload.rooms?.length) {
       setRooms(payload.rooms);
       setActiveRoomId(payload.rooms.find((room) => room.is_active)?.id || activeRoomId);
@@ -302,6 +315,8 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       roomId: block.roomId,
       courseId: block.courseId || "",
       label: block.label || "",
+      attachmentType: block.attachmentType || "",
+      attachmentId: block.attachmentId || "",
     });
     setStatus(`Editing ${dayLabel(block.dayOfWeek)} ${formatBlockTime(block)}.`);
   }
@@ -332,6 +347,8 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         roomId: scheduleDraft.roomId,
         courseId: scheduleDraft.courseId,
         label: scheduleDraft.label,
+        attachmentType: scheduleDraft.attachmentType,
+        attachmentId: scheduleDraft.attachmentId,
       });
       if (!payload?.block) return;
       savedCount += 1;
@@ -607,6 +624,43 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
                       placeholder="Period 3"
                     />
                   </label>
+                  {!scheduleAttachmentSetupMissing ? (
+                    <>
+                      <label className="field">
+                        <span>Display</span>
+                        <select
+                          value={scheduleDraft.attachmentType}
+                          onChange={(event) => updateScheduleDraft({ attachmentType: event.target.value, attachmentId: "" })}
+                        >
+                          <option value="">No content</option>
+                          <option value="scene">Scene</option>
+                          <option value="playlist">Playlist</option>
+                        </select>
+                      </label>
+                      {scheduleDraft.attachmentType === "scene" ? (
+                        <label className="field">
+                          <span>Scene</span>
+                          <select value={scheduleDraft.attachmentId} onChange={(event) => updateScheduleDraft({ attachmentId: event.target.value })}>
+                            <option value="">Choose scene</option>
+                            {scheduleScenes.map((scene) => (
+                              <option key={scene.id} value={scene.id}>{scene.title}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                      {scheduleDraft.attachmentType === "playlist" ? (
+                        <label className="field">
+                          <span>Playlist</span>
+                          <select value={scheduleDraft.attachmentId} onChange={(event) => updateScheduleDraft({ attachmentId: event.target.value })}>
+                            <option value="">Choose playlist</option>
+                            {schedulePlaylists.map((playlist) => (
+                              <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </>
+                  ) : null}
                   <div className="projectorScheduleActions">
                     <button className="btn" type="button" onClick={saveScheduleBlock} disabled={saving || !scheduleDraft.roomId}>
                       {scheduleDraft.blockId ? "Update Block" : "Add Block"}
@@ -631,6 +685,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
                               <strong>{blockTitle(block)}</strong>
                               <span>{formatBlockTime(block)} · {block.roomName}</span>
                               {block.courseName ? <span>{block.courseName}</span> : null}
+                              {attachmentLabel(block) ? <span>{attachmentLabel(block)}</span> : null}
                             </div>
                             <div className="projectorScheduleBlockActions">
                               <button type="button" onClick={() => editScheduleBlock(block)} disabled={saving}>Edit</button>

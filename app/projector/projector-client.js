@@ -50,6 +50,10 @@ function scheduleBlockName(block) {
   return block?.label || block?.courseName || "Current class";
 }
 
+function scheduleBlockContentName(block) {
+  return block?.attachmentName || (block?.attachmentType === "scene" ? "scene" : block?.attachmentType === "playlist" ? "playlist" : "");
+}
+
 function takeoverStateFrom(screenStates) {
   const takeover = screenStates?.[TAKEOVER_STATE_KEY];
   if (!takeover || typeof takeover !== "object") return null;
@@ -698,6 +702,7 @@ export default function ProjectorClient({
   const [scheduleBlocks, setScheduleBlocks] = useState([]);
   const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
   const [dismissedScheduleKey, setDismissedScheduleKey] = useState("");
+  const [shownScheduleContentKey, setShownScheduleContentKey] = useState("");
   const [schedulePrompt, setSchedulePrompt] = useState(null);
   const [wordLists, setWordLists] = useState([]);
   const [wordListsSetupMissing, setWordListsSetupMissing] = useState(false);
@@ -974,7 +979,10 @@ export default function ProjectorClient({
     function checkCurrentScheduleBlock() {
       const block = findCurrentScheduleBlock(scheduleBlocks);
       const key = occurrenceKeyForBlock(block);
-      if (!block || !key || block.roomId === activeRoom?.id || key === dismissedScheduleKey) {
+      const needsRoomSwitch = block?.roomId && block.roomId !== activeRoom?.id;
+      const hasAttachment = Boolean(block?.attachmentType && block?.attachmentId);
+      const needsContentPrompt = hasAttachment && key !== shownScheduleContentKey;
+      if (!block || !key || key === dismissedScheduleKey || (!needsRoomSwitch && !needsContentPrompt)) {
         setSchedulePrompt(null);
         return;
       }
@@ -984,7 +992,7 @@ export default function ProjectorClient({
     checkCurrentScheduleBlock();
     const id = window.setInterval(checkCurrentScheduleBlock, 60000);
     return () => window.clearInterval(id);
-  }, [activeRoom?.id, dismissedScheduleKey, scheduleBlocks, scheduleSetupMissing]);
+  }, [activeRoom?.id, dismissedScheduleKey, scheduleBlocks, scheduleSetupMissing, shownScheduleContentKey]);
 
   function clearPlaylistTimers() {
     if (playlistTimeoutRef.current) {
@@ -1306,35 +1314,57 @@ export default function ProjectorClient({
     if (!schedulePrompt?.roomId) return;
     setSending(true);
     setMessage("");
+    const occurrenceKey = occurrenceKeyForBlock(schedulePrompt);
+    const needsRoomSwitch = schedulePrompt.roomId !== activeRoom?.id;
     try {
-      await endTakeoverForManualAction();
-      const response = await fetch("/api/projector/rooms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set-active-room", roomId: schedulePrompt.roomId }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not switch Rooms.");
-      clearPlaylistTimers();
-      clearTimedRotationTimer();
-      clearAllAutopilotTimers();
-      setActiveRoom(payload.room);
-      setLoadedScene(null);
-      setTakeoverState(null);
-      setPlaylistState((current) => ({
-        ...current,
-        status: "idle",
-        playlistId: null,
-        index: 0,
-        remainingSeconds: 0,
-        assignmentsBySceneId: {},
-        targetScreens: [],
-      }));
-      setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
-      setAutopilotRuntime({});
+      let nextActiveRoom = activeRoom;
+      if (needsRoomSwitch) {
+        await endTakeoverForManualAction();
+        const response = await fetch("/api/projector/rooms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "set-active-room", roomId: schedulePrompt.roomId }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Could not switch Rooms.");
+        clearPlaylistTimers();
+        clearTimedRotationTimer();
+        clearAllAutopilotTimers();
+        nextActiveRoom = payload.room;
+        setActiveRoom(payload.room);
+        setLoadedScene(null);
+        setTakeoverState(null);
+        setPlaylistState((current) => ({
+          ...current,
+          status: "idle",
+          playlistId: null,
+          index: 0,
+          remainingSeconds: 0,
+          assignmentsBySceneId: {},
+          targetScreens: [],
+        }));
+        setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
+        setAutopilotRuntime({});
+        window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room: payload.room, source: "schedule-prompt" } }));
+      }
+
       setSchedulePrompt(null);
-      window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room: payload.room, source: "schedule-prompt" } }));
-      setMessage(`Active Room: ${payload.room?.name || schedulePrompt.roomName}.`);
+      if (schedulePrompt.attachmentType === "scene" && schedulePrompt.attachmentId) {
+        const scene = scenes.find((candidate) => candidate.id === schedulePrompt.attachmentId);
+        if (!scene) throw new Error("Attached scene is no longer available.");
+        if (occurrenceKey) setShownScheduleContentKey(occurrenceKey);
+        await loadScene(scene);
+        return;
+      }
+      if (schedulePrompt.attachmentType === "playlist" && schedulePrompt.attachmentId) {
+        const playlist = playlists.find((candidate) => candidate.id === schedulePrompt.attachmentId);
+        if (!playlist) throw new Error("Attached playlist is no longer available.");
+        const targetScreens = enabledScreenIdsForRoom(nextActiveRoom).filter((screenId) => !isAutopilotConfigured(nextActiveRoom, screenId));
+        if (occurrenceKey) setShownScheduleContentKey(occurrenceKey);
+        await startPlaylist(playlist, { targetScreens });
+        return;
+      }
+      setMessage(`Active Room: ${nextActiveRoom?.name || schedulePrompt.roomName}.`);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -2645,7 +2675,7 @@ export default function ProjectorClient({
     setPlaylistTargetScreens(manualAllScreenIds);
   }
 
-  function promptForPlaylistAssignment(scene, playlistName) {
+  function promptForPlaylistAssignment(scene, playlistName, roomScreens = manualAllScreenIds) {
     return new Promise((resolve) => {
       assignmentResolverRef.current = resolve;
       setAssignmentPrompt({
@@ -2656,21 +2686,21 @@ export default function ProjectorClient({
           screenId,
           state: scene.screen_states?.[screenId] || null,
         })),
-        roomScreens: manualAllScreenIds,
+        roomScreens,
       });
       setAssignments({});
       setMessage(`"${playlistName}" needs a screen assignment for "${scene.title}" before it can play.`);
     });
   }
 
-  async function collectPlaylistAssignments(entries, playlistName) {
+  async function collectPlaylistAssignments(entries, playlistName, roomScreens = manualAllScreenIds) {
     const assignmentsBySceneId = {};
     for (const entry of entries) {
       if (entry.type !== "scene" || assignmentsBySceneId[entry.refId]) continue;
       const scene = scenes.find((candidate) => candidate.id === entry.refId);
       if (!scene) throw new Error("One playlist scene is missing from your saved scenes.");
-      if (sceneSavedScreenIds(scene).length <= manualAllScreenIds.length) continue;
-      const sceneAssignments = await promptForPlaylistAssignment(scene, playlistName);
+      if (sceneSavedScreenIds(scene).length <= roomScreens.length) continue;
+      const sceneAssignments = await promptForPlaylistAssignment(scene, playlistName, roomScreens);
       if (!sceneAssignments) return null;
       assignmentsBySceneId[scene.id] = sceneAssignments;
     }
@@ -2777,27 +2807,28 @@ export default function ProjectorClient({
     }
   }
 
-  async function startPlaylist(playlist = playlistStartPrompt) {
+  async function startPlaylist(playlist = playlistStartPrompt, options = {}) {
     if (!playlist) return;
     const entries = normalizePlaylistEntries(playlist.entries);
+    const targetScreens = Array.isArray(options.targetScreens) ? options.targetScreens : playlistTargetScreens;
     if (!entries.length) {
       setMessage(`Add entries to "${playlist.name}" before playing it.`);
       return;
     }
-    if (!playlistTargetScreens.length) {
+    if (!targetScreens.length) {
       setMessage("Choose at least one screen for playlist items.");
       return;
     }
     setPlaylistStartPrompt(null);
     try {
       const takeoverEnded = await endTakeoverForManualAction();
-      const assignmentsBySceneId = await collectPlaylistAssignments(entries, playlist.name);
+      const assignmentsBySceneId = await collectPlaylistAssignments(entries, playlist.name, targetScreens);
       if (!assignmentsBySceneId) {
         setMessage("Playlist start cancelled.");
         return;
       }
       setSavingScene(true);
-      await playPlaylistEntry(playlist, entries, assignmentsBySceneId, playlistTargetScreens, 0, playlist.loop === true);
+      await playPlaylistEntry(playlist, entries, assignmentsBySceneId, targetScreens, 0, playlist.loop === true);
       if (takeoverEnded) setMessage(`Screen takeover ended. Playing "${playlistEntryLabel(entries[0], library, scenes)}" from "${playlist.name}".`);
     } catch (error) {
       setMessage(error.message);
@@ -3165,12 +3196,19 @@ export default function ProjectorClient({
         <section className="projectorSchedulePrompt" aria-label="Scheduled Room prompt">
           <div>
             <p className="eyebrow">Current schedule</p>
-            <h2>{scheduleBlockName(schedulePrompt)} — switch to {schedulePrompt.roomName || "scheduled Room"}?</h2>
+            <h2>
+              {scheduleBlockName(schedulePrompt)} —{" "}
+              {schedulePrompt.roomId !== activeRoom?.id
+                ? `switch to ${schedulePrompt.roomName || "scheduled Room"}${schedulePrompt.attachmentType ? ` + show ${scheduleBlockContentName(schedulePrompt)}` : ""}?`
+                : `show ${scheduleBlockContentName(schedulePrompt)}?`}
+            </h2>
             <span>{String(schedulePrompt.startTime || "").slice(0, 5)}-{String(schedulePrompt.endTime || "").slice(0, 5)}</span>
           </div>
           <div className="projectorSchedulePromptActions">
             <button className="btn" type="button" onClick={switchToScheduledRoom} disabled={sending}>
-              Switch
+              {schedulePrompt.roomId !== activeRoom?.id
+                ? schedulePrompt.attachmentType ? "Switch + Show" : "Switch"
+                : "Show"}
             </button>
             <button className="btn secondary" type="button" onClick={dismissSchedulePrompt} disabled={sending}>
               Dismiss

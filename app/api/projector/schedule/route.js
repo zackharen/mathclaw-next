@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const DAY_NUMBERS = new Set([0, 1, 2, 3, 4, 5, 6]);
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const LABEL_LIMIT = 80;
+const ATTACHMENT_TYPES = new Set(["scene", "playlist"]);
 
 function jsonError(message, status = 400, extra = {}) {
   return NextResponse.json({ error: message, ...extra }, { status });
@@ -15,6 +16,10 @@ function jsonError(message, status = 400, extra = {}) {
 
 function isMissingScheduleTable(error) {
   return error?.code === "42P01" || error?.code === "PGRST205";
+}
+
+function isMissingAttachmentColumns(error) {
+  return error?.code === "42703" || error?.code === "PGRST204";
 }
 
 function isUuid(value) {
@@ -49,6 +54,7 @@ function courseLabel(course) {
 }
 
 function normalizeBlock(row) {
+  const attachmentType = ATTACHMENT_TYPES.has(row.attachment_type) ? row.attachment_type : null;
   return {
     id: row.id,
     dayOfWeek: row.day_of_week,
@@ -59,6 +65,9 @@ function normalizeBlock(row) {
     courseId: row.course_id || null,
     courseName: courseLabel(row.courses),
     label: row.label || "",
+    attachmentType,
+    attachmentId: attachmentType ? row.attachment_id || null : null,
+    attachmentName: row.attachment_name || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -70,6 +79,20 @@ function normalizeCourse(row) {
     label: courseLabel(row),
     title: row.title || "",
     class_name: row.class_name || "",
+  };
+}
+
+function normalizeScene(row) {
+  return {
+    id: row.id,
+    title: row.title || "Saved room setup",
+  };
+}
+
+function normalizePlaylist(row) {
+  return {
+    id: row.id,
+    name: row.name || "Playlist",
   };
 }
 
@@ -117,29 +140,80 @@ async function listCourses(admin, teacherId) {
   return (data || []).map(normalizeCourse);
 }
 
+async function listScenes(admin, teacherId) {
+  const { data, error } = await admin
+    .from("projector_scene_library_items")
+    .select("id, title")
+    .eq("teacher_id", teacherId)
+    .order("title", { ascending: true })
+    .limit(80);
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return [];
+    throw new Error(error.message);
+  }
+  return (data || []).map(normalizeScene);
+}
+
+async function listPlaylists(admin, teacherId) {
+  const { data, error } = await admin
+    .from("projector_playlists")
+    .select("id, name")
+    .eq("teacher_id", teacherId)
+    .order("name", { ascending: true })
+    .limit(80);
+  if (error) {
+    if (error.code === "42P01" || error.code === "PGRST205") return [];
+    throw new Error(error.message);
+  }
+  return (data || []).map(normalizePlaylist);
+}
+
 async function listBlocks(admin, teacherId) {
   const { data, error } = await admin
     .from("projector_room_schedule_blocks")
-    .select("id, day_of_week, start_time, end_time, room_id, course_id, label, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)")
+    .select("id, day_of_week, start_time, end_time, room_id, course_id, label, attachment_type, attachment_id, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)")
     .eq("teacher_id", teacherId)
     .order("day_of_week", { ascending: true })
     .order("start_time", { ascending: true });
 
   if (error) {
     if (isMissingScheduleTable(error)) return { blocks: [], setupMissing: true };
+    if (error.code === "42703" || error.code === "PGRST200" || error.code === "PGRST204") {
+      const { data: fallback, error: fallbackError } = await admin
+        .from("projector_room_schedule_blocks")
+        .select("id, day_of_week, start_time, end_time, room_id, course_id, label, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)")
+        .eq("teacher_id", teacherId)
+        .order("day_of_week", { ascending: true })
+        .order("start_time", { ascending: true });
+      if (fallbackError) throw new Error(fallbackError.message);
+      return { blocks: (fallback || []).map(normalizeBlock), setupMissing: false, attachmentSetupMissing: true };
+    }
     throw new Error(error.message);
   }
 
-  return { blocks: (data || []).map(normalizeBlock), setupMissing: false };
+  return { blocks: (data || []).map(normalizeBlock), setupMissing: false, attachmentSetupMissing: false };
 }
 
 async function loadSchedule(admin, teacherId) {
-  const [{ blocks, setupMissing }, rooms, courses] = await Promise.all([
+  const [{ blocks, setupMissing, attachmentSetupMissing }, rooms, courses, scenes, playlists] = await Promise.all([
     listBlocks(admin, teacherId),
     listRooms(admin, teacherId),
     listCourses(admin, teacherId),
+    listScenes(admin, teacherId),
+    listPlaylists(admin, teacherId),
   ]);
-  return { blocks, rooms, courses, setupMissing };
+  const sceneNames = new Map(scenes.map((scene) => [scene.id, scene.title]));
+  const playlistNames = new Map(playlists.map((playlist) => [playlist.id, playlist.name]));
+  const hydratedBlocks = blocks.map((block) => ({
+    ...block,
+    attachmentName:
+      block.attachmentType === "scene"
+        ? sceneNames.get(block.attachmentId) || ""
+        : block.attachmentType === "playlist"
+          ? playlistNames.get(block.attachmentId) || ""
+          : "",
+  }));
+  return { blocks: hydratedBlocks, rooms, courses, scenes, playlists, setupMissing, attachmentSetupMissing };
 }
 
 async function validateSchedulePayload(admin, teacherId, body, currentBlockId = null) {
@@ -149,12 +223,15 @@ async function validateSchedulePayload(admin, teacherId, body, currentBlockId = 
   const roomId = String(body.roomId || "");
   const courseId = String(body.courseId || "").trim() || null;
   const label = normalizeLabel(body.label);
+  const attachmentType = ATTACHMENT_TYPES.has(body.attachmentType) ? body.attachmentType : null;
+  const attachmentId = attachmentType ? String(body.attachmentId || "").trim() : null;
 
   if (dayOfWeek == null) return { error: jsonError("Choose a day for the schedule block.") };
   if (!startTime || !endTime) return { error: jsonError("Use valid start and end times.") };
   if (endTime <= startTime) return { error: jsonError("End time must be after start time.") };
   if (!isUuid(roomId)) return { error: jsonError("Choose a Room for this schedule block.") };
   if (courseId && !isUuid(courseId)) return { error: jsonError("Choose a valid class or leave it blank.") };
+  if (attachmentType && !isUuid(attachmentId)) return { error: jsonError("Choose saved content or clear the attachment.") };
 
   const { data: room, error: roomError } = await admin
     .from("projector_room_profiles")
@@ -174,6 +251,28 @@ async function validateSchedulePayload(admin, teacherId, body, currentBlockId = 
       .maybeSingle();
     if (courseError) return { error: jsonError(courseError.message, 500) };
     if (!course) return { error: jsonError("That class does not belong to you.", 404) };
+  }
+
+  if (attachmentType === "scene") {
+    const { data: scene, error: sceneError } = await admin
+      .from("projector_scene_library_items")
+      .select("id")
+      .eq("id", attachmentId)
+      .eq("teacher_id", teacherId)
+      .maybeSingle();
+    if (sceneError) return { error: jsonError(sceneError.message, 500) };
+    if (!scene) return { error: jsonError("That saved scene does not belong to you.", 404) };
+  }
+
+  if (attachmentType === "playlist") {
+    const { data: playlist, error: playlistError } = await admin
+      .from("projector_playlists")
+      .select("id")
+      .eq("id", attachmentId)
+      .eq("teacher_id", teacherId)
+      .maybeSingle();
+    if (playlistError) return { error: jsonError(playlistError.message, 500) };
+    if (!playlist) return { error: jsonError("That playlist does not belong to you.", 404) };
   }
 
   let overlapQuery = admin
@@ -203,23 +302,49 @@ async function validateSchedulePayload(admin, teacherId, body, currentBlockId = 
       room_id: roomId,
       course_id: courseId,
       label: label || null,
+      attachment_type: attachmentType,
+      attachment_id: attachmentType ? attachmentId : null,
     },
   };
+}
+
+const BLOCK_SELECT =
+  "id, day_of_week, start_time, end_time, room_id, course_id, label, attachment_type, attachment_id, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)";
+const BLOCK_SELECT_FALLBACK =
+  "id, day_of_week, start_time, end_time, room_id, course_id, label, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)";
+
+function stripAttachmentPayload(payload) {
+  const next = { ...payload };
+  delete next.attachment_type;
+  delete next.attachment_id;
+  return next;
 }
 
 async function createBlock(admin, teacherId, body) {
   const validation = await validateSchedulePayload(admin, teacherId, body);
   if (validation.error) return validation.error;
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("projector_room_schedule_blocks")
     .insert(validation.payload)
-    .select("id, day_of_week, start_time, end_time, room_id, course_id, label, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)")
+    .select(BLOCK_SELECT)
     .single();
 
   if (error) {
     if (isMissingScheduleTable(error)) return jsonError("Projector schedules are not set up yet.", 503, { setupMissing: true });
-    return jsonError(error.message, 500);
+    if (isMissingAttachmentColumns(error)) {
+      if (validation.payload.attachment_type) return jsonError("Schedule display attachments are not set up yet.", 503, { attachmentSetupMissing: true });
+      const retry = await admin
+        .from("projector_room_schedule_blocks")
+        .insert(stripAttachmentPayload(validation.payload))
+        .select(BLOCK_SELECT_FALLBACK)
+        .single();
+      data = retry.data;
+      error = retry.error;
+      if (error) return jsonError(error.message, 500);
+    } else {
+      return jsonError(error.message, 500);
+    }
   }
 
   return NextResponse.json({ block: normalizeBlock(data) });
@@ -244,15 +369,31 @@ async function updateBlock(admin, teacherId, body) {
   const validation = await validateSchedulePayload(admin, teacherId, body, blockId);
   if (validation.error) return validation.error;
 
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("projector_room_schedule_blocks")
     .update({ ...validation.payload, updated_at: new Date().toISOString() })
     .eq("id", blockId)
     .eq("teacher_id", teacherId)
-    .select("id, day_of_week, start_time, end_time, room_id, course_id, label, created_at, updated_at, projector_room_profiles(name), courses(title, class_name)")
+    .select(BLOCK_SELECT)
     .maybeSingle();
 
-  if (error) return jsonError(error.message, 500);
+  if (error) {
+    if (isMissingAttachmentColumns(error)) {
+      if (validation.payload.attachment_type) return jsonError("Schedule display attachments are not set up yet.", 503, { attachmentSetupMissing: true });
+      const retry = await admin
+        .from("projector_room_schedule_blocks")
+        .update({ ...stripAttachmentPayload(validation.payload), updated_at: new Date().toISOString() })
+        .eq("id", blockId)
+        .eq("teacher_id", teacherId)
+        .select(BLOCK_SELECT_FALLBACK)
+        .maybeSingle();
+      data = retry.data;
+      error = retry.error;
+      if (error) return jsonError(error.message, 500);
+    } else {
+      return jsonError(error.message, 500);
+    }
+  }
   if (!data) return jsonError("Schedule block not found.", 404);
   return NextResponse.json({ block: normalizeBlock(data) });
 }
