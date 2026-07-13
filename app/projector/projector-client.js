@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ProjectorSceneWorkshop from "./projector-scene-workshop";
 import { ProjectorScreenContent, ProjectorScreenInactiveState } from "./projector-screen-renderer";
