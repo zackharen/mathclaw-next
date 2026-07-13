@@ -238,13 +238,16 @@ function reviewStateFrom(screenStates) {
     pageIndex,
     showCaptions: review.showCaptions !== false,
     startedAt: review.startedAt || null,
+    restoreStates: review.restoreStates && typeof review.restoreStates === "object" ? review.restoreStates : null,
   };
 }
 
 function publicReviewStateFrom(screenStates) {
   const review = reviewStateFrom(screenStates);
   if (!review) return null;
-  return review;
+  const { restoreStates, ...publicReview } = review;
+  void restoreStates;
+  return publicReview;
 }
 
 function publicTakeoverStateFrom(screenStates) {
@@ -1268,6 +1271,7 @@ async function startReview(admin, teacherId, session, body) {
       pageIndex: 0,
       showCaptions: body.showCaptions !== false,
       startedAt: new Date().toISOString(),
+      restoreStates: restored.screenStates,
     },
   };
 
@@ -1311,7 +1315,7 @@ async function endReview(admin, teacherId, session) {
   const current = sessionScreenStates(session);
   const review = reviewStateFrom(current);
   if (!review) return NextResponse.json({ ok: true, ended: false, screenStates: clientScreenStates(current) });
-  const nextStates = stripReviewState(current);
+  const nextStates = review.restoreStates && typeof review.restoreStates === "object" ? review.restoreStates : stripReviewState(current);
   const result = await persistScreenStates(admin, session, teacherId, nextStates);
   if (result.error) return jsonError(result.error.message, 500);
   await broadcastScreenUpdates(admin, session.id, review.screenIds.map((screenId) => reviewBroadcastPayload(nextStates, screenId)));
