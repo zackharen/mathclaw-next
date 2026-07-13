@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 const INPUT_TYPES = [
@@ -14,6 +14,15 @@ const DEFAULT_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   enabled: true,
 }));
 const MATHCLAW_ORIGIN = "https://mathclaw.com";
+const DAYS = [
+  { value: 1, short: "Mon", label: "Monday" },
+  { value: 2, short: "Tue", label: "Tuesday" },
+  { value: 3, short: "Wed", label: "Wednesday" },
+  { value: 4, short: "Thu", label: "Thursday" },
+  { value: 5, short: "Fri", label: "Friday" },
+  { value: 6, short: "Sat", label: "Saturday" },
+  { value: 0, short: "Sun", label: "Sunday" },
+];
 
 function normalizeSlots(slots) {
   const source = Array.isArray(slots) && slots.length ? slots : DEFAULT_SLOTS;
@@ -47,6 +56,30 @@ function notifyActiveRoomChanged(room) {
   window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room } }));
 }
 
+function defaultScheduleDraft(activeRoomId = "") {
+  return {
+    blockId: "",
+    dayValues: [1],
+    startTime: "08:00",
+    endTime: "08:45",
+    roomId: activeRoomId,
+    courseId: "",
+    label: "",
+  };
+}
+
+function dayLabel(dayOfWeek) {
+  return DAYS.find((day) => day.value === Number(dayOfWeek))?.short || "Day";
+}
+
+function blockTitle(block) {
+  return block.label || block.courseName || "Schedule block";
+}
+
+function formatBlockTime(block) {
+  return `${String(block.startTime || "").slice(0, 5)}-${String(block.endTime || "").slice(0, 5)}`;
+}
+
 async function endProjectorTakeover() {
   const response = await fetch("/api/projector", {
     method: "POST",
@@ -70,6 +103,12 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [sidebarRoot, setSidebarRoot] = useState(null);
+  const [tab, setTab] = useState("rooms");
+  const [scheduleBlocks, setScheduleBlocks] = useState([]);
+  const [scheduleCourses, setScheduleCourses] = useState([]);
+  const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState(() => defaultScheduleDraft(activeRoomId));
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) || rooms.find((room) => room.is_active) || rooms[0] || defaultRoom(),
@@ -82,6 +121,23 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
 
   useEffect(() => {
     setSelectedRoomId(activeRoom.id);
+  }, [activeRoom.id]);
+
+  useEffect(() => {
+    function handleExternalActiveRoomChange(event) {
+      const room = event.detail?.room;
+      if (!room?.id) return;
+      setRooms((current) => current.map((candidate) => ({ ...candidate, is_active: candidate.id === room.id })));
+      setActiveRoomId(room.id);
+      setSelectedRoomId(room.id);
+    }
+
+    window.addEventListener("projector:active-room-changed", handleExternalActiveRoomChange);
+    return () => window.removeEventListener("projector:active-room-changed", handleExternalActiveRoomChange);
+  }, []);
+
+  useEffect(() => {
+    setScheduleDraft((current) => (current.roomId ? current : { ...current, roomId: activeRoom.id }));
   }, [activeRoom.id]);
 
   useEffect(() => {
@@ -109,6 +165,29 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
     return payload;
   }
 
+  const refreshSchedule = useCallback(async () => {
+    const response = await fetch("/api/projector/schedule", { cache: "no-store" });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Could not load Schedule.");
+    setScheduleBlocks(payload.blocks || []);
+    setScheduleCourses(payload.courses || []);
+    setScheduleSetupMissing(Boolean(payload.setupMissing));
+    if (payload.rooms?.length) {
+      setRooms(payload.rooms);
+      setActiveRoomId(payload.rooms.find((room) => room.is_active)?.id || activeRoomId);
+    }
+    setScheduleLoaded(true);
+    return payload;
+  }, [activeRoomId]);
+
+  useEffect(() => {
+    if (!open || tab !== "schedule" || scheduleLoaded) return;
+    refreshSchedule().catch((error) => {
+      setScheduleSetupMissing(true);
+      setStatus(error.message);
+    });
+  }, [open, refreshSchedule, scheduleLoaded, tab]);
+
   async function postRoom(body) {
     setSaving(true);
     setStatus("");
@@ -122,6 +201,27 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not save Rooms.");
       await refreshRooms();
+      return payload;
+    } catch (error) {
+      setStatus(error.message);
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function postSchedule(body) {
+    setSaving(true);
+    setStatus("");
+    try {
+      const response = await fetch("/api/projector/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not save Schedule.");
+      await refreshSchedule();
       return payload;
     } catch (error) {
       setStatus(error.message);
@@ -176,6 +276,74 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       setActiveRoomId(payload.room.id);
       notifyActiveRoomChanged(payload.room);
       setStatus(`Active Room: ${payload.room.name}.`);
+    }
+  }
+
+  function updateScheduleDraft(patch) {
+    setScheduleDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function toggleScheduleDraftDay(dayValue) {
+    setScheduleDraft((current) => {
+      const nextDays = current.dayValues.includes(dayValue)
+        ? current.dayValues.filter((day) => day !== dayValue)
+        : [...current.dayValues, dayValue].sort((left, right) => DAYS.findIndex((day) => day.value === left) - DAYS.findIndex((day) => day.value === right));
+      return { ...current, dayValues: nextDays.length ? nextDays : current.dayValues };
+    });
+  }
+
+  function editScheduleBlock(block) {
+    setScheduleDraft({
+      blockId: block.id,
+      dayValues: [block.dayOfWeek],
+      startTime: block.startTime,
+      endTime: block.endTime,
+      roomId: block.roomId,
+      courseId: block.courseId || "",
+      label: block.label || "",
+    });
+    setStatus(`Editing ${dayLabel(block.dayOfWeek)} ${formatBlockTime(block)}.`);
+  }
+
+  function resetScheduleDraft() {
+    setScheduleDraft(defaultScheduleDraft(activeRoom.id));
+  }
+
+  async function saveScheduleBlock() {
+    if (!scheduleDraft.dayValues.length) {
+      setStatus("Choose at least one day.");
+      return;
+    }
+    if (!scheduleDraft.roomId) {
+      setStatus("Choose a Room for this schedule block.");
+      return;
+    }
+    const action = scheduleDraft.blockId ? "update-block" : "create-block";
+    const daysToSave = scheduleDraft.blockId ? [scheduleDraft.dayValues[0]] : scheduleDraft.dayValues;
+    let savedCount = 0;
+    for (const dayValue of daysToSave) {
+      const payload = await postSchedule({
+        action,
+        blockId: scheduleDraft.blockId,
+        dayOfWeek: dayValue,
+        startTime: scheduleDraft.startTime,
+        endTime: scheduleDraft.endTime,
+        roomId: scheduleDraft.roomId,
+        courseId: scheduleDraft.courseId,
+        label: scheduleDraft.label,
+      });
+      if (!payload?.block) return;
+      savedCount += 1;
+    }
+    setStatus(scheduleDraft.blockId ? "Schedule block updated." : `${savedCount} schedule block${savedCount === 1 ? "" : "s"} added.`);
+    resetScheduleDraft();
+  }
+
+  async function deleteScheduleBlock(blockId) {
+    const payload = await postSchedule({ action: "delete-block", blockId });
+    if (payload) {
+      setStatus("Schedule block deleted.");
+      if (scheduleDraft.blockId === blockId) resetScheduleDraft();
     }
   }
 
@@ -263,7 +431,16 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
           <button type="button" onClick={() => setOpen(false)}>Close</button>
         </div>
 
-        <div className="projectorRoomsBody">
+        <div className="projectorRoomsTabs" role="tablist" aria-label="Room manager sections">
+          <button className={tab === "rooms" ? "isActive" : ""} type="button" onClick={() => setTab("rooms")}>
+            Rooms
+          </button>
+          <button className={tab === "schedule" ? "isActive" : ""} type="button" onClick={() => setTab("schedule")}>
+            Schedule
+          </button>
+        </div>
+
+        {tab === "rooms" ? <div className="projectorRoomsBody">
           <aside className="projectorRoomsList">
             {rooms.map((room) => (
               <button
@@ -373,7 +550,101 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
               ))}
             </div>
           </div>
-        </div>
+        </div> : (
+          <div className="projectorScheduleEditor">
+            {scheduleSetupMissing ? (
+              <p className="projectorScheduleMissing">Schedule setup is not live yet.</p>
+            ) : (
+              <>
+                <section className="projectorScheduleForm" aria-label="Schedule block editor">
+                  <div className="projectorScheduleDays" aria-label="Days">
+                    {DAYS.map((day) => (
+                      <button
+                        className={scheduleDraft.dayValues.includes(day.value) ? "isActive" : ""}
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleScheduleDraftDay(day.value)}
+                        disabled={Boolean(scheduleDraft.blockId)}
+                        title={scheduleDraft.blockId ? "Edit one day at a time" : day.label}
+                      >
+                        {day.short}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="field">
+                    <span>Start</span>
+                    <input type="time" value={scheduleDraft.startTime} onChange={(event) => updateScheduleDraft({ startTime: event.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>End</span>
+                    <input type="time" value={scheduleDraft.endTime} onChange={(event) => updateScheduleDraft({ endTime: event.target.value })} />
+                  </label>
+                  <label className="field">
+                    <span>Room</span>
+                    <select value={scheduleDraft.roomId} onChange={(event) => updateScheduleDraft({ roomId: event.target.value })}>
+                      <option value="">Choose Room</option>
+                      {rooms.filter((room) => room.id !== "default").map((room) => (
+                        <option key={room.id} value={room.id}>{room.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Class</span>
+                    <select value={scheduleDraft.courseId} onChange={(event) => updateScheduleDraft({ courseId: event.target.value })}>
+                      <option value="">No class link</option>
+                      {scheduleCourses.map((course) => (
+                        <option key={course.id} value={course.id}>{course.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Label</span>
+                    <input
+                      value={scheduleDraft.label}
+                      onChange={(event) => updateScheduleDraft({ label: event.target.value })}
+                      maxLength={80}
+                      placeholder="Period 3"
+                    />
+                  </label>
+                  <div className="projectorScheduleActions">
+                    <button className="btn" type="button" onClick={saveScheduleBlock} disabled={saving || !scheduleDraft.roomId}>
+                      {scheduleDraft.blockId ? "Update Block" : "Add Block"}
+                    </button>
+                    {scheduleDraft.blockId ? (
+                      <button className="btn secondary" type="button" onClick={resetScheduleDraft} disabled={saving}>
+                        New Block
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+
+                <div className="projectorScheduleGrid">
+                  {DAYS.map((day) => {
+                    const blocksForDay = scheduleBlocks.filter((block) => Number(block.dayOfWeek) === day.value);
+                    return (
+                      <section className={`projectorScheduleDay day-${day.value}`} key={day.value}>
+                        <h3>{day.label}</h3>
+                        {blocksForDay.length ? blocksForDay.map((block) => (
+                          <article className="projectorScheduleBlock" key={block.id}>
+                            <div>
+                              <strong>{blockTitle(block)}</strong>
+                              <span>{formatBlockTime(block)} · {block.roomName}</span>
+                              {block.courseName ? <span>{block.courseName}</span> : null}
+                            </div>
+                            <div className="projectorScheduleBlockActions">
+                              <button type="button" onClick={() => editScheduleBlock(block)} disabled={saving}>Edit</button>
+                              <button type="button" onClick={() => deleteScheduleBlock(block.id)} disabled={saving}>Delete</button>
+                            </div>
+                          </article>
+                        )) : <p>No blocks.</p>}
+                      </section>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {status ? <p className="projectorRoomsStatus">{status}</p> : null}
       </section>
       <style>{`
@@ -381,7 +652,9 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         .projectorRoomsModal { width: min(76rem, 100%); display: grid; gap: 0.85rem; border: 2px solid var(--navy); border-radius: 12px; background: #f7fafc; padding: clamp(1rem, 2vw, 1.4rem); }
         .projectorRoomsHeader, .projectorRoomsEditorHeader, .projectorRoomsFooter { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
         .projectorRoomsHeader h2, .projectorRoomsHeader p, .projectorRoomsFooter p, .projectorRoomsStatus { margin: 0; }
-        .projectorRoomsHeader button, .projectorRoomSlotActions button, .projectorRoomsList button { border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy); padding: 0.45rem 0.65rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
+        .projectorRoomsHeader button, .projectorRoomSlotActions button, .projectorRoomsList button, .projectorRoomsTabs button, .projectorScheduleDays button, .projectorScheduleBlockActions button { border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy); padding: 0.45rem 0.65rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
+        .projectorRoomsTabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .projectorRoomsTabs button.isActive, .projectorScheduleDays button.isActive { border-color: var(--navy); background: var(--navy); color: #fff; }
         .projectorRoomsBody { display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 1rem; align-items: start; }
         .projectorRoomsList, .projectorRoomsEditor, .projectorRoomSlots, .projectorRoomsNew, .projectorRoomsActivePreview { display: grid; gap: 0.65rem; min-width: 0; }
         .projectorRoomsList { align-content: start; overflow: auto; }
@@ -406,7 +679,25 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         .projectorRoomsFooter { align-items: center; }
         .projectorRoomsFooter p, .projectorRoomsStatus { color: #51606d; font-weight: 800; }
         .projectorRoomsStatus { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.55rem 0.7rem; }
-        @media (max-width: 820px) { .projectorRoomsBody, .projectorRoomSlot { grid-template-columns: 1fr; } .projectorRoomsEditorHeader, .projectorRoomsFooter { display: grid; } }
+        .projectorScheduleEditor { display: grid; gap: 0.85rem; }
+        .projectorScheduleMissing { margin: 0; border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.75rem; color: #51606d; font-weight: 900; }
+        .projectorScheduleForm { display: grid; grid-template-columns: minmax(12rem, 1.4fr) repeat(2, minmax(7rem, 0.75fr)) minmax(12rem, 1fr) minmax(12rem, 1.2fr); gap: 0.65rem; align-items: end; border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.75rem; }
+        .projectorScheduleDays { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .projectorScheduleActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+        .projectorScheduleGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.65rem; }
+        .projectorScheduleDay { display: grid; gap: 0.5rem; align-content: start; border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem; min-width: 0; }
+        .projectorScheduleDay.day-6, .projectorScheduleDay.day-0 { background: #f8fafc; }
+        .projectorScheduleDay h3, .projectorScheduleDay p { margin: 0; }
+        .projectorScheduleDay h3 { color: var(--navy); font-size: 0.95rem; }
+        .projectorScheduleDay p { color: #64748b; font-size: 0.82rem; font-weight: 800; }
+        .projectorScheduleBlock { display: grid; gap: 0.5rem; border: 1px solid #c8d6df; border-radius: 8px; background: #f7fafc; padding: 0.55rem; }
+        .projectorScheduleBlock strong, .projectorScheduleBlock span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .projectorScheduleBlock strong { color: var(--navy); }
+        .projectorScheduleBlock span { color: #51606d; font-size: 0.78rem; font-weight: 850; }
+        .projectorScheduleBlockActions { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+        .projectorScheduleBlockActions button:disabled, .projectorScheduleDays button:disabled { cursor: not-allowed; opacity: 0.45; }
+        @media (max-width: 1020px) { .projectorScheduleGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .projectorScheduleForm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 820px) { .projectorRoomsBody, .projectorRoomSlot, .projectorScheduleGrid, .projectorScheduleForm { grid-template-columns: 1fr; } .projectorRoomsEditorHeader, .projectorRoomsFooter { display: grid; } }
       `}</style>
     </div>
   ) : null;

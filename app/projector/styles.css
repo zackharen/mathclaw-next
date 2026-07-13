@@ -2183,23 +2183,47 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   padding: 0.75rem 0.9rem;
 }
 
+.projectorSchedulePrompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 2px solid #0369a1;
+  border-radius: 12px;
+  background: #eff6ff;
+  box-shadow: 0 10px 24px rgba(8, 18, 28, 0.1);
+  padding: 0.75rem 0.9rem;
+}
+
 .projectorTimedRotationDock h2,
 .projectorTimedRotationDock p,
 .projectorTakeoverDock h2,
-.projectorTakeoverDock p {
+.projectorTakeoverDock p,
+.projectorSchedulePrompt h2,
+.projectorSchedulePrompt p {
   margin: 0;
 }
 
 .projectorTimedRotationDock span,
-.projectorTakeoverDock span {
+.projectorTakeoverDock span,
+.projectorSchedulePrompt span {
   display: block;
   color: #38545d;
   font-size: 0.84rem;
   font-weight: 900;
 }
 
+.projectorSchedulePromptActions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .projectorTimedRotationDock button,
-.projectorTakeoverDock button {
+.projectorTakeoverDock button,
+.projectorSchedulePromptActions button {
   flex: none;
   border: 2px solid currentColor;
   border-radius: 8px;
@@ -2217,6 +2241,10 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
 .projectorTakeoverDock button {
   color: #6d28d9;
+}
+
+.projectorSchedulePromptActions button {
+  color: #0369a1;
 }
 
 .projectorPlaylistDock h2,
@@ -2670,6 +2698,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
   .projectorTimedRotationDock,
   .projectorTakeoverDock,
+  .projectorSchedulePrompt,
   .projectorTimedRotationFields {
     display: grid;
     grid-template-columns: 1fr;

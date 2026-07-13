@@ -19,6 +19,37 @@ const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 const PREVIEW_REFERENCE_WIDTH = 1280;
 
+function minutesFromTime(value) {
+  const [hours, minutes] = String(value || "").split(":").map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function occurrenceKeyForBlock(block, date = new Date()) {
+  if (!block?.id) return "";
+  const stamp = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+  return `${stamp}:${block.id}:${block.startTime}-${block.endTime}`;
+}
+
+function findCurrentScheduleBlock(blocks, date = new Date()) {
+  const day = date.getDay();
+  const nowMinutes = date.getHours() * 60 + date.getMinutes();
+  return (blocks || []).find((block) => {
+    if (Number(block.dayOfWeek) !== day) return false;
+    const start = minutesFromTime(block.startTime);
+    const end = minutesFromTime(block.endTime);
+    return start != null && end != null && start <= nowMinutes && nowMinutes < end;
+  }) || null;
+}
+
+function scheduleBlockName(block) {
+  return block?.label || block?.courseName || "Current class";
+}
+
 function takeoverStateFrom(screenStates) {
   const takeover = screenStates?.[TAKEOVER_STATE_KEY];
   if (!takeover || typeof takeover !== "object") return null;
@@ -632,6 +663,10 @@ export default function ProjectorClient({
   const [workQueueBusy, setWorkQueueBusy] = useState(false);
   const [previewWorkEntry, setPreviewWorkEntry] = useState(null);
   const [showWorkCaption, setShowWorkCaption] = useState(false);
+  const [scheduleBlocks, setScheduleBlocks] = useState([]);
+  const [scheduleSetupMissing, setScheduleSetupMissing] = useState(false);
+  const [dismissedScheduleKey, setDismissedScheduleKey] = useState("");
+  const [schedulePrompt, setSchedulePrompt] = useState(null);
   const latexTextareaRef = useRef(null);
   const imageDragDepthRef = useRef(0);
   const playlistTimeoutRef = useRef(null);
@@ -660,6 +695,7 @@ export default function ProjectorClient({
   );
   const currentPlaylistEntries = normalizePlaylistEntries(currentPlaylist?.entries);
   const currentPlaylistEntry = currentPlaylistEntries[playlistState.index] || null;
+  const schedulePromptKey = schedulePrompt ? occurrenceKeyForBlock(schedulePrompt) : "";
   const sortedFolders = useMemo(
     () =>
       [...folders].sort((left, right) =>
@@ -840,6 +876,45 @@ export default function ProjectorClient({
     const id = window.setInterval(() => loadWorkQueue({ silent: true }), 12000);
     return () => window.clearInterval(id);
   }, []);
+
+  async function loadProjectorSchedule({ silent = false } = {}) {
+    try {
+      const response = await fetch("/api/projector/schedule", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not load projector schedule.");
+      setScheduleBlocks(Array.isArray(payload.blocks) ? payload.blocks : []);
+      setScheduleSetupMissing(Boolean(payload.setupMissing));
+    } catch (error) {
+      if (!silent) setMessage(error.message);
+    }
+  }
+
+  useEffect(() => {
+    loadProjectorSchedule({ silent: true });
+    const id = window.setInterval(() => loadProjectorSchedule({ silent: true }), 60000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (scheduleSetupMissing) {
+      setSchedulePrompt(null);
+      return;
+    }
+
+    function checkCurrentScheduleBlock() {
+      const block = findCurrentScheduleBlock(scheduleBlocks);
+      const key = occurrenceKeyForBlock(block);
+      if (!block || !key || block.roomId === activeRoom?.id || key === dismissedScheduleKey) {
+        setSchedulePrompt(null);
+        return;
+      }
+      setSchedulePrompt(block);
+    }
+
+    checkCurrentScheduleBlock();
+    const id = window.setInterval(checkCurrentScheduleBlock, 60000);
+    return () => window.clearInterval(id);
+  }, [activeRoom?.id, dismissedScheduleKey, scheduleBlocks, scheduleSetupMissing]);
 
   function clearPlaylistTimers() {
     if (playlistTimeoutRef.current) {
@@ -1125,6 +1200,49 @@ export default function ProjectorClient({
     } finally {
       setSending(false);
     }
+  }
+
+  async function switchToScheduledRoom() {
+    if (!schedulePrompt?.roomId) return;
+    setSending(true);
+    setMessage("");
+    try {
+      await endTakeoverForManualAction();
+      const response = await fetch("/api/projector/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-active-room", roomId: schedulePrompt.roomId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not switch Rooms.");
+      clearPlaylistTimers();
+      clearTimedRotationTimer();
+      setActiveRoom(payload.room);
+      setLoadedScene(null);
+      setTakeoverState(null);
+      setPlaylistState((current) => ({
+        ...current,
+        status: "idle",
+        playlistId: null,
+        index: 0,
+        remainingSeconds: 0,
+        assignmentsBySceneId: {},
+        targetScreens: [],
+      }));
+      setTimedRotation((current) => ({ ...current, status: "idle", remainingSeconds: 0 }));
+      setSchedulePrompt(null);
+      window.dispatchEvent(new CustomEvent("projector:active-room-changed", { detail: { room: payload.room, source: "schedule-prompt" } }));
+      setMessage(`Active Room: ${payload.room?.name || schedulePrompt.roomName}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function dismissSchedulePrompt() {
+    if (schedulePromptKey) setDismissedScheduleKey(schedulePromptKey);
+    setSchedulePrompt(null);
   }
 
   function currentComposerContent() {
@@ -2714,6 +2832,24 @@ export default function ProjectorClient({
           <button type="button" onClick={() => stopTimedRotation("Timed screen rotation stopped.")}>
             Stop
           </button>
+        </section>
+      ) : null}
+
+      {schedulePrompt ? (
+        <section className="projectorSchedulePrompt" aria-label="Scheduled Room prompt">
+          <div>
+            <p className="eyebrow">Current schedule</p>
+            <h2>{scheduleBlockName(schedulePrompt)} — switch to {schedulePrompt.roomName || "scheduled Room"}?</h2>
+            <span>{String(schedulePrompt.startTime || "").slice(0, 5)}-{String(schedulePrompt.endTime || "").slice(0, 5)}</span>
+          </div>
+          <div className="projectorSchedulePromptActions">
+            <button className="btn" type="button" onClick={switchToScheduledRoom} disabled={sending}>
+              Switch
+            </button>
+            <button className="btn secondary" type="button" onClick={dismissSchedulePrompt} disabled={sending}>
+              Dismiss
+            </button>
+          </div>
         </section>
       ) : null}
 
