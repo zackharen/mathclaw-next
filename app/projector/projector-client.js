@@ -1027,7 +1027,7 @@ export default function ProjectorClient({
 
   async function loadPolls({ silent = false } = {}) {
     try {
-      const response = await fetch("/api/projector/polls", { cache: "no-store" });
+      const response = await fetch(`/api/projector/polls?_=${Date.now()}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not load polls.");
       setPollsSetupMissing(Boolean(payload.setupMissing));
@@ -1042,7 +1042,7 @@ export default function ProjectorClient({
   async function loadPollResults(pollId, { silent = false } = {}) {
     if (!pollId) return;
     try {
-      const response = await fetch(`/api/projector/polls?action=results&pollId=${encodeURIComponent(pollId)}`, { cache: "no-store" });
+      const response = await fetch(`/api/projector/polls?action=results&pollId=${encodeURIComponent(pollId)}&_=${Date.now()}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not load poll results.");
       if (payload.results) setPollResults(payload.results);
