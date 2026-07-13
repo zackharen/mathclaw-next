@@ -147,7 +147,7 @@ async function createPlaylist(admin, teacherId, body) {
     .insert({
       teacher_id: teacherId,
       name,
-      loop: body.loop !== false,
+      loop: body.loop === true,
       entries: normalized.entries,
     })
     .select("id, name, loop, entries, created_at, updated_at")
@@ -174,7 +174,7 @@ async function updatePlaylist(admin, teacherId, body) {
     if (!name) return jsonError("Name the playlist before saving it.");
     patch.name = name;
   }
-  if ("loop" in body) patch.loop = body.loop !== false;
+  if ("loop" in body) patch.loop = body.loop === true;
   if ("entries" in body) {
     const normalized = await normalizeEntries(admin, teacherId, body.entries);
     if (normalized.error) return jsonError(normalized.error);

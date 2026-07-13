@@ -561,7 +561,7 @@ export default function ProjectorClient({
     playlistId: null,
     index: 0,
     remainingSeconds: 0,
-    loop: true,
+    loop: false,
     assignmentsBySceneId: {},
     targetScreens: [],
   });
@@ -2237,7 +2237,7 @@ export default function ProjectorClient({
     }
   }
 
-  async function playPlaylistEntry(playlist, entries, assignmentsBySceneId, targetScreens, index, loop = playlist.loop !== false) {
+  async function playPlaylistEntry(playlist, entries, assignmentsBySceneId, targetScreens, index, loop = playlist.loop === true) {
     if (!entries.length) return;
     const safeIndex = (index + entries.length) % entries.length;
     const entry = entries[safeIndex];
@@ -2299,7 +2299,7 @@ export default function ProjectorClient({
         return;
       }
       setSavingScene(true);
-      await playPlaylistEntry(playlist, entries, assignmentsBySceneId, playlistTargetScreens, 0, playlist.loop !== false);
+      await playPlaylistEntry(playlist, entries, assignmentsBySceneId, playlistTargetScreens, 0, playlist.loop === true);
       if (takeoverEnded) setMessage(`Screen takeover ended. Playing "${playlistEntryLabel(entries[0], library, scenes)}" from "${playlist.name}".`);
     } catch (error) {
       setMessage(error.message);

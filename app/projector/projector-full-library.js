@@ -273,7 +273,7 @@ export default function ProjectorFullLibrary({
   const [renamingSceneTitle, setRenamingSceneTitle] = useState("");
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(playlistItems[0]?.id || "");
   const [draftName, setDraftName] = useState("");
-  const [draftLoop, setDraftLoop] = useState(true);
+  const [draftLoop, setDraftLoop] = useState(false);
   const [draftEntries, setDraftEntries] = useState([]);
   const lastSyncedPlaylistId = useRef("");
   const scenes = loadedScenes;
@@ -371,7 +371,7 @@ export default function ProjectorFullLibrary({
     lastSyncedPlaylistId.current = selectedPlaylist.id;
     setSelectedPlaylistId(selectedPlaylist.id);
     setDraftName(selectedPlaylist.name || "");
-    setDraftLoop(selectedPlaylist.loop !== false);
+    setDraftLoop(selectedPlaylist.loop === true);
     setDraftEntries(normalizePlaylistEntries(selectedPlaylist.entries));
   }, [selectedPlaylist]);
 
@@ -478,7 +478,7 @@ export default function ProjectorFullLibrary({
     lastSyncedPlaylistId.current = "";
     setSelectedPlaylistId("");
     setDraftName("");
-    setDraftLoop(true);
+    setDraftLoop(false);
     setDraftEntries([]);
   }
 
@@ -486,7 +486,7 @@ export default function ProjectorFullLibrary({
     lastSyncedPlaylistId.current = playlist.id;
     setSelectedPlaylistId(playlist.id);
     setDraftName(playlist.name || "");
-    setDraftLoop(playlist.loop !== false);
+    setDraftLoop(playlist.loop === true);
     setDraftEntries(normalizePlaylistEntries(playlist.entries));
   }
 
@@ -781,7 +781,7 @@ export default function ProjectorFullLibrary({
                   {playlists.map((playlist) => (
                     <button className={playlist.id === selectedPlaylistId ? "isActive" : ""} key={playlist.id} type="button" onClick={() => editPlaylist(playlist)}>
                       <strong>{playlist.name}</strong>
-                      <span>{normalizePlaylistEntries(playlist.entries).length} entries · {playlistDurationLabel(playlist.entries)}{playlist.loop !== false ? " · loop" : ""}</span>
+                      <span>{normalizePlaylistEntries(playlist.entries).length} entries · {playlistDurationLabel(playlist.entries)}{playlist.loop === true ? " · loop" : ""}</span>
                     </button>
                   ))}
                 </aside>
