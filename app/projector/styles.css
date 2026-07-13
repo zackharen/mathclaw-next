@@ -205,18 +205,24 @@
 .projectorScreenPreview {
   position: relative;
   aspect-ratio: 16 / 9;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   border-radius: 8px;
   background: #0a0a0a;
   color: #fff;
-  padding: 0.8rem;
 }
 
 .projectorScreenCard.isInactive .projectorScreenPreview {
-  filter: grayscale(0.35);
-  opacity: 0.74;
+  filter: none;
+  opacity: 1;
+}
+
+.projectorScreenPreviewScaler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1280px;
+  height: 720px;
+  transform-origin: top left;
 }
 
 .projectorInactiveOverlay {
@@ -1687,6 +1693,125 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   max-width: 100vw;
   max-height: 100dvh;
   object-fit: contain;
+}
+
+.projectorScreenPreviewStage {
+  width: 1280px;
+  height: 720px;
+  max-height: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #0a0a0a;
+  color: #fff;
+  margin: 0;
+  padding: 36px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.projectorScreenPreviewStage.hasMedia {
+  padding: 0;
+}
+
+.projectorScreenPreviewStage.isInactive {
+  padding: 36px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(49, 65, 82, 0.98)),
+    #0f172a;
+}
+
+.projectorScreenPreviewStage .projectorScreenInactiveState {
+  width: 1178px;
+  gap: 10px;
+  padding: 48px;
+}
+
+.projectorScreenPreviewStage .projectorScreenInactiveState h1 {
+  font-size: 90px;
+}
+
+.projectorScreenPreviewStage .projectorScreenInactiveState p:not(.eyebrow) {
+  max-width: 544px;
+  font-size: 26px;
+}
+
+.projectorScreenPreviewStage .projectorScreenLatex {
+  font-size: 64px;
+}
+
+.projectorScreenPreviewStage .projectorScreenStack {
+  gap: 13px;
+  padding: 19px;
+}
+
+.projectorScreenPreviewStage .projectorScreenTopText {
+  font-size: 33px;
+}
+
+.projectorScreenPreviewStage .projectorScreenText {
+  width: min(100%, 1152px);
+  font-size: 77px;
+}
+
+.projectorScreenPreviewStage .projectorScreenQuestionCard {
+  width: 1178px;
+  gap: 28px;
+}
+
+.projectorScreenPreviewStage .projectorScreenQuestionPrompt {
+  font-size: 64px;
+}
+
+.projectorScreenPreviewStage .projectorScreenQuestionOptions {
+  width: 992px;
+  gap: 18px;
+}
+
+.projectorScreenPreviewStage .projectorScreenQuestionOption {
+  gap: 15px;
+  padding: 19px 90px;
+  font-size: 38px;
+}
+
+.projectorScreenPreviewStage .projectorScreenQuestionOption strong {
+  left: 19px;
+  width: 51px;
+  height: 51px;
+  font-size: 27px;
+}
+
+.projectorScreenPreviewStage .projectorScreenQuestionOption em {
+  right: 19px;
+  font-size: 16px;
+}
+
+.projectorScreenPreviewStage .projectorScreenFillBlankLine {
+  width: 864px;
+  height: 10px;
+}
+
+.projectorScreenPreviewStage .projectorScreenFillBlankAnswer {
+  padding: 19px 26px;
+  font-size: 38px;
+}
+
+.projectorScreenPreviewStage .projectorScreenMedia {
+  width: 1280px;
+  height: 720px;
+  max-width: 1280px;
+  max-height: 720px;
+}
+
+.projectorScreenPreviewStage .projectorScreenBody .projectorScreenMedia {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.projectorScreenPreviewStage .projectorWaiting {
+  font-size: 51px;
 }
 
 .projectorWaiting {

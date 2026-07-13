@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ProjectorSceneWorkshop from "./projector-scene-workshop";
+import { ProjectorScreenContent, ProjectorScreenInactiveState } from "./projector-screen-renderer";
 import "./styles.css";
 
 const ALL_SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
@@ -16,6 +17,7 @@ const DIRECT_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
+const PREVIEW_REFERENCE_WIDTH = 1280;
 
 function takeoverStateFrom(screenStates) {
   const takeover = screenStates?.[TAKEOVER_STATE_KEY];
@@ -359,6 +361,48 @@ function renderContent(state, compact = false, options = {}) {
           revealAnswer={Boolean(state?.revealAnswer)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function ProjectorReceiverPreview({ enabled, state }) {
+  const frameRef = useRef(null);
+  const [scale, setScale] = useState(0.25);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return undefined;
+
+    const updateScale = () => {
+      const width = frame.getBoundingClientRect().width || PREVIEW_REFERENCE_WIDTH;
+      setScale(Math.min(1, width / PREVIEW_REFERENCE_WIDTH));
+    };
+
+    updateScale();
+    if (!window.ResizeObserver) {
+      window.addEventListener("resize", updateScale);
+      return () => window.removeEventListener("resize", updateScale);
+    }
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+
+  const hasMedia = enabled && (state?.type === "image" || state?.type === "video");
+
+  return (
+    <div className="projectorScreenPreview" ref={frameRef}>
+      <div
+        className="projectorScreenPreviewScaler"
+        style={{ transform: `scale(${scale})` }}
+      >
+        <div
+          className={`projectorScreenPreviewStage${hasMedia ? " hasMedia" : ""}${enabled ? "" : " isInactive"}`}
+        >
+          {enabled ? <ProjectorScreenContent state={state} /> : <ProjectorScreenInactiveState />}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2681,10 +2725,7 @@ export default function ProjectorClient({
                     </div>
                     <span>{displayState?.type || "empty"}</span>
                   </div>
-                  <div className="projectorScreenPreview">
-                    {!isEnabled ? <span className="projectorInactiveOverlay">Inactive</span> : null}
-                    {renderContent(displayState, true, { playCompactVideo: true })}
-                  </div>
+                  <ProjectorReceiverPreview enabled={isEnabled} state={displayState} />
                   {isQuestionState(screenStates?.[screenId]) ? (
                     <button
                       className="btn secondary projectorRevealAnswerButton"
