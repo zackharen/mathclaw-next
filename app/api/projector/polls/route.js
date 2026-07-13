@@ -107,7 +107,7 @@ function aggregateResults(poll, votes = []) {
   const counts = Object.fromEntries(choices.map((choice) => [String(choice.id), 0]));
   votes.forEach((vote) => {
     const key = String(vote.choice || "");
-    if (Object.hasOwn(counts, key)) counts[key] += 1;
+    if (Object.prototype.hasOwnProperty.call(counts, key)) counts[key] += 1;
   });
   return {
     poll: publicPoll(poll),
