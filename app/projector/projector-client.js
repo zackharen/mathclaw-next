@@ -1031,13 +1031,13 @@ export default function ProjectorClient({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not load polls.");
       setPollsSetupMissing(Boolean(payload.setupMissing));
-      if (payload.activePoll || !activePollId) setActivePoll(payload.activePoll || null);
-      if (payload.activeResults || payload.activePoll || !activePollId) setPollResults(payload.activeResults || null);
+      setActivePoll(payload.activePoll || null);
+      setPollResults(payload.activeResults || null);
       setRecentPolls(Array.isArray(payload.recentPolls) ? payload.recentPolls : []);
     } catch (error) {
       if (!silent) setMessage(error.message);
     }
-  }, [activePollId]);
+  }, []);
 
   async function loadPollResults(pollId, { silent = false } = {}) {
     if (!pollId) return;

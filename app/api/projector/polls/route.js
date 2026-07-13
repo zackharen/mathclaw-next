@@ -17,6 +17,13 @@ function jsonError(message, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function jsonOk(payload, status = 200) {
+  return NextResponse.json(payload, {
+    status,
+    headers: { "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate" },
+  });
+}
+
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(String(value || ""));
 }
@@ -265,7 +272,7 @@ async function getReceiverPoll(admin, token) {
 
   const slot = await getActiveRoomSlot(admin, resolved.session.teacher_id, resolved.screenNumber);
   if (slot.enabled === false || slot.inputType !== "touch") {
-    return NextResponse.json({ poll: null, vote: null, eligible: false });
+    return jsonOk({ poll: null, vote: null, eligible: false });
   }
 
   const { data: poll, error: pollError } = await admin
@@ -278,10 +285,10 @@ async function getReceiverPoll(admin, token) {
     .limit(1)
     .maybeSingle();
 
-  if (isMissingPollTables(pollError)) return NextResponse.json({ setupMissing: true, poll: null, vote: null });
+  if (isMissingPollTables(pollError)) return jsonOk({ setupMissing: true, poll: null, vote: null });
   if (pollError) return jsonError(pollError.message, 500);
   if (!poll || !Array.isArray(poll.target_screen_ids) || !poll.target_screen_ids.map(String).includes(String(resolved.screenNumber))) {
-    return NextResponse.json({ poll: null, vote: null, eligible: true });
+    return jsonOk({ poll: null, vote: null, eligible: true });
   }
 
   const { data: vote, error: voteError } = await admin
@@ -291,9 +298,9 @@ async function getReceiverPoll(admin, token) {
     .eq("screen_number", Number(resolved.screenNumber))
     .maybeSingle();
 
-  if (isMissingPollTables(voteError)) return NextResponse.json({ setupMissing: true, poll: null, vote: null });
+  if (isMissingPollTables(voteError)) return jsonOk({ setupMissing: true, poll: null, vote: null });
   if (voteError) return jsonError(voteError.message, 500);
-  return NextResponse.json({
+  return jsonOk({
     poll: publicPoll(poll),
     vote: vote ? { studentName: vote.student_name || "", choice: vote.choice, updatedAt: vote.updated_at } : null,
     eligible: true,
@@ -340,7 +347,7 @@ async function createPoll(admin, teacherId, sessionId, body) {
   await broadcastPollChanged(admin, sessionId, poll.id);
   const results = await loadPollResults(admin, teacherId, poll.id);
   if (results.error) return results.error;
-  return NextResponse.json({ poll: publicPoll(poll), results: results.results });
+  return jsonOk({ poll: publicPoll(poll), results: results.results });
 }
 
 async function closePoll(admin, teacherId, sessionId, body) {
@@ -360,7 +367,7 @@ async function closePoll(admin, teacherId, sessionId, body) {
   await broadcastPollChanged(admin, sessionId, poll.id);
   const results = await loadPollResults(admin, teacherId, poll.id);
   if (results.error) return results.error;
-  return NextResponse.json({ poll: publicPoll(poll), results: results.results });
+  return jsonOk({ poll: publicPoll(poll), results: results.results });
 }
 
 async function vote(admin, body) {
@@ -413,7 +420,7 @@ async function vote(admin, body) {
   if (isMissingPollTables(error)) return jsonError("Projector polls are not set up yet.", 503);
   if (error) return jsonError(error.message, 500);
   await broadcastPollChanged(admin, poll.session_id, poll.id);
-  return NextResponse.json({ vote: { studentName: data.student_name || "", choice: data.choice, updatedAt: data.updated_at } });
+  return jsonOk({ vote: { studentName: data.student_name || "", choice: data.choice, updatedAt: data.updated_at } });
 }
 
 export async function GET(request) {
@@ -426,14 +433,14 @@ export async function GET(request) {
   if (context.error) return context.error;
   if (searchParams.get("action") === "results") {
     const result = await loadPollResults(admin, context.user.id, searchParams.get("pollId"));
-    if (result.setupMissing) return NextResponse.json({ setupMissing: true });
+    if (result.setupMissing) return jsonOk({ setupMissing: true });
     if (result.error) return result.error;
-    return NextResponse.json(result);
+    return jsonOk(result);
   }
   const payload = await listTeacherPolls(admin, context.user.id);
-  if (payload.setupMissing) return NextResponse.json({ setupMissing: true });
+  if (payload.setupMissing) return jsonOk({ setupMissing: true });
   if (payload.error) return payload.error;
-  return NextResponse.json(payload);
+  return jsonOk(payload);
 }
 
 export async function POST(request) {
