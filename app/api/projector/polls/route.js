@@ -237,6 +237,8 @@ async function loadPollResults(admin, teacherId, pollId) {
     .from("projector_poll_votes")
     .select("screen_number, screen_name, student_name, choice, updated_at")
     .eq("poll_id", poll.id)
+    .eq("teacher_id", teacherId)
+    .eq("session_id", poll.session_id)
     .order("updated_at", { ascending: false });
 
   if (isMissingPollTables(voteError)) return { setupMissing: true };
