@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ProjectorSceneWorkshop from "./projector-scene-workshop";
-import { ProjectorScreenContent, ProjectorScreenInactiveState } from "./projector-screen-renderer";
+import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay } from "./projector-screen-renderer";
 import "./styles.css";
 
 const ALL_SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
@@ -18,6 +18,7 @@ const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const QUESTION_OPTION_LABELS = ["A", "B", "C", "D"];
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 const REVIEW_STATE_KEY = "__mathclaw_projector_review_v1__";
+const TIMER_STATE_KEY = "__mathclaw_projector_timer_v1__";
 const PREVIEW_REFERENCE_WIDTH = 1280;
 
 function minutesFromTime(value) {
@@ -81,6 +82,25 @@ function reviewStateFrom(screenStates) {
     showCaptions: review.showCaptions !== false,
     startedAt: review.startedAt || null,
   };
+}
+
+function timerStateFrom(screenStates) {
+  const timer = screenStates?.[TIMER_STATE_KEY];
+  if (!timer || typeof timer !== "object") return null;
+  const screenIds = Array.isArray(timer.screenIds)
+    ? timer.screenIds.map(String).filter((screenId) => ALL_SCREEN_IDS.includes(screenId))
+    : [];
+  if (!screenIds.length) return null;
+  return { ...timer, screenIds };
+}
+
+function formatTimerClock(totalSeconds) {
+  const safe = Math.max(0, totalSeconds);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  if (hours) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function formatQueueTime(value) {
@@ -423,7 +443,7 @@ function renderContent(state, compact = false, options = {}) {
   );
 }
 
-function ProjectorReceiverPreview({ enabled, state }) {
+function ProjectorReceiverPreview({ enabled, state, timer = null, timerOffsetMs = 0 }) {
   const frameRef = useRef(null);
   const [scale, setScale] = useState(0.25);
 
@@ -459,6 +479,7 @@ function ProjectorReceiverPreview({ enabled, state }) {
           className={`projectorScreenPreviewStage${hasMedia ? " hasMedia" : ""}${enabled ? "" : " isInactive"}`}
         >
           {enabled ? <ProjectorScreenContent state={state} /> : <ProjectorScreenInactiveState />}
+          {enabled ? <ProjectorTimerOverlay timer={timer} serverOffsetMs={timerOffsetMs} /> : null}
         </div>
       </div>
     </div>
@@ -661,7 +682,7 @@ export default function ProjectorClient({
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
-  const [openPanels, setOpenPanels] = useState({ polls: true, workQueue: true, wordWalls: false, screens: true, scenes: false, library: false });
+  const [openPanels, setOpenPanels] = useState({ polls: true, workQueue: true, timer: true, wordWalls: false, screens: true, scenes: false, library: false });
   const [targetMode, setTargetMode] = useState("all");
   const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
   const [type, setType] = useState("text");
@@ -730,6 +751,14 @@ export default function ProjectorClient({
   // Queue-local feedback: the global `message` renders inside the collapsed-by-default
   // Library panel, so delete/clear results were invisible to teachers.
   const [workQueueMessage, setWorkQueueMessage] = useState("");
+  const [timerMinutes, setTimerMinutes] = useState("5");
+  const [timerSecondsInput, setTimerSecondsInput] = useState("0");
+  const [timerLabel, setTimerLabel] = useState("");
+  const [timerTargets, setTimerTargets] = useState(null);
+  const [timerBusy, setTimerBusy] = useState(false);
+  const [timerMessage, setTimerMessage] = useState("");
+  const [timerNowMs, setTimerNowMs] = useState(() => Date.now());
+  const [timerOffsetMs, setTimerOffsetMs] = useState(0);
   const [pollsSetupMissing, setPollsSetupMissing] = useState(false);
   const [pollBusy, setPollBusy] = useState(false);
   const [activePoll, setActivePoll] = useState(null);
@@ -765,6 +794,17 @@ export default function ProjectorClient({
   const screenTokens = session.screen_tokens || {};
   const roomScreenIds = useMemo(() => screenIdsForRoom(activeRoom), [activeRoom]);
   const activeScreenIds = useMemo(() => enabledScreenIdsForRoom(activeRoom), [activeRoom]);
+  const timerState = useMemo(() => timerStateFrom(screenStates), [screenStates]);
+  const timerPaused = timerState ? timerState.pausedRemaining != null : false;
+  const timerRemainingSeconds = timerState
+    ? timerPaused
+      ? Math.max(0, Number.parseInt(timerState.pausedRemaining, 10) || 0)
+      : Math.ceil((Date.parse(timerState.endsAt || "") - (timerNowMs + timerOffsetMs)) / 1000)
+    : 0;
+  const timerTargetIds = useMemo(
+    () => (timerTargets ?? activeScreenIds).filter((screenId) => activeScreenIds.includes(screenId)),
+    [activeScreenIds, timerTargets]
+  );
   const touchScreenIds = useMemo(() => touchScreenIdsForRoom(activeRoom), [activeRoom]);
   const configuredAutopilotScreenIds = useMemo(
     () => activeScreenIds.filter((screenId) => isAutopilotConfigured(activeRoom, screenId)),
@@ -1070,11 +1110,94 @@ export default function ProjectorClient({
         if (payload?.pollId && activePollId === payload.pollId) loadPollResults(payload.pollId, { silent: true });
         else loadPolls({ silent: true });
       })
+      .on("broadcast", { event: "timer-updated" }, ({ payload }) => {
+        applyTimerState(payload?.timer || null);
+        if (payload?.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, [activePollId, loadPolls, session.id]);
+
+  function applyTimerState(timer) {
+    setScreenStates((current) => {
+      const next = { ...current };
+      if (timer) next[TIMER_STATE_KEY] = timer;
+      else delete next[TIMER_STATE_KEY];
+      return next;
+    });
+  }
+
+  // Local half-second tick that drives the dock countdown while a timer runs. The
+  // zero-delay timeout re-syncs the clock when a timer arrives without setting
+  // state synchronously inside the effect body.
+  useEffect(() => {
+    if (!timerState || timerState.pausedRemaining != null) return undefined;
+    const sync = window.setTimeout(() => setTimerNowMs(Date.now()), 0);
+    const id = window.setInterval(() => setTimerNowMs(Date.now()), 500);
+    return () => {
+      window.clearTimeout(sync);
+      window.clearInterval(id);
+    };
+  }, [timerState]);
+
+  // Screen picker selections belong to the Room they were made in.
+  useEffect(() => {
+    setTimerTargets(null);
+  }, [activeRoom]);
+
+  async function screenTimerAction(body, failMessage) {
+    setTimerBusy(true);
+    setTimerMessage("");
+    try {
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || failMessage);
+      applyTimerState(payload.timer || null);
+      if (payload.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
+      return true;
+    } catch (error) {
+      setTimerMessage(error.message);
+      return false;
+    } finally {
+      setTimerBusy(false);
+    }
+  }
+
+  async function startScreenTimer() {
+    const minutes = Number.parseInt(timerMinutes, 10) || 0;
+    const seconds = Number.parseInt(timerSecondsInput, 10) || 0;
+    const durationSeconds = minutes * 60 + seconds;
+    if (durationSeconds < 5) {
+      setTimerMessage("Set the timer to at least 5 seconds.");
+      return;
+    }
+    if (!timerTargetIds.length) {
+      setTimerMessage("Choose at least one screen for the timer.");
+      return;
+    }
+    await screenTimerAction(
+      { action: "start-timer", durationSeconds, screenIds: timerTargetIds, label: timerLabel },
+      "Could not start the timer."
+    );
+  }
+
+  function toggleTimerTarget(screenId) {
+    const base = timerTargets ?? activeScreenIds;
+    setTimerTargets(
+      base.includes(screenId) ? base.filter((id) => id !== screenId) : [...base, screenId]
+    );
+  }
+
+  function applyTimerPreset(minutes) {
+    setTimerMinutes(String(minutes));
+    setTimerSecondsInput("0");
+  }
 
   async function loadProjectorSchedule({ silent = false } = {}) {
     try {
@@ -3506,6 +3629,38 @@ export default function ProjectorClient({
         </section>
       ) : null}
 
+      {timerState ? (
+        <section className="projectorTimerDock" aria-label="Screen timer">
+          <div>
+            <p className="eyebrow">Screen timer {timerPaused ? "paused" : timerRemainingSeconds <= 0 ? "finished" : "running"}</p>
+            <h2>
+              {timerPaused || timerRemainingSeconds > 0 ? formatTimerClock(timerRemainingSeconds) : "Time's up"}
+              {timerState.label ? ` · ${timerState.label}` : ""}
+            </h2>
+            <span>
+              Showing on {timerState.screenIds.length} screen{timerState.screenIds.length === 1 ? "" : "s"}.
+            </span>
+          </div>
+          <div className="projectorTimerDockActions">
+            {timerPaused ? (
+              <button type="button" onClick={() => screenTimerAction({ action: "resume-timer" }, "Could not resume the timer.")} disabled={timerBusy}>
+                Resume
+              </button>
+            ) : (
+              <button type="button" onClick={() => screenTimerAction({ action: "pause-timer" }, "Could not pause the timer.")} disabled={timerBusy}>
+                Pause
+              </button>
+            )}
+            <button type="button" onClick={() => screenTimerAction({ action: "extend-timer", seconds: 60 }, "Could not extend the timer.")} disabled={timerBusy}>
+              +1 min
+            </button>
+            <button type="button" onClick={() => screenTimerAction({ action: "clear-timer" }, "Could not end the timer.")} disabled={timerBusy}>
+              End Timer
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {reviewState ? (
         <section className="projectorReviewDock" aria-label="Submitted work review mode">
           <div>
@@ -3796,7 +3951,12 @@ export default function ProjectorClient({
                       </div>
                     </div>
                   ) : null}
-                  <ProjectorReceiverPreview enabled={isEnabled} state={displayState} />
+                  <ProjectorReceiverPreview
+                    enabled={isEnabled}
+                    state={displayState}
+                    timer={timerState && timerState.screenIds.includes(screenId) ? timerState : null}
+                    timerOffsetMs={timerOffsetMs}
+                  />
                   {isQuestionState(screenStates?.[screenId]) ? (
                     <button
                       className="btn secondary projectorRevealAnswerButton"
@@ -4156,6 +4316,84 @@ export default function ProjectorClient({
               ) : null}
             </section>
           ) : null}
+          <SidebarPanel
+            ariaLabel="Screen timer"
+            className="projectorTimerPanel"
+            count={timerState ? 1 : 0}
+            eyebrow="Screens"
+            onToggle={() => togglePanel("timer")}
+            open={openPanels.timer}
+            title="Screen Timer"
+          >
+            <div className="projectorTimerForm">
+              <div className="projectorTimerPresets">
+                {[1, 5, 10].map((minutes) => (
+                  <button
+                    className="btn secondary"
+                    key={minutes}
+                    type="button"
+                    onClick={() => applyTimerPreset(minutes)}
+                    disabled={timerBusy}
+                  >
+                    {minutes} min
+                  </button>
+                ))}
+              </div>
+              <div className="projectorTimerDuration">
+                <label>
+                  <span>Minutes</span>
+                  <input
+                    inputMode="numeric"
+                    min={0}
+                    max={240}
+                    type="number"
+                    value={timerMinutes}
+                    onChange={(event) => setTimerMinutes(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Seconds</span>
+                  <input
+                    inputMode="numeric"
+                    min={0}
+                    max={59}
+                    type="number"
+                    value={timerSecondsInput}
+                    onChange={(event) => setTimerSecondsInput(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Label (optional)</span>
+                  <input
+                    maxLength={60}
+                    value={timerLabel}
+                    onChange={(event) => setTimerLabel(event.target.value)}
+                    placeholder="Cleanup, Quiz..."
+                  />
+                </label>
+              </div>
+              <div className="projectorTimerTargets" aria-label="Timer screens">
+                <span>Show on</span>
+                <div className="projectorTimerTargetButtons">
+                  {activeScreenIds.map((screenId) => (
+                    <label key={screenId} className="projectorCheckboxLine">
+                      <input
+                        type="checkbox"
+                        checked={timerTargetIds.includes(screenId)}
+                        onChange={() => toggleTimerTarget(screenId)}
+                        disabled={timerBusy}
+                      />
+                      <span>{slotForScreen(activeRoom, screenId)?.name || `Screen ${screenId}`}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <button className="btn" type="button" onClick={startScreenTimer} disabled={timerBusy}>
+                {timerState ? "Restart Timer" : "Start Timer"}
+              </button>
+              {timerMessage ? <p className="projectorMessage">{timerMessage}</p> : null}
+            </div>
+          </SidebarPanel>
           {!wordListsSetupMissing ? (
             <SidebarPanel
               ariaLabel="Word Wall lists"

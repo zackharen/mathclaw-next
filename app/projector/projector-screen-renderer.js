@@ -421,6 +421,52 @@ export function ProjectorScreenContent({ state }) {
   );
 }
 
+function formatTimerSeconds(totalSeconds) {
+  const safe = Math.max(0, totalSeconds);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  if (hours) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+// Countdown overlay for the teacher-launched screen timer. Receivers tick locally
+// from the endsAt timestamp (plus a server-clock offset), so there is no
+// per-second network traffic; pausedRemaining freezes the display while paused.
+export function ProjectorTimerOverlay({ timer, serverOffsetMs = 0 }) {
+  const paused = timer ? timer.pausedRemaining != null : false;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!timer || paused) return undefined;
+    // The zero-delay timeout re-syncs the clock as soon as a timer arrives without
+    // setting state synchronously inside the effect body.
+    const sync = window.setTimeout(() => setNowMs(Date.now()), 0);
+    const id = window.setInterval(() => setNowMs(Date.now()), 500);
+    return () => {
+      window.clearTimeout(sync);
+      window.clearInterval(id);
+    };
+  }, [timer, paused]);
+
+  if (!timer) return null;
+  const remaining = paused
+    ? Math.max(0, timer.pausedRemaining)
+    : Math.ceil((Date.parse(timer.endsAt || "") - (nowMs + serverOffsetMs)) / 1000);
+  const finished = !paused && remaining <= 0;
+
+  return (
+    <div
+      className={`projectorTimerOverlay${paused ? " isPaused" : ""}${finished ? " isFinished" : ""}`}
+      role="timer"
+    >
+      {timer.label ? <span className="projectorTimerOverlayLabel">{timer.label}</span> : null}
+      <span className="projectorTimerOverlayTime">{finished ? "Time's up" : formatTimerSeconds(remaining)}</span>
+      {paused ? <span className="projectorTimerOverlayStatus">Paused</span> : null}
+    </div>
+  );
+}
+
 export function ProjectorScreenInactiveState() {
   return (
     <div className="projectorScreenInactiveState">

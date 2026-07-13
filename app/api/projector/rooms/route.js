@@ -13,9 +13,45 @@ const DEFAULT_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   enabled: true,
 }));
 const INPUT_TYPES = new Set(["touch", "keyboard_mouse", "display_only"]);
+const TIMER_STATE_KEY = "__mathclaw_projector_timer_v1__";
+const TIMER_BROADCAST_TIMEOUT_MS = 1500;
 
 function jsonError(message, status = 400, extra = {}) {
   return NextResponse.json({ error: message, ...extra }, { status });
+}
+
+function screenTimerFrom(screenStates) {
+  const timer = screenStates?.[TIMER_STATE_KEY];
+  if (!timer || typeof timer !== "object" || !Array.isArray(timer.screenIds)) return null;
+  return timer;
+}
+
+// The screen timer is scoped to the Room it was started in; switching Rooms clears it.
+async function clearSessionTimer(admin, session) {
+  if (!session || !screenTimerFrom(session.screen_states)) return;
+  const nextStates = { ...session.screen_states };
+  delete nextStates[TIMER_STATE_KEY];
+  const { error } = await admin
+    .from("projector_sessions")
+    .update({ screen_states: nextStates, updated_at: new Date().toISOString() })
+    .eq("id", session.id)
+    .eq("teacher_id", session.teacher_id);
+  if (error) return;
+  session.screen_states = nextStates;
+
+  const channel = admin.channel(`projector-session-${session.id}`);
+  try {
+    await Promise.race([
+      channel.send({
+        type: "broadcast",
+        event: "timer-updated",
+        payload: { timer: null, serverNow: Date.now() },
+      }),
+      new Promise((resolve) => setTimeout(resolve, TIMER_BROADCAST_TIMEOUT_MS)),
+    ]);
+  } finally {
+    await admin.removeChannel(channel);
+  }
 }
 
 function isUuid(value) {
@@ -444,7 +480,8 @@ async function setActiveRoom(admin, teacherId, body) {
   if (error) return jsonError(error.message, 500);
 
   const session = await getTeacherSession(admin, teacherId);
-  await ensureSessionScreens(admin, session, data);
+  const ensured = (await ensureSessionScreens(admin, session, data)) || session;
+  await clearSessionTimer(admin, ensured);
 
   return NextResponse.json({ room: normalizeRoom(data) });
 }
@@ -505,6 +542,8 @@ export async function GET(request) {
         screenName: slot?.name || `Screen ${screenNumber}`,
         inputType: INPUT_TYPES.has(slot?.inputType) ? slot.inputType : "display_only",
         enabled: slot?.enabled !== false,
+        timer: screenTimerFrom(session.screen_states),
+        serverNow: Date.now(),
       });
     } catch (error) {
       return jsonError(error.message || "Could not load projector screen.", 500);

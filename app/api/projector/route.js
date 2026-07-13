@@ -20,6 +20,9 @@ const CAPTION_LIMIT = 140;
 const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 const REVIEW_STATE_KEY = "__mathclaw_projector_review_v1__";
+const TIMER_STATE_KEY = "__mathclaw_projector_timer_v1__";
+const TIMER_LABEL_LIMIT = 60;
+const TIMER_MAX_SECONDS = 4 * 60 * 60;
 const BROADCAST_SEND_TIMEOUT_MS = 1500;
 
 function jsonError(message, status = 400) {
@@ -280,6 +283,46 @@ function stripReviewState(screenStates) {
   const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
   delete nextStates[REVIEW_STATE_KEY];
   return nextStates;
+}
+
+function timerStateFrom(screenStates) {
+  const timer = screenStates?.[TIMER_STATE_KEY];
+  if (!timer || typeof timer !== "object") return null;
+  const screenIds = normalizeScreenIds(timer.screenIds);
+  const endsAtMs = Date.parse(timer.endsAt || "");
+  const pausedRemaining =
+    timer.pausedRemaining == null ? null : Math.max(0, Number.parseInt(timer.pausedRemaining, 10) || 0);
+  if (!screenIds.length) return null;
+  if (pausedRemaining == null && Number.isNaN(endsAtMs)) return null;
+  return {
+    screenIds,
+    endsAt: pausedRemaining == null ? new Date(endsAtMs).toISOString() : null,
+    pausedRemaining,
+    label: String(timer.label || "").trim().slice(0, TIMER_LABEL_LIMIT),
+    startedAt: timer.startedAt || null,
+  };
+}
+
+function stripTimerState(screenStates) {
+  const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
+  delete nextStates[TIMER_STATE_KEY];
+  return nextStates;
+}
+
+async function broadcastTimerUpdate(admin, sessionId, timer) {
+  const channel = admin.channel(`projector-session-${sessionId}`);
+  try {
+    await Promise.race([
+      channel.send({
+        type: "broadcast",
+        event: "timer-updated",
+        payload: { timer, serverNow: Date.now() },
+      }),
+      new Promise((resolve) => setTimeout(resolve, BROADCAST_SEND_TIMEOUT_MS)),
+    ]);
+  } finally {
+    await admin.removeChannel(channel);
+  }
 }
 
 function restoreTakeoverState(screenStates) {
@@ -1226,6 +1269,94 @@ async function endTakeover(admin, teacherId, session) {
   return NextResponse.json({ ok: true, ended: true, screenStates });
 }
 
+async function startTimer(admin, teacherId, session, body) {
+  const requestedSeconds = Number.parseInt(body.durationSeconds, 10) || 0;
+  if (requestedSeconds < 5) return jsonError("Set the timer to at least 5 seconds.");
+  const durationSeconds = Math.min(requestedSeconds, TIMER_MAX_SECONDS);
+
+  const enabledScreenIds = await getEnabledActiveRoomScreenIds(admin, teacherId);
+  if (!enabledScreenIds.length) return jsonError("A Room needs at least one active screen.");
+  const requested = normalizeScreenIds(body.screenIds);
+  const screenIds = requested.length
+    ? requested.filter((screenId) => enabledScreenIds.includes(screenId))
+    : enabledScreenIds;
+  if (!screenIds.length) return jsonError("Choose at least one active screen for the timer.");
+
+  const label = String(body.label || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, TIMER_LABEL_LIMIT);
+
+  const now = Date.now();
+  const nextStates = {
+    ...sessionScreenStates(session),
+    [TIMER_STATE_KEY]: {
+      screenIds,
+      endsAt: new Date(now + durationSeconds * 1000).toISOString(),
+      pausedRemaining: null,
+      label,
+      startedAt: new Date(now).toISOString(),
+    },
+  };
+
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  const timer = timerStateFrom(nextStates);
+  await broadcastTimerUpdate(admin, session.id, timer);
+  return NextResponse.json({ ok: true, timer, serverNow: Date.now() });
+}
+
+async function updateTimer(admin, teacherId, session, updater) {
+  const current = sessionScreenStates(session);
+  const timer = timerStateFrom(current);
+  if (!timer) return jsonError("No screen timer is running.", 404);
+
+  const nextStates = { ...current, [TIMER_STATE_KEY]: updater(timer) };
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  const publicTimer = timerStateFrom(nextStates);
+  await broadcastTimerUpdate(admin, session.id, publicTimer);
+  return NextResponse.json({ ok: true, timer: publicTimer, serverNow: Date.now() });
+}
+
+function pauseTimerState(timer) {
+  if (timer.pausedRemaining != null) return timer;
+  return {
+    ...timer,
+    endsAt: null,
+    pausedRemaining: Math.max(0, Math.round((Date.parse(timer.endsAt) - Date.now()) / 1000)),
+  };
+}
+
+function resumeTimerState(timer) {
+  if (timer.pausedRemaining == null) return timer;
+  return {
+    ...timer,
+    endsAt: new Date(Date.now() + timer.pausedRemaining * 1000).toISOString(),
+    pausedRemaining: null,
+  };
+}
+
+function extendTimerState(timer, seconds) {
+  if (timer.pausedRemaining != null) {
+    return { ...timer, pausedRemaining: Math.min(timer.pausedRemaining + seconds, TIMER_MAX_SECONDS) };
+  }
+  // Extending an expired timer restarts it from now, so "+1 min" on Time's up gives a full minute.
+  const baseMs = Math.max(Date.parse(timer.endsAt), Date.now());
+  return { ...timer, endsAt: new Date(baseMs + seconds * 1000).toISOString() };
+}
+
+async function clearTimer(admin, teacherId, session) {
+  const current = sessionScreenStates(session);
+  if (!timerStateFrom(current)) return NextResponse.json({ ok: true, timer: null });
+  const nextStates = stripTimerState(current);
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  await broadcastTimerUpdate(admin, session.id, null);
+  return NextResponse.json({ ok: true, timer: null });
+}
+
 function workCaption(entry) {
   const parts = [entry.student_name, entry.label].map((part) => String(part || "").trim()).filter(Boolean);
   return parts.join(" · ");
@@ -1271,7 +1402,9 @@ async function startReview(admin, teacherId, session, body) {
       pageIndex: 0,
       showCaptions: body.showCaptions !== false,
       startedAt: new Date().toISOString(),
-      restoreStates: restored.screenStates,
+      // The timer marker is live state, not screen content — keep it out of the
+      // snapshot so ending review cannot resurrect an already-cleared timer.
+      restoreStates: stripTimerState(restored.screenStates),
     },
   };
 
@@ -1315,7 +1448,13 @@ async function endReview(admin, teacherId, session) {
   const current = sessionScreenStates(session);
   const review = reviewStateFrom(current);
   if (!review) return NextResponse.json({ ok: true, ended: false, screenStates: clientScreenStates(current) });
-  const nextStates = review.restoreStates && typeof review.restoreStates === "object" ? review.restoreStates : stripReviewState(current);
+  const nextStates =
+    review.restoreStates && typeof review.restoreStates === "object"
+      ? { ...review.restoreStates }
+      : stripReviewState(current);
+  // Carry a timer started during review across the restore.
+  if (current[TIMER_STATE_KEY]) nextStates[TIMER_STATE_KEY] = current[TIMER_STATE_KEY];
+  else delete nextStates[TIMER_STATE_KEY];
   const result = await persistScreenStates(admin, session, teacherId, nextStates);
   if (result.error) return jsonError(result.error.message, 500);
   await broadcastScreenUpdates(admin, session.id, review.screenIds.map((screenId) => reviewBroadcastPayload(nextStates, screenId)));
@@ -1432,6 +1571,27 @@ export async function POST(request) {
 
   if (body?.action === "end-takeover") {
     return endTakeover(admin, context.user.id, context.session);
+  }
+
+  if (body?.action === "start-timer") {
+    return startTimer(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "pause-timer") {
+    return updateTimer(admin, context.user.id, context.session, pauseTimerState);
+  }
+
+  if (body?.action === "resume-timer") {
+    return updateTimer(admin, context.user.id, context.session, resumeTimerState);
+  }
+
+  if (body?.action === "extend-timer") {
+    const seconds = Math.min(Math.max(Number.parseInt(body.seconds, 10) || 60, 5), 3600);
+    return updateTimer(admin, context.user.id, context.session, (timer) => extendTimerState(timer, seconds));
+  }
+
+  if (body?.action === "clear-timer") {
+    return clearTimer(admin, context.user.id, context.session);
   }
 
   if (body?.action === "start-review") {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ProjectorScreenContent, ProjectorScreenInactiveState } from "../projector-screen-renderer";
+import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay } from "../projector-screen-renderer";
 import "../styles.css";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
@@ -20,6 +20,11 @@ const SCREEN_TOOLS = {
 
 function toolsForInputType(inputType) {
   return SCREEN_TOOLS[inputType] || SCREEN_TOOLS.display_only;
+}
+
+function timerForScreen(timer, screenNumber) {
+  if (!timer || !Array.isArray(timer.screenIds)) return null;
+  return timer.screenIds.map(String).includes(String(screenNumber)) ? timer : null;
 }
 
 function dataUrlToFile(dataUrl, fileName = "student-work.jpg") {
@@ -89,6 +94,8 @@ export default function ScreenClient({ initialToken = null }) {
   const [pollVote, setPollVote] = useState(null);
   const [pollStudentName, setPollStudentName] = useState("");
   const [pollStatus, setPollStatus] = useState("idle");
+  const [screenTimer, setScreenTimer] = useState(null);
+  const [timerOffsetMs, setTimerOffsetMs] = useState(0);
   const workInputRef = useRef(null);
 
   useEffect(() => {
@@ -128,6 +135,8 @@ export default function ScreenClient({ initialToken = null }) {
       setInputType(payload.inputType || "display_only");
       setEnabled(payload.enabled !== false);
       setState(payload.state || null);
+      setScreenTimer(timerForScreen(payload.timer, payload.screenNumber));
+      if (payload.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
       setStatus("connected");
     } catch (error) {
       setStatus("error");
@@ -200,6 +209,10 @@ export default function ScreenClient({ initialToken = null }) {
       })
       .on("broadcast", { event: "poll-updated" }, () => {
         loadActivePoll();
+      })
+      .on("broadcast", { event: "timer-updated" }, ({ payload }) => {
+        setScreenTimer(timerForScreen(payload?.timer, screenNumber));
+        if (payload?.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
       })
       .subscribe((nextStatus) => {
         if (nextStatus === "SUBSCRIBED") setStatus("connected");
@@ -414,6 +427,7 @@ export default function ScreenClient({ initialToken = null }) {
         {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
       </button>
       {screenName ? <div className="projectorScreenProfileBadge">{screenName}</div> : null}
+      {enabled ? <ProjectorTimerOverlay timer={screenTimer} serverOffsetMs={timerOffsetMs} /> : null}
       {enabled && tools.polls && activePoll ? (
         <section className="projectorPollOverlay" aria-label="Live poll">
           <div className="projectorPollQuestion">
