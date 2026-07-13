@@ -566,7 +566,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
 
       {canManage && tournament?.status !== "waiting" ? (
         <>
-          {tournament.status === "active" ? (
+          {tournament?.status === "active" ? (
             <section className="card">
               <h2>Live Games</h2>
               {liveMatches.length === 0 ? (
