@@ -258,10 +258,19 @@ async function listTeacherPolls(admin, teacherId) {
   if (error) return { error: jsonError(error.message, 500) };
 
   const activePoll = (polls || []).find((poll) => poll.status === "open") || null;
-  const results = activePoll ? await loadPollResults(admin, teacherId, activePoll.id) : null;
+  let votes = [];
+  if (activePoll) {
+    const { data: activeVotes, error: activeVoteError } = await admin
+      .from("projector_poll_votes")
+      .select("screen_number, screen_name, student_name, choice, updated_at")
+      .eq("poll_id", activePoll.id)
+      .eq("teacher_id", teacherId);
+    if (activeVoteError && !isMissingPollTables(activeVoteError)) return { error: jsonError(activeVoteError.message, 500) };
+    votes = activeVotes || [];
+  }
   return {
     activePoll: publicPoll(activePoll),
-    activeResults: results?.results || (activePoll ? aggregateResults(activePoll, []) : null),
+    activeResults: activePoll ? aggregateResults(activePoll, votes) : null,
     recentPolls: (polls || []).map(publicPoll),
   };
 }
