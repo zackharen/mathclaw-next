@@ -257,10 +257,9 @@ async function listTeacherPolls(admin, teacherId) {
 
   const activePoll = (polls || []).find((poll) => poll.status === "open") || null;
   const results = activePoll ? await loadPollResults(admin, teacherId, activePoll.id) : null;
-  if (results?.error || results?.setupMissing) return results;
   return {
     activePoll: publicPoll(activePoll),
-    activeResults: results?.results || null,
+    activeResults: results?.results || (activePoll ? aggregateResults(activePoll, []) : null),
     recentPolls: (polls || []).map(publicPoll),
   };
 }
@@ -345,9 +344,7 @@ async function createPoll(admin, teacherId, sessionId, body) {
   if (isMissingPollTables(error)) return jsonError("Projector polls are not set up yet.", 503);
   if (error) return jsonError(error.message, 500);
   await broadcastPollChanged(admin, sessionId, poll.id);
-  const results = await loadPollResults(admin, teacherId, poll.id);
-  if (results.error) return results.error;
-  return jsonOk({ poll: publicPoll(poll), results: results.results });
+  return jsonOk({ poll: publicPoll(poll), results: aggregateResults(poll, []) });
 }
 
 async function closePoll(admin, teacherId, sessionId, body) {
