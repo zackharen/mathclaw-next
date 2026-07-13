@@ -793,7 +793,10 @@ export default function ProjectorClient({
     }
     return touchScreenIds;
   }, [selectedTargetScreens, targetMode, touchScreenIds]);
-  const pollLaunchDescription = describeScreenTargets(pollLaunchScreenIds, targetMode === "custom" && pollLaunchScreenIds.length ? "custom" : "all");
+  const pollLaunchDescription =
+    targetMode === "custom" && pollLaunchScreenIds.length
+      ? describeScreenTargets(pollLaunchScreenIds, "custom")
+      : "all active touch screens";
   const currentPlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === playlistState.playlistId) || null,
     [playlistState.playlistId, playlists]
