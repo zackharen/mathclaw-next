@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAccountTypeForUser, getPublicDisplayName } from "@/lib/auth/account-type";
 import {
   buildInitialTournamentMatches,
+  deterministicTournamentGameId,
   deriveBestOfThreeSummary,
   isTournamentParticipantPresent,
   MATCH_FORMAT_BEST_OF_3,
@@ -63,13 +64,23 @@ async function resolveDisplayName(admin, user) {
   return getPublicDisplayName(data, user.email || "Student");
 }
 
-async function createConnect4Match(admin, { courseId, creatorId, playerOneId, playerTwoId, tournamentId, tournamentMatchId }) {
+async function createConnect4Match(admin, {
+  courseId,
+  creatorId,
+  playerOneId,
+  playerTwoId,
+  tournamentId,
+  tournamentMatchId,
+  sourceMatchId = "initial",
+}) {
+  const matchId = deterministicTournamentGameId(tournamentMatchId, sourceMatchId);
   let inviteCode = generateJoinCode(8);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const { data, error } = await admin
       .from("connect4_matches")
       .insert({
+        id: matchId,
         invite_code: inviteCode,
         course_id: courseId,
         created_by: creatorId,
@@ -95,6 +106,12 @@ async function createConnect4Match(admin, { courseId, creatorId, playerOneId, pl
     if (!String(error.message || "").includes("duplicate")) {
       throw new Error(error.message);
     }
+    const { data: existing } = await admin
+      .from("connect4_matches")
+      .select("*")
+      .eq("id", matchId)
+      .maybeSingle();
+    if (existing) return existing;
     inviteCode = generateJoinCode(8);
   }
 
@@ -191,13 +208,21 @@ async function loadTournamentRows(admin, tournamentOrId) {
   };
 }
 
-async function updateTournamentMatch(admin, matchId, payload) {
-  const { data, error } = await admin
+async function updateTournamentMatch(admin, matchId, payload, conditions = {}) {
+  let query = admin
     .from("connect4_tournament_matches")
     .update({ ...payload, updated_at: nowIso() })
-    .eq("id", matchId)
-    .select("*")
-    .single();
+    .eq("id", matchId);
+
+  if (conditions.expectedStatus) query = query.eq("status", conditions.expectedStatus);
+  if (conditions.notStatus) query = query.neq("status", conditions.notStatus);
+  if (conditions.expectedConnect4MatchId === null) {
+    query = query.is("connect4_match_id", null);
+  } else if (conditions.expectedConnect4MatchId) {
+    query = query.eq("connect4_match_id", conditions.expectedConnect4MatchId);
+  }
+
+  const { data, error } = await query.select("*").maybeSingle();
 
   if (error) throw new Error(error.message);
   return data;
@@ -251,21 +276,32 @@ async function syncTournament(admin, tournament) {
         playerTwoId: bracketMatch.player_two_id,
         tournamentId: tournament.id,
         tournamentMatchId: bracketMatch.id,
+        sourceMatchId: liveMatch.id,
       });
-      Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
+      const updatedMatch = await updateTournamentMatch(admin, bracketMatch.id, {
         connect4_match_id: replay.id,
         status: "active",
-      }));
+      }, {
+        expectedStatus: "active",
+        expectedConnect4MatchId: liveMatch.id,
+      });
+      if (!updatedMatch) continue;
+      Object.assign(bracketMatch, updatedMatch);
       connect4Map.set(replay.id, replay);
       changed = true;
       continue;
     }
 
     if (matchFormat === "single_game") {
-      Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
+      const updatedMatch = await updateTournamentMatch(admin, bracketMatch.id, {
         winner_id: liveMatch.winner_id,
         status: "finished",
-      }));
+      }, {
+        expectedStatus: "active",
+        expectedConnect4MatchId: liveMatch.id,
+      });
+      if (!updatedMatch) continue;
+      Object.assign(bracketMatch, updatedMatch);
       changed = true;
       continue;
     }
@@ -301,11 +337,17 @@ async function syncTournament(admin, tournament) {
         playerTwoId: bracketMatch.player_two_id,
         tournamentId: tournament.id,
         tournamentMatchId: bracketMatch.id,
+        sourceMatchId: liveMatch.id,
       });
-      Object.assign(bracketMatch, await updateTournamentMatch(admin, bracketMatch.id, {
+      const updatedMatch = await updateTournamentMatch(admin, bracketMatch.id, {
         connect4_match_id: nextGame.id,
         status: "active",
-      }));
+      }, {
+        expectedStatus: "active",
+        expectedConnect4MatchId: liveMatch.id,
+      });
+      if (!updatedMatch) continue;
+      Object.assign(bracketMatch, updatedMatch);
       connect4Map.set(nextGame.id, nextGame);
     }
   }
@@ -345,7 +387,6 @@ async function syncTournament(admin, tournament) {
       if (nextMatch[slotKey] !== bracketMatch.winner_id) {
         Object.assign(nextMatch, await updateTournamentMatch(admin, nextMatch.id, {
           [slotKey]: bracketMatch.winner_id,
-          status: nextMatch.status === "pending" ? "ready" : nextMatch.status,
         }));
         propagated = true;
         changed = true;
@@ -365,11 +406,17 @@ async function syncTournament(admin, tournament) {
           playerTwoId: nextMatch.player_two_id,
           tournamentId: tournament.id,
           tournamentMatchId: nextMatch.id,
+          sourceMatchId: "initial",
         });
-        Object.assign(nextMatch, await updateTournamentMatch(admin, nextMatch.id, {
+        const updatedMatch = await updateTournamentMatch(admin, nextMatch.id, {
           connect4_match_id: liveMatch.id,
           status: "active",
-        }));
+        }, {
+          expectedConnect4MatchId: null,
+          notStatus: "finished",
+        });
+        if (!updatedMatch) continue;
+        Object.assign(nextMatch, updatedMatch);
         connect4Map.set(liveMatch.id, liveMatch);
         propagated = true;
         changed = true;
@@ -745,6 +792,7 @@ export async function POST(request) {
           playerTwoId: match.player_two_id,
           tournamentId: tournament.id,
           tournamentMatchId: match.id,
+          sourceMatchId: "initial",
         });
         await updateTournamentMatch(admin, match.id, {
           connect4_match_id: liveMatch.id,

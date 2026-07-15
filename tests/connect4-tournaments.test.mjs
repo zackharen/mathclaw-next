@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildInitialTournamentMatches,
+  deterministicTournamentGameId,
   deriveBestOfThreeSummary,
   normalizeTournamentMatchFormat,
   nextPowerOfTwo,
@@ -73,6 +74,16 @@ test("match format normalization defaults to single game", () => {
   assert.equal(normalizeTournamentMatchFormat("best_of_3"), "best_of_3");
   assert.equal(normalizeTournamentMatchFormat("best_of_5"), "single_game");
   assert.equal(normalizeTournamentMatchFormat(null), "single_game");
+});
+
+test("tournament game ids are stable for the same transition and unique across transitions", () => {
+  const first = deterministicTournamentGameId("tournament-match-1", "finished-game-1");
+  const duplicate = deterministicTournamentGameId("tournament-match-1", "finished-game-1");
+  const next = deterministicTournamentGameId("tournament-match-1", "finished-game-2");
+
+  assert.equal(first, duplicate);
+  assert.notEqual(first, next);
+  assert.match(first, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
 test("best of three ignores draws and asks for a replay", () => {

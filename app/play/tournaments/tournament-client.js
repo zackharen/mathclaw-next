@@ -332,6 +332,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
   const [courseId, setCourseId] = useState(initialCourseId || courses[0]?.id || "");
   const [payload, setPayload] = useState(null);
   const [status, setStatus] = useState("");
+  const [pollError, setPollError] = useState("");
   const [busy, setBusy] = useState(false);
   const [matchFormat, setMatchFormat] = useState("single_game");
   const [selectedBoard, setSelectedBoard] = useState(null);
@@ -357,13 +358,17 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
 
   const fetchTournament = useCallback(async () => {
     if (!courseId) return;
-    const query = tournament?.id
-      ? `tournamentId=${encodeURIComponent(tournament.id)}`
-      : `courseId=${encodeURIComponent(courseId)}`;
-    const response = await fetch(`/api/play/connect4-tournaments?${query}`);
-    const data = await response.json();
-    if (response.ok) {
+    try {
+      const query = tournament?.id
+        ? `tournamentId=${encodeURIComponent(tournament.id)}`
+        : `courseId=${encodeURIComponent(courseId)}`;
+      const response = await fetch(`/api/play/connect4-tournaments?${query}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Tournament update failed.");
+      setPollError("");
       setPayload(data.tournament === null ? null : data);
+    } catch {
+      setPollError("Live tournament updates are temporarily unavailable. Showing the latest bracket.");
     }
   }, [courseId, tournament?.id]);
 
@@ -403,6 +408,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
   useEffect(() => {
     setPayload(null);
     setStatus("");
+    setPollError("");
   }, [courseId]);
 
   useEffect(() => {
@@ -486,6 +492,7 @@ export default function TournamentClient({ courses, userId, initialCourseId = ""
           ) : null}
         </div>
         {status ? <p className="tournamentStatusLine">{status}</p> : null}
+        {pollError ? <p className="tournamentStatusLine">{pollError}</p> : null}
       </section>
 
       <div className="tournamentStickyBracket">
