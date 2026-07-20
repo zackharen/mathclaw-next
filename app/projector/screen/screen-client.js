@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay } from "../projector-screen-renderer";
+import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay, displayContent, questionForState } from "../projector-screen-renderer";
 import "../styles.css";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
@@ -14,9 +14,11 @@ const WORK_NAME_STORAGE_KEY = "mathclaw.projector.submitWorkName";
 // themselves by capability.
 const SCREEN_TOOLS = {
   display_only: { interactive: false },
-  touch: { interactive: true, submitWork: true, polls: true },
-  keyboard_mouse: { interactive: true },
+  touch: { interactive: true, submitWork: true, polls: true, draw: true },
+  keyboard_mouse: { interactive: true, draw: true },
 };
+
+const DRAW_COLORS = ["#ffffff", "#ffd166", "#ef4444", "#38bdf8"];
 
 function toolsForInputType(inputType) {
   return SCREEN_TOOLS[inputType] || SCREEN_TOOLS.display_only;
@@ -72,6 +74,356 @@ async function compressImageFile(file) {
   }
 }
 
+function drawStrokePath(context, canvas, stroke) {
+  const points = stroke.points;
+  if (!points.length) return;
+  context.save();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.strokeStyle = stroke.color;
+  context.globalCompositeOperation = stroke.erase ? "destination-out" : "source-over";
+  context.lineWidth = Math.max(2, canvas.width * (stroke.erase ? 0.03 : 0.006));
+  context.beginPath();
+  context.moveTo(points[0].x * canvas.width, points[0].y * canvas.height);
+  for (let index = 1; index < points.length; index += 1) {
+    context.lineTo(points[index].x * canvas.width, points[index].y * canvas.height);
+  }
+  if (points.length === 1) {
+    context.lineTo(points[0].x * canvas.width + 0.1, points[0].y * canvas.height);
+  }
+  context.stroke();
+  context.restore();
+}
+
+function drawWrappedSnapshotText(context, text, { width, y, font, color, lineHeight, maxLines = 14 }) {
+  context.save();
+  context.font = font;
+  context.fillStyle = color;
+  context.textAlign = "center";
+  context.textBaseline = "top";
+  const maxWidth = width * 0.88;
+  const lines = [];
+  String(text || "")
+    .split(/\r?\n/)
+    .forEach((rawLine) => {
+      let line = "";
+      rawLine.split(/\s+/).forEach((word) => {
+        const candidate = line ? `${line} ${word}` : word;
+        if (line && context.measureText(candidate).width > maxWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = candidate;
+        }
+      });
+      lines.push(line);
+    });
+  lines.slice(0, maxLines).forEach((line, index) => {
+    context.fillText(line, width / 2, y + index * lineHeight, maxWidth);
+  });
+  context.restore();
+  return y + Math.min(lines.length, maxLines) * lineHeight;
+}
+
+function drawContainedImage(context, source, sourceWidth, sourceHeight, width, height) {
+  if (!sourceWidth || !sourceHeight) return;
+  const scale = Math.min(width / sourceWidth, height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  context.drawImage(source, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+// Flattens the screen's current content into the snapshot background. Media is
+// redrawn from its source URL; text-like content is approximated with plain
+// canvas text (KaTeX DOM cannot be rasterized without heavy libraries).
+async function drawSnapshotBackground(context, width, height, state, includeVideo) {
+  if (!state) return;
+  const content = displayContent(state.content);
+  const question = questionForState(state);
+  let cursorY = height * 0.06;
+  if (state.topText) {
+    cursorY = drawWrappedSnapshotText(context, state.topText, {
+      width,
+      y: cursorY,
+      font: `700 ${Math.round(height * 0.05)}px system-ui, sans-serif`,
+      color: "#ffffff",
+      lineHeight: Math.round(height * 0.065),
+      maxLines: 3,
+    }) + height * 0.02;
+  }
+  if (state.type === "image" || /^data:image\/gif/i.test(content) || /\.gif(\?|#|$)/i.test(content)) {
+    await new Promise((resolve) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => {
+        try {
+          drawContainedImage(context, image, image.naturalWidth, image.naturalHeight, width, height);
+        } catch {
+          // A tainted or broken frame just leaves the dark background.
+        }
+        resolve();
+      };
+      image.onerror = resolve;
+      image.src = content;
+    });
+  } else if (state.type === "video") {
+    if (includeVideo) {
+      const video = document.querySelector(".projectorScreenStage video.projectorScreenMedia");
+      if (video && video.videoWidth) {
+        drawContainedImage(context, video, video.videoWidth, video.videoHeight, width, height);
+      }
+    }
+  } else if (question) {
+    const promptText = question.prompt || (state.type === "text" ? content : "");
+    if (promptText) {
+      cursorY = drawWrappedSnapshotText(context, promptText, {
+        width,
+        y: cursorY,
+        font: `700 ${Math.round(height * 0.055)}px system-ui, sans-serif`,
+        color: "#ffffff",
+        lineHeight: Math.round(height * 0.07),
+        maxLines: 5,
+      }) + height * 0.03;
+    }
+    const optionLabels = ["A", "B", "C", "D"];
+    question.options.forEach((option, index) => {
+      if (!String(option || "").trim()) return;
+      cursorY = drawWrappedSnapshotText(context, `${optionLabels[index]}) ${option}`, {
+        width,
+        y: cursorY,
+        font: `600 ${Math.round(height * 0.045)}px system-ui, sans-serif`,
+        color: "#e2e8f0",
+        lineHeight: Math.round(height * 0.06),
+        maxLines: 2,
+      });
+    });
+  } else if (state.type === "text" || state.type === "latex") {
+    drawWrappedSnapshotText(context, content, {
+      width,
+      y: Math.max(cursorY, height * 0.18),
+      font: `700 ${Math.round(height * 0.05)}px system-ui, sans-serif`,
+      color: "#ffffff",
+      lineHeight: Math.round(height * 0.065),
+    });
+  }
+  if (state.caption && (state.type === "image" || state.type === "video")) {
+    drawWrappedSnapshotText(context, state.caption, {
+      width,
+      y: height * 0.92,
+      font: `600 ${Math.round(height * 0.03)}px system-ui, sans-serif`,
+      color: "#e2e8f0",
+      lineHeight: Math.round(height * 0.04),
+      maxLines: 2,
+    });
+  }
+}
+
+// Transparent annotation layer registered through SCREEN_TOOLS. Ink is
+// client-side only and cleared whenever new content arrives (contentKey).
+const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, suspended }, ref) {
+  const canvasRef = useRef(null);
+  const strokesRef = useRef([]);
+  const activeStrokeRef = useRef(null);
+  const [penOn, setPenOn] = useState(false);
+  const [color, setColor] = useState(DRAW_COLORS[0]);
+  const [erasing, setErasing] = useState(false);
+  const [strokeCount, setStrokeCount] = useState(0);
+
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    strokesRef.current.forEach((stroke) => drawStrokePath(context, canvas, stroke));
+    if (activeStrokeRef.current) drawStrokePath(context, canvas, activeStrokeRef.current);
+  }, []);
+
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // DPR capped at 1.5 to keep full-viewport canvas work light on old iPads.
+    // Skip degenerate sizes (browsers can report 0x0 while hidden or mid-switch).
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    const width = Math.round(window.innerWidth * ratio);
+    const height = Math.round(window.innerHeight * ratio);
+    if (width < 8 || height < 8) return;
+    canvas.width = width;
+    canvas.height = height;
+    redraw();
+  }, [redraw]);
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [resizeCanvas]);
+
+  useEffect(() => {
+    strokesRef.current = [];
+    activeStrokeRef.current = null;
+    redraw();
+    // Zero-delay timeout avoids setState synchronously inside the effect body.
+    const id = window.setTimeout(() => setStrokeCount(0), 0);
+    return () => window.clearTimeout(id);
+  }, [contentKey, redraw]);
+
+  // While a poll overlay is up it owns the screen, so the pen is inert.
+  const penActive = penOn && !suspended;
+
+  function pointFromEvent(event) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return null;
+    return {
+      x: (event.clientX - rect.left) / rect.width,
+      y: (event.clientY - rect.top) / rect.height,
+    };
+  }
+
+  function handlePointerDown(event) {
+    if (!penActive || !event.isPrimary) return;
+    event.preventDefault();
+    const point = pointFromEvent(event);
+    if (!point) return;
+    try {
+      canvasRef.current?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Capture is a nicety; drawing still works without it.
+    }
+    activeStrokeRef.current = { color, erase: erasing, points: [point] };
+    redraw();
+  }
+
+  function handlePointerMove(event) {
+    const stroke = activeStrokeRef.current;
+    if (!stroke || !event.isPrimary) return;
+    event.preventDefault();
+    const point = pointFromEvent(event);
+    if (!point) return;
+    stroke.points.push(point);
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    drawStrokePath(context, canvas, { ...stroke, points: stroke.points.slice(-2) });
+  }
+
+  function handlePointerEnd(event) {
+    const stroke = activeStrokeRef.current;
+    if (!stroke || !event.isPrimary) return;
+    activeStrokeRef.current = null;
+    strokesRef.current = [...strokesRef.current, stroke];
+    setStrokeCount(strokesRef.current.length);
+  }
+
+  function undoStroke() {
+    strokesRef.current = strokesRef.current.slice(0, -1);
+    setStrokeCount(strokesRef.current.length);
+    redraw();
+  }
+
+  function clearStrokes() {
+    strokesRef.current = [];
+    activeStrokeRef.current = null;
+    setStrokeCount(0);
+    redraw();
+  }
+
+  useImperativeHandle(ref, () => ({
+    async capture(state) {
+      const source = canvasRef.current;
+      // Hidden pages can report a 0x0 viewport; the ink canvas keeps the last
+      // real layout size, so prefer it as the aspect source when that happens.
+      let viewportWidth = window.innerWidth;
+      let viewportHeight = window.innerHeight;
+      if (viewportWidth < 8 || viewportHeight < 8) {
+        viewportWidth = source?.width >= 8 ? source.width : 1280;
+        viewportHeight = source?.height >= 8 ? source.height : 720;
+      }
+      const encode = async (maxSide, includeVideo) => {
+        const scale = Math.min(1, maxSide / Math.max(viewportWidth, viewportHeight));
+        const width = Math.max(1, Math.round(viewportWidth * scale));
+        const height = Math.max(1, Math.round(viewportHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) return null;
+        context.fillStyle = "#0a0a0a";
+        context.fillRect(0, 0, width, height);
+        await drawSnapshotBackground(context, width, height, state, includeVideo);
+        if (source) context.drawImage(source, 0, 0, width, height);
+        // Quality ladder keeps the payload inside realtime broadcast limits.
+        let smallest = null;
+        for (const quality of [0.72, 0.55, 0.4]) {
+          const dataUrl = canvas.toDataURL("image/jpeg", quality);
+          if (dataUrl.length <= 180000) return dataUrl;
+          smallest = dataUrl;
+        }
+        return maxSide > 960 ? null : smallest;
+      };
+      try {
+        return (await encode(1280, true)) || (await encode(960, true));
+      } catch {
+        // A cross-origin video frame taints the canvas; retry without it.
+        try {
+          return (await encode(1280, false)) || (await encode(960, false));
+        } catch {
+          return null;
+        }
+      }
+    },
+  }));
+
+  return (
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`projectorDrawCanvas${penActive ? "" : " isPenOff"}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+      />
+      {!suspended ? (
+        <div className="projectorDrawToolbar" aria-label="Drawing tools">
+          <button
+            className={penOn ? "isActive" : ""}
+            type="button"
+            onClick={() => setPenOn((current) => !current)}
+          >
+            {penOn ? "Done" : "Draw"}
+          </button>
+          {penOn ? (
+            <>
+              {DRAW_COLORS.map((swatch) => (
+                <button
+                  aria-label={`Pen color ${swatch}`}
+                  className={`projectorDrawSwatch${!erasing && color === swatch ? " isActive" : ""}`}
+                  key={swatch}
+                  style={{ background: swatch }}
+                  type="button"
+                  onClick={() => {
+                    setColor(swatch);
+                    setErasing(false);
+                  }}
+                />
+              ))}
+              <button className={erasing ? "isActive" : ""} type="button" onClick={() => setErasing((current) => !current)}>
+                Eraser
+              </button>
+              <button type="button" onClick={undoStroke} disabled={!strokeCount}>
+                Undo
+              </button>
+              <button type="button" onClick={clearStrokes} disabled={!strokeCount}>
+                Clear
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+});
+
 export default function ScreenClient({ initialToken = null }) {
   const [token, setToken] = useState(initialToken || "");
   const [pin, setPin] = useState("");
@@ -97,6 +449,20 @@ export default function ScreenClient({ initialToken = null }) {
   const [screenTimer, setScreenTimer] = useState(null);
   const [timerOffsetMs, setTimerOffsetMs] = useState(0);
   const workInputRef = useRef(null);
+  const drawLayerRef = useRef(null);
+  const snapshotRequestRef = useRef(null);
+
+  // Kept in a ref so the realtime channel handler always sees current
+  // enabled/inputType/state without re-subscribing on every change.
+  useEffect(() => {
+    snapshotRequestRef.current = async () => {
+      if (!enabled || !toolsForInputType(inputType).draw) {
+        return { error: "This screen does not support drawing." };
+      }
+      const image = await drawLayerRef.current?.capture(state);
+      return image ? { image } : { error: "Could not capture this screen." };
+    };
+  }, [enabled, inputType, state]);
 
   useEffect(() => {
     return () => {
@@ -213,6 +579,21 @@ export default function ScreenClient({ initialToken = null }) {
       .on("broadcast", { event: "timer-updated" }, ({ payload }) => {
         setScreenTimer(timerForScreen(payload?.timer, screenNumber));
         if (payload?.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
+      })
+      .on("broadcast", { event: "snapshot-request" }, async ({ payload }) => {
+        if (String(payload?.screenId) !== String(screenNumber)) return;
+        let result;
+        try {
+          const respond = snapshotRequestRef.current;
+          result = respond ? await respond() : { error: "Screen is not ready." };
+        } catch {
+          result = { error: "Could not capture this screen." };
+        }
+        channel.send({
+          type: "broadcast",
+          event: "snapshot-response",
+          payload: { requestId: payload?.requestId || "", screenId: screenNumber, ...result },
+        });
       })
       .subscribe((nextStatus) => {
         if (nextStatus === "SUBSCRIBED") setStatus("connected");
@@ -472,6 +853,13 @@ export default function ScreenClient({ initialToken = null }) {
       ) : (
         <ProjectorScreenInactiveState />
       )}
+      {enabled && tools.draw ? (
+        <ProjectorDrawLayer
+          ref={drawLayerRef}
+          contentKey={`${state?.type || ""} ${state?.content || ""} ${state?.topText || ""}`}
+          suspended={Boolean(tools.polls && activePoll)}
+        />
+      ) : null}
       {enabled && tools.interactive ? (
         <div className="projectorScreenTools" data-interactive="true">
           {tools.submitWork ? (

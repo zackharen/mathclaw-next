@@ -3359,3 +3359,76 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorPollResultsTrack {
   height: 1.2rem;
 }
+
+/* Stylus / Drawing Screens (Prompt 04): receiver annotation layer + toolbar */
+.projectorDrawCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 3;
+  touch-action: none;
+}
+
+.projectorDrawCanvas.isPenOff {
+  pointer-events: none;
+}
+
+.projectorDrawToolbar {
+  position: fixed;
+  left: 1rem;
+  bottom: 3.9rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 10, 10, 0.85);
+}
+
+.projectorDrawToolbar button {
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(0.8rem, 1.6vw, 0.95rem);
+  padding: 0.32rem 0.62rem;
+}
+
+.projectorDrawToolbar button:disabled {
+  opacity: 0.45;
+}
+
+.projectorDrawToolbar button.isActive {
+  background: #fff;
+  color: var(--navy);
+}
+
+.projectorDrawToolbar .projectorDrawSwatch {
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.projectorDrawToolbar .projectorDrawSwatch.isActive {
+  outline: 3px solid #fff;
+  outline-offset: 1px;
+  background-clip: padding-box;
+}
+
+/* Dashboard pull-snapshot modal */
+.projectorDrawSnapshotModal img {
+  background: #0a0a0a;
+}
+
+.projectorDrawSnapshotTargets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  font-weight: 600;
+}

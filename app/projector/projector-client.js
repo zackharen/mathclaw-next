@@ -745,6 +745,18 @@ export default function ProjectorClient({
   const [workQueueBusy, setWorkQueueBusy] = useState(false);
   const [previewWorkEntry, setPreviewWorkEntry] = useState(null);
   const [showWorkCaption, setShowWorkCaption] = useState(false);
+  const [drawSnapshot, setDrawSnapshot] = useState(null);
+  const drawSnapshotChannelRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      const held = drawSnapshotChannelRef.current;
+      if (!held) return;
+      window.clearTimeout(held.timeoutId);
+      held.supabase.removeChannel(held.channel);
+      drawSnapshotChannelRef.current = null;
+    };
+  }, []);
   const [selectedWorkEntryIds, setSelectedWorkEntryIds] = useState([]);
   const [reviewShowCaptions, setReviewShowCaptions] = useState(true);
   const [workQueueFilter, setWorkQueueFilter] = useState("all");
@@ -2762,6 +2774,101 @@ export default function ProjectorClient({
     }
   }
 
+  function cleanupDrawSnapshotChannel() {
+    const held = drawSnapshotChannelRef.current;
+    if (!held) return;
+    window.clearTimeout(held.timeoutId);
+    held.supabase.removeChannel(held.channel);
+    drawSnapshotChannelRef.current = null;
+  }
+
+  function closeDrawSnapshotModal() {
+    cleanupDrawSnapshotChannel();
+    setDrawSnapshot(null);
+  }
+
+  // Pull-based: one ephemeral broadcast round-trip per click, so there is no
+  // streaming, polling, or server storage for receiver ink.
+  function pullDrawSnapshot(screenId) {
+    cleanupDrawSnapshotChannel();
+    const requestId = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    setDrawSnapshot({ screenId, status: "loading", image: "", error: "", targets: [] });
+    const supabase = createClient();
+    const channel = supabase.channel(`projector-session-${session.id}`);
+    const timeoutId = window.setTimeout(() => {
+      cleanupDrawSnapshotChannel();
+      setDrawSnapshot((current) =>
+        current && current.screenId === screenId && current.status === "loading"
+          ? { ...current, status: "error", error: "No response from that screen. Make sure its receiver page is open." }
+          : current
+      );
+    }, 8000);
+    drawSnapshotChannelRef.current = { supabase, channel, timeoutId };
+    channel
+      .on("broadcast", { event: "snapshot-response" }, ({ payload }) => {
+        if (payload?.requestId !== requestId) return;
+        cleanupDrawSnapshotChannel();
+        setDrawSnapshot((current) => {
+          if (!current || current.screenId !== screenId) return current;
+          if (payload?.image) return { ...current, status: "ready", image: payload.image, error: "" };
+          return { ...current, status: "error", error: payload?.error || "Could not capture that screen." };
+        });
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          channel.send({ type: "broadcast", event: "snapshot-request", payload: { screenId, requestId } });
+        }
+      });
+  }
+
+  function toggleDrawSnapshotTarget(screenId) {
+    setDrawSnapshot((current) =>
+      current
+        ? {
+            ...current,
+            targets: current.targets.includes(screenId)
+              ? current.targets.filter((id) => id !== screenId)
+              : [...current.targets, screenId],
+          }
+        : current
+    );
+  }
+
+  async function sendDrawSnapshot() {
+    if (!drawSnapshot?.image || !drawSnapshot.targets.length) return;
+    const targets = drawSnapshot.targets;
+    pausePlaylistForManualAction();
+    stopTimedRotationForManualAction();
+    pauseAutopilotScreens(targets, "Autopilot paused for your manual change.");
+    setSending(true);
+    setMessage("");
+    try {
+      const reviewEnded = await endReviewForManualAction();
+      const takeoverEnded = await endTakeoverForManualAction();
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "push",
+          screenIds: targets,
+          type: "image",
+          content: drawSnapshot.image,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not send the snapshot.");
+      if (payload.screenStates) applyScreenStates(payload.screenStates);
+      setMessage(
+        `${reviewEnded ? "Review mode ended. " : ""}${takeoverEnded || payload.takeoverEnded ? "Screen takeover ended. " : ""}Snapshot sent to screen${targets.length > 1 ? "s" : ""} ${targets.join(", ")}.`
+      );
+      closeDrawSnapshotModal();
+    } catch (error) {
+      setDrawSnapshot((current) => (current ? { ...current, error: error.message } : current));
+    } finally {
+      setSending(false);
+    }
+  }
+
   function toggleWorkEntrySelection(entryId) {
     setSelectedWorkEntryIds((current) =>
       current.includes(entryId) ? current.filter((id) => id !== entryId) : [...current, entryId]
@@ -3605,6 +3712,79 @@ export default function ProjectorClient({
           </section>
         </div>
       ) : null}
+      {drawSnapshot ? (
+        <div className="projectorPlaylistOverlay" role="presentation" onClick={closeDrawSnapshotModal}>
+          <section
+            className="projectorWorkPreviewModal projectorDrawSnapshotModal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="projector-draw-snapshot-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="projectorAssignmentHeader">
+              <div>
+                <p className="eyebrow">Screen drawing</p>
+                <h2 id="projector-draw-snapshot-title">
+                  {slotForScreen(activeRoom, drawSnapshot.screenId)?.name || `Screen ${drawSnapshot.screenId}`}
+                </h2>
+                <p className="projectorAssignmentHint">
+                  A snapshot of the screen&apos;s content and ink, sent as a plain image.
+                </p>
+              </div>
+              <button className="projectorAssignmentClose" type="button" onClick={closeDrawSnapshotModal}>
+                ✕
+              </button>
+            </div>
+            {drawSnapshot.status === "loading" ? (
+              <p className="projectorMessage">Capturing the screen…</p>
+            ) : null}
+            {drawSnapshot.status === "ready" && drawSnapshot.image ? (
+              <div className="projectorWorkPreviewImage">
+                <img src={drawSnapshot.image} alt={`Drawing snapshot of screen ${drawSnapshot.screenId}`} />
+              </div>
+            ) : null}
+            {drawSnapshot.status === "ready" ? (
+              <div className="projectorDrawSnapshotTargets" aria-label="Send snapshot to screens">
+                <span>Send to:</span>
+                {activeScreenIds.map((screenId) => (
+                  <label className="projectorCheckboxLine" key={screenId}>
+                    <input
+                      type="checkbox"
+                      checked={drawSnapshot.targets.includes(screenId)}
+                      onChange={() => toggleDrawSnapshotTarget(screenId)}
+                    />
+                    <span>{slotForScreen(activeRoom, screenId)?.name || `Screen ${screenId}`}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+            <div className="projectorAssignmentFooter">
+              {drawSnapshot.status === "ready" ? (
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={sendDrawSnapshot}
+                  disabled={sending || !drawSnapshot.targets.length}
+                >
+                  Send Snapshot
+                </button>
+              ) : null}
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => pullDrawSnapshot(drawSnapshot.screenId)}
+                disabled={drawSnapshot.status === "loading" || sending}
+              >
+                Refresh
+              </button>
+              <button className="btn secondary" type="button" onClick={closeDrawSnapshotModal}>
+                Close
+              </button>
+            </div>
+            {drawSnapshot.error ? <p className="projectorMessage">{drawSnapshot.error}</p> : null}
+          </section>
+        </div>
+      ) : null}
       <section className="projectorHeader">
         <div>
           <p className="eyebrow">Projector Party</p>
@@ -3975,6 +4155,16 @@ export default function ProjectorClient({
                       disabled={sending || Boolean(takeoverState) || !screenStates?.[screenId]?.type}
                     >
                       Show on all
+                    </button>
+                  ) : null}
+                  {isEnabled && ["touch", "keyboard_mouse"].includes(slot?.inputType) ? (
+                    <button
+                      className="btn secondary projectorDrawSnapshotButton"
+                      type="button"
+                      onClick={() => pullDrawSnapshot(screenId)}
+                      disabled={drawSnapshot?.status === "loading"}
+                    >
+                      Pull Drawing
                     </button>
                   ) : null}
                   <button
