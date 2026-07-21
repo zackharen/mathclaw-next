@@ -2,10 +2,35 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildDefaultDisplayName,
   getAccountTypeForUser,
   normalizeAccountType,
   sanitizeNextForAccountType,
 } from "../lib/auth/account-type.js";
+
+test("temporary student IDs are not used as display names", () => {
+  assert.equal(
+    buildDefaultDisplayName({
+      email: "s-1234567@g.essextech.org",
+      user_metadata: { full_name: "s-1234567", name: "s-1234567" },
+    }),
+    "Student"
+  );
+});
+
+test("Google given and family names beat an identifier-like full name", () => {
+  assert.equal(
+    buildDefaultDisplayName({
+      email: "s-1234567@g.essextech.org",
+      user_metadata: {
+        full_name: "s-1234567",
+        given_name: "Jamie",
+        family_name: "Rivera",
+      },
+    }),
+    "Jamie Rivera"
+  );
+});
 
 function fakeSupabase({ profileType = null, joinedMembership = null, ownedCourse = null } = {}) {
   return {
