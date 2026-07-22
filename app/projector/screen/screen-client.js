@@ -440,6 +440,7 @@ export default function ScreenClient({ initialToken = null }) {
   const [workPreviewUrl, setWorkPreviewUrl] = useState("");
   const [workFile, setWorkFile] = useState(null);
   const [workStatus, setWorkStatus] = useState("idle");
+  const [workSource, setWorkSource] = useState("camera");
   const [workStudentName, setWorkStudentName] = useState("");
   const [workLabel, setWorkLabel] = useState("");
   const [activePoll, setActivePoll] = useState(null);
@@ -656,6 +657,7 @@ export default function ScreenClient({ initialToken = null }) {
     setWorkPreviewUrl("");
     setWorkFile(null);
     setWorkStatus("idle");
+    setWorkSource("camera");
     setMessage("");
     if (!file) return;
 
@@ -677,7 +679,28 @@ export default function ScreenClient({ initialToken = null }) {
     setWorkFile(null);
     setWorkStatus("idle");
     setMessage("");
+    if (workSource === "drawing") {
+      captureDrawingForSubmit();
+      return;
+    }
     workInputRef.current?.click();
+  }
+
+  // Files the current screen (content + ink) into the same submit-work flow a
+  // camera photo uses; the ink intentionally stays on screen after sending.
+  async function captureDrawingForSubmit() {
+    setMessage("");
+    setWorkStatus("idle");
+    const image = await drawLayerRef.current?.capture(state);
+    const file = image ? dataUrlToFile(image, "student-drawing.jpg") : null;
+    if (!file) {
+      setMessage("Could not capture this screen. Try again.");
+      return;
+    }
+    if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+    setWorkSource("drawing");
+    setWorkFile(file);
+    setWorkPreviewUrl(URL.createObjectURL(file));
   }
 
   async function submitWorkPhoto() {
@@ -873,14 +896,26 @@ export default function ScreenClient({ initialToken = null }) {
                 onChange={chooseWorkPhoto}
               />
               {!workPreviewUrl ? (
-                <button
-                  className="projectorSubmitWorkButton"
-                  type="button"
-                  onClick={() => workInputRef.current?.click()}
-                  disabled={workStatus === "submitting"}
-                >
-                  {workStatus === "sent" ? "Submit Another" : "Submit work"}
-                </button>
+                <div className="projectorSubmitWorkChoices">
+                  {tools.draw ? (
+                    <button
+                      className="projectorSubmitWorkButton projectorSubmitDrawingButton"
+                      type="button"
+                      onClick={captureDrawingForSubmit}
+                      disabled={workStatus === "submitting"}
+                    >
+                      Send Drawing
+                    </button>
+                  ) : null}
+                  <button
+                    className="projectorSubmitWorkButton"
+                    type="button"
+                    onClick={() => workInputRef.current?.click()}
+                    disabled={workStatus === "submitting"}
+                  >
+                    {workStatus === "sent" ? "Submit Another" : "Submit work"}
+                  </button>
+                </div>
               ) : (
                 <div className="projectorSubmitWorkPreview">
                   <img src={workPreviewUrl} alt="Work preview" />

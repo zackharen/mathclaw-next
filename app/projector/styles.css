@@ -3432,3 +3432,14 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   gap: 0.4rem 0.9rem;
   font-weight: 600;
 }
+
+/* Submit-work choices: camera photo or drawing capture (touch profiles) */
+.projectorSubmitWorkChoices {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.projectorSubmitDrawingButton {
+  background: #8ecae6;
+}
