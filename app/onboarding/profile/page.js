@@ -18,6 +18,7 @@ import {
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
 import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
+import SubmitButton from "@/app/components/SubmitButton";
 
 const DEFAULT_ANNOUNCEMENT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
 {lesson_title}
@@ -596,16 +597,40 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const regularAssignments = templateRow?.regular_assignments || "";
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>{siteCopy.profileTitle}</h1>
-        <p>
-          {accountType === "teacher"
-            ? siteCopy.profileTeacherDescription
-            : accountType === "student"
-              ? siteCopy.profileStudentDescription
-              : siteCopy.profilePlayerDescription}
-        </p>
+    <div className="stack profileWorkspace">
+      <section className="profileWorkspaceHero">
+        <div className="profileWorkspaceHeroCopy">
+          <p className="eyebrow">Account workspace</p>
+          <h1>{siteCopy.profileTitle}</h1>
+          <p>
+            {accountType === "teacher"
+              ? siteCopy.profileTeacherDescription
+              : accountType === "student"
+                ? siteCopy.profileStudentDescription
+                : siteCopy.profilePlayerDescription}
+          </p>
+          <nav className="profileWorkspaceNav" aria-label="Profile workspace sections">
+            <a className="btn primary" href="#profile-details">Profile Details</a>
+            {accountType === "student" ? <a className="btn ghost" href="#join-class">Join Class</a> : null}
+            {isTeacher ? <a className="btn ghost" href="#school-calendar">School Calendar</a> : null}
+            {isTeacher ? <a className="btn ghost" href="#announcement-assignments">Announcement Rules</a> : null}
+          </nav>
+        </div>
+        <div className="profileWorkspaceSummary" aria-label="Profile overview">
+          <div><span>Account</span><strong>{accountType === "teacher" ? "Teacher" : accountType === "student" ? "Student" : "Player"}</strong></div>
+          <div><span>School</span><strong>{profile?.school_name || "Not set"}</strong></div>
+          <div><span>Timezone</span><strong>{profile?.timezone || "America/New_York"}</strong></div>
+        </div>
+      </section>
+
+      <section className="card profileSettingsCard" id="profile-details">
+        <div className="profileSectionHeading">
+          <div>
+            <p className="eyebrow">Identity &amp; preferences</p>
+            <h2>Profile details</h2>
+          </div>
+          <p>Keep the name, school, timezone, and visibility MathClaw uses across your workspace up to date.</p>
+        </div>
         <ProfileForm
           userId={user.id}
           initialDisplayName={profile?.display_name || ""}
@@ -619,7 +644,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
       </section>
 
       {accountType === "student" ? (
-        <section className="card studentClassCodeCard">
+        <section className="card studentClassCodeCard profileToolCard" id="join-class">
           <h2>Join Your Math Class</h2>
           <p>
             Ask your teacher for the class code and enter it here. You can save your
@@ -627,23 +652,24 @@ export default async function OnboardingProfilePage({ searchParams }) {
             and assignments.
           </p>
           <form action={joinClassByCodeAction} className="ctaRow" style={{ marginTop: "0.75rem" }}>
-            <input
-              className="input"
-              name="join_code"
-              placeholder="Ask your teacher for this code"
-              autoComplete="off"
-              spellCheck="false"
-              style={{ maxWidth: "20rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
-            />
-            <button className="btn primary" type="submit">
-              Join Class
-            </button>
+            <label className="profileJoinCodeField">
+              <span>Class join code</span>
+              <input
+                className="input"
+                name="join_code"
+                placeholder="Ask your teacher for this code"
+                autoComplete="off"
+                spellCheck="false"
+                style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+              />
+            </label>
+            <SubmitButton className="btn primary" pendingLabel="Joining Class…">Join Class</SubmitButton>
           </form>
         </section>
       ) : null}
 
       {isTeacher ? (
-      <section className="card" id="school-calendar">
+      <section className="card profileToolCard" id="school-calendar">
         <h2>School Calendar</h2>
         <p>
           Set school-year dates and non-full school days once, then apply to all
@@ -751,9 +777,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
               </div>
 
               <div className="ctaRow">
-                <button className="btn primary" type="submit">
+                <SubmitButton className="btn primary" pendingLabel="Applying Calendar…">
                   Apply Calendar Changes
-                </button>
+                </SubmitButton>
                 {schoolCalendarUpdated ? (
                   <span className="statusNote">School Calendar Updated!</span>
                 ) : null}
@@ -803,9 +829,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
             {!markingPeriodsMigrationNeeded ? (
               <>
                 <form action={saveStandardMarkingPeriodRulesAction}>
-                  <button className="btn" type="submit">
+                  <SubmitButton pendingLabel="Creating Quarters…">
                     Use 4 Standard Quarters
-                  </button>
+                  </SubmitButton>
                 </form>
 
                 <form action={saveTeacherMarkingPeriodAction} className="list">
@@ -824,9 +850,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
                     </label>
                   </div>
                   <div className="ctaRow">
-                    <button className="btn primary" type="submit">
+                    <SubmitButton className="btn primary" pendingLabel="Saving Rule…">
                       Add / Update Rule
-                    </button>
+                    </SubmitButton>
                     {markingPeriodUpdated ? (
                       <span className="statusNote">Marking Periods Updated!</span>
                     ) : null}
@@ -850,9 +876,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
                       </div>
                       <form action={deleteTeacherMarkingPeriodAction}>
                         <input type="hidden" name="period_id" value={period.id} />
-                        <button className="btn" type="submit">
+                        <SubmitButton pendingLabel="Deleting Period…">
                           Delete
-                        </button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </div>
@@ -967,9 +993,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                         required
                                         style={{ width: "10.25rem", minWidth: 0 }}
                                       />
-                                      <button className="btn" type="submit">
+                                      <SubmitButton pendingLabel="Saving Date…">
                                         Save
-                                      </button>
+                                      </SubmitButton>
                                     </span>
                                     <span>{preview.marking_periods.join(", ") || "—"}</span>
                                     <details style={{ position: "relative" }}>
@@ -1001,9 +1027,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
                                               {item.course_label}
                                             </label>
                                           ))}
-                                          <button className="btn primary" type="submit">
+                                          <SubmitButton className="btn primary" pendingLabel="Saving Classes…">
                                             Save Classes
-                                          </button>
+                                          </SubmitButton>
                                         </div>
                                       </div>
                                     </details>
@@ -1018,9 +1044,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
                         </div>
                         <form action={deleteTeacherAnnouncementAssignmentRuleAction} className="ctaRow">
                           <input type="hidden" name="rule_id" value={rule.id} />
-                          <button className="btn" type="submit">
+                          <SubmitButton pendingLabel="Deleting Rule…">
                             Delete
-                          </button>
+                          </SubmitButton>
                         </form>
                       </details>
                     ))}
@@ -1111,9 +1137,9 @@ export default async function OnboardingProfilePage({ searchParams }) {
             />
           </label>
           <div className="ctaRow">
-            <button className="btn primary" type="submit">
+            <SubmitButton className="btn primary" pendingLabel="Saving Template…">
               Save Template
-            </button>
+            </SubmitButton>
             {templateUpdated ? (
               <span className="statusNote">Template Updated!</span>
             ) : null}

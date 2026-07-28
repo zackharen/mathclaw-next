@@ -149,7 +149,13 @@ export default function ProfileForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="list formList" style={{ marginTop: "1rem" }}>
+    <form
+      onSubmit={onSubmit}
+      className="list formList profileDetailsForm"
+      style={{ marginTop: "1rem" }}
+      aria-busy={saving}
+    >
+      <div className="profileDetailsGrid">
       <label>
         Display Name
         <input
@@ -221,9 +227,10 @@ export default function ProfileForm({
           <option value="America/Los_Angeles">America/Los_Angeles</option>
         </select>
       </label>
+      </div>
 
       {isTeacher ? (
-        <label style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+        <label className="profileDiscoverability">
           <input
             type="checkbox"
             checked={discoverable}
@@ -233,12 +240,13 @@ export default function ProfileForm({
         </label>
       ) : null}
 
-      {error ? <p style={{ color: "#7f1d1d" }}>{error}</p> : null}
-      {!error && saved ? <p className="statusNote">Profile Updated!</p> : null}
+      {error ? <p role="alert" className="profileFormMessage isError">{error}</p> : null}
+      {!error && saved ? <p role="status" className="profileFormMessage isSuccess">Profile updated.</p> : null}
 
       <div className="ctaRow">
-        <button className="btn primary" type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Save Profile"}
+        <button className={`btn primary${saving ? " isPending" : ""}`} type="submit" disabled={saving}>
+          {saving ? <span className="buttonSpinner" aria-hidden="true" /> : null}
+          <span aria-live="polite">{saving ? "Saving Profile…" : "Save Profile"}</span>
         </button>
       </div>
     </form>

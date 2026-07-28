@@ -15,6 +15,8 @@ import AdminToast from "./admin-toast";
 import AccountActionsToggle from "./account-actions-toggle";
 import BulkSelectionControls from "./bulk-selection-controls";
 import MasteryRangeInput from "./mastery-range-input";
+import SubmitButton from "@/app/components/SubmitButton";
+import { StatusNotice } from "@/app/components/FeedbackPanel";
 import {
   deleteAccountAction,
   saveAccountSettingsAction,
@@ -41,6 +43,10 @@ function formatDate(value) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function currentTimestamp() {
+  return Date.now();
 }
 
 function Notice({ searchParams }) {
@@ -72,37 +78,37 @@ function Notice({ searchParams }) {
     return null;
   }
 
-  return (
-    <div className={`card ${error ? "noticeError" : "noticeSuccess"}`}>
-      {updated ? <p>Account type updated.</p> : null}
-      {accountSaved ? <p>Account settings saved.</p> : null}
-      {deleted ? <p>Account deleted.</p> : null}
-      {renamed ? <p>Display name updated.</p> : null}
-      {restored ? <p>Account restored.</p> : null}
-      {discoverability === "shown" ? <p>Teacher is now discoverable.</p> : null}
-      {discoverability === "hidden" ? <p>Teacher is now hidden from teacher search.</p> : null}
-      {membership === "added" ? <p>User added to class.</p> : null}
-      {classDeleted ? <p>Class deleted.</p> : null}
-      {adminAccess === "granted" ? <p>Admin access granted.</p> : null}
-      {adminAccess === "revoked" ? <p>Admin access revoked.</p> : null}
-      {passwordReset ? <p>Password updated.</p> : null}
-      {gameProgressCleared ? <p>Saved game progress cleared for {formatGameLabel(gameProgressCleared)}.</p> : null}
-      {bugReport === "resolved" ? <p>Bug report marked resolved.</p> : null}
-      {bugReport === "open" ? <p>Bug report reopened.</p> : null}
-      {schoolUpdated === "set" ? <p>School assignment updated.</p> : null}
-      {schoolUpdated === "cleared" ? <p>School assignment cleared.</p> : null}
-      {bulkAction === "school" ? <p>School updated for {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
-      {bulkAction === "class" ? <p>Added {bulkCount} selected account{bulkCount === 1 ? "" : "s"} to the class.</p> : null}
-      {bulkAction === "delete" ? <p>Deleted {bulkCount} selected account{bulkCount === 1 ? "" : "s"}.</p> : null}
-      {siteFeatureUpdated ? <p>Site-wide feature visibility updated.</p> : null}
-      {siteFeatureBulkUpdated ? <p>Bulk site-wide feature visibility updated for {siteFeatureBulkCount || 0} feature{siteFeatureBulkCount === 1 ? "" : "s"}.</p> : null}
-      {siteCopyUpdated ? <p>Site copy updated.</p> : null}
-      {integerMasteryUpdated ? <p>Integer mastery settings saved. New integer practice runs will use them.</p> : null}
-      {integerMasteryReset ? <p>Integer mastery settings reset to defaults.</p> : null}
-      {bulkSkippedOwners > 0 ? <p>Skipped {bulkSkippedOwners} owner account{bulkSkippedOwners === 1 ? "" : "s"}.</p> : null}
-      {error ? <p>Admin tools hit a snag: {decodeURIComponent(error)}</p> : null}
-    </div>
-  );
+  const messages = [
+    updated ? "Account type updated." : "",
+    accountSaved ? "Account settings saved." : "",
+    deleted ? "Account deleted." : "",
+    renamed ? "Display name updated." : "",
+    restored ? "Account restored." : "",
+    discoverability === "shown" ? "Teacher is now discoverable." : "",
+    discoverability === "hidden" ? "Teacher is now hidden from teacher search." : "",
+    membership === "added" ? "User added to class." : "",
+    classDeleted ? "Class deleted." : "",
+    adminAccess === "granted" ? "Admin access granted." : "",
+    adminAccess === "revoked" ? "Admin access revoked." : "",
+    passwordReset ? "Password updated." : "",
+    gameProgressCleared ? `Saved game progress cleared for ${formatGameLabel(gameProgressCleared)}.` : "",
+    bugReport === "resolved" ? "Bug report marked resolved." : "",
+    bugReport === "open" ? "Bug report reopened." : "",
+    schoolUpdated === "set" ? "School assignment updated." : "",
+    schoolUpdated === "cleared" ? "School assignment cleared." : "",
+    bulkAction === "school" ? `School updated for ${bulkCount} selected account${bulkCount === 1 ? "" : "s"}.` : "",
+    bulkAction === "class" ? `Added ${bulkCount} selected account${bulkCount === 1 ? "" : "s"} to the class.` : "",
+    bulkAction === "delete" ? `Deleted ${bulkCount} selected account${bulkCount === 1 ? "" : "s"}.` : "",
+    siteFeatureUpdated ? "Site-wide feature visibility updated." : "",
+    siteFeatureBulkUpdated ? `Bulk site-wide feature visibility updated for ${siteFeatureBulkCount || 0} feature${siteFeatureBulkCount === 1 ? "" : "s"}.` : "",
+    siteCopyUpdated ? "Site copy updated." : "",
+    integerMasteryUpdated ? "Integer mastery settings saved. New adaptive practice runs will use them." : "",
+    integerMasteryReset ? "Mastery settings reset to defaults." : "",
+    bulkSkippedOwners > 0 ? `Skipped ${bulkSkippedOwners} owner account${bulkSkippedOwners === 1 ? "" : "s"}.` : "",
+    error ? `Admin tools hit a snag: ${decodeURIComponent(error)}` : "",
+  ].filter(Boolean);
+
+  return <StatusNotice tone={error ? "error" : "success"}>{messages.join(" ")}</StatusNotice>;
 }
 
 function AdminDisclosure({ title, description, open = false, children }) {
@@ -114,7 +120,7 @@ function AdminDisclosure({ title, description, open = false, children }) {
             <h2>{title}</h2>
             {description ? <span className="adminSectionDesc">{description}</span> : null}
           </div>
-          <span className="adminSectionToggle">
+          <span className="adminSectionToggle" aria-hidden="true">
             <span className="showLabel">Show</span>
             <span className="hideLabel">Hide</span>
           </span>
@@ -130,7 +136,7 @@ function AdminInnerDisclosure({ title, open = false, children }) {
     <details className="adminSectionDetails adminInnerSectionDetails" open={open}>
       <summary className="adminSectionSummary">
         <h3>{title}</h3>
-        <span className="adminSectionToggle">
+        <span className="adminSectionToggle" aria-hidden="true">
           <span className="showLabel">Show</span>
           <span className="hideLabel">Hide</span>
         </span>
@@ -170,9 +176,9 @@ function BugReportCard({ report }) {
         <form action={updateBugReportStatusAction} className="adminInlineForm">
           <input type="hidden" name="report_id" value={report.id} />
           <input type="hidden" name="status" value={report.status === "resolved" ? "open" : "resolved"} />
-          <button className="btn ghost" type="submit">
+          <SubmitButton className="btn ghost" pendingLabel="Updating Report…">
             {report.status === "resolved" ? "Reopen" : "Mark Resolved"}
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </article>
@@ -772,7 +778,7 @@ export default async function AdminPage({ searchParams }) {
     return a.schoolName.localeCompare(b.schoolName);
   });
 
-  const now = Date.now();
+  const now = currentTimestamp();
   const recentWindowSessions = recentSessions.filter((session) => {
     if (!session?.created_at) return false;
     return now - new Date(session.created_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
@@ -832,16 +838,24 @@ export default async function AdminPage({ searchParams }) {
   const resolvedBugReports = bugReports.filter((report) => report.status === "resolved");
 
   return (
-    <div className="stack adminStack">
-      <section className="card">
-        <h1>{adminContext.isOwner ? siteCopy.adminOwnerTitle : siteCopy.adminScopedTitle}</h1>
-        <p>
-          {adminContext.isOwner
-            ? siteCopy.adminOwnerDescription
-            : adminContext.hasSchoolScope
-              ? `Manage teachers, students, and classes in ${adminContext.schoolName}.`
-              : siteCopy.adminNoSchoolDescription}
-        </p>
+    <div className="stack adminStack adminWorkspace">
+      <section className="adminWorkspaceHero">
+        <div className="adminWorkspaceHeroCopy">
+          <p className="eyebrow">Operations command center</p>
+          <h1>{adminContext.isOwner ? siteCopy.adminOwnerTitle : siteCopy.adminScopedTitle}</h1>
+          <p>
+            {adminContext.isOwner
+              ? siteCopy.adminOwnerDescription
+              : adminContext.hasSchoolScope
+                ? `Manage teachers, students, and classes in ${adminContext.schoolName}.`
+                : siteCopy.adminNoSchoolDescription}
+          </p>
+        </div>
+        <div className="adminWorkspaceAccess">
+          <span>Current scope</span>
+          <strong>{adminContext.isOwner ? "MathClaw owner" : adminContext.schoolName || "School admin"}</strong>
+          <small>{canViewDiagnostics ? "Diagnostics and configuration enabled" : "Account management enabled"}</small>
+        </div>
       </section>
 
       <Notice searchParams={qs} />
@@ -852,7 +866,7 @@ export default async function AdminPage({ searchParams }) {
         </section>
       ) : null}
 
-      <section className="card">
+      <section className="card adminOverviewPanel" aria-label="Admin overview">
         <div className="adminSummaryGrid">
           <div className="card adminSummaryCard">
             <h3>Total Accounts</h3>
@@ -887,38 +901,43 @@ export default async function AdminPage({ searchParams }) {
         <section className="card adminSectionSwitcher">
           <h2>{siteCopy.adminSectionsTitle}</h2>
           <p>{siteCopy.adminSectionsDescription}</p>
-          <div className="adminViewSwitch">
+          <nav className="adminViewSwitch" aria-label="Admin workspace views">
             <a
               className={`btn ${effectiveAdminView === "diagnostics" ? "primary" : "ghost"}`}
               href="/admin?view=diagnostics"
+              aria-current={effectiveAdminView === "diagnostics" ? "page" : undefined}
             >
               {siteCopy.adminViewDiagnosticsLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "site-copy" ? "primary" : "ghost"}`}
               href="/admin?view=site-copy"
+              aria-current={effectiveAdminView === "site-copy" ? "page" : undefined}
             >
               {siteCopy.adminViewSiteCopyLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "features" ? "primary" : "ghost"}`}
               href="/admin?view=features"
+              aria-current={effectiveAdminView === "features" ? "page" : undefined}
             >
               {siteCopy.adminViewFeaturesLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "mastery" ? "primary" : "ghost"}`}
               href="/admin?view=mastery"
+              aria-current={effectiveAdminView === "mastery" ? "page" : undefined}
             >
               {siteCopy.adminViewMasteryLabel}
             </a>
             <a
               className={`btn ${effectiveAdminView === "accounts" ? "primary" : "ghost"}`}
               href="/admin?view=accounts"
+              aria-current={effectiveAdminView === "accounts" ? "page" : undefined}
             >
               {siteCopy.adminViewAccountsLabel}
             </a>
-          </div>
+          </nav>
         </section>
       ) : null}
 
@@ -952,9 +971,9 @@ export default async function AdminPage({ searchParams }) {
                   <option value="teachers_only">Teachers</option>
                   <option value="disabled">Disabled</option>
                 </select>
-                <button className="btn primary" type="submit">
+                <SubmitButton className="btn primary" pendingLabel="Updating Selected…">
                   {siteCopy.adminFeatureBulkButton}
-                </button>
+                </SubmitButton>
               </form>
             </AdminDisclosure>
             <AdminDisclosure
@@ -1010,9 +1029,9 @@ export default async function AdminPage({ searchParams }) {
                         <option value="teachers_only">Teachers</option>
                         <option value="disabled">Disabled</option>
                       </select>
-                      <button className="btn primary" type="submit">
+                      <SubmitButton className="btn primary" pendingLabel="Saving…">
                         {siteCopy.adminFeatureSaveButton}
-                      </button>
+                      </SubmitButton>
                     </form>
                   );
                 })}
@@ -1137,7 +1156,7 @@ export default async function AdminPage({ searchParams }) {
             </AdminDisclosure>
 
             <div className="ctaRow" style={{ marginTop: "1.25rem" }}>
-              <button className="btn primary" type="submit">Save Text</button>
+              <SubmitButton className="btn primary" pendingLabel="Saving Site Text…">Save Text</SubmitButton>
             </div>
           </form>
         </>
@@ -1175,11 +1194,13 @@ export default async function AdminPage({ searchParams }) {
                 <MasteryRangeInput label="Maximum median response time" suffix=" seconds" name="max_median_response_seconds" min="1" max="30" step="1" defaultValue={secondsInput(integerMasterySettings.maxMedianResponseMs)} />
                 <MasteryRangeInput label="Close-state buffer" suffix="%" name="close_buffer" min="0" max="50" step="1" defaultValue={percentInput(integerMasterySettings.closeBuffer)} />
                 <div className="ctaRow">
-                  <button className="btn primary" type="submit">Save Mastery Settings</button>
+                  <SubmitButton className="btn primary" pendingLabel="Saving Mastery…">
+                    Save Mastery Settings
+                  </SubmitButton>
                 </div>
               </form>
               <form action={resetIntegerMasterySettingsAction} className="ctaRow" style={{ marginTop: "0.75rem" }}>
-                <button className="btn ghost" type="submit">Reset To Defaults</button>
+                <SubmitButton className="btn ghost" pendingLabel="Resetting…">Reset To Defaults</SubmitButton>
               </form>
             </article>
             <article className="card" style={{ background: "#fff" }}>
@@ -1442,7 +1463,7 @@ export default async function AdminPage({ searchParams }) {
                 </label>
               </div>
               <div className="ctaRow adminBulkSubmitRow">
-                <button className="btn" type="submit">Apply to Selected</button>
+                <SubmitButton pendingLabel="Applying Bulk Action…">Apply to Selected</SubmitButton>
               </div>
           </form>
         ) : null}
@@ -1567,7 +1588,9 @@ export default async function AdminPage({ searchParams }) {
                         </label>
                       </div>
                       <div className="ctaRow adminInlineEditorRow adminAccountSettingsActions">
-                        <button className="btn primary" type="submit">Save Account Settings</button>
+                        <SubmitButton className="btn primary" pendingLabel="Saving Account…">
+                          Save Account Settings
+                        </SubmitButton>
                       </div>
                     </form>
                     <div className="adminMetaGrid">
@@ -1635,7 +1658,9 @@ export default async function AdminPage({ searchParams }) {
                             />
                           </label>
                           <div className="ctaRow adminInlineEditorRow adminSingleAction">
-                            <button className="btn ghost" type="submit">Set Password</button>
+                            <SubmitButton className="btn ghost" pendingLabel="Setting Password…">
+                              Set Password
+                            </SubmitButton>
                           </div>
                         </div>
                       </form>
@@ -1660,7 +1685,9 @@ export default async function AdminPage({ searchParams }) {
                             </select>
                           </label>
                           <div className="ctaRow adminInlineEditorRow adminSingleAction">
-                            <button className="btn ghost" type="submit">Clear Game Progress</button>
+                            <SubmitButton className="btn ghost" pendingLabel="Clearing Progress…">
+                              Clear Game Progress
+                            </SubmitButton>
                           </div>
                         </div>
                       </form>
@@ -1669,15 +1696,21 @@ export default async function AdminPage({ searchParams }) {
                       <form action={clearSavedGameProgressAction} className="adminInlineForm">
                         <input type="hidden" name="user_id" value={item.id} />
                         <input type="hidden" name="game_slug" value="integer_practice" />
-                        <button className="btn ghost" type="submit">Reset Integer Progress</button>
+                        <SubmitButton className="btn ghost" pendingLabel="Resetting Progress…">
+                          Reset Integer Progress
+                        </SubmitButton>
                       </form>
                       {adminContext.isOwner ? (
                         <form action={toggleAdminAccessAction} className="adminInlineForm">
                           <input type="hidden" name="user_id" value={item.id} />
                           <input type="hidden" name="site_admin" value={item.isAdmin ? "false" : "true"} />
-                          <button className="btn ghost" type="submit" disabled={item.isBootstrapOwner}>
+                          <SubmitButton
+                            className="btn ghost"
+                            pendingLabel={item.isAdmin ? "Removing Admin…" : "Granting Admin…"}
+                            disabled={item.isBootstrapOwner}
+                          >
                             {item.isBootstrapOwner ? "Owner Access" : item.isAdmin ? "Remove Admin" : "Make Admin"}
-                          </button>
+                          </SubmitButton>
                         </form>
                       ) : null}
                       <form action={deleteAccountAction} className="adminInlineForm">
@@ -1709,7 +1742,7 @@ export default async function AdminPage({ searchParams }) {
           qs.undo ? (
             <form action={restoreDeletedAccountAction}>
               <input type="hidden" name="user_id" value={qs.undo} />
-              <button className="btn ghost" type="submit">Undo</button>
+              <SubmitButton className="btn ghost" pendingLabel="Restoring Account…">Undo</SubmitButton>
             </form>
           ) : null
         }

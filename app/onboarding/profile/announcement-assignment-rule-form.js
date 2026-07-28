@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import SubmitButton from "@/app/components/SubmitButton";
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: "Monday" },
@@ -124,12 +125,12 @@ export default function AnnouncementAssignmentRuleForm({
             </div>
           </fieldset>
           <label style={{ maxWidth: "20rem" }}>
-            If class doesn't meet on this day
+            If class doesn&apos;t meet on this day
             <select className="input" name="no_meeting_shift" defaultValue={settings.no_meeting_shift || "before"}>
               <option value="before">Use nearest class day before</option>
               <option value="after">Use nearest class day after</option>
               <option value="same_day">Due that day anyway</option>
-              <option value="skip">Skip (don't generate)</option>
+              <option value="skip">Skip (don&apos;t generate)</option>
             </select>
           </label>
         </div>
@@ -174,21 +175,21 @@ export default function AnnouncementAssignmentRuleForm({
             </div>
           </fieldset>
           <label style={{ maxWidth: "20rem" }}>
-            If class doesn't meet on this day
+            If class doesn&apos;t meet on this day
             <select className="input" name="no_meeting_shift" defaultValue={settings.no_meeting_shift || "before"}>
               <option value="before">Use nearest class day before</option>
               <option value="after">Use nearest class day after</option>
               <option value="same_day">Due that day anyway</option>
-              <option value="skip">Skip (don't generate)</option>
+              <option value="skip">Skip (don&apos;t generate)</option>
             </select>
           </label>
         </div>
       ) : null}
 
       <div className="ctaRow">
-        <button className="btn primary" type="submit">
+        <SubmitButton className="btn primary" pendingLabel="Saving Assignment Rule…">
           {submitLabel}
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
