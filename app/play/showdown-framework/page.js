@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { initialShowdownState } from "@/lib/question-engine/showdown-framework";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import ShowdownFrameworkClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function ShowdownFrameworkPage({ searchParams }) {
@@ -41,20 +44,21 @@ export default async function ShowdownFrameworkPage({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Showdown Framework</h1>
-        <p>
-          A simple Punch-Out-inspired boxing prototype. Read Linear Larry&apos;s tells, dodge or block the pattern,
-          and jab the openings before he wears you down.
-        </p>
-      </section>
+    <GameShell
+      eyebrow="Reaction · Solo"
+      title="Showdown Framework"
+      description="Read Linear Larry's tells, defend at the right moment, and counter through a fast arcade fight."
+      icon="SH"
+      tone="gold"
+      badges={["Keyboard + touch", "Guided tutorial", "Three fight speeds"]}
+    >
       <ShowdownFrameworkClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialBattleState={initialShowdownState(0, "easy")}
       />
-    </div>
+    </GameShell>
   );
 }

@@ -10,6 +10,11 @@ import {
   showdownScore,
   stepShowdownFight,
 } from "@/lib/question-engine/showdown-framework";
+import {
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const SPRITE_SHEET = "/showdown/linear-larry-sprites.png";
 
@@ -130,10 +135,11 @@ export default function ShowdownFrameworkClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialBattleState,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [difficulty, setDifficulty] = useState("easy");
-  const [battleState, setBattleState] = useState(() => initialShowdownState(Date.now(), "easy"));
+  const [battleState, setBattleState] = useState(initialBattleState);
   const [fightStarted, setFightStarted] = useState(false);
   const [tutorialMode, setTutorialMode] = useState(false);
   const [tutorialStep, setTutorialStep] = useState("intro");
@@ -144,7 +150,7 @@ export default function ShowdownFrameworkClient({
   const [savedStats, setSavedStats] = useState(personalStats);
   const savedRunRef = useRef(false);
   const sessionRef = useRef({
-    ...initialShowdownState(Date.now(), "easy"),
+    ...initialBattleState,
     courseId: initialCourseId || "",
   });
   const rafRef = useRef(0);
@@ -156,7 +162,7 @@ export default function ShowdownFrameworkClient({
   const interactionLocked = !fightStarted || showTutorialPrompt || showTutorialOverlay;
   const difficultySummary =
     SHOWDOWN_DIFFICULTIES.find((option) => option.slug === difficulty) || SHOWDOWN_DIFFICULTIES[0];
-  const sceneClock = battleState.clock || Date.now();
+  const sceneClock = Number.isFinite(battleState.clock) ? battleState.clock : 0;
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -466,72 +472,29 @@ export default function ShowdownFrameworkClient({
     .join(" ");
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Fight Setup</h2>
-              <p>{LINEAR_LARRY.name} · {courseSummary}</p>
-            </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
-            <label>
-              Class context
-              <select
-                className="input"
-                value={courseId}
-                onChange={(event) => handleCourseChange(event.target.value)}
-              >
-                <option value="">No class selected</option>
-                {courses.map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="card" style={{ background: "#f9fbfc" }}>
-              <strong>{LINEAR_LARRY.name}</strong>
-              <p style={{ marginTop: "0.35rem" }}>{LINEAR_LARRY.intro}</p>
-            </div>
-            <label>
-              Difficulty
-              <select
-                className="input"
-                value={difficulty}
-                onChange={(event) => handleDifficultyChange(event.target.value)}
-              >
-                {SHOWDOWN_DIFFICULTIES.map((option) => (
-                  <option key={option.slug} value={option.slug}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="card" style={{ background: "#f9fbfc" }}>
-              <strong>{difficultySummary.label}</strong>
-              <p style={{ marginTop: "0.35rem" }}>{difficultySummary.intro}</p>
-            </div>
-            <div className="ctaRow">
-              <button className="btn" type="button" onClick={openTutorial}>
-                Tutorial
-              </button>
-              <button
-                className="btn primary"
-                type="button"
-                onClick={() => startFreshBattle("manual_reset", courseId)}
-              >
-                Restart Fight
-              </button>
-            </div>
-          </div>
-        </details>
-
+    <GameWorkspace className="showdownWorkspace">
+      <div className="gameWorkspaceMain">
+        <GameStage
+          eyebrow={`${difficultySummary.label} fight`}
+          title={`${LINEAR_LARRY.name} Showdown`}
+          status={
+            battleState.result === "won"
+              ? "Fight won"
+              : battleState.result === "lost"
+                ? "Fight lost"
+                : fightStarted
+                  ? "Fight in progress"
+                  : "Awaiting bell"
+          }
+          progress={100 - battleState.opponentHealth}
+          progressLabel={`${100 - battleState.opponentHealth}% of rival health cleared`}
+          stats={[
+            { label: "Your health", value: `${battleState.playerHealth}%` },
+            { label: "Larry health", value: `${battleState.opponentHealth}%` },
+            { label: "Score", value: liveScore },
+            { label: "Counters", value: battleState.punchesLanded },
+          ]}
+        >
         <div className="showdownHud">
           <div className="showdownHudBar">
             <span>You</span>
@@ -737,76 +700,126 @@ export default function ShowdownFrameworkClient({
         </div>
 
         {battleOver ? (
-          <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
+          <div className="showdownResultCard" aria-live="polite">
             <h3>{battleState.result === "won" ? "You Beat Linear Larry" : "Linear Larry Got You"}</h3>
             <p>
               Final score {liveScore}. Landed {battleState.punchesLanded} punches, defended{" "}
               {battleState.successfulDefenses} attacks, and watched {battleState.enemyAttacksSeen} Larry swings.
             </p>
-            <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={() => startFreshBattle("restart_after_finish", courseId)}
+            >
+              Fight Again
+            </button>
+          </div>
+        ) : null}
+        </GameStage>
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Fight setup" title="Enter the ring">
+          <p className="gameSetupSummary">{LINEAR_LARRY.name} · {courseSummary}</p>
+          <div className="showdownOpponentSummary">
+            <strong>{LINEAR_LARRY.name}</strong>
+            <span>{LINEAR_LARRY.title}</span>
+            <p>{LINEAR_LARRY.intro}</p>
+          </div>
+          <div className="gameSetupOptions">
+            <label>
+              Class context
+              <select
+                className="input"
+                value={courseId}
+                onChange={(event) => handleCourseChange(event.target.value)}
+              >
+                <option value="">No class selected</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Difficulty
+              <select
+                className="input"
+                value={difficulty}
+                onChange={(event) => handleDifficultyChange(event.target.value)}
+              >
+                {SHOWDOWN_DIFFICULTIES.map((option) => (
+                  <option key={option.slug} value={option.slug}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="showdownDifficultySummary">{difficultySummary.intro}</p>
+            <div className="showdownSetupActions">
+              <button className="btn" type="button" onClick={openTutorial}>
+                Tutorial
+              </button>
               <button
                 className="btn primary"
                 type="button"
-                onClick={() => startFreshBattle("restart_after_finish", courseId)}
+                onClick={() => startFreshBattle("manual_reset", courseId)}
               >
-                Fight Again
+                Restart Fight
               </button>
             </div>
           </div>
-        ) : null}
-      </section>
+        </GameSidePanel>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Fight Stats</h2>
-        <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-          <div>
-            <span>Fights Played</span>
-            <strong>{savedStats?.sessions_played || 0}</strong>
+        <GameSidePanel eyebrow="Fight record" title="Your stats">
+          <div className="gameSideStats">
+            <div>
+              <span>Fights</span>
+              <strong>{savedStats?.sessions_played || 0}</strong>
+            </div>
+            <div>
+              <span>Average</span>
+              <strong>{formatScore(savedStats?.average_score)}</strong>
+            </div>
+            <div>
+              <span>Last 10</span>
+              <strong>{formatScore(savedStats?.last_10_average)}</strong>
+            </div>
+            <div>
+              <span>Best</span>
+              <strong>{formatScore(savedStats?.best_score)}</strong>
+            </div>
           </div>
-          <div>
-            <span>Average</span>
-            <strong>{formatScore(savedStats?.average_score)}</strong>
-          </div>
-          <div>
-            <span>Last 10 Avg</span>
-            <strong>{formatScore(savedStats?.last_10_average)}</strong>
-          </div>
-          <div>
-            <span>Best</span>
-            <strong>{formatScore(savedStats?.best_score)}</strong>
-          </div>
-        </div>
 
-        <div className="pillRow" style={{ marginTop: "1rem" }}>
-          <span className="pill">Score: {liveScore}</span>
-          <span className="pill">Dodges: {battleState.dodges}</span>
-          <span className="pill">Blocks: {battleState.blocks}</span>
-          <span className="pill">Hits Landed: {battleState.punchesLanded}</span>
-        </div>
-
-        <h2 style={{ marginTop: "1.25rem" }}>Class Leaderboard</h2>
-        {courseId && leaderboardLoading ? (
-          <p style={{ marginTop: "0.75rem" }}>Loading class leaderboard...</p>
-        ) : null}
-        {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-          <p style={{ marginTop: "0.75rem" }}>No class scores yet. Finish a fight to start the board.</p>
-        ) : null}
-        {!courseId ? (
-          <p style={{ marginTop: "0.75rem" }}>Choose a class to load the leaderboard.</p>
-        ) : null}
-        {leaderboardRows.map((row, index) => (
-          <div
-            key={`${row.player_id || row.display_name}-${index}`}
-            className="card"
-            style={{ background: "#f9fbfc", marginTop: "0.75rem" }}
-          >
-            <strong>#{index + 1} {row.display_name || "Student"}</strong>
-            <p style={{ marginTop: "0.35rem" }}>
-              Score {formatScore(row.score)} · {row.sessions_played || 0} fights
-            </p>
+          <div className="showdownLiveRecord">
+            <span>Dodges <strong>{battleState.dodges}</strong></span>
+            <span>Blocks <strong>{battleState.blocks}</strong></span>
+            <span>Hits <strong>{battleState.punchesLanded}</strong></span>
           </div>
-        ))}
-      </section>
-    </div>
+
+          <details className="gameLeaderboardDetails">
+            <summary>Class leaderboard</summary>
+            <div className="gameLeaderboardList">
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Finish a fight to start the board.</p>
+              ) : null}
+              {!courseId ? <p>Choose a class to load the leaderboard.</p> : null}
+              {leaderboardRows.map((row, index) => (
+                <div
+                  key={`${row.player_id || row.display_name}-${index}`}
+                  className="gameLeaderboardRow"
+                >
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name || "Student"}</span>
+                  <strong>{formatScore(row.score)}</strong>
+                </div>
+              ))}
+            </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }

@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { buildCometTypingPrompt } from "@/lib/question-engine/comet-typing";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import CometTypingClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function CometTypingPage({ searchParams }) {
@@ -41,17 +44,21 @@ export default async function CometTypingPage({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Comet Typing</h1>
-        <p>Help Nova the courier cross the star lane by typing cleanly, quickly, and on streak.</p>
-      </section>
+    <GameShell
+      eyebrow="Typing · Solo"
+      title="Comet Typing"
+      description="Guide Nova across the star lane with clean, quick word deliveries and a streak that keeps the boosters lit."
+      icon="☄"
+      tone="blue"
+      badges={["15-word runs", "Three difficulties", "Class leaderboards"]}
+    >
       <CometTypingClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialPrompt={buildCometTypingPrompt("medium")}
       />
-    </div>
+    </GameShell>
   );
 }

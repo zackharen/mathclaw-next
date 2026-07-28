@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildCometTypingPrompt } from "@/lib/question-engine/comet-typing";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const ROUND_COUNT = 15;
 const CHARACTER_NAME = "Nova";
@@ -9,82 +16,8 @@ const DIFFICULTY_OPTIONS = [
   { value: "medium", label: "Medium", bonus: 12 },
   { value: "hard", label: "Hard", bonus: 18 },
 ];
-const WORD_BANK = {
-  easy: [
-    "cat",
-    "sun",
-    "map",
-    "book",
-    "math",
-    "glow",
-    "planet",
-    "rocket",
-    "school",
-    "pencil",
-    "number",
-    "garden",
-    "market",
-    "travel",
-    "signal",
-    "bright",
-    "puzzle",
-    "helper",
-  ],
-  medium: [
-    "galaxy",
-    "typing",
-    "starlight",
-    "mission",
-    "velocity",
-    "pattern",
-    "teacher",
-    "student",
-    "problem",
-    "fraction",
-    "journey",
-    "booster",
-    "careful",
-    "lantern",
-    "science",
-    "capture",
-  ],
-  hard: [
-    "constellation",
-    "navigation",
-    "acceleration",
-    "coordinate",
-    "curriculum",
-    "observation",
-    "trailblazer",
-    "communication",
-    "mathematical",
-    "interstellar",
-    "adventure",
-    "celebration",
-  ],
-};
-
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
-}
-
-function randomWord(difficulty, previousWord = "") {
-  const pool = WORD_BANK[difficulty] || WORD_BANK.medium;
-  let nextWord = pool[Math.floor(Math.random() * pool.length)];
-
-  if (pool.length > 1) {
-    while (nextWord === previousWord) {
-      nextWord = pool[Math.floor(Math.random() * pool.length)];
-    }
-  }
-
-  return nextWord;
-}
-
-function buildPrompt(difficulty, previousWord = "") {
-  return {
-    word: randomWord(difficulty, previousWord),
-  };
 }
 
 function calculateScore(snapshot) {
@@ -111,11 +44,12 @@ export default function CometTypingClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialPrompt,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [difficulty, setDifficulty] = useState("medium");
   const [roundIndex, setRoundIndex] = useState(1);
-  const [prompt, setPrompt] = useState(() => buildPrompt("medium"));
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [entry, setEntry] = useState("");
   const [feedback, setFeedback] = useState(`Help ${CHARACTER_NAME} deliver every word packet.`);
   const [score, setScore] = useState(0);
@@ -145,9 +79,14 @@ export default function CometTypingClient({
     const attempts = sessionRef.current.attempts || 0;
     if (attempts <= 0) return 0;
     return correctWords / attempts;
-  }, [correctWords, roundIndex]);
-  const progressPercent = Math.round(((roundIndex - 1) / ROUND_COUNT) * 100);
+  }, [correctWords]);
+  const progressPercent =
+    runState === "finished"
+      ? 100
+      : Math.round(((roundIndex - 1) / ROUND_COUNT) * 100);
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
+  const difficultyLabel =
+    DIFFICULTY_OPTIONS.find((option) => option.value === difficulty)?.label || "Medium";
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -286,7 +225,7 @@ export default function CometTypingClient({
 
   function resetRun(nextDifficulty = difficulty, nextCourseId = courseId) {
     savedRunRef.current = false;
-    const nextPrompt = buildPrompt(nextDifficulty);
+    const nextPrompt = buildCometTypingPrompt(nextDifficulty);
     setDifficulty(nextDifficulty);
     setRoundIndex(1);
     setPrompt(nextPrompt);
@@ -395,27 +334,96 @@ export default function CometTypingClient({
     }
 
     setRoundIndex(nextAttempts + 1);
-    setPrompt(buildPrompt(difficulty, prompt.word));
+    setPrompt(buildCometTypingPrompt(difficulty, prompt.word));
     setEntry("");
   }
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Flight Controls</h2>
-              <p>
-                {DIFFICULTY_OPTIONS.find((option) => option.value === difficulty)?.label || "Medium"} route · {courseSummary}
-              </p>
+    <GameWorkspace className="cometTypingWorkspace">
+      <div className="gameWorkspaceMain">
+        {runState === "finished" ? (
+          <GameResults
+            eyebrow="Delivery complete"
+            title={`${CHARACTER_NAME} reached the mailbox`}
+            message={`You delivered ${correctWords} of ${ROUND_COUNT} word packets on the ${difficultyLabel.toLowerCase()} route.`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Accuracy", value: `${Math.round(accuracy * 100)}%` },
+              { label: "Best streak", value: bestStreak },
+              { label: "Time", value: `${elapsedSeconds}s` },
+            ]}
+            actionLabel="Fly Again"
+            onAction={() => startNewRun("restart_after_finish")}
+            statusMessage={feedback}
+          />
+        ) : (
+          <GameStage
+            eyebrow={`${difficultyLabel} route`}
+            title={`${CHARACTER_NAME}'s Star Lane`}
+            status="Delivery in flight"
+            progress={progressPercent}
+            progressLabel={`${roundIndex - 1} of ${ROUND_COUNT} words delivered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Streak", value: streak },
+              { label: "Accuracy", value: `${Math.round(accuracy * 100)}%` },
+              { label: "Time", value: `${elapsedSeconds}s` },
+            ]}
+          >
+            <div className="cometLane" aria-label={`Nova is ${progressPercent}% across the route`}>
+              <div className="cometLaneTrack" />
+              <div className="cometLaneProgress" style={{ width: `${progressPercent}%` }} />
+              <div className="cometRider" style={{ left: `calc(${progressPercent}% - 1.2rem)` }}>
+                <span className="cometAvatar">☄</span>
+                <strong>{CHARACTER_NAME}</strong>
+              </div>
+              <div className="cometFinish">Mailbox</div>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+
+            <div className="cometPromptCard">
+              <p className="cometPromptLabel">Word packet {roundIndex}</p>
+              <div className="cometPromptWord">{prompt.word}</div>
+              <p className="cometPromptHint">Type it exactly, then press Enter or Send Word.</p>
+            </div>
+
+            <form className="cometTypingForm" onSubmit={submitWord}>
+              <label htmlFor="comet-word-input">Your delivery</label>
+              <input
+                id="comet-word-input"
+                ref={inputRef}
+                className="input cometTypingInput"
+                value={entry}
+                onChange={(event) => setEntry(event.target.value)}
+                placeholder="Type the word exactly"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck="false"
+                disabled={runState !== "active"}
+              />
+              <div className="cometTypingActions">
+                <button className="btn primary" type="submit" disabled={runState !== "active"}>
+                  Send Word
+                </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={() => setEntry("")}
+                  disabled={runState !== "active" || entry.length === 0}
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
+
+            <p className="cometFeedback" aria-live="polite">{feedback}</p>
+          </GameStage>
+        )}
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Flight plan" title="Choose the route">
+          <p className="gameSetupSummary">{difficultyLabel} · {courseSummary}</p>
+          <div className="gameSetupOptions">
             <label>
               Route difficulty
               <select
@@ -435,7 +443,11 @@ export default function CometTypingClient({
             </label>
             <label>
               Class context
-              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+              <select
+                className="input"
+                value={courseId}
+                onChange={(event) => handleCourseChange(event.target.value)}
+              >
                 <option value="">No class selected</option>
                 {courses.map((course) => (
                   <option key={course.id} value={course.id}>
@@ -448,111 +460,47 @@ export default function CometTypingClient({
               Start New Run
             </button>
           </div>
-        </details>
-      </section>
+        </GameSidePanel>
 
-      <section className="card cometTypingCard" style={{ background: "#fff" }}>
-        <h2>{CHARACTER_NAME}'s Star Lane</h2>
-        <div className="pillRow" style={{ marginTop: "0.75rem" }}>
-          <span className="pill">Round: {Math.min(roundIndex, ROUND_COUNT)}/{ROUND_COUNT}</span>
-          <span className="pill">Score: {score}</span>
-          <span className="pill">Streak: {streak}</span>
-          <span className="pill">Accuracy: {Math.round(accuracy * 100)}%</span>
-          <span className="pill">Time: {elapsedSeconds}s</span>
-        </div>
-
-        <div className="cometLane">
-          <div className="cometLaneTrack" />
-          <div className="cometLaneProgress" style={{ width: `${progressPercent}%` }} />
-          <div className="cometRider" style={{ left: `calc(${progressPercent}% - 1.2rem)` }}>
-            <span className="cometAvatar">☄</span>
-            <strong>{CHARACTER_NAME}</strong>
-          </div>
-          <div className="cometFinish">Mailbox</div>
-        </div>
-
-        <div className="cometPromptCard">
-          <p className="cometPromptLabel">Type this word packet</p>
-          <div className="cometPromptWord">{prompt.word}</div>
-          <p className="cometPromptHint">Stay sharp and keep the streak alive.</p>
-        </div>
-
-        <form className="list" style={{ marginTop: "1rem" }} onSubmit={submitWord}>
-          <input
-            ref={inputRef}
-            className="input cometTypingInput"
-            value={entry}
-            onChange={(event) => setEntry(event.target.value)}
-            placeholder="Type the word exactly"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck="false"
-            disabled={runState !== "active"}
-          />
-          <div className="ctaRow">
-            <button className="btn primary" type="submit" disabled={runState !== "active"}>
-              Send Word
-            </button>
-            <button
-              className="btn ghost"
-              type="button"
-              onClick={() => setEntry("")}
-              disabled={runState !== "active" || entry.length === 0}
-            >
-              Clear
-            </button>
-          </div>
-        </form>
-
-        {feedback ? (
-          <div className={`minesweeperStatusBanner ${runState === "finished" ? "won" : "active"}`} style={{ marginTop: "0.9rem" }}>
-            <strong>{feedback}</strong>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
-        {savedStats ? (
-          <div className="kv compactKv">
+        <GameSidePanel eyebrow="Progress" title="Your flight log">
+          <div className="gameSideStats">
             <div>
               <span>Games</span>
-              <strong>{savedStats.sessions_played}</strong>
+              <strong>{savedStats?.sessions_played || 0}</strong>
             </div>
             <div>
               <span>Average</span>
-              <strong>{formatScore(savedStats.average_score)}</strong>
+              <strong>{formatScore(savedStats?.average_score)}</strong>
             </div>
             <div>
               <span>Last 10</span>
-              <strong>{formatScore(savedStats.last_10_average)}</strong>
+              <strong>{formatScore(savedStats?.last_10_average)}</strong>
             </div>
             <div>
               <span>Best</span>
-              <strong>{savedStats.best_score}</strong>
+              <strong>{formatScore(savedStats?.best_score)}</strong>
             </div>
           </div>
-        ) : (
-          <p>No saved runs yet.</p>
-        )}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare typing runs with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class scores yet. Finish a run to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? "Class leaderboard" : "Leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare typing runs.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{row.best_score}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }
