@@ -2982,7 +2982,10 @@ export default function ProjectorClient({
   // One button for the end of a poll: stop the voting and put every screen back to
   // what it was showing before the poll launched, undoing the pushed results.
   async function endPollAndRestoreScreens() {
-    const pollId = activePoll?.id || pollResults?.poll?.id || "";
+    // Only claim a pollId when a poll is actually open. The results card can be
+    // showing an older poll the teacher clicked in the recent list, and sending
+    // that id would trip the server's stale-snapshot guard and skip the restore.
+    const pollId = activePoll?.id || "";
     setPollBusy(true);
     setMessage("");
     try {
