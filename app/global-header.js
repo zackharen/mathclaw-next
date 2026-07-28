@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/account-type";
 import { canAccessAdminArea } from "@/lib/auth/owner";
 import AppNav from "./app-nav";
+import MobileNav from "./mobile-nav";
 import GameReadyBanner from "./components/GameReadyBanner";
 
 const PUBLIC_NAV_ITEMS = [
@@ -214,6 +215,7 @@ export default async function GlobalHeader() {
             </form>
           ) : null}
         </div>
+        <MobileNav items={navItems} isAuthenticated={Boolean(user)} />
       </header>
       <GameReadyBanner href={readyGame?.href} label={readyGame?.label} />
     </>

@@ -17,16 +17,21 @@ function NavLabel({ label }) {
   );
 }
 
-export default function AppNav({ items }) {
+export default function AppNav({
+  items,
+  ariaLabel = "Main navigation",
+  onNavigate = null,
+}) {
   const pathname = usePathname();
 
   return (
-    <nav className="nav" aria-label="Main navigation">
+    <nav className="nav" aria-label={ariaLabel}>
       {items.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           className={isActive(pathname, item.href) ? "active" : ""}
+          onClick={onNavigate || undefined}
         >
           <NavLabel label={item.label} />
         </Link>
