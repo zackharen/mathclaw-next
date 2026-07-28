@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import {
+  buildSpiralReviewQuestion,
+  serializeSpiralReviewQuestion,
+} from "@/lib/question-engine/spiral-review";
+import { GameShell } from "../game-shell";
 import SpiralReviewClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function SpiralReviewPage({ searchParams }) {
@@ -40,18 +46,24 @@ export default async function SpiralReviewPage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialQuestion = serializeSpiralReviewQuestion(buildSpiralReviewQuestion("mixed"));
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Spiral Review</h1>
-        <p>Move through mixed review questions so students keep older skills warm while they practice new ones.</p>
-      </section>
+    <GameShell
+      eyebrow="Math skills · Solo"
+      title="Spiral Review"
+      description="Keep older skills warm with a fast, mixed practice run that moves between integer work and number comparisons."
+      icon="↻"
+      tone="green"
+      badges={["12 questions", "Mixed practice", "Class leaderboards"]}
+    >
       <SpiralReviewClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialQuestion={initialQuestion}
       />
-    </div>
+    </GameShell>
   );
 }

@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
-import { buildSpiralReviewQuestion, listSpiralReviewSkills } from "@/lib/question-engine/spiral-review";
+import {
+  buildSpiralReviewQuestion,
+  hydrateSpiralReviewQuestion,
+  listSpiralReviewSkills,
+} from "@/lib/question-engine/spiral-review";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const TOTAL_ROUNDS = 12;
 const SKILL_OPTIONS = [{ slug: "mixed", label: "Mixed Review" }, ...listSpiralReviewSkills()];
@@ -16,6 +26,7 @@ export default function SpiralReviewClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialQuestion,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [focus, setFocus] = useState("mixed");
@@ -23,7 +34,9 @@ export default function SpiralReviewClient({
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [feedback, setFeedback] = useState("Start the review run and keep your streak alive.");
-  const [question, setQuestion] = useState(() => buildSpiralReviewQuestion("mixed"));
+  const [feedbackTone, setFeedbackTone] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [question, setQuestion] = useState(() => hydrateSpiralReviewQuestion(initialQuestion));
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -38,11 +51,8 @@ export default function SpiralReviewClient({
   });
 
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
-  const accuracy = useMemo(() => {
-    const attempts = sessionRef.current.attempts || 0;
-    if (!attempts) return 0;
-    return Math.round((score / attempts) * 100);
-  }, [score]);
+  const attempts = sessionRef.current.attempts || 0;
+  const accuracy = attempts > 0 ? Math.round((score / attempts) * 100) : 0;
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -148,6 +158,8 @@ export default function SpiralReviewClient({
     setScore(0);
     setStreak(0);
     setFeedback("Start the review run and keep your streak alive.");
+    setFeedbackTone("");
+    setIsSaving(false);
     setQuestion(buildSpiralReviewQuestion(nextFocus));
     sessionRef.current = {
       courseId: nextCourseId,
@@ -182,6 +194,8 @@ export default function SpiralReviewClient({
   }
 
   async function answerQuestion(choice) {
+    if (sessionRef.current.attempts >= TOTAL_ROUNDS || isSaving) return;
+
     const correct = question.checkAnswer(choice);
     const nextAttempts = sessionRef.current.attempts + 1;
     const nextScore = score + (correct ? 1 : 0);
@@ -191,6 +205,7 @@ export default function SpiralReviewClient({
     setScore(nextScore);
     setStreak(nextStreak);
     setFeedback(correct ? "Nice review hit." : question.explanation);
+    setFeedbackTone(correct ? "correct" : "miss");
 
     sessionRef.current = {
       courseId,
@@ -202,6 +217,7 @@ export default function SpiralReviewClient({
     };
 
     if (finished) {
+      setIsSaving(true);
       try {
         await saveSession({
           ...sessionRef.current,
@@ -209,6 +225,9 @@ export default function SpiralReviewClient({
         });
       } catch (error) {
         setFeedback(error.message || "Could not save that run.");
+        setFeedbackTone("miss");
+      } finally {
+        setIsSaving(false);
       }
       return;
     }
@@ -218,24 +237,92 @@ export default function SpiralReviewClient({
   }
 
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
+  const skillLabel = question.skill === "integers" ? "Integers" : "Compare Numbers";
+  const resultTitle =
+    score >= 11 ? "Review mastery unlocked." : score >= 9 ? "Strong mixed review." : "Good reps — keep spiraling.";
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Review Controls</h2>
-              <p>
-                {SKILL_OPTIONS.find((option) => option.slug === focus)?.label || "Mixed Review"} · {courseSummary}
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message="This review run is saved with its skill focus and class context. Replay the mix or adjust the setup for a more targeted round."
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Final streak", value: streak },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Play Again"}
+            onAction={() => startNewRun("reset")}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your review run and refreshing the leaderboard…"
+                : savedRunRef.current
+                  ? "Run saved."
+                  : feedback
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Question ${roundIndex} of ${TOTAL_ROUNDS}`}
+            title={skillLabel}
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Streak", value: streak },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+            ]}
+          >
+            <div className="gameQuestion gameReviewQuestion">
+              <div className="spiralReviewCard">
+                <p className="spiralReviewLabel">{question.prompt}</p>
+                {question.leftLabel && question.rightLabel ? (
+                  <div className="spiralReviewCompareRow">
+                    <div className="spiralReviewValueCard"><MathText node={question.leftNode} /></div>
+                    <div className="spiralReviewVs">vs</div>
+                    <div className="spiralReviewValueCard"><MathText node={question.rightNode} /></div>
+                  </div>
+                ) : (
+                  <div className="spiralReviewEquation"><MathText node={question.promptNode} /></div>
+                )}
+              </div>
+
+              <div className="gameReviewChoices">
+                {question.choices.map((choice) => (
+                  <button
+                    key={String(choice)}
+                    className="btn gameReviewChoice"
+                    type="button"
+                    onClick={() => answerQuestion(choice)}
+                    disabled={isSaving}
+                  >
+                    <MathText
+                      node={question.formatChoiceNode(choice)}
+                      className="mathChoiceContent"
+                    />
+                  </button>
+                ))}
+              </div>
+
+              <p className={`gameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+                <MathInlineText text={feedback} />
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+          </GameStage>
+        )}
+      </div>
+
+      <aside className="gameWorkspaceRail" aria-label="Review setup and stats">
+        <GameSidePanel eyebrow="Setup" title="Choose the mix" id="game-setup">
+          <p className="gameSetupSummary">
+            {SKILL_OPTIONS.find((option) => option.slug === focus)?.label || "Mixed Review"}
+            {" · "}
+            {courseSummary}
+          </p>
+          <div className="gameSetupOptions">
             <label>
               Review focus
               <select
@@ -261,61 +348,15 @@ export default function SpiralReviewClient({
                 ))}
               </select>
             </label>
-            <button className="btn primary" type="button" onClick={() => startNewRun("reset")}>
-              Start New Run
+            <button className="btn" type="button" onClick={() => startNewRun("reset")} disabled={isSaving}>
+              Reset Run
             </button>
           </div>
-        </details>
-      </section>
+        </GameSidePanel>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Mixed Review</h2>
-        <div className="pillRow">
-          <span className="pill">Round: {Math.min(roundIndex, TOTAL_ROUNDS)}/{TOTAL_ROUNDS}</span>
-          <span className="pill">Score: {score}</span>
-          <span className="pill">Streak: {streak}</span>
-          <span className="pill">Accuracy: {accuracy}%</span>
-          <span className="pill">Skill: {question.skill === "integers" ? "Integers" : "Compare Numbers"}</span>
-        </div>
-
-        <div className="spiralReviewCard">
-          <p className="spiralReviewLabel">{question.prompt}</p>
-          {question.leftLabel && question.rightLabel ? (
-            <div className="spiralReviewCompareRow">
-              <div className="spiralReviewValueCard"><MathText node={question.leftNode} /></div>
-              <div className="spiralReviewVs">vs</div>
-              <div className="spiralReviewValueCard"><MathText node={question.rightNode} /></div>
-            </div>
-          ) : (
-            <div className="spiralReviewEquation"><MathText node={question.promptNode} /></div>
-          )}
-        </div>
-
-        <div className="choiceGrid" style={{ marginTop: "1rem" }}>
-          {question.choices.map((choice) => (
-            <button
-              key={String(choice)}
-              className="btn bigChoice"
-              type="button"
-              onClick={() => answerQuestion(choice)}
-              disabled={runComplete}
-            >
-              <MathText node={question.formatChoiceNode ? question.formatChoiceNode(choice) : null} className="mathChoiceContent" />
-            </button>
-          ))}
-        </div>
-
-        {feedback ? (
-          <div className="minesweeperStatusBanner active" style={{ marginTop: "0.9rem" }}>
-            <strong><MathInlineText text={feedback} /></strong>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
+        <GameSidePanel eyebrow="Progress" title="Your stats" id="game-stats">
         {savedStats ? (
-          <div className="kv compactKv">
+          <div className="gameSideStats">
             <div>
               <span>Games</span>
               <strong>{savedStats.sessions_played}</strong>
@@ -334,26 +375,28 @@ export default function SpiralReviewClient({
             </div>
           </div>
         ) : (
-          <p>No saved review runs yet.</p>
+          <p className="gameSetupSummary">No saved review runs yet. Finish all twelve questions to start your record.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare review runs with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class review scores yet. Finish a run to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare review runs.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard…</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class review scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{row.best_score}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </aside>
+    </GameWorkspace>
   );
 }

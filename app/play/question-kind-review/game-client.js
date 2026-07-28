@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MathInlineText } from "@/components/math-display";
-import { buildQuestionKindReviewQuestion, listQuestionKinds } from "@/lib/question-engine/question-kind-review";
+import {
+  buildQuestionKindReviewQuestion,
+  hydrateQuestionKindReviewQuestion,
+  listQuestionKinds,
+} from "@/lib/question-engine/question-kind-review";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const TOTAL_ROUNDS = 10;
 const KIND_OPTIONS = [{ slug: "mixed", label: "Mixed Question Types" }, ...listQuestionKinds()];
@@ -16,6 +26,7 @@ export default function QuestionKindReviewClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialQuestion,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [focus, setFocus] = useState("mixed");
@@ -23,7 +34,11 @@ export default function QuestionKindReviewClient({
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [feedback, setFeedback] = useState("Look at the prompt first, then decide what kind of question it is.");
-  const [question, setQuestion] = useState(() => buildQuestionKindReviewQuestion("mixed"));
+  const [feedbackTone, setFeedbackTone] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [question, setQuestion] = useState(() =>
+    hydrateQuestionKindReviewQuestion(initialQuestion)
+  );
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -38,11 +53,8 @@ export default function QuestionKindReviewClient({
   });
 
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
-  const accuracy = useMemo(() => {
-    const attempts = sessionRef.current.attempts || 0;
-    if (!attempts) return 0;
-    return Math.round((score / attempts) * 100);
-  }, [score]);
+  const attempts = sessionRef.current.attempts || 0;
+  const accuracy = attempts > 0 ? Math.round((score / attempts) * 100) : 0;
 
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
@@ -148,6 +160,8 @@ export default function QuestionKindReviewClient({
     setScore(0);
     setStreak(0);
     setFeedback("Look at the prompt first, then decide what kind of question it is.");
+    setFeedbackTone("");
+    setIsSaving(false);
     setQuestion(buildQuestionKindReviewQuestion(nextFocus));
     sessionRef.current = {
       courseId: nextCourseId,
@@ -182,6 +196,8 @@ export default function QuestionKindReviewClient({
   }
 
   async function answerQuestion(choice) {
+    if (sessionRef.current.attempts >= TOTAL_ROUNDS || isSaving) return;
+
     const correct = question.checkAnswer(choice);
     const nextAttempts = sessionRef.current.attempts + 1;
     const nextScore = score + (correct ? 1 : 0);
@@ -191,6 +207,7 @@ export default function QuestionKindReviewClient({
     setScore(nextScore);
     setStreak(nextStreak);
     setFeedback(correct ? "Good catch. You recognized the question type." : question.explanation);
+    setFeedbackTone(correct ? "correct" : "miss");
 
     sessionRef.current = {
       courseId,
@@ -202,6 +219,7 @@ export default function QuestionKindReviewClient({
     };
 
     if (finished) {
+      setIsSaving(true);
       try {
         await saveSession({
           ...sessionRef.current,
@@ -209,6 +227,9 @@ export default function QuestionKindReviewClient({
         });
       } catch (error) {
         setFeedback(error.message || "Could not save that run.");
+        setFeedbackTone("miss");
+      } finally {
+        setIsSaving(false);
       }
       return;
     }
@@ -218,24 +239,80 @@ export default function QuestionKindReviewClient({
   }
 
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
+  const resultTitle =
+    score >= 9 ? "Strategy spotter." : score >= 7 ? "Strong question reading." : "Good noticing — try another set.";
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Review Controls</h2>
-              <p>
-                {KIND_OPTIONS.find((option) => option.slug === focus)?.label || "Mixed Question Types"} · {courseSummary}
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message="Your strategy run is saved with its question focus and class context. Replay the mix or narrow the next run to one question type."
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Final streak", value: streak },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Play Again"}
+            onAction={() => startNewRun("reset")}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your strategy run and refreshing the leaderboard…"
+                : savedRunRef.current
+                  ? "Run saved."
+                  : feedback
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Question ${roundIndex} of ${TOTAL_ROUNDS}`}
+            title="Name the question type"
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Streak", value: streak },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+            ]}
+          >
+            <div className="gameQuestion gameReviewQuestion">
+              <div className="spiralReviewCard gameKindPromptCard">
+                <p className="spiralReviewLabel">Read the prompt before solving</p>
+                <div className="spiralReviewPrompt"><MathInlineText text={question.prompt} /></div>
+              </div>
+
+              <div className="gameReviewChoices">
+                {question.choices.map((choice) => (
+                  <button
+                    key={choice}
+                    className="btn gameReviewChoice"
+                    type="button"
+                    onClick={() => answerQuestion(choice)}
+                    disabled={isSaving}
+                  >
+                    {question.formatChoice(choice)}
+                  </button>
+                ))}
+              </div>
+
+              <p className={`gameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+                <MathInlineText text={feedback} />
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+          </GameStage>
+        )}
+      </div>
+
+      <aside className="gameWorkspaceRail" aria-label="Question review setup and stats">
+        <GameSidePanel eyebrow="Setup" title="Choose the focus" id="game-setup">
+          <p className="gameSetupSummary">
+            {KIND_OPTIONS.find((option) => option.slug === focus)?.label || "Mixed Question Types"}
+            {" · "}
+            {courseSummary}
+          </p>
+          <div className="gameSetupOptions">
             <label>
               Question focus
               <select
@@ -261,52 +338,15 @@ export default function QuestionKindReviewClient({
                 ))}
               </select>
             </label>
-            <button className="btn primary" type="button" onClick={() => startNewRun("reset")}>
-              Start New Run
+            <button className="btn" type="button" onClick={() => startNewRun("reset")} disabled={isSaving}>
+              Reset Run
             </button>
           </div>
-        </details>
-      </section>
+        </GameSidePanel>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Question Type Review</h2>
-        <div className="pillRow">
-          <span className="pill">Round: {Math.min(roundIndex, TOTAL_ROUNDS)}/{TOTAL_ROUNDS}</span>
-          <span className="pill">Score: {score}</span>
-          <span className="pill">Streak: {streak}</span>
-          <span className="pill">Accuracy: {accuracy}%</span>
-        </div>
-
-        <div className="spiralReviewCard">
-          <p className="spiralReviewLabel">Identify the question type</p>
-          <div className="spiralReviewPrompt"><MathInlineText text={question.prompt} /></div>
-        </div>
-
-        <div className="choiceGrid" style={{ marginTop: "1rem" }}>
-          {question.choices.map((choice) => (
-            <button
-              key={choice}
-              className="btn bigChoice"
-              type="button"
-              onClick={() => answerQuestion(choice)}
-              disabled={runComplete}
-            >
-              {question.formatChoice(choice)}
-            </button>
-          ))}
-        </div>
-
-        {feedback ? (
-          <div className="minesweeperStatusBanner active" style={{ marginTop: "0.9rem" }}>
-            <strong><MathInlineText text={feedback} /></strong>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
+        <GameSidePanel eyebrow="Progress" title="Your stats" id="game-stats">
         {savedStats ? (
-          <div className="kv compactKv">
+          <div className="gameSideStats">
             <div>
               <span>Games</span>
               <strong>{savedStats.sessions_played}</strong>
@@ -325,26 +365,28 @@ export default function QuestionKindReviewClient({
             </div>
           </div>
         ) : (
-          <p>No saved review runs yet.</p>
+          <p className="gameSetupSummary">No saved strategy runs yet. Finish all ten questions to start your record.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare review runs with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class review scores yet. Finish a run to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare strategy runs.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard…</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class review scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{row.best_score}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </aside>
+    </GameWorkspace>
   );
 }

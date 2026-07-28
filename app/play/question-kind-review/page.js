@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import {
+  buildQuestionKindReviewQuestion,
+  serializeQuestionKindReviewQuestion,
+} from "@/lib/question-engine/question-kind-review";
+import { GameShell } from "../game-shell";
 import QuestionKindReviewClient from "./game-client";
+import "../game-shell.css";
 import "../spiral-review/styles.css";
 
 export default async function QuestionKindReviewPage({ searchParams }) {
@@ -40,18 +46,26 @@ export default async function QuestionKindReviewPage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialQuestion = serializeQuestionKindReviewQuestion(
+    buildQuestionKindReviewQuestion("mixed")
+  );
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>What Kind Of Question Is This?</h1>
-        <p>Practice noticing what kind of math task you are looking at before you decide how to solve it.</p>
-      </section>
+    <GameShell
+      eyebrow="Math strategy · Solo"
+      title="What Kind Of Question Is This?"
+      description="Slow down before solving: read the prompt, spot its structure, and name the kind of mathematical thinking it needs."
+      icon="?"
+      tone="gold"
+      badges={["10 questions", "Strategy practice", "Class leaderboards"]}
+    >
       <QuestionKindReviewClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialQuestion={initialQuestion}
       />
-    </div>
+    </GameShell>
   );
 }
