@@ -398,7 +398,7 @@ export default async function ClassesPage({ searchParams }) {
                   </nav>
 
                   <details className="classCourseDetails">
-                    <summary className="classCourseManageSummary">
+                    <summary className="classCourseManageSummary" aria-label={`Manage ${course.title}`}>
                       <span>
                         <strong>Manage class</strong>
                         <small>Access, co-teachers, and game visibility</small>
@@ -449,12 +449,12 @@ export default async function ClassesPage({ searchParams }) {
 
                       {course.membership_role === "owner" ? (
                         <details className="gameControlsDetails classNestedDetails">
-                          <summary className="gameControlsSummary">
+                          <summary className="gameControlsSummary" aria-label={`${course.title} co-teachers`}>
                             <div>
                               <h2>Co-Teachers</h2>
                               <p>{currentCoTeachers.length} co-teacher{currentCoTeachers.length === 1 ? "" : "s"} connected</p>
                             </div>
-                            <span className="gameControlsToggle">
+                            <span className="gameControlsToggle" aria-hidden="true">
                               <span className="showLabel">Show</span>
                               <span className="hideLabel">Hide</span>
                             </span>
@@ -509,14 +509,14 @@ export default async function ClassesPage({ searchParams }) {
                       ) : null}
 
                       <details className="gameControlsDetails classNestedDetails">
-                        <summary className="gameControlsSummary">
+                        <summary className="gameControlsSummary" aria-label={`${course.title} game controls`}>
                           <div>
                             <h2>Game Controls</h2>
                             <p>
                               {courseGames.filter((game) => game.studentEnabled).length} of {courseGames.length} games live for students
                             </p>
                           </div>
-                          <span className="gameControlsToggle">
+                          <span className="gameControlsToggle" aria-hidden="true">
                             <span className="showLabel">Show</span>
                             <span className="hideLabel">Hide</span>
                           </span>

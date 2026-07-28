@@ -74,7 +74,7 @@ function GameTile({ game, index }) {
           <span>{sessions ? `${sessions} played` : "Ready to start"}</span>
           {sessions ? <strong>Best {best}</strong> : <strong>New</strong>}
         </div>
-        <Link className="arcadeLibraryPlay" href={game.href}>
+        <Link className="arcadeLibraryPlay" href={game.href} aria-label={`Play ${game.name}`}>
           Play now <span aria-hidden="true">→</span>
         </Link>
       </div>
@@ -166,7 +166,7 @@ export default function ArcadeLibrary({ games, tournamentHref, emptyMessage }) {
       ) : null}
 
       <div className="arcadeLibraryToolbar">
-        <div className="arcadeLibraryFilters" aria-label="Filter games">
+        <div className="arcadeLibraryFilters" role="group" aria-label="Filter games">
           {FILTERS.map(([value, label]) => (
             <button
               className={filter === value ? "isActive" : ""}
@@ -179,7 +179,7 @@ export default function ArcadeLibrary({ games, tournamentHref, emptyMessage }) {
             </button>
           ))}
         </div>
-        <span>{visibleGames.length} {visibleGames.length === 1 ? "game" : "games"}</span>
+        <span aria-live="polite">{visibleGames.length} {visibleGames.length === 1 ? "game" : "games"}</span>
       </div>
 
       {visibleGames.length ? (

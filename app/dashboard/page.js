@@ -601,7 +601,10 @@ export default async function DashboardPage({ searchParams }) {
             </nav>
 
             <details className="teacherDashboardCourseDetails">
-              <summary className="teacherDashboardCourseSummary">
+              <summary
+                className="teacherDashboardCourseSummary"
+                aria-label={`${card.course.title} insights and settings`}
+              >
                 <span>
                   <strong>Insights &amp; settings</strong>
                   <small>Full pacing detail and class controls</small>
@@ -696,12 +699,12 @@ export default async function DashboardPage({ searchParams }) {
                 </div>
 
                 <details className="gameControlsDetails classNestedDetails">
-                  <summary className="gameControlsSummary">
+                  <summary className="gameControlsSummary" aria-label={`${card.course.title} class settings`}>
                     <div>
                       <h2>Class Settings</h2>
                       <p>Rename the class card, class label, and curriculum</p>
                     </div>
-                    <span className="gameControlsToggle">
+                    <span className="gameControlsToggle" aria-hidden="true">
                       <span className="showLabel">Show</span>
                       <span className="hideLabel">Hide</span>
                     </span>
@@ -742,12 +745,12 @@ export default async function DashboardPage({ searchParams }) {
 
                 {card.course.membership_role === "owner" ? (
                   <details className="gameControlsDetails classNestedDetails">
-                    <summary className="gameControlsSummary">
+                    <summary className="gameControlsSummary" aria-label={`${card.course.title} co-teachers`}>
                       <div>
                         <h2>Co-Teachers</h2>
                         <p>{card.currentCoTeachers.length} co-teacher{card.currentCoTeachers.length === 1 ? "" : "s"} connected</p>
                       </div>
-                      <span className="gameControlsToggle">
+                      <span className="gameControlsToggle" aria-hidden="true">
                         <span className="showLabel">Show</span>
                         <span className="hideLabel">Hide</span>
                       </span>
@@ -802,14 +805,14 @@ export default async function DashboardPage({ searchParams }) {
                 ) : null}
 
                 <details className="gameControlsDetails classNestedDetails">
-                  <summary className="gameControlsSummary">
+                  <summary className="gameControlsSummary" aria-label={`${card.course.title} game controls`}>
                     <div>
                       <h2>Game Controls</h2>
                       <p>
                         {card.courseGames.filter((game) => game.studentEnabled).length} of {card.courseGames.length} games live for students
                       </p>
                     </div>
-                    <span className="gameControlsToggle">
+                    <span className="gameControlsToggle" aria-hidden="true">
                       <span className="showLabel">Show</span>
                       <span className="hideLabel">Hide</span>
                     </span>

@@ -44,6 +44,25 @@ a {
   text-decoration: none;
 }
 
+.skipLink {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1000;
+  padding: 0.7rem 1rem;
+  border: 2px solid #ffffff;
+  border-radius: 10px;
+  background: var(--navy);
+  color: #ffffff;
+  font-weight: 850;
+  box-shadow: 0 0 0 3px var(--navy), var(--shadow-md);
+  transform: translateY(calc(-100% - 1.5rem));
+}
+
+.skipLink:focus {
+  transform: translateY(0);
+}
+
 main {
   width: 100%;
   max-width: 1720px;
@@ -2194,6 +2213,7 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 }
 
 .btn {
+  min-height: 2.75rem;
   font-size: 0.95rem;
   border: 1px solid #b8c8d3;
   background: var(--white);
@@ -2208,6 +2228,10 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
     opacity 120ms ease,
     border-color 150ms ease,
     background 150ms ease;
+}
+
+.studentJoinCodeField {
+  width: min(100%, 16rem);
 }
 
 .btn,
@@ -4472,7 +4496,30 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
   .skeletonLine {
     animation: none;
   }
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid #0878b5;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.content:focus {
+  outline: none;
 }

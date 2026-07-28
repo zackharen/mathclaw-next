@@ -13,6 +13,12 @@ export default function MobileNav({ items, isAuthenticated }) {
   useEffect(() => {
     if (!open) return undefined;
 
+    const focusFrame = window.requestAnimationFrame(() => {
+      menuRef.current
+        ?.querySelector(".mobileNavPanel a, .mobileNavPanel button")
+        ?.focus();
+    });
+
     function handlePointerDown(event) {
       if (!menuRef.current?.contains(event.target)) {
         setOpen(false);
@@ -28,6 +34,7 @@ export default function MobileNav({ items, isAuthenticated }) {
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
@@ -45,6 +52,7 @@ export default function MobileNav({ items, isAuthenticated }) {
         type="button"
         aria-expanded={open}
         aria-controls={menuId}
+        aria-label={open ? "Close main menu" : "Open main menu"}
         onClick={() => setOpen((current) => !current)}
       >
         <span className="mobileNavTriggerLabel">Menu</span>

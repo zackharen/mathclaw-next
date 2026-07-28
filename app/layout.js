@@ -11,12 +11,17 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
+        <a className="skipLink" href="#main-content">
+          Skip to main content
+        </a>
         <main>
           <div className="shell">
             <Suspense fallback={<GlobalHeaderFallback />}>
               <GlobalHeader />
             </Suspense>
-            <section className="content">{children}</section>
+            <section className="content" id="main-content" tabIndex={-1}>
+              {children}
+            </section>
           </div>
         </main>
       </body>

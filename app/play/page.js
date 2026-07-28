@@ -84,7 +84,7 @@ function ArcadeDisclosure({ title, description, open = false, children }) {
             <h2>{title}</h2>
             {description ? <p>{description}</p> : null}
           </div>
-          <span className="arcadeSectionToggle">
+          <span className="arcadeSectionToggle" aria-hidden="true">
             <span className="showLabel">Show</span>
             <span className="hideLabel">Hide</span>
           </span>
@@ -258,41 +258,45 @@ export default async function PlayPage({ searchParams }) {
                     : "Paste a teacher code any time you want to connect this account to a class."}
                 </p>
                 <div className="ctaRow">
-                  <input
-                    className="input"
-                    style={{ maxWidth: "16rem", textTransform: "uppercase", letterSpacing: "0.08em" }}
-                    name="join_code"
-                    placeholder="Ask your teacher for this code"
-                    autoComplete="off"
-                    spellCheck="false"
-                  />
+                  <label className="studentJoinCodeField">
+                    <span className="srOnly">Class join code</span>
+                    <input
+                      className="input"
+                      style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
+                      name="join_code"
+                      placeholder="Ask your teacher for this code"
+                      autoComplete="off"
+                      spellCheck="false"
+                      aria-describedby="join-code-help"
+                    />
+                  </label>
                   <SubmitButton className="btn primary" pendingLabel="Joining Class…">
                     Join Class
                   </SubmitButton>
                 </div>
-                <p style={{ marginTop: "0.75rem", opacity: 0.8 }}>
+                <p id="join-code-help" style={{ marginTop: "0.75rem", opacity: 0.8 }}>
                   Codes are not case-sensitive. You can paste them in exactly as your teacher shares them.
                 </p>
                 {params?.join_error === "missing" ? (
-                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>Please enter a class code.</p>
+                  <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>Please enter a class code.</p>
                 ) : null}
                 {params?.join_error === "not_found" ? (
-                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                  <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
                     That class code was not found. Double-check the letters and numbers with your teacher.
                   </p>
                 ) : null}
                 {params?.join_error === "server" ? (
-                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                  <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
                     Something went wrong while joining that class. Please try again or report the bug.
                   </p>
                 ) : null}
                 {typeof params?.game_disabled === "string" ? (
-                  <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                  <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
                     That game is not enabled for any of your current classes.
                   </p>
                 ) : null}
                 {params?.join_success === "1" && joinedCourse ? (
-                  <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
+                  <div className="card" role="status" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
                     <h3 style={{ marginBottom: "0.4rem" }}>You’re in.</h3>
                     <p>
                       <strong>{joinedCourse.title}</strong>
@@ -383,22 +387,22 @@ export default async function PlayPage({ searchParams }) {
         open={hasQuestionFeedback}
       >
         {params?.question_created === "1" ? (
-          <p style={{ color: "#0a7a32", fontWeight: 700, marginTop: "0.75rem" }}>
+          <p role="status" style={{ color: "#0a7a32", fontWeight: 700, marginTop: "0.75rem" }}>
             Your question was saved for this class.
           </p>
         ) : null}
         {params?.question_error === "missing" ? (
-          <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+          <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
             Choose a class, question type, prompt, and correct answer before saving.
           </p>
         ) : null}
         {params?.question_error === "course" ? (
-          <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+          <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
             That class could not be used for your question submission.
           </p>
         ) : null}
         {params?.question_error === "catalog" || params?.question_error === "save" ? (
-          <p style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+          <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
             Your question could not be saved yet. Please try again.
           </p>
         ) : null}

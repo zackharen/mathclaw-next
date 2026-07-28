@@ -31,6 +31,7 @@ export default function AppNav({
           key={item.href}
           href={item.href}
           className={isActive(pathname, item.href) ? "active" : ""}
+          aria-current={isActive(pathname, item.href) ? "page" : undefined}
           onClick={onNavigate || undefined}
         >
           <NavLabel label={item.label} />
