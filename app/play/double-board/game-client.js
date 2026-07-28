@@ -1237,6 +1237,10 @@ export default function DoubleBoardClient({
     }, 250);
 
     return () => window.clearInterval(interval);
+    // boardsClaimKey is a stable digest of the claim state read from boards.A/B.
+    // Depending on the board objects themselves would restart this 250ms clock on
+    // every board update, which is exactly what the digest exists to avoid.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- digest stands in for boards
   }, [boardsClaimKey, session?.startCountdownEndsAt, session?.turnPhaseEndsAt]);
 
   const countdownValue = Math.min(3, secondsRemaining(session?.startCountdownEndsAt, clockNow));

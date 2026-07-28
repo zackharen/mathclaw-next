@@ -145,20 +145,24 @@ function ReviewGameButtons({ match, onOpenBoard }) {
 }
 
 function LargeBoardModal({ match, game, onClose }) {
-  if (!match) return null;
+  // Hooks must run before the `!match` guard below, or the hook order changes
+  // between renders. Snapshot building therefore has to tolerate a null match.
   const snapshots = game?.snapshots?.length
     ? game.snapshots
     : buildBoardSnapshots(
-        (game?.metadata || match.connect4Match?.metadata)?.moveHistory,
-        game?.board || match.connect4Match?.board || []
+        (game?.metadata || match?.connect4Match?.metadata)?.moveHistory,
+        game?.board || match?.connect4Match?.board || []
       );
-  const [selectedIndex, setSelectedIndex] = useState(Math.max(0, snapshots.length - 1));
+  const lastIndex = Math.max(0, snapshots.length - 1);
+  // Keyed by snapshot count so a new set of snapshots shows its latest move,
+  // while scrubbing within one set is preserved. Replaces an effect that set
+  // state synchronously on every snapshot-length change.
+  const [selection, setSelection] = useState({ count: snapshots.length, index: lastIndex });
+  const selectedIndex = selection.count === snapshots.length ? selection.index : lastIndex;
 
-  useEffect(() => {
-    setSelectedIndex(Math.max(0, snapshots.length - 1));
-  }, [snapshots.length]);
+  if (!match) return null;
 
-  const safeIndex = Math.min(selectedIndex, Math.max(0, snapshots.length - 1));
+  const safeIndex = Math.min(selectedIndex, lastIndex);
   const snapshot = snapshots[safeIndex] || { board: game?.board || match.connect4Match?.board || [] };
   const board = snapshot.board || [];
   const move = snapshot.move || null;
@@ -191,9 +195,11 @@ function LargeBoardModal({ match, game, onClose }) {
             className="connect4ReplaySlider"
             type="range"
             min="0"
-            max={Math.max(0, snapshots.length - 1)}
+            max={lastIndex}
             value={safeIndex}
-            onChange={(event) => setSelectedIndex(Number(event.target.value))}
+            onChange={(event) =>
+              setSelection({ count: snapshots.length, index: Number(event.target.value) })
+            }
             aria-label="Replay move"
           />
           <p>

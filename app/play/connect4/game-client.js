@@ -90,11 +90,12 @@ function Connect4ReplayPanel({ match, redLabel = "Red", yellowLabel = "Yellow" }
     () => buildBoardSnapshots(match?.metadata?.moveHistory, match?.board),
     [match?.board, match?.metadata?.moveHistory]
   );
-  const [selectedIndex, setSelectedIndex] = useState(Math.max(0, snapshots.length - 1));
-
-  useEffect(() => {
-    setSelectedIndex(Math.max(0, snapshots.length - 1));
-  }, [snapshots.length]);
+  const lastIndex = Math.max(0, snapshots.length - 1);
+  // Keyed by snapshot count so a new set of snapshots shows its latest move,
+  // while scrubbing within one set is preserved. Replaces an effect that set
+  // state synchronously on every snapshot-length change.
+  const [selection, setSelection] = useState({ count: snapshots.length, index: lastIndex });
+  const selectedIndex = selection.count === snapshots.length ? selection.index : lastIndex;
 
   if (!match || match.status !== "finished" || !snapshots.length) return null;
 
@@ -116,9 +117,11 @@ function Connect4ReplayPanel({ match, redLabel = "Red", yellowLabel = "Yellow" }
         className="connect4ReplaySlider"
         type="range"
         min="0"
-        max={Math.max(0, snapshots.length - 1)}
+        max={lastIndex}
         value={safeIndex}
-        onChange={(event) => setSelectedIndex(Number(event.target.value))}
+        onChange={(event) =>
+          setSelection({ count: snapshots.length, index: Number(event.target.value) })
+        }
         aria-label="Replay move"
       />
       <p className="connect4ReplayMove">
@@ -243,6 +246,10 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
 
   useEffect(() => {
     if (!initialMatchId) return;
+    // Seeds `match` so the 1500ms poll below (which keys off match.id) can start.
+    // refreshMatch awaits a fetch before setting state, so nothing is set
+    // synchronously here; the rule flags the direct call, not a real cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data load on mount
     refreshMatch(initialMatchId);
   }, [initialMatchId, refreshMatch]);
 
@@ -344,6 +351,11 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
 
   useEffect(() => {
     if (!tournamentId || !isTournamentMatch || !isViewerInMatch) {
+      // Clears stale tournament data when the viewer leaves a tournament match.
+      // Deriving this during render instead would mean restructuring the live
+      // tournament advance flow, which cannot be exercised without two students
+      // in an active match — deliberately not attempted here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- condition-driven reset
       setTournamentContext(null);
       return undefined;
     }
@@ -364,6 +376,12 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
   }, [gameStartedAt, match]);
 
   useEffect(() => {
+    // The three branches below clear the advance banner whenever the match is
+    // not a finished tournament game the viewer played in. Deriving the banner
+    // during render instead would mean restructuring the tournament advance
+    // flow, which cannot be exercised without two students in an active
+    // match — deliberately not attempted here.
+    /* eslint-disable react-hooks/set-state-in-effect -- condition-driven reset */
     if (!matchId || !isTournamentMatch) {
       setTournamentAdvanceMessage("");
       return undefined;
@@ -377,6 +395,7 @@ export default function Connect4Client({ courses, userId, initialCourseId = "", 
       setTournamentAdvanceMessage("");
       return undefined;
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     let stopped = false;
     let interval = null;

@@ -1366,6 +1366,9 @@ export default function ProjectorClient({
 
     window.addEventListener("projector:active-room-changed", updateActiveRoom);
     return () => window.removeEventListener("projector:active-room-changed", updateActiveRoom);
+    // Subscribes once for the life of the studio. Re-running on helper identity
+    // would drop the room-change listener and clear autopilot timers mid-lesson.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time subscription
   }, []);
 
   useEffect(() => {
@@ -1381,10 +1384,14 @@ export default function ProjectorClient({
     return () => window.removeEventListener("projector:scene-loaded", applyLoadedScene);
   }, []);
 
+  // Unmount-only cleanup. Adding the timer helpers to the dependency array would
+  // re-run this whenever their identity changes, clearing every playlist,
+  // rotation, and autopilot timer mid-lesson.
   useEffect(() => () => {
     clearPlaylistTimers();
     clearTimedRotationTimer();
     clearAllAutopilotTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- must run once, on unmount
   }, []);
 
   useEffect(() => {
@@ -1475,6 +1482,10 @@ export default function ProjectorClient({
     return () => {
       configuredAutopilotScreenIds.forEach(clearAutopilotTimer);
     };
+    // Restarts autopilot only when the room or its source content changes.
+    // runAutopilotStep is rebuilt every render, so listing it would clear and
+    // re-fire every screen's autopilot step continuously during a lesson.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- content-change trigger only
   }, [activeRoom, configuredAutopilotScreenIds, library, playlists, scheduleBlocks, wordLists]);
 
   useEffect(() => {
@@ -1506,6 +1517,10 @@ export default function ProjectorClient({
     return () => {
       supabase.removeChannel(channel);
     };
+    // One realtime channel per session. Listing refetchScreenState would tear the
+    // channel down and rebuild it whenever that function's identity changes,
+    // dropping screen-updated broadcasts mid-lesson.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable channel per session
   }, [session.id, screenTokens]);
 
   async function copyUrl(screenId) {
