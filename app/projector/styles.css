@@ -2492,6 +2492,236 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   }
 }
 
+/* Studio visual system */
+.projectorDashboard {
+  gap: 1.25rem;
+}
+
+.projectorHeader {
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  border: 0;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 76% 10%, rgba(129, 140, 248, 0.38), transparent 21rem),
+    linear-gradient(135deg, #111827 0%, #172554 58%, #312e81 100%);
+  color: #fff;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+}
+
+.projectorHeader::after {
+  content: "";
+  position: absolute;
+  right: 15%;
+  bottom: -7rem;
+  width: 16rem;
+  height: 16rem;
+  border: 2.5rem solid rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+}
+
+.projectorHeaderCopy {
+  position: relative;
+  z-index: 1;
+  max-width: 46rem;
+}
+
+.projectorHeader .eyebrow {
+  color: #a5b4fc;
+}
+
+.projectorHeader h1 {
+  color: #fff;
+  font-size: clamp(2rem, 5vw, 4rem);
+  letter-spacing: -0.05em;
+}
+
+.projectorHeaderCopy > p:not(.eyebrow) {
+  margin: 0.35rem 0 0;
+  color: #dbeafe;
+  font-size: 1.05rem;
+}
+
+.projectorHeaderStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 1.15rem;
+}
+
+.projectorHeaderStatus span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #eef2ff;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  backdrop-filter: blur(10px);
+}
+
+.projectorHeaderStatus i {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.14);
+}
+
+.projectorPin {
+  position: relative;
+  z-index: 1;
+  min-width: 13.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.11);
+  color: #fff;
+  backdrop-filter: blur(14px);
+}
+
+.projectorPin strong {
+  color: #fff;
+  font-size: 2.5rem;
+}
+
+.projectorLayout {
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 25rem);
+  gap: 1.25rem;
+}
+
+.projectorGridColumn {
+  gap: 1rem;
+}
+
+.projectorStudioStage {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid #d8e1e9;
+  border-radius: 22px;
+  background: #edf2f7;
+  padding: 1rem;
+  box-shadow: inset 0 1px 0 #fff, 0 16px 44px rgba(15, 23, 42, 0.08);
+}
+
+.projectorStudioStageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.projectorStudioStageHeader h2 {
+  margin: 0.1rem 0 0;
+  font-size: 1.35rem;
+}
+
+.projectorStudioStageHeader > span {
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  padding: 0.42rem 0.68rem;
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.projectorGrid {
+  gap: 0.85rem;
+}
+
+.projectorScreenCard,
+.projectorComposer,
+.projectorJoinCard {
+  border: 1px solid #d3dee7;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+}
+
+.projectorScreenCard {
+  background: #fff;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.projectorScreenCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+}
+
+.projectorScreenPreview {
+  overflow: hidden;
+  border-radius: 11px;
+}
+
+.projectorScreenCardHeader .projectorScreenActiveTag {
+  border: 0;
+  background: #dcfce7;
+}
+
+.projectorComposer {
+  top: 1rem;
+  border: 0;
+  border-radius: 20px;
+  background: #f8fafc;
+  padding: 0.75rem;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+}
+
+.projectorComposer > section,
+.projectorComposer > .projectorLibrary {
+  overflow: hidden;
+  border: 1px solid #dce4eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.projectorSceneSaveRow {
+  border: 1px solid #d5e0e8;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.projectorRotateRow .btn {
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.07);
+}
+
+@media (max-width: 980px) {
+  .projectorLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .projectorComposer {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .projectorHeader {
+    display: grid;
+  }
+
+  .projectorPin {
+    width: 100%;
+  }
+
+  .projectorStudioStage {
+    padding: 0.75rem;
+  }
+
+  .projectorStudioStageHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .projectorGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Scene -> Room assignment chooser (Change #1) */
 .projectorAssignmentOverlay {
   position: fixed;

@@ -3843,9 +3843,15 @@ export default function ProjectorClient({
         </div>
       ) : null}
       <section className="projectorHeader">
-        <div>
-          <p className="eyebrow">Projector Party</p>
+        <div className="projectorHeaderCopy">
+          <p className="eyebrow">Live classroom studio</p>
           <h1>Projector</h1>
+          <p>Compose, preview, and send content across every screen in the room.</p>
+          <div className="projectorHeaderStatus">
+            <span><i /> Live session</span>
+            <span>{activeRoom?.name || "Active room"}</span>
+            <span>{activeScreenIds.length} active screen{activeScreenIds.length === 1 ? "" : "s"}</span>
+          </div>
         </div>
         <div className="projectorPin">
           <span>Room PIN</span>
@@ -3996,7 +4002,15 @@ export default function ProjectorClient({
 
       <div className="projectorLayout">
         <div className="projectorGridColumn">
-          <section className="projectorGrid" aria-label="Projector screens">
+          <div className="projectorStudioStage">
+            <div className="projectorStudioStageHeader">
+              <div>
+                <p className="eyebrow">Live room canvas</p>
+                <h2>{activeRoom?.name || "Active Room"}</h2>
+              </div>
+              <span>{activeScreenIds.length} of {roomScreenIds.length} online</span>
+            </div>
+            <section className="projectorGrid" aria-label="Projector screens">
             {roomScreenIds.map((screenId) => {
               const slot = slotForScreen(activeRoom, screenId);
               const isEnabled = slot?.enabled !== false;
@@ -4241,7 +4255,8 @@ export default function ProjectorClient({
                 </article>
               );
             })}
-          </section>
+            </section>
+          </div>
           <div className="projectorRotateRow">
             <button className="btn secondary" type="button" onClick={() => rotateScreens("backward")} disabled={sending}>
               ↶ Rotate Left

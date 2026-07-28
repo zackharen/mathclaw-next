@@ -10,6 +10,7 @@ import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
 import { getSiteCopy } from "@/lib/site-config";
+import ArcadeLibrary from "./arcade-library";
 
 const REVIEW_GAME_SLUGS = new Set([
   "spiral_review",
@@ -48,41 +49,6 @@ function describeCourseRelationship(relationship) {
   if (relationship === "owner") return "Teacher account";
   if (relationship === "co_teacher") return "Co-teacher access";
   return "Joined as student";
-}
-
-function getGameTags(game) {
-  const tags = [];
-
-  if (game.category === "arcade" || game.slug === "connect4") {
-    tags.push("#arcade");
-  }
-
-  if (game.category === "math_skills") {
-    tags.push("#mathskills");
-  }
-
-  if (game.category === "survival_skills") {
-    tags.push("#survivalskills");
-  }
-
-  if (game.is_multiplayer) {
-    tags.push("#multiplayer");
-  }
-
-  return tags;
-}
-
-function formatStatNumber(value) {
-  const parsed = Number(value || 0);
-  if (!Number.isFinite(parsed)) return "0";
-  if (Math.abs(parsed - Math.round(parsed)) < 0.05) return String(Math.round(parsed));
-  return String(Math.round(parsed * 10) / 10);
-}
-
-function formatPercent(value) {
-  const parsed = Number(value || 0);
-  const normalized = parsed <= 1 ? parsed * 100 : parsed;
-  return `${Math.round(normalized)}%`;
 }
 
 function formatAwardPoints(value) {
@@ -126,35 +92,6 @@ function ArcadeDisclosure({ title, description, open = false, children }) {
       </details>
     </section>
   );
-}
-
-function statRowsForGame(game, stats) {
-  if (!stats) return [];
-
-  if (game.slug === "2048") {
-    return [
-      ["Games Played", stats.sessions_played],
-      ["High Score", stats.best_score],
-      ["Average", formatStatNumber(stats.average_score)],
-      ["Last 10 Avg", formatStatNumber(stats.last_10_average)],
-    ];
-  }
-
-  if (game.slug === "connect4") {
-    return [
-      ["Games Played", stats.sessions_played],
-      ["Win %", formatPercent(stats.average_score)],
-      ["Last 10 Win %", formatPercent(stats.last_10_average)],
-      ["Streak", stats.best_score],
-    ];
-  }
-
-  return [
-    ["Games Played", stats.sessions_played],
-    ["Average", formatStatNumber(stats.average_score)],
-    ["Last 10 Avg", formatStatNumber(stats.last_10_average)],
-    ["Best", formatStatNumber(stats.best_score)],
-  ];
 }
 
 export default async function PlayPage({ searchParams }) {
@@ -271,6 +208,30 @@ export default async function PlayPage({ searchParams }) {
   const survivalSkillsGames = visibleGames
     .filter((game) => game.category === "survival_skills")
     .sort((a, b) => a.name.localeCompare(b.name));
+  const libraryGames = [
+    ...reviewGames.map((game) => ({ ...game, libraryCategory: "group" })),
+    ...arcadeGames.map((game) => ({ ...game, libraryCategory: "arcade" })),
+    ...mathSkillsGames.map((game) => ({ ...game, libraryCategory: "math_skills" })),
+    ...survivalSkillsGames.map((game) => ({ ...game, libraryCategory: "survival_skills" })),
+  ].map((game) => {
+    const stats = statsByGame.get(game.slug);
+    return {
+      slug: game.slug,
+      name: game.name,
+      description: game.description,
+      category: game.libraryCategory,
+      isMultiplayer: Boolean(game.is_multiplayer),
+      href: gameHref(game.slug, activeCourse?.id || ""),
+      stats: stats
+        ? {
+            sessionsPlayed: Number(stats.sessions_played || 0),
+            averageScore: Number(stats.average_score || 0),
+            last10Average: Number(stats.last_10_average || 0),
+            bestScore: Number(stats.best_score || 0),
+          }
+        : null,
+    };
+  });
 
   return (
     <div className="stack">
@@ -379,165 +340,15 @@ export default async function PlayPage({ searchParams }) {
             </div>
       </ArcadeDisclosure>
 
-      {reviewGames.length > 0 ? (
-        <ArcadeDisclosure
-          title={siteCopy.arcadeGroupActivitiesTitle}
-          description={siteCopy.arcadeGroupActivitiesDescription}
-        >
-          <div className="reviewGameFamilyGrid" style={{ marginTop: "1rem" }}>
-            {reviewGames.map((game) => (
-              <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                <h3>{game.name}</h3>
-                <p>{game.description}</p>
-                <p className="arcadeGameTags">#review, #mathskills</p>
-                {statsByGame.get(game.slug) ? (
-                  <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                    {statRowsForGame(game, statsByGame.get(game.slug)).map(([label, value]) => (
-                      <div key={label}>
-                        <span>{label}</span>
-                        <strong>{value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="ctaRow">
-                  <Link className="btn" href={gameHref(game.slug, activeCourse?.id || "")}>
-                    Open {game.name}
-                  </Link>
-                </div>
-              </article>
-            ))}
-            <article className="card arcadeGameCard" style={{ background: "#fff" }}>
-              <h3>Tournaments</h3>
-              <p>Generate a random Connect 4 bracket from students who are live in the room.</p>
-              <p className="arcadeGameTags">#review, #multiplayer</p>
-              <div className="ctaRow">
-                <Link className="btn" href={tournamentHref(activeCourse?.id || "")}>
-                  Open Tournaments
-                </Link>
-              </div>
-            </article>
-          </div>
-        </ArcadeDisclosure>
-      ) : null}
-      <ArcadeDisclosure
-        title={siteCopy.arcadeFunGamesTitle}
-        description={siteCopy.arcadeFunGamesDescription}
-      >
-        {activeCourse && visibleGames.length === 0 ? (
-          <p style={{ marginTop: "0.75rem" }}>No games are enabled for this class yet.</p>
-        ) : null}
-        <div className="arcadeColumns">
-          <div className="arcadeColumn">
-            <div className="arcadeColumnHeader">
-              <h3>#arcade</h3>
-              <p>Arcade-style games and head-to-head play.</p>
-            </div>
-            <div className="arcadeGameList">
-              {arcadeGames.map((game) => {
-                const stats = statsByGame.get(game.slug);
-                return (
-                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
-                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
-                    {stats ? (
-                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        {statRowsForGame(game, stats).map(([label, value]) => (
-                          <div key={label}>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
-                        Play {game.name}
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="arcadeColumn">
-            <div className="arcadeColumnHeader">
-              <h3>#mathskills</h3>
-              <p>Quick skill practice and fluency-building games.</p>
-            </div>
-            <div className="arcadeGameList">
-              {mathSkillsGames.map((game) => {
-                const stats = statsByGame.get(game.slug);
-                return (
-                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
-                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
-                    {stats ? (
-                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        {statRowsForGame(game, stats).map(([label, value]) => (
-                          <div key={label}>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
-                        Play {game.name}
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="arcadeColumn">
-            <div className="arcadeColumnHeader">
-              <h3>#survivalskills</h3>
-              <p>Practical skills for everyday confidence.</p>
-            </div>
-            <div className="arcadeGameList">
-              {survivalSkillsGames.length === 0 ? (
-                <article className="card arcadeGameCard" style={{ background: "#f7fafc" }}>
-                  <h3>More Survival Skills</h3>
-                  <p>New survival-skills games will land here as they are added.</p>
-                  <p className="arcadeGameTags">#survivalskills</p>
-                </article>
-              ) : null}
-              {survivalSkillsGames.map((game) => {
-                const stats = statsByGame.get(game.slug);
-                return (
-                  <article key={game.slug} className="card arcadeGameCard" style={{ background: "#fff" }}>
-                    <h3>{game.name}</h3>
-                    <p>{game.description}</p>
-                    <p className="arcadeGameTags">{getGameTags(game).join(", ")}</p>
-                    {stats ? (
-                      <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-                        {statRowsForGame(game, stats).map(([label, value]) => (
-                          <div key={label}>
-                            <span>{label}</span>
-                            <strong>{value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="ctaRow">
-                      <Link className="btn primary" href={gameHref(game.slug, activeCourse?.id || "")}>
-                        Play {game.name}
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </ArcadeDisclosure>
+      <ArcadeLibrary
+        games={libraryGames}
+        tournamentHref={tournamentHref(activeCourse?.id || "")}
+        emptyMessage={
+          activeCourse && visibleGames.length === 0
+            ? "No games are enabled for this class yet."
+            : "Try another search or category."
+        }
+      />
       <ArcadeDisclosure
         title={siteCopy.arcadeAwardsTitle}
         description={siteCopy.arcadeAwardsDescription}
