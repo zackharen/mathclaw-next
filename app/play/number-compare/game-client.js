@@ -22,6 +22,7 @@ export default function NumberCompareClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialPair,
 }) {
   const [settings, setSettings] = useState({
     decimals: [1, 2],
@@ -36,10 +37,7 @@ export default function NumberCompareClient({
   const [feedback, setFeedback] = useState("");
   const [feedbackTone, setFeedbackTone] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [pair, setPair] = useState(() => [
-    numberCompareEngine.buildQuestion(settings),
-    numberCompareEngine.buildQuestion(settings),
-  ]);
+  const [pair, setPair] = useState(initialPair);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);

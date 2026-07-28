@@ -1,9 +1,17 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { numberCompareEngine } from "@/lib/question-engine/generators";
 import { GameShell } from "../game-shell";
 import NumberCompareClient from "./game-client";
 import "../game-shell.css";
+
+const INITIAL_SETTINGS = {
+  decimals: [1, 2],
+  positiveNegative: true,
+  fractions: true,
+  squareRoots: false,
+};
 
 export default async function NumberComparePage({ searchParams }) {
   const supabase = await createClient();
@@ -40,6 +48,11 @@ export default async function NumberComparePage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialPair = [
+    numberCompareEngine.buildQuestion(INITIAL_SETTINGS),
+    numberCompareEngine.buildQuestion(INITIAL_SETTINGS),
+  ];
+
   return (
     <GameShell
       eyebrow="Math skills · Solo"
@@ -54,6 +67,7 @@ export default async function NumberComparePage({ searchParams }) {
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialPair={initialPair}
       />
     </GameShell>
   );
