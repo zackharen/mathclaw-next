@@ -122,6 +122,31 @@ function paceDeltaLabel(delta) {
   return `${behind} day${behind === 1 ? "" : "s"} behind`;
 }
 
+function dashboardCourseMonogram(course) {
+  const title = String(course.title || course.class_name || "Class").trim();
+  const sectionCode = title.includes("|")
+    ? title.split("|")[0].replace(/[^a-z0-9]/gi, "")
+    : "";
+  if (sectionCode) return sectionCode.slice(0, 2).toUpperCase();
+
+  const words = title.split(/\s+/).filter((word) => /[a-z0-9]/i.test(word));
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0]?.[0] || ""}${words[1]?.[0] || ""}`.toUpperCase();
+}
+
+function dashboardPaceStatus(card) {
+  if (card.totalLessons === 0) {
+    return { className: "isSetup", label: "Setup needed" };
+  }
+  if (card.delta < 0) {
+    return { className: "isBehind", label: paceDeltaLabel(card.delta) };
+  }
+  if (card.delta > 0) {
+    return { className: "isAhead", label: paceDeltaLabel(card.delta) };
+  }
+  return { className: "isOnPace", label: "On pace" };
+}
+
 function getGameSupportCopy(game) {
   if (game.slug === "connect4") return "Students can open multiplayer matches from the Student Arcade.";
   if (game.slug === "2048") return "Students can practice solo strategy and build high scores.";
@@ -160,7 +185,7 @@ export default async function DashboardPage({ searchParams }) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, display_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -442,16 +467,61 @@ export default async function DashboardPage({ searchParams }) {
       colleagueDelta,
     };
   });
+  const teacherName = getBestDisplayName(
+    profile,
+    user.user_metadata,
+    user.email,
+    "Teacher"
+  ).split(/\s+/)[0];
+  const totalCompletedLessons = cards.reduce((sum, card) => sum + card.completed, 0);
+  const totalPlannedLessons = cards.reduce((sum, card) => sum + card.totalLessons, 0);
+  const onTrackCount = cards.filter((card) => card.totalLessons > 0 && card.delta >= 0).length;
+  const attentionCount = cards.filter((card) => card.totalLessons === 0 || card.delta < 0).length;
+  const overallProgress = totalPlannedLessons
+    ? Math.round((totalCompletedLessons / totalPlannedLessons) * 100)
+    : 0;
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>{siteCopy.dashboardTitle}</h1>
-        <p>{siteCopy.dashboardDescription}</p>
-        <div className="ctaRow">
-          <Link className="btn primary" href="/classes/new">
-            Add Class
-          </Link>
+    <div className="stack teacherDashboard">
+      <section className="teacherDashboardHero">
+        <div className="teacherDashboardHeroCopy">
+          <p className="eyebrow">Teaching command center</p>
+          <h1>Ready for class, {teacherName}?</h1>
+          <p>{siteCopy.dashboardDescription}</p>
+          <div className="teacherDashboardHeroActions">
+            <Link className="btn primary" href="/projector">
+              Launch Projector
+            </Link>
+            <Link className="btn secondary" href="/classes">
+              Manage Classes
+            </Link>
+            <Link className="btn secondary" href="/classes/new">
+              ＋ Add Class
+            </Link>
+          </div>
+        </div>
+        <div className="teacherDashboardScoreboard" aria-label="Teaching overview">
+          <div className="teacherDashboardProgressRing" style={{ "--dashboard-progress": `${overallProgress * 3.6}deg` }}>
+            <span><strong>{overallProgress}%</strong> complete</span>
+          </div>
+          <div className="teacherDashboardHeroStats">
+            <div>
+              <strong>{cards.length}</strong>
+              <span>Classes</span>
+            </div>
+            <div>
+              <strong>{onTrackCount}</strong>
+              <span>On track</span>
+            </div>
+            <div>
+              <strong>{attentionCount}</strong>
+              <span>Need attention</span>
+            </div>
+            <div>
+              <strong>{totalCompletedLessons}</strong>
+              <span>Lessons complete</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -480,27 +550,75 @@ export default async function DashboardPage({ searchParams }) {
         </div>
       ) : null}
 
-      <div className="list">
-        {cards.map((card) => (
-          <article key={card.course.id} className="card classCourseCard">
-            <details className="arcadeSectionDetails classCourseDetails">
-              <summary className="arcadeSectionSummary classCourseSummary">
+      <section className="teacherDashboardPulse">
+        <div className="teacherDashboardSectionHeader">
+          <div>
+            <p className="eyebrow">Live pacing pulse</p>
+            <h2>Your classes today</h2>
+          </div>
+          <p>Open a class to adjust pacing, check students, or prepare what comes next.</p>
+        </div>
+        <div className="teacherDashboardGrid">
+        {cards.map((card, index) => {
+          const paceStatus = dashboardPaceStatus(card);
+          return (
+          <article key={card.course.id} className={`teacherDashboardCourseCard teacherDashboardTone${index % 5}`}>
+            <div className="teacherDashboardCourseTop">
+              <div className="teacherDashboardCourseIdentity">
+                <span className="teacherDashboardCourseMonogram" aria-hidden="true">
+                  {dashboardCourseMonogram(card.course)}
+                </span>
                 <div>
                   <h2>{card.course.title}</h2>
-                  <p>
-                    {card.course.class_name} ·{" "}
-                    {card.course.schedule_model === "ab"
-                      ? `AB (${card.course.ab_meeting_day || "A/B"})`
-                      : "Every Day"} · {card.completed}/{card.totalLessons} lessons ·{" "}
-                    {paceDeltaLabel(card.delta)}
-                  </p>
+                  <p>{card.course.class_name}</p>
                 </div>
-                <span className="arcadeSectionToggle">
-                  <span className="showLabel">Show</span>
-                  <span className="hideLabel">Hide</span>
+              </div>
+              <span className={`teacherDashboardPacePill ${paceStatus.className}`}>
+                {paceStatus.label}
+              </span>
+            </div>
+
+            <div className="teacherDashboardProgress">
+              <div>
+                <span>Course progress</span>
+                <strong>{card.completed}/{card.totalLessons} lessons</strong>
+              </div>
+              <div className="teacherDashboardProgressTrack" aria-label={`${card.progressPct}% complete`}>
+                <span style={{ width: `${Math.min(card.progressPct, 100)}%` }} />
+              </div>
+              <small>{card.progressPct}% complete · {card.remaining} remaining</small>
+            </div>
+
+            <div className="teacherDashboardCurrentLesson">
+              <span>Current position</span>
+              <strong>{card.currentLesson}</strong>
+              <small>Projected finish: {prettyDate(card.projectedEnd)}</small>
+            </div>
+
+            <nav className="teacherDashboardCourseActions" aria-label={`${card.course.title} dashboard shortcuts`}>
+              <Link href={`/classes/${card.course.id}/plan`}>
+                <span aria-hidden="true">▤</span>
+                <strong>Open Plan</strong>
+              </Link>
+              <Link href={`/classes/${card.course.id}/students`}>
+                <span aria-hidden="true">◎</span>
+                <strong>Students</strong>
+              </Link>
+              <Link href={`/classes/${card.course.id}/announcements`}>
+                <span aria-hidden="true">◈</span>
+                <strong>Announcements</strong>
+              </Link>
+            </nav>
+
+            <details className="teacherDashboardCourseDetails">
+              <summary className="teacherDashboardCourseSummary">
+                <span>
+                  <strong>Insights &amp; settings</strong>
+                  <small>Full pacing detail and class controls</small>
                 </span>
+                <span className="teacherDashboardCourseToggle" aria-hidden="true">＋</span>
               </summary>
-              <div className="arcadeSectionBody classCourseBody">
+              <div className="teacherDashboardCourseBody classCourseBody">
                 <div className="kv" style={{ marginTop: 0 }}>
                   <div>
                     <strong>Current Unit Position</strong>
@@ -735,8 +853,10 @@ export default async function DashboardPage({ searchParams }) {
               </div>
             </details>
           </article>
-        ))}
-      </div>
+          );
+        })}
+        </div>
+      </section>
     </div>
   );
 }

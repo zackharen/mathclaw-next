@@ -827,6 +827,445 @@ p {
   color: #5d7183;
 }
 
+.teacherDashboard {
+  gap: 1.25rem;
+}
+
+.teacherDashboardHero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(22rem, 0.9fr);
+  align-items: center;
+  gap: clamp(1.5rem, 3vw, 3rem);
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 84% 14%, rgba(251, 191, 36, 0.2), transparent 20rem),
+    linear-gradient(135deg, #172033 0%, #273449 55%, #3f3529 100%);
+  color: #fff;
+  padding: clamp(1.4rem, 3.5vw, 2.6rem);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+}
+
+.teacherDashboardHero::after {
+  content: "";
+  position: absolute;
+  right: -5rem;
+  bottom: -10rem;
+  width: 25rem;
+  height: 25rem;
+  border: 3rem solid rgba(255, 255, 255, 0.035);
+  border-radius: 50%;
+}
+
+.teacherDashboardHeroCopy,
+.teacherDashboardScoreboard {
+  position: relative;
+  z-index: 1;
+}
+
+.teacherDashboardHero .eyebrow {
+  color: #fcd34d;
+}
+
+.teacherDashboardHero h1 {
+  margin: 0.15rem 0 0.45rem;
+  color: #fff;
+  font-size: clamp(2.2rem, 5vw, 4.4rem);
+  letter-spacing: -0.055em;
+}
+
+.teacherDashboardHeroCopy > p:not(.eyebrow) {
+  max-width: 46rem;
+  margin: 0;
+  color: #dce4ed;
+  font-size: 1.07rem;
+}
+
+.teacherDashboardHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+}
+
+.teacherDashboardHeroActions .btn.primary {
+  border-color: #fbbf24;
+  background: #fbbf24;
+  color: #272116;
+}
+
+.teacherDashboardHeroActions .btn.secondary {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.teacherDashboardScoreboard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1rem;
+  backdrop-filter: blur(12px);
+}
+
+.teacherDashboardProgressRing {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  background: conic-gradient(#fbbf24 var(--dashboard-progress), rgba(255, 255, 255, 0.1) 0);
+}
+
+.teacherDashboardProgressRing::after {
+  content: "";
+  position: absolute;
+  inset: 0.65rem;
+  border-radius: 50%;
+  background: #27313f;
+}
+
+.teacherDashboardProgressRing span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  color: #cbd5df;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.teacherDashboardProgressRing strong {
+  color: #fff;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.teacherDashboardHeroStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.teacherDashboardHeroStats > div {
+  display: grid;
+  min-width: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.065);
+  padding: 0.7rem;
+}
+
+.teacherDashboardHeroStats strong {
+  color: #fff;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.teacherDashboardHeroStats span {
+  margin-top: 0.25rem;
+  color: #cbd5df;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.teacherDashboardPulse {
+  display: grid;
+  gap: 1rem;
+}
+
+.teacherDashboardSectionHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.35rem 0.2rem;
+}
+
+.teacherDashboardSectionHeader h2 {
+  margin: 0.1rem 0 0;
+  font-size: clamp(1.5rem, 3vw, 2.15rem);
+}
+
+.teacherDashboardSectionHeader > p {
+  max-width: 34rem;
+  margin: 0;
+  color: #5d7183;
+  text-align: right;
+}
+
+.teacherDashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.teacherDashboardCourseCard {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid #d8e1e8;
+  border-top: 5px solid #3b82f6;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(15, 42, 62, 0.08);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.teacherDashboardCourseCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(15, 42, 62, 0.12);
+}
+
+.teacherDashboardCourseCard:has(.teacherDashboardCourseDetails[open]) {
+  grid-column: 1 / -1;
+}
+
+.teacherDashboardTone1 { border-top-color: #8b5cf6; }
+.teacherDashboardTone2 { border-top-color: #10b981; }
+.teacherDashboardTone3 { border-top-color: #f59e0b; }
+.teacherDashboardTone4 { border-top-color: #f43f5e; }
+
+.teacherDashboardCourseTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 1.05rem 1.05rem 0.8rem;
+}
+
+.teacherDashboardCourseIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.teacherDashboardCourseIdentity > div {
+  min-width: 0;
+}
+
+.teacherDashboardCourseIdentity h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacherDashboardCourseIdentity p {
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  color: #687b8c;
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacherDashboardCourseMonogram {
+  display: grid;
+  place-items: center;
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #60a5fa, #2563eb);
+  color: #fff;
+  font-weight: 950;
+  box-shadow: 0 7px 18px rgba(37, 99, 235, 0.22);
+}
+
+.teacherDashboardTone1 .teacherDashboardCourseMonogram { background: linear-gradient(145deg, #a78bfa, #7c3aed); }
+.teacherDashboardTone2 .teacherDashboardCourseMonogram { background: linear-gradient(145deg, #34d399, #059669); }
+.teacherDashboardTone3 .teacherDashboardCourseMonogram { background: linear-gradient(145deg, #fcd34d, #d97706); }
+.teacherDashboardTone4 .teacherDashboardCourseMonogram { background: linear-gradient(145deg, #fb7185, #e11d48); }
+
+.teacherDashboardPacePill {
+  flex: none;
+  border-radius: 999px;
+  padding: 0.32rem 0.58rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.teacherDashboardPacePill.isOnPace { background: #dcfce7; color: #166534; }
+.teacherDashboardPacePill.isAhead { background: #dbeafe; color: #1d4ed8; }
+.teacherDashboardPacePill.isBehind { background: #ffe4e6; color: #be123c; }
+.teacherDashboardPacePill.isSetup { background: #fef3c7; color: #92400e; }
+
+.teacherDashboardProgress {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0 1.05rem 0.9rem;
+}
+
+.teacherDashboardProgress > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #607486;
+  font-size: 0.76rem;
+}
+
+.teacherDashboardProgress > div:first-child strong {
+  color: #263f53;
+}
+
+.teacherDashboardProgressTrack {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7edf2;
+}
+
+.teacherDashboardProgressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #2563eb);
+}
+
+.teacherDashboardTone1 .teacherDashboardProgressTrack span { background: linear-gradient(90deg, #a78bfa, #7c3aed); }
+.teacherDashboardTone2 .teacherDashboardProgressTrack span { background: linear-gradient(90deg, #34d399, #059669); }
+.teacherDashboardTone3 .teacherDashboardProgressTrack span { background: linear-gradient(90deg, #fcd34d, #d97706); }
+.teacherDashboardTone4 .teacherDashboardProgressTrack span { background: linear-gradient(90deg, #fb7185, #e11d48); }
+
+.teacherDashboardProgress small {
+  color: #7a8c9c;
+  font-size: 0.7rem;
+}
+
+.teacherDashboardCurrentLesson {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0 1.05rem 0.95rem;
+  border: 1px solid #e0e8ee;
+  border-radius: 13px;
+  background: #f8fafc;
+  padding: 0.75rem;
+}
+
+.teacherDashboardCurrentLesson span {
+  color: #6e8191;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.teacherDashboardCurrentLesson strong {
+  overflow: hidden;
+  color: #243f54;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacherDashboardCurrentLesson small {
+  color: #738696;
+  font-size: 0.72rem;
+}
+
+.teacherDashboardCourseActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #e7edf2;
+  border-bottom: 1px solid #e7edf2;
+}
+
+.teacherDashboardCourseActions a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 0;
+  color: #29465c;
+  padding: 0.7rem 0.45rem;
+  text-decoration: none;
+}
+
+.teacherDashboardCourseActions a + a {
+  border-left: 1px solid #e7edf2;
+}
+
+.teacherDashboardCourseActions a:hover {
+  background: #f2f7fa;
+}
+
+.teacherDashboardCourseActions a > span {
+  color: #0c668f;
+}
+
+.teacherDashboardCourseActions strong {
+  overflow: hidden;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teacherDashboardCourseDetails {
+  margin: 0;
+}
+
+.teacherDashboardCourseSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  cursor: pointer;
+  padding: 0.78rem 1.05rem;
+}
+
+.teacherDashboardCourseSummary::-webkit-details-marker {
+  display: none;
+}
+
+.teacherDashboardCourseSummary > span:first-child {
+  display: grid;
+}
+
+.teacherDashboardCourseSummary strong {
+  color: #29465c;
+  font-size: 0.82rem;
+}
+
+.teacherDashboardCourseSummary small {
+  color: #788a99;
+  font-size: 0.68rem;
+}
+
+.teacherDashboardCourseToggle {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: #e8f1f7;
+  color: #164f72;
+  font-weight: 900;
+  transition: transform 180ms ease;
+}
+
+.teacherDashboardCourseDetails[open] .teacherDashboardCourseToggle {
+  transform: rotate(45deg);
+}
+
+.teacherDashboardCourseBody {
+  border-top: 1px solid #e7edf2;
+}
+
 .classCourseMetaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -1004,6 +1443,20 @@ p {
   color: #586977;
 }
 
+@media (max-width: 1050px) {
+  .teacherDashboardHero {
+    grid-template-columns: 1fr;
+  }
+
+  .teacherDashboardScoreboard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .teacherDashboardGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .aboutGrid {
     grid-template-columns: 1fr;
@@ -1048,6 +1501,45 @@ p {
 
   .classesWorkspaceGrid {
     grid-template-columns: 1fr;
+  }
+
+  .teacherDashboardScoreboard {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .teacherDashboardProgressRing {
+    width: 7rem;
+    height: 7rem;
+    margin: 0 auto;
+  }
+
+  .teacherDashboardSectionHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .teacherDashboardSectionHeader > p {
+    text-align: left;
+  }
+
+  .teacherDashboardCourseTop {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .teacherDashboardPacePill {
+    align-self: flex-start;
+  }
+
+  .teacherDashboardCourseActions {
+    grid-template-columns: 1fr;
+  }
+
+  .teacherDashboardCourseActions a + a {
+    border-top: 1px solid #e7edf2;
+    border-left: 0;
   }
 
   .classCourseQuickActions {
