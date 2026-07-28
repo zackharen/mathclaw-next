@@ -1,11 +1,20 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 function isActive(pathname, href) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavLabel({ label }) {
+  const { pending } = useLinkStatus();
+  return (
+    <span className={pending ? "navLabel navLabelPending" : "navLabel"}>
+      {label}
+    </span>
+  );
 }
 
 export default function AppNav({ items }) {
@@ -19,7 +28,7 @@ export default function AppNav({ items }) {
           href={item.href}
           className={isActive(pathname, item.href) ? "active" : ""}
         >
-          {item.label}
+          <NavLabel label={item.label} />
         </Link>
       ))}
     </nav>

@@ -143,6 +143,27 @@ main {
   color: var(--white);
 }
 
+/* Pressed feedback so a tap registers instantly, before navigation starts. */
+.nav a:active {
+  transform: translateY(1px);
+}
+
+/* While a tab's destination is still loading, fill it like the active tab and
+   pulse the label so it is obvious the click registered. */
+.nav a:has(.navLabelPending) {
+  background: var(--navy);
+  color: var(--white);
+}
+
+.navLabelPending {
+  animation: navPendingPulse 0.9s ease-in-out infinite;
+}
+
+@keyframes navPendingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .navForm {
   display: flex;
   flex: 0 0 auto;
