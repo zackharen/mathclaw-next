@@ -1,6 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  buildTellingTimeChoices,
+  buildTellingTimeQuestion,
+} from "@/lib/question-engine/telling-time";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const TOTAL_ROUNDS = 10;
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
@@ -21,53 +31,6 @@ function formatMinute(minute) {
 
 function formatTimeLabel(hour, minute) {
   return `${hour}:${formatMinute(minute)}`;
-}
-
-function randomQuestionMode(selectedMode) {
-  if (selectedMode === "read" || selectedMode === "set") return selectedMode;
-  return Math.random() > 0.5 ? "read" : "set";
-}
-
-function buildQuestion(selectedMode, readAnswerMode = "multiple_choice") {
-  const mode = randomQuestionMode(selectedMode);
-  const hour = HOUR_OPTIONS[Math.floor(Math.random() * HOUR_OPTIONS.length)];
-  const minutePool =
-    mode === "read" && readAnswerMode === "fill"
-      ? READ_FILL_MINUTE_OPTIONS
-      : MINUTE_OPTIONS;
-  const minute = minutePool[Math.floor(Math.random() * minutePool.length)];
-  return {
-    mode,
-    hour,
-    minute,
-    label: formatTimeLabel(hour, minute),
-  };
-}
-
-function buildChoices(question, count = 4) {
-  const choices = new Set([question.label]);
-
-  while (choices.size < count) {
-    const hour = HOUR_OPTIONS[Math.floor(Math.random() * HOUR_OPTIONS.length)];
-    const minute = MINUTE_OPTIONS[Math.floor(Math.random() * MINUTE_OPTIONS.length)];
-    choices.add(formatTimeLabel(hour, minute));
-  }
-
-  return [...choices].sort(() => Math.random() - 0.5);
-}
-
-function randomClockSetting(excludeLabel = "") {
-  let label = excludeLabel;
-  let hour = HOUR_OPTIONS[0];
-  let minute = MINUTE_OPTIONS[0];
-
-  while (label === excludeLabel) {
-    hour = HOUR_OPTIONS[Math.floor(Math.random() * HOUR_OPTIONS.length)];
-    minute = MINUTE_OPTIONS[Math.floor(Math.random() * MINUTE_OPTIONS.length)];
-    label = formatTimeLabel(hour, minute);
-  }
-
-  return { hour, minute };
 }
 
 function angleFromPointer(event, rect) {
@@ -171,6 +134,7 @@ export default function TellingTimeClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialQuestion,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("mixed");
@@ -181,15 +145,13 @@ export default function TellingTimeClient({
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [question, setQuestion] = useState(() => buildQuestion("mixed", "multiple_choice"));
-  const initialSetting = useMemo(
-    () => (question.mode === "set" ? randomClockSetting(question.label) : { hour: question.hour, minute: question.minute }),
-    [question]
-  );
-  const [selectedHour, setSelectedHour] = useState(initialSetting.hour);
-  const [selectedMinute, setSelectedMinute] = useState(initialSetting.minute);
-  const [readAnswerHour, setReadAnswerHour] = useState(question.hour);
-  const [readAnswerMinute, setReadAnswerMinute] = useState(question.minute ?? READ_FILL_MINUTE_OPTIONS[0]);
+  const [feedbackTone, setFeedbackTone] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [question, setQuestion] = useState(initialQuestion);
+  const [selectedHour, setSelectedHour] = useState(initialQuestion.setting.hour);
+  const [selectedMinute, setSelectedMinute] = useState(initialQuestion.setting.minute);
+  const [readAnswerHour, setReadAnswerHour] = useState(initialQuestion.hour);
+  const [readAnswerMinute, setReadAnswerMinute] = useState(initialQuestion.minute);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -203,7 +165,7 @@ export default function TellingTimeClient({
   });
   const savedRunRef = useRef(false);
 
-  const choices = useMemo(() => buildChoices(question, choiceCount), [choiceCount, question]);
+  const choices = question.choices;
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
 
   const updateClockFromPointer = useCallback((event, handToMove) => {
@@ -335,11 +297,8 @@ export default function TellingTimeClient({
 
   function resetRun(nextMode = mode, nextCourseId = courseId, nextReadAnswerMode = readAnswerMode) {
     savedRunRef.current = false;
-    const nextQuestion = buildQuestion(nextMode, nextReadAnswerMode);
-    const nextSetting =
-      nextQuestion.mode === "set"
-        ? randomClockSetting(nextQuestion.label)
-        : { hour: nextQuestion.hour, minute: nextQuestion.minute };
+    const nextQuestion = buildTellingTimeQuestion(nextMode, nextReadAnswerMode, choiceCount);
+    const nextSetting = nextQuestion.setting;
     setQuestion(nextQuestion);
     setSelectedHour(nextSetting.hour);
     setSelectedMinute(nextSetting.minute);
@@ -348,6 +307,7 @@ export default function TellingTimeClient({
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
+    setFeedbackTone("");
     sessionRef.current = {
       courseId: nextCourseId,
       attempts: 0,
@@ -385,7 +345,7 @@ export default function TellingTimeClient({
     resetRun(mode, nextCourseId, readAnswerMode);
   }
 
-  function advanceRun(correct, nextMode = mode) {
+  async function advanceRun(correct, nextMode = mode) {
     const nextAttempts = sessionRef.current.attempts + 1;
     const nextScore = sessionRef.current.score + (correct ? 1 : 0);
     const finished = nextAttempts >= TOTAL_ROUNDS;
@@ -401,20 +361,24 @@ export default function TellingTimeClient({
 
     if (finished) {
       setFeedback(correct ? "Run finished strong." : "Run finished. Start another one.");
-      saveSession({
-        ...sessionRef.current,
-        result: "finished",
-      }).catch((error) => {
+      setFeedbackTone(correct ? "correct" : "miss");
+      setIsSaving(true);
+      try {
+        await saveSession({
+          ...sessionRef.current,
+          result: "finished",
+        });
+      } catch (error) {
         setFeedback(error.message || "Could not save that run.");
-      });
+        setFeedbackTone("miss");
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
-    const nextQuestion = buildQuestion(nextMode, readAnswerMode);
-    const nextSetting =
-      nextQuestion.mode === "set"
-        ? randomClockSetting(nextQuestion.label)
-        : { hour: nextQuestion.hour, minute: nextQuestion.minute };
+    const nextQuestion = buildTellingTimeQuestion(nextMode, readAnswerMode, choiceCount);
+    const nextSetting = nextQuestion.setting;
     setQuestion(nextQuestion);
     setSelectedHour(nextSetting.hour);
     setSelectedMinute(nextSetting.minute);
@@ -426,6 +390,7 @@ export default function TellingTimeClient({
   function answerReadMode(choice) {
     const correct = choice === question.label;
     setFeedback(correct ? "Nice read." : `Not quite. That clock shows ${question.label}.`);
+    setFeedbackTone(correct ? "correct" : "miss");
     advanceRun(correct);
   }
 
@@ -433,6 +398,7 @@ export default function TellingTimeClient({
     const guess = formatTimeLabel(readAnswerHour, readAnswerMinute);
     const correct = guess === question.label;
     setFeedback(correct ? "Nice read." : `Not quite. That clock shows ${question.label}.`);
+    setFeedbackTone(correct ? "correct" : "miss");
     advanceRun(correct);
   }
 
@@ -440,28 +406,181 @@ export default function TellingTimeClient({
     const guess = formatTimeLabel(selectedHour, selectedMinute);
     const correct = guess === question.label;
     setFeedback(correct ? "Clock matched." : `Not quite. The target time was ${question.label}.`);
+    setFeedbackTone(correct ? "correct" : "miss");
     advanceRun(correct);
   }
 
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
+  const attempts = sessionRef.current.attempts;
+  const accuracy = attempts > 0 ? Math.round((score / attempts) * 100) : 0;
+  const resultTitle =
+    score >= 9 ? "Right on time." : score >= 7 ? "Strong clock work." : "Good practice — try another round.";
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Game Controls</h2>
-              <p>
-                {(mode === "mixed" ? "Mixed mode" : mode === "read" ? "Read The Clock" : "Set The Clock") + " · " + (readAnswerMode === "fill" ? "Fill in answers" : String(choiceCount) + " multiple choice") + " · " + (faceStyle === "roman" ? "Roman numerals" : faceStyle === "ticks" ? "Tick marks" : "Numbers") + " · " + courseSummary}
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message="Your clock run is saved with its mode and class context. Replay the same setup or change the face and answer style for a fresh challenge."
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Mode", value: mode === "mixed" ? "Mixed" : mode === "read" ? "Read" : "Set" },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Play Again"}
+            onAction={startNewRun}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your clock run and refreshing the leaderboard…"
+                : feedbackTone === "miss" && feedback.includes("save")
+                  ? feedback
+                  : "Run saved."
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Round ${Math.min(roundIndex, TOTAL_ROUNDS)} of ${TOTAL_ROUNDS}`}
+            title={question.mode === "read" ? "Read The Clock" : "Set The Clock"}
+            status={isSaving ? "Saving run" : "Run in progress"}
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Round", value: `${Math.min(roundIndex, TOTAL_ROUNDS)}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+            ]}
+          >
+            <div className="gameQuestion timeGameQuestion">
+              <ClockFace
+                hour={question.mode === "read" ? question.hour : selectedHour}
+                minute={question.mode === "read" ? question.minute : selectedMinute}
+                label={question.mode === "read" ? question.label : `Current setting ${formatTimeLabel(selectedHour, selectedMinute)}`}
+                faceStyle={faceStyle}
+                interactive={question.mode === "set"}
+                activeHand={activeSetHand}
+                onClockPointerDown={(event) => {
+                  clockFaceRef.current = event.currentTarget;
+                  if (question.mode !== "set") return;
+                  updateClockFromPointer(event, activeSetHand);
+                  draggingHandRef.current = activeSetHand;
+                }}
+                onHandPointerDown={(event, hand) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  clockFaceRef.current = event.currentTarget.closest(".timeClock");
+                  setActiveSetHand(hand);
+                  updateClockFromPointer(event, hand);
+                  draggingHandRef.current = hand;
+                }}
+              />
+              {question.mode === "read" ? (
+                readAnswerMode === "fill" ? (
+                  <div className="list timeCenteredControls">
+                    <p>Write the time shown on the clock.</p>
+                    <div className="timeAnswerRow">
+                      <select
+                        className="input"
+                        aria-label="Answer hour"
+                        value={readAnswerHour}
+                        onChange={(event) => setReadAnswerHour(Number(event.target.value))}
+                      >
+                        {HOUR_OPTIONS.map((hour) => (
+                          <option key={hour} value={hour}>{hour}</option>
+                        ))}
+                      </select>
+                      <span className="timeAnswerColon">:</span>
+                      <select
+                        className="input"
+                        aria-label="Answer minute"
+                        value={readAnswerMinute}
+                        onChange={(event) => setReadAnswerMinute(Number(event.target.value))}
+                      >
+                        {READ_FILL_MINUTE_OPTIONS.map((minute) => (
+                          <option key={minute} value={minute}>{formatMinute(minute)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button className="btn primary" type="button" onClick={answerReadFillMode}>
+                      Check Time
+                    </button>
+                  </div>
+                ) : (
+                  <div className="gameReviewChoices">
+                    {choices.map((choice) => (
+                      <button
+                        key={choice}
+                        className="gameReviewChoice"
+                        type="button"
+                        onClick={() => answerReadMode(choice)}
+                      >
+                        {choice}
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="timeSetControls">
+                  <p className="gameQuestionPrompt">
+                    Set the clock to <strong>{question.label}</strong>.
+                  </p>
+                  <div className="gameSetupChoiceRow">
+                    <button
+                      className={`btn ${activeSetHand === "hour" ? "primary" : "ghost"}`}
+                      type="button"
+                      onClick={() => setActiveSetHand("hour")}
+                    >
+                      Move Hour Hand
+                    </button>
+                    <button
+                      className={`btn ${activeSetHand === "minute" ? "primary" : "ghost"}`}
+                      type="button"
+                      onClick={() => setActiveSetHand("minute")}
+                    >
+                      Move Minute Hand
+                    </button>
+                  </div>
+                  <div className="pillRow timeCenteredRow">
+                    <span className="pill">Target: {question.label}</span>
+                    <span className="pill">Your Clock: {formatTimeLabel(selectedHour, selectedMinute)}</span>
+                  </div>
+                  <div className="timeStepControls">
+                    <button className="btn ghost" type="button" onClick={() => setSelectedHour((current) => stepHour(current, -1))}>
+                      Hour −1
+                    </button>
+                    <button className="btn ghost" type="button" onClick={() => setSelectedHour((current) => stepHour(current, 1))}>
+                      Hour +1
+                    </button>
+                    <button className="btn ghost" type="button" onClick={() => setSelectedMinute((current) => stepMinute(current, -5))}>
+                      Minute −5
+                    </button>
+                    <button className="btn ghost" type="button" onClick={() => setSelectedMinute((current) => stepMinute(current, 5))}>
+                      Minute +5
+                    </button>
+                  </div>
+                  <p className="timeInstruction">
+                    Drag the hand tips, or tap the clock while <strong>{activeSetHand === "hour" ? "Hour Hand" : "Minute Hand"}</strong> is selected.
+                  </p>
+                  <button className="btn primary" type="button" onClick={answerSetMode}>
+                    Check Clock
+                  </button>
+                </div>
+              )}
+              <p className={`gameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+                {feedback || "Read the face carefully and submit when you are ready."}
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+          </GameStage>
+        )}
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Choose the clock">
+          <p className="gameSetupSummary">
+            {(mode === "mixed" ? "Mixed mode" : mode === "read" ? "Read the clock" : "Set the clock")} · {courseSummary}
+          </p>
+          <div className="gameSetupOptions">
             <label>
               Game mode
               <select
@@ -498,8 +617,15 @@ export default function TellingTimeClient({
                 Multiple choice answers
                 <select
                   className="input"
-                  value={choiceCount}
-                  onChange={(event) => setChoiceCount(Number(event.target.value))}
+                value={choiceCount}
+                  onChange={(event) => {
+                    const nextChoiceCount = Number(event.target.value);
+                    setChoiceCount(nextChoiceCount);
+                    setQuestion((current) => ({
+                      ...current,
+                      choices: buildTellingTimeChoices(current, nextChoiceCount),
+                    }));
+                  }}
                 >
                   {[2, 3, 4, 5, 6].map((count) => (
                     <option key={count} value={count}>
@@ -533,160 +659,14 @@ export default function TellingTimeClient({
               </select>
             </label>
             <button className="btn primary" type="button" onClick={startNewRun}>
-              Start New Run
+              Reset Run
             </button>
           </div>
-        </details>
-      </section>
+        </GameSidePanel>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>{question.mode === "read" ? "Read The Clock" : "Set The Clock"}</h2>
-        <div className="pillRow">
-          <span className="pill">Round: {Math.min(roundIndex, TOTAL_ROUNDS)}/{TOTAL_ROUNDS}</span>
-          <span className="pill">Score: {score}</span>
-        </div>
-        <ClockFace
-          hour={question.mode === "read" ? question.hour : selectedHour}
-          minute={question.mode === "read" ? question.minute : selectedMinute}
-          label={question.mode === "read" ? question.label : `Current setting ${formatTimeLabel(selectedHour, selectedMinute)}`}
-          faceStyle={faceStyle}
-          interactive={question.mode === "set" && !runComplete}
-          activeHand={activeSetHand}
-          onClockPointerDown={(event) => {
-            clockFaceRef.current = event.currentTarget;
-            if (question.mode !== "set" || runComplete) return;
-            updateClockFromPointer(event, activeSetHand);
-            draggingHandRef.current = activeSetHand;
-          }}
-          onHandPointerDown={(event, hand) => {
-            event.preventDefault();
-            event.stopPropagation();
-            clockFaceRef.current = event.currentTarget.closest(".timeClock");
-            setActiveSetHand(hand);
-            updateClockFromPointer(event, hand);
-            draggingHandRef.current = hand;
-          }}
-        />
-        {question.mode === "read" ? (
-          readAnswerMode === "fill" ? (
-            <div className="list" style={{ marginTop: "1rem" }}>
-              <p>Write the time shown on the clock.</p>
-              <div className="timeAnswerRow">
-                <select
-                  className="input"
-                  value={readAnswerHour}
-                  onChange={(event) => setReadAnswerHour(Number(event.target.value))}
-                >
-                  {HOUR_OPTIONS.map((hour) => (
-                    <option key={hour} value={hour}>
-                      {hour}
-                    </option>
-                  ))}
-                </select>
-                <span className="timeAnswerColon">:</span>
-                <select
-                  className="input"
-                  value={readAnswerMinute}
-                  onChange={(event) => setReadAnswerMinute(Number(event.target.value))}
-                >
-                  {READ_FILL_MINUTE_OPTIONS.map((minute) => (
-                    <option key={minute} value={minute}>
-                      {formatMinute(minute)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button className="btn primary" type="button" onClick={answerReadFillMode} disabled={runComplete}>
-                Check Time
-              </button>
-            </div>
-          ) : (
-            <div className="choiceGrid">
-              {choices.map((choice) => (
-                <button
-                  key={choice}
-                  className="btn bigChoice"
-                  type="button"
-                  onClick={() => answerReadMode(choice)}
-                  disabled={runComplete}
-                >
-                  {choice}
-                </button>
-              ))}
-            </div>
-          )
-        ) : (
-          <div className="list" style={{ marginTop: "1rem" }}>
-            <p>Set the clock to <strong>{question.label}</strong>.</p>
-            <div className="ctaRow">
-              <button
-                className={`btn ${activeSetHand === "hour" ? "primary" : "ghost"}`}
-                type="button"
-                onClick={() => setActiveSetHand("hour")}
-              >
-                Move Hour Hand
-              </button>
-              <button
-                className={`btn ${activeSetHand === "minute" ? "primary" : "ghost"}`}
-                type="button"
-                onClick={() => setActiveSetHand("minute")}
-              >
-                Move Minute Hand
-              </button>
-            </div>
-            <div className="pillRow">
-              <span className="pill">Target: {question.label}</span>
-              <span className="pill">Your Clock: {formatTimeLabel(selectedHour, selectedMinute)}</span>
-            </div>
-            <div className="ctaRow">
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() => setSelectedHour((current) => stepHour(current, -1))}
-                disabled={runComplete}
-              >
-                Hour -1
-              </button>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() => setSelectedHour((current) => stepHour(current, 1))}
-                disabled={runComplete}
-              >
-                Hour +1
-              </button>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() => setSelectedMinute((current) => stepMinute(current, -5))}
-                disabled={runComplete}
-              >
-                Minute -5
-              </button>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() => setSelectedMinute((current) => stepMinute(current, 5))}
-                disabled={runComplete}
-              >
-                Minute +5
-              </button>
-            </div>
-            <p>
-              Drag the hand tips, or tap the clock while <strong>{activeSetHand === "hour" ? "Hour Hand" : "Minute Hand"}</strong> is selected.
-            </p>
-            <button className="btn primary" type="button" onClick={answerSetMode} disabled={runComplete}>
-              Check Clock
-            </button>
-          </div>
-        )}
-        {feedback ? <p style={{ marginTop: "0.75rem" }}>{feedback}</p> : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
+        <GameSidePanel eyebrow="Progress" title="Your stats">
         {savedStats ? (
-          <div className="kv compactKv">
+          <div className="gameSideStats">
             <div>
               <span>Games</span>
               <strong>{savedStats.sessions_played}</strong>
@@ -708,23 +688,25 @@ export default function TellingTimeClient({
           <p>No saved runs yet.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class scores yet. Finish a run to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare with classmates.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{formatScore(row.best_score)}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }

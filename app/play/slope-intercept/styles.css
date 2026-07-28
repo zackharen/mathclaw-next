@@ -36,6 +36,15 @@
   align-items: stretch;
 }
 
+.slopeGameShell {
+  margin-top: 1rem;
+}
+
+.slopeGameFeedback {
+  margin-top: 1rem;
+  text-align: center;
+}
+
 .slopeInterceptGraphFrame {
   position: relative;
   min-height: 31rem;

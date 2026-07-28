@@ -1,6 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildMoneyChoices,
+  buildMoneyQuestion,
+} from "@/lib/question-engine/money-counting";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const TOTAL_ROUNDS = 10;
 const DENOMINATIONS = [
@@ -19,75 +29,12 @@ const EMPTY_PILE = {
   penny: 0,
 };
 
-function randomCount(limit) {
-  return Math.floor(Math.random() * (limit + 1));
-}
-
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
 }
 
 function formatMoney(cents) {
   return `$${(cents / 100).toFixed(2)}`;
-}
-
-function buildMoneyPile() {
-  const pile = {
-    one: randomCount(3),
-    quarter: randomCount(4),
-    dime: randomCount(4),
-    nickel: randomCount(4),
-    penny: randomCount(4),
-  };
-
-  const total = DENOMINATIONS.reduce(
-    (sum, denomination) => sum + denomination.cents * pile[denomination.key],
-    0
-  );
-
-  if (total === 0) {
-    pile.quarter = 1;
-    return {
-      pile,
-      total: 25,
-    };
-  }
-
-  return { pile, total };
-}
-
-function buildQuestion(mode) {
-  const selectedMode = mode === "mixed" ? (Math.random() > 0.5 ? "count" : "make") : mode;
-  const generated = buildMoneyPile();
-  return {
-    mode: selectedMode,
-    pile: generated.pile,
-    total: generated.total,
-  };
-}
-
-function buildChoices(total, choiceCount) {
-  const options = new Set([total]);
-  const shifts = [-55, -40, -30, -25, -20, -15, -10, -5, 5, 10, 15, 20, 25, 30, 40, 55];
-  let attempts = 0;
-
-  while (options.size < choiceCount && attempts < 200) {
-    const shift = shifts[Math.floor(Math.random() * shifts.length)];
-    const next = Math.max(0, total + shift);
-    options.add(next);
-    attempts += 1;
-  }
-
-  let fallbackStep = 1;
-  while (options.size < choiceCount) {
-    options.add(Math.max(0, total + fallbackStep));
-    if (options.size < choiceCount) {
-      options.add(Math.max(0, total - fallbackStep));
-    }
-    fallbackStep += 1;
-  }
-
-  return [...options].sort(() => Math.random() - 0.5).slice(0, choiceCount);
 }
 
 function pileTotal(pile) {
@@ -114,6 +61,7 @@ export default function MoneyCountingClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialQuestion,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("mixed");
@@ -123,7 +71,9 @@ export default function MoneyCountingClient({
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [question, setQuestion] = useState(() => buildQuestion("mixed"));
+  const [feedbackTone, setFeedbackTone] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [question, setQuestion] = useState(initialQuestion);
   const [playerPile, setPlayerPile] = useState(EMPTY_PILE);
   const [countAnswerDollars, setCountAnswerDollars] = useState("");
   const [countAnswerCents, setCountAnswerCents] = useState("");
@@ -140,7 +90,7 @@ export default function MoneyCountingClient({
   });
   const savedRunRef = useRef(false);
 
-  const choices = useMemo(() => buildChoices(question.total, choiceCount), [choiceCount, question.total]);
+  const choices = question.choices;
   const builtTotal = useMemo(() => pileTotal(playerPile), [playerPile]);
   const buildDelta = question.total - builtTotal;
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
@@ -245,7 +195,7 @@ export default function MoneyCountingClient({
 
   function resetRun(nextMode = mode, nextCourseId = courseId) {
     savedRunRef.current = false;
-    const nextQuestion = buildQuestion(nextMode);
+    const nextQuestion = buildMoneyQuestion(nextMode, choiceCount);
     setQuestion(nextQuestion);
     setPlayerPile(EMPTY_PILE);
     setCountAnswerDollars("");
@@ -253,6 +203,7 @@ export default function MoneyCountingClient({
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
+    setFeedbackTone("");
     sessionRef.current = {
       courseId: nextCourseId,
       attempts: 0,
@@ -292,7 +243,7 @@ export default function MoneyCountingClient({
     resetRun(mode, nextCourseId);
   }
 
-  function advanceRun(correct) {
+  async function advanceRun(correct) {
     const nextAttempts = sessionRef.current.attempts + 1;
     const nextScore = sessionRef.current.score + (correct ? 1 : 0);
     const finished = nextAttempts >= TOTAL_ROUNDS;
@@ -309,16 +260,22 @@ export default function MoneyCountingClient({
     setScore(nextScore);
 
     if (finished) {
-      saveSession({
-        ...sessionRef.current,
-        result: "finished",
-      }).catch((error) => {
+      setIsSaving(true);
+      try {
+        await saveSession({
+          ...sessionRef.current,
+          result: "finished",
+        });
+      } catch (error) {
         setFeedback(error.message || "Could not save that run.");
-      });
+        setFeedbackTone("miss");
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
 
-    const nextQuestion = buildQuestion(mode);
+    const nextQuestion = buildMoneyQuestion(mode, choiceCount);
     setQuestion(nextQuestion);
     setPlayerPile(EMPTY_PILE);
     setCountAnswerDollars("");
@@ -329,6 +286,7 @@ export default function MoneyCountingClient({
   function answerCountMode(choice) {
     const correct = choice === question.total;
     setFeedback(correct ? "Correct total." : `Not quite. The money shown is ${formatMoney(question.total)}.`);
+    setFeedbackTone(correct ? "correct" : "miss");
     advanceRun(correct);
   }
 
@@ -338,12 +296,14 @@ export default function MoneyCountingClient({
 
     if (Number.isNaN(dollars) || Number.isNaN(cents) || cents < 0 || cents > 99) {
       setFeedback("Enter a valid dollar amount and a cents value from 00 to 99.");
+      setFeedbackTone("miss");
       return;
     }
 
     const submittedTotal = dollars * 100 + cents;
     const correct = submittedTotal === question.total;
     setFeedback(correct ? "Correct total." : `Not quite. The money shown is ${formatMoney(question.total)}.`);
+    setFeedbackTone(correct ? "correct" : "miss");
     setCountAnswerDollars("");
     setCountAnswerCents("");
     advanceRun(correct);
@@ -356,6 +316,7 @@ export default function MoneyCountingClient({
         ? "You built the right amount."
         : `Not quite. The target was ${formatMoney(question.total)} and your pile was ${formatMoney(builtTotal)}.`
     );
+    setFeedbackTone(correct ? "correct" : "miss");
     advanceRun(correct);
   }
 
@@ -403,6 +364,10 @@ export default function MoneyCountingClient({
 
   function handleChoiceCountChange(nextChoiceCount) {
     setChoiceCount(nextChoiceCount);
+    setQuestion((current) => ({
+      ...current,
+      choices: buildMoneyChoices(current.total, nextChoiceCount),
+    }));
     setFeedback("");
     setCountAnswerDollars("");
     setCountAnswerCents("");
@@ -416,24 +381,195 @@ export default function MoneyCountingClient({
   }
 
   const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
+  const attempts = sessionRef.current.attempts;
+  const accuracy = attempts > 0 ? Math.round((score / attempts) * 100) : 0;
+  const resultTitle =
+    score >= 9 ? "Money master." : score >= 7 ? "Strong counting run." : "Good practice — count it again.";
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Game Controls</h2>
-              <p>
-                {(mode === "mixed" ? "Mixed mode" : mode === "count" ? "Count The Money" : "Make The Amount") + " · " + (countAnswerMode === "fill" ? "Fill in answers" : String(choiceCount) + " multiple choice") + " · " + courseSummary}
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message="Your money run is saved with its mode, answer style, and class context. Replay the same setup or adjust the controls for a different challenge."
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Mode", value: mode === "mixed" ? "Mixed" : mode === "count" ? "Count" : "Build" },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Play Again"}
+            onAction={startNewRun}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your money run and refreshing the leaderboard…"
+                : feedbackTone === "miss" && feedback.includes("save")
+                  ? feedback
+                  : "Run saved."
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Round ${Math.min(roundIndex, TOTAL_ROUNDS)} of ${TOTAL_ROUNDS}`}
+            title={question.mode === "count" ? "Count The Money" : "Make The Amount"}
+            status={isSaving ? "Saving run" : "Run in progress"}
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Round", value: `${Math.min(roundIndex, TOTAL_ROUNDS)}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+            ]}
+          >
+            <div className="gameQuestion moneyGameQuestion">
+              {question.mode === "count" ? (
+                <>
+                  <p className="gameQuestionPrompt">How much money is shown?</p>
+                  <div className="moneyDisplayRow">
+                    {DENOMINATIONS.map((denomination) =>
+                      question.pile[denomination.key] > 0 ? (
+                        <div key={denomination.key} className="moneyTile">
+                          {renderSpreadMoneyVisuals(denomination, question.pile[denomination.key])}
+                          <strong>{denomination.name}</strong>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                  {countAnswerMode === "fill" ? (
+                    <div className="list moneyCenteredControls">
+                      <p>Write the total amount shown.</p>
+                      <div className="moneyAnswerRow">
+                        <span className="moneyAnswerDollar">$</span>
+                        <input
+                          className="input moneyAnswerInput"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={countAnswerDollars}
+                          onChange={(event) => setCountAnswerDollars(event.target.value.replace(/\D/g, ""))}
+                          placeholder="0"
+                        />
+                        <span className="moneyAnswerDot">.</span>
+                        <input
+                          className="input moneyAnswerInput"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={countAnswerCents}
+                          onChange={(event) => setCountAnswerCents(event.target.value.replace(/\D/g, "").slice(0, 2))}
+                          placeholder="00"
+                        />
+                      </div>
+                      <button className="btn primary" type="button" onClick={answerCountFillMode}>
+                        Check Total
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="gameReviewChoices">
+                      {choices.map((choice) => (
+                        <button
+                          key={choice}
+                          className="gameReviewChoice"
+                          type="button"
+                          onClick={() => answerCountMode(choice)}
+                        >
+                          {formatMoney(choice)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="moneyBuildChallenge">
+                  <p className="gameQuestionPrompt">
+                    Build exactly <strong>{formatMoney(question.total)}</strong>.
+                  </p>
+                  <div className="pillRow moneyCenteredRow">
+                    <span className="pill">Target: {formatMoney(question.total)}</span>
+                    {showRunningTotal ? <span className="pill">Your Total: {formatMoney(builtTotal)}</span> : null}
+                    {showRunningTotal ? (
+                      <span className={`pill moneyDeltaPill ${buildDelta === 0 ? "exact" : buildDelta > 0 ? "under" : "over"}`}>
+                        {describeDifference(-buildDelta)}
+                      </span>
+                    ) : (
+                      <span className="pill">Total hidden</span>
+                    )}
+                  </div>
+                  <div className="moneyQuickActions">
+                    <button
+                      className="btn ghost"
+                      type="button"
+                      onClick={() => setPlayerPile(EMPTY_PILE)}
+                      disabled={builtTotal === 0}
+                    >
+                      Clear Amount
+                    </button>
+                    <span className="moneyHelperText">
+                      {showRunningTotal ? "Build the target exactly before you check." : "Count your pile as you build."}
+                    </span>
+                  </div>
+                  <div className="moneyDisplayRow">
+                    {DENOMINATIONS.map((denomination) => {
+                      const denominationCount = playerPile[denomination.key];
+                      const denominationTotal = denomination.cents * denominationCount;
+                      return (
+                        <div key={denomination.key} className="moneyAdjustCard">
+                          {renderMoneyVisual(denomination, denominationCount, false)}
+                          <strong>{denomination.name}</strong>
+                          <span>{denomination.label} each</span>
+                          <span>Count: {denominationCount}</span>
+                          <span>{showRunningTotal ? `Total: ${formatMoney(denominationTotal)}` : "Total hidden"}</span>
+                          <div className="ctaRow">
+                            <button
+                              className="btn ghost"
+                              type="button"
+                              onClick={() =>
+                                setPlayerPile((current) => ({
+                                  ...current,
+                                  [denomination.key]: Math.max(0, current[denomination.key] - 1),
+                                }))
+                              }
+                              disabled={denominationCount === 0}
+                            >
+                              −
+                            </button>
+                            <button
+                              className="btn"
+                              type="button"
+                              onClick={() =>
+                                setPlayerPile((current) => ({
+                                  ...current,
+                                  [denomination.key]: current[denomination.key] + 1,
+                                }))
+                              }
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button className="btn primary" type="button" onClick={answerMakeMode}>
+                    Check Amount
+                  </button>
+                </div>
+              )}
+              <p className={`gameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+                {feedback || "Count carefully and submit when you are ready."}
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+          </GameStage>
+        )}
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Choose the challenge">
+          <p className="gameSetupSummary">
+            {(mode === "mixed" ? "Mixed mode" : mode === "count" ? "Count the money" : "Make the amount")} · {courseSummary}
+          </p>
+          <div className="gameSetupOptions">
             <label>
               Game mode
               <select
@@ -451,8 +587,8 @@ export default function MoneyCountingClient({
               </select>
             </label>
             <div>
-              <p style={{ fontWeight: 700, marginBottom: "0.45rem" }}>Count Answers</p>
-              <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
+              <p className="gameSetupLabel">Count answers</p>
+              <div className="gameSetupChoiceRow moneyAnswerChoices">
                 <button
                   className={"btn " + (countAnswerMode === "fill" ? "primary" : "")}
                   type="button"
@@ -497,161 +633,14 @@ export default function MoneyCountingClient({
               </button>
             </label>
             <button className="btn primary" type="button" onClick={startNewRun}>
-              Start New Run
+              Reset Run
             </button>
           </div>
-        </details>
-      </section>
+        </GameSidePanel>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>{question.mode === "count" ? "Count The Money" : "Make The Amount"}</h2>
-        <div className="pillRow">
-          <span className="pill">Round: {Math.min(roundIndex, TOTAL_ROUNDS)}/{TOTAL_ROUNDS}</span>
-          <span className="pill">Score: {score}</span>
-        </div>
-
-        {question.mode === "count" ? (
-          <>
-            <p style={{ marginTop: "1rem" }}>How much money is shown?</p>
-            <div className="moneyDisplayRow">
-              {DENOMINATIONS.map((denomination) =>
-                question.pile[denomination.key] > 0 ? (
-                  <div key={denomination.key} className="moneyTile">
-                    {renderSpreadMoneyVisuals(denomination, question.pile[denomination.key])}
-                    <strong>{denomination.name}</strong>
-                  </div>
-                ) : null
-              )}
-            </div>
-            {countAnswerMode === "fill" ? (
-              <div className="list">
-                <p>Write the total amount shown.</p>
-                <div className="moneyAnswerRow">
-                  <span className="moneyAnswerDollar">$</span>
-                  <input
-                    className="input moneyAnswerInput"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={countAnswerDollars}
-                    onChange={(event) => setCountAnswerDollars(event.target.value.replace(/\D/g, ""))}
-                    placeholder="0"
-                    disabled={runComplete}
-                  />
-                  <span className="moneyAnswerDot">.</span>
-                  <input
-                    className="input moneyAnswerInput"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={countAnswerCents}
-                    onChange={(event) => setCountAnswerCents(event.target.value.replace(/\D/g, "").slice(0, 2))}
-                    placeholder="00"
-                    disabled={runComplete}
-                  />
-                </div>
-                <button className="btn primary" type="button" onClick={answerCountFillMode} disabled={runComplete}>
-                  Check Total
-                </button>
-              </div>
-            ) : (
-              <div className="choiceGrid">
-                {choices.map((choice) => (
-                  <button
-                    key={choice}
-                    className="btn bigChoice"
-                    type="button"
-                    onClick={() => answerCountMode(choice)}
-                    disabled={runComplete}
-                  >
-                    {formatMoney(choice)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="list" style={{ marginTop: "1rem" }}>
-            <p>Build <strong>{formatMoney(question.total)}</strong>.</p>
-            <div className="pillRow">
-              <span className="pill">Target: {formatMoney(question.total)}</span>
-              {showRunningTotal ? <span className="pill">Your Total: {formatMoney(builtTotal)}</span> : null}
-              {showRunningTotal ? (
-                <span className={`pill moneyDeltaPill ${buildDelta === 0 ? "exact" : buildDelta > 0 ? "under" : "over"}`}>
-                  {describeDifference(-buildDelta)}
-                </span>
-              ) : (
-                <span className="pill">Total hidden</span>
-              )}
-            </div>
-            <div className="moneyQuickActions">
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() => setPlayerPile(EMPTY_PILE)}
-                disabled={runComplete || builtTotal === 0}
-              >
-                Clear Amount
-              </button>
-              <span className="moneyHelperText">
-                {showRunningTotal ? "Build the target exactly before you check." : "Running total is hidden. Count your pile as you build."}
-              </span>
-            </div>
-            <div className="moneyDisplayRow">
-              {DENOMINATIONS.map((denomination) => {
-                const denominationCount = playerPile[denomination.key];
-                const denominationTotal = denomination.cents * denominationCount;
-                return (
-                  <div key={denomination.key} className="moneyAdjustCard">
-                    {renderMoneyVisual(denomination, denominationCount, false)}
-                    <strong>{denomination.name}</strong>
-                    <span>{denomination.label} each</span>
-                    <span>Count: {denominationCount}</span>
-                    <span>{showRunningTotal ? `Total: ${formatMoney(denominationTotal)}` : "Total hidden"}</span>
-                    <div className="ctaRow" style={{ marginTop: "0.4rem" }}>
-                      <button
-                        className="btn ghost"
-                        type="button"
-                        onClick={() =>
-                          setPlayerPile((current) => ({
-                            ...current,
-                            [denomination.key]: Math.max(0, current[denomination.key] - 1),
-                          }))
-                        }
-                        disabled={runComplete || denominationCount === 0}
-                      >
-                        -
-                      </button>
-                      <button
-                        className="btn"
-                        type="button"
-                        onClick={() =>
-                          setPlayerPile((current) => ({
-                            ...current,
-                            [denomination.key]: current[denomination.key] + 1,
-                          }))
-                        }
-                        disabled={runComplete}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <button className="btn primary" type="button" onClick={answerMakeMode} disabled={runComplete}>
-              Check Amount
-            </button>
-          </div>
-        )}
-        {feedback ? <p style={{ marginTop: "0.75rem" }}>{feedback}</p> : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
+        <GameSidePanel eyebrow="Progress" title="Your stats">
         {savedStats ? (
-          <div className="kv compactKv">
+          <div className="gameSideStats">
             <div>
               <span>Games</span>
               <strong>{savedStats.sessions_played}</strong>
@@ -673,23 +662,25 @@ export default function MoneyCountingClient({
           <p>No saved runs yet.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class scores yet. Finish a run to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare with classmates.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{formatScore(row.best_score)}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }

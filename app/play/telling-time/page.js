@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { buildTellingTimeQuestion } from "@/lib/question-engine/telling-time";
+import { GameShell } from "../game-shell";
 import TellingTimeClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function TellingTimePage({ searchParams }) {
@@ -40,18 +43,24 @@ export default async function TellingTimePage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialQuestion = buildTellingTimeQuestion("mixed", "multiple_choice", 4);
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Telling Time</h1>
-        <p>Read clocks, set clocks, and build confidence with time to the nearest five minutes.</p>
-      </section>
+    <GameShell
+      eyebrow="Math skills · Solo"
+      title="Telling Time"
+      description="Read an analog clock or move its hands to a target time, with quick practice to the nearest five minutes."
+      icon="◷"
+      tone="coral"
+      badges={["10 rounds", "Read or set", "Interactive clock"]}
+    >
       <TellingTimeClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialQuestion={initialQuestion}
       />
-    </div>
+    </GameShell>
   );
 }

@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { buildSlopeInterceptRound } from "@/lib/question-engine/slope-intercept";
+import { GameShell } from "../game-shell";
 import SlopeInterceptClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function SlopeInterceptPage({ searchParams }) {
@@ -40,18 +43,24 @@ export default async function SlopeInterceptPage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialRound = buildSlopeInterceptRound();
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Slope &amp; Y-Intercept</h1>
-        <p>Study the graph, then name the line&rsquo;s slope and y-intercept with quick replayable rounds.</p>
-      </section>
+    <GameShell
+      eyebrow="Algebra · Solo"
+      title="Slope & Y-Intercept"
+      description="Study a graphed line, identify its slope and y-intercept, and sharpen the connection between equations and graphs."
+      icon="y="
+      tone="blue"
+      badges={["10 graphs", "Desmos powered", "Class leaderboards"]}
+    >
       <SlopeInterceptClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialRound={initialRound}
       />
-    </div>
+    </GameShell>
   );
 }

@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { buildMoneyQuestion } from "@/lib/question-engine/money-counting";
+import { GameShell } from "../game-shell";
 import MoneyCountingClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function MoneyCountingPage({ searchParams }) {
@@ -40,18 +43,24 @@ export default async function MoneyCountingPage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialQuestion = buildMoneyQuestion("mixed", 4);
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Money Counting</h1>
-        <p>Count money or build the right amount using coins and simple dollar amounts.</p>
-      </section>
+    <GameShell
+      eyebrow="Math skills · Solo"
+      title="Money Counting"
+      description="Count real-looking coins and bills, or build an exact target amount with a fast hands-on money challenge."
+      icon="$"
+      tone="green"
+      badges={["10 rounds", "Count or build", "Class leaderboards"]}
+    >
       <MoneyCountingClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialQuestion={initialQuestion}
       />
-    </div>
+    </GameShell>
   );
 }

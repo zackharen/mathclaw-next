@@ -1,34 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { buildSlopeInterceptRound } from "@/lib/question-engine/slope-intercept";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const GAME_SLUG = "slope_intercept";
 const TOTAL_ROUNDS = 10;
 const DESMOS_API_KEY =
   process.env.NEXT_PUBLIC_DESMOS_API_KEY || "dcb31709b452b1cf9dc26972add0fda6";
-const SLOPE_VALUES = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5];
-const INTERCEPT_VALUES = [-8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
-}
-
-function pickRandom(values) {
-  return values[Math.floor(Math.random() * values.length)];
-}
-
-function buildRound(previousKey = "") {
-  let slope = 0;
-  let intercept = 0;
-  let key = previousKey;
-
-  while (key === previousKey) {
-    slope = pickRandom(SLOPE_VALUES);
-    intercept = pickRandom(INTERCEPT_VALUES);
-    key = `${slope}:${intercept}`;
-  }
-
-  return { slope, intercept, key };
 }
 
 function buildBounds(slope, intercept) {
@@ -104,14 +91,16 @@ export default function SlopeInterceptClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialRound,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [roundIndex, setRoundIndex] = useState(1);
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState("");
   const [slopeAnswer, setSlopeAnswer] = useState("");
   const [interceptAnswer, setInterceptAnswer] = useState("");
-  const [round, setRound] = useState(() => buildRound());
+  const [round, setRound] = useState(initialRound);
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -126,6 +115,7 @@ export default function SlopeInterceptClient({
   const scientificHostRef = useRef(null);
   const calculatorRef = useRef(null);
   const scientificCalculatorRef = useRef(null);
+  const roundRef = useRef(initialRound);
   const savedRunRef = useRef(false);
   const sessionRef = useRef({
     score: 0,
@@ -145,15 +135,7 @@ export default function SlopeInterceptClient({
     parseIntegerInput(interceptAnswer) !== null &&
     !runComplete &&
     !isSaving;
-  const statCards = useMemo(
-    () => [
-      { label: "Score", value: `${score}/${TOTAL_ROUNDS}` },
-      { label: "Round", value: `${Math.min(roundIndex, TOTAL_ROUNDS)}/${TOTAL_ROUNDS}` },
-      { label: "Class", value: courseSummary },
-    ],
-    [courseSummary, roundIndex, score]
-  );
-
+  roundRef.current = round;
   const loadLeaderboard = useCallback(async (nextCourseId) => {
     if (!nextCourseId) {
       setLeaderboardRows([]);
@@ -227,6 +209,8 @@ export default function SlopeInterceptClient({
   );
 
   useEffect(() => {
+    if (runComplete) return undefined;
+
     let cancelled = false;
 
     loadDesmosApi()
@@ -244,6 +228,7 @@ export default function SlopeInterceptClient({
         });
 
         calculatorRef.current = calculator;
+        updateGraph(calculator, roundRef.current);
         setGraphReady(true);
 
         if (
@@ -275,7 +260,7 @@ export default function SlopeInterceptClient({
       calculatorRef.current = null;
       scientificCalculatorRef.current = null;
     };
-  }, []);
+  }, [runComplete]);
 
   useEffect(() => {
     if (!graphReady || !calculatorRef.current) return;
@@ -286,10 +271,10 @@ export default function SlopeInterceptClient({
     sessionRef.current = {
       ...sessionRef.current,
       score,
-      attempts: Math.max(0, roundIndex - 1),
+      attempts: runComplete ? TOTAL_ROUNDS : Math.max(0, roundIndex - 1),
       courseId,
     };
-  }, [courseId, roundIndex, score]);
+  }, [courseId, roundIndex, runComplete, score]);
 
   useEffect(() => {
     if (!courseId) {
@@ -334,11 +319,12 @@ export default function SlopeInterceptClient({
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
+    setFeedbackTone("");
     setSlopeAnswer("");
     setInterceptAnswer("");
     setLastRoundSummary(null);
     setRunComplete(false);
-    setRound((current) => buildRound(current.key));
+    setRound((current) => buildSlopeInterceptRound(current.key));
     sessionRef.current = {
       score: 0,
       attempts: 0,
@@ -364,11 +350,12 @@ export default function SlopeInterceptClient({
     setRoundIndex(1);
     setScore(0);
     setFeedback("");
+    setFeedbackTone("");
     setSlopeAnswer("");
     setInterceptAnswer("");
     setLastRoundSummary(null);
     setRunComplete(false);
-    setRound((current) => buildRound(current.key));
+    setRound((current) => buildSlopeInterceptRound(current.key));
     sessionRef.current = {
       score: 0,
       attempts: 0,
@@ -398,14 +385,17 @@ export default function SlopeInterceptClient({
 
     if (roundCorrect) {
       setFeedback("Nice work. You got both parts right.");
+      setFeedbackTone("correct");
     } else if (slopeCorrect || interceptCorrect) {
       setFeedback(
         `Close. The line was slope ${round.slope} and y-intercept ${round.intercept}.`
       );
+      setFeedbackTone("miss");
     } else {
       setFeedback(
         `Not this time. The line was slope ${round.slope} and y-intercept ${round.intercept}.`
       );
+      setFeedbackTone("miss");
     }
 
     sessionRef.current = {
@@ -434,153 +424,164 @@ export default function SlopeInterceptClient({
     setRoundIndex((current) => current + 1);
     setSlopeAnswer("");
     setInterceptAnswer("");
-    setRound((current) => buildRound(current.key));
+    setRound((current) => buildSlopeInterceptRound(current.key));
   }
 
+  const attempts = runComplete ? TOTAL_ROUNDS : Math.max(0, roundIndex - 1);
+  const accuracy = attempts > 0 ? Math.round((score / attempts) * 100) : 0;
+  const resultTitle =
+    score >= 9 ? "Graph-reading expert." : score >= 7 ? "Strong slope run." : "Good reps — graph another set.";
+
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <div className="slopeInterceptHeader">
-          <div>
-            <h2>Slope Lab</h2>
-            <p>Read the Desmos graph and enter the line&rsquo;s slope and y-intercept.</p>
-          </div>
-          <div className="ctaRow">
-            <select
-              className="input"
-              value={courseId}
-              onChange={(event) => handleCourseChange(event.target.value)}
-              disabled={isSaving}
-            >
-              <option value="">Practice without a class</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-            <button className="btn" type="button" onClick={startNewRun} disabled={isSaving}>
-              New Run
-            </button>
-          </div>
-        </div>
-
-        <div className="slopeInterceptStats">
-          {statCards.map((card) => (
-            <div key={card.label} className="slopeInterceptStatCard">
-              <span>{card.label}</span>
-              <strong>{card.value}</strong>
-            </div>
-          ))}
-        </div>
-
-        <div className="slopeInterceptGraphShell">
-          <div className="slopeInterceptGraphFrame">
-            <div ref={graphHostRef} className="slopeInterceptGraph" />
-            {graphStatusMessage ? (
-              <div className="slopeInterceptGraphOverlay">
-                <p>{graphStatusMessage}</p>
-              </div>
-            ) : null}
-          </div>
-          <aside className="slopeInterceptPromptCard">
-            <p className="slopeInterceptEyebrow">Round {Math.min(roundIndex, TOTAL_ROUNDS)}</p>
-            <h3>What line is this?</h3>
-            <p>Enter the slope and the y-intercept as integers.</p>
-            <form className="slopeInterceptAnswerForm" onSubmit={handleSubmit}>
-              <label>
-                Slope
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  pattern="-?[0-9]*"
-                  placeholder="Ex: -3"
-                  value={slopeAnswer}
-                  onChange={(event) => setSlopeAnswer(event.target.value)}
-                  disabled={runComplete || isSaving}
-                />
-              </label>
-              <label>
-                Y-intercept
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  pattern="-?[0-9]*"
-                  placeholder="Ex: 4"
-                  value={interceptAnswer}
-                  onChange={(event) => setInterceptAnswer(event.target.value)}
-                  disabled={runComplete || isSaving}
-                />
-              </label>
-              <div className="ctaRow">
-                <button className="btn primary" type="submit" disabled={!canSubmit}>
-                  Check Answer
-                </button>
-                {runComplete ? (
-                  <button className="btn" type="button" onClick={startNewRun} disabled={isSaving}>
-                    Play Again
-                  </button>
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message="Your ten-graph run is saved with its class context. Replay for a new set of lines or head back to the Arcade."
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Graphs", value: TOTAL_ROUNDS },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Play Again"}
+            onAction={startNewRun}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your graph run and refreshing the leaderboard…"
+                : feedbackTone === "miss" && feedback.includes("save")
+                  ? feedback
+                  : "Run saved."
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Graph ${Math.min(roundIndex, TOTAL_ROUNDS)} of ${TOTAL_ROUNDS}`}
+            title="What line is this?"
+            status={graphReady ? "Graph ready" : graphError ? "Graph unavailable" : "Loading graph"}
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Graph", value: `${Math.min(roundIndex, TOTAL_ROUNDS)}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+            ]}
+          >
+            <div className="slopeInterceptGraphShell slopeGameShell">
+              <div className="slopeInterceptGraphFrame">
+                <div ref={graphHostRef} className="slopeInterceptGraph" />
+                {graphStatusMessage ? (
+                  <div className="slopeInterceptGraphOverlay">
+                    <p>{graphStatusMessage}</p>
+                  </div>
                 ) : null}
               </div>
-            </form>
-            {lastRoundSummary ? (
-              <div className="slopeInterceptRevealCard">
-                <strong>Last graph</strong>
-                <p>Slope: {lastRoundSummary.correctSlope}</p>
-                <p>Y-intercept: {lastRoundSummary.correctIntercept}</p>
-              </div>
-            ) : null}
-          </aside>
-        </div>
+              <aside className="slopeInterceptPromptCard">
+                <p className="slopeInterceptEyebrow">Graph {Math.min(roundIndex, TOTAL_ROUNDS)}</p>
+                <h3>Read both features</h3>
+                <p>Enter the slope and y-intercept as integers.</p>
+                <form className="slopeInterceptAnswerForm" onSubmit={handleSubmit}>
+                  <label>
+                    Slope
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      pattern="-?[0-9]*"
+                      placeholder="Ex: -3"
+                      value={slopeAnswer}
+                      onChange={(event) => setSlopeAnswer(event.target.value)}
+                      disabled={isSaving}
+                    />
+                  </label>
+                  <label>
+                    Y-intercept
+                    <input
+                      className="input"
+                      inputMode="numeric"
+                      pattern="-?[0-9]*"
+                      placeholder="Ex: 4"
+                      value={interceptAnswer}
+                      onChange={(event) => setInterceptAnswer(event.target.value)}
+                      disabled={isSaving}
+                    />
+                  </label>
+                  <button className="btn primary" type="submit" disabled={!canSubmit}>
+                    Check Answer
+                  </button>
+                </form>
+                {lastRoundSummary ? (
+                  <div className="slopeInterceptRevealCard">
+                    <strong>Last graph</strong>
+                    <p>Slope: {lastRoundSummary.correctSlope}</p>
+                    <p>Y-intercept: {lastRoundSummary.correctIntercept}</p>
+                  </div>
+                ) : null}
+              </aside>
+            </div>
+            <p className={`gameFeedback slopeGameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+              {feedback || "You earn the point when both the slope and y-intercept are correct."}
+            </p>
+          </GameStage>
+        )}
+      </div>
 
-        <div className="card" style={{ marginTop: "1rem", background: "#f9fbfc" }}>
-          <h3>How scoring works</h3>
-          <p>You get the point for a round when both the slope and the y-intercept are correct.</p>
-          <p>{feedback || "Start by reading the graph and entering both values."}</p>
-          {runComplete ? <p>Your run is complete. Start a new run to get 10 fresh lines.</p> : null}
-        </div>
-      </section>
-
-      <aside className="stack">
-        <section className="card" style={{ background: "#fff" }}>
-          <h2>Your Stats</h2>
-          <div className="list">
-            <p>Games Played: <strong>{savedStats?.sessions_played || 0}</strong></p>
-            <p>Average Score: <strong>{formatScore(savedStats?.average_score || 0)}</strong></p>
-            <p>Last 10 Avg: <strong>{formatScore(savedStats?.last_10_average || 0)}</strong></p>
-            <p>Best Score: <strong>{formatScore(savedStats?.best_score || 0)}</strong></p>
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Choose the context">
+          <p className="gameSetupSummary">{courseSummary} · Ten new lines per run</p>
+          <div className="gameSetupOptions">
+            <label>
+              Class context
+              <select
+                className="input"
+                value={courseId}
+                onChange={(event) => handleCourseChange(event.target.value)}
+                disabled={isSaving}
+              >
+                <option value="">Practice without a class</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>{course.title}</option>
+                ))}
+              </select>
+            </label>
+            <button className="btn primary" type="button" onClick={startNewRun} disabled={isSaving}>
+              Reset Run
+            </button>
           </div>
-        </section>
+        </GameSidePanel>
 
-        <section className="card" style={{ background: "#fff" }}>
-          <h2>Class Leaderboard</h2>
-          {!courseId ? <p>Choose a class to see class-specific scores.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No scores saved for this class yet.</p>
-          ) : null}
-          <div className="list">
-            {leaderboardRows.map((row, index) => (
-              <div key={`${row.player_id}-${index}`} className="slopeInterceptLeaderboardRow">
-                <span>{index + 1}. {row.display_name}</span>
-                <strong>{formatScore(row.best_score ?? row.score ?? 0)}</strong>
-              </div>
-            ))}
+        <GameSidePanel eyebrow="Progress" title="Your stats">
+          <div className="gameSideStats">
+            <div><span>Games</span><strong>{savedStats?.sessions_played || 0}</strong></div>
+            <div><span>Average</span><strong>{formatScore(savedStats?.average_score || 0)}</strong></div>
+            <div><span>Last 10</span><strong>{formatScore(savedStats?.last_10_average || 0)}</strong></div>
+            <div><span>Best</span><strong>{formatScore(savedStats?.best_score || 0)}</strong></div>
           </div>
-        </section>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Choose a class to see class-specific scores.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No scores saved for this class yet.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={`${row.player_id}-${index}`} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{formatScore(row.best_score ?? row.score ?? 0)}</strong>
+                </div>
+              ))}
+            </div>
+          </details>
+        </GameSidePanel>
 
-        <section className="card" style={{ background: "#fff" }}>
-          <h2>Scientific Calculator</h2>
+        <GameSidePanel eyebrow="Tool" title="Scientific calculator">
           <div className="slopeScientificShell">
             {scientificFallback ? (
               <div className="slopeScientificFallback">
                 <p>The embedded Desmos scientific calculator is not enabled for this API key.</p>
-                <a
-                  className="btn"
-                  href="https://www.desmos.com/scientific"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a className="btn" href="https://www.desmos.com/scientific" target="_blank" rel="noreferrer">
                   Open Desmos Calculator
                 </a>
               </div>
@@ -592,8 +593,8 @@ export default function SlopeInterceptClient({
               }`}
             />
           </div>
-        </section>
-      </aside>
-    </div>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }
