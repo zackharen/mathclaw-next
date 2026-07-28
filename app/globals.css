@@ -1315,6 +1315,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    gap: 0.65rem;
   }
 
   .brand {
@@ -1327,16 +1328,38 @@ details[open] > summary.gameControlsSummary .hideLabel {
   }
 
   .topbarNav {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding: 0.05rem 0 0.35rem;
+    scroll-snap-type: inline proximity;
+    scrollbar-width: thin;
   }
 
-  .topbarNav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .nav {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .navForm,
+  .topbarMenuForm {
+    display: flex;
+    flex: 0 0 auto;
   }
 
   .nav a,
   .navButton {
-    font-size: 0.95rem;
+    width: auto;
+    min-height: 2.6rem;
+    flex: 0 0 auto;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.88rem;
+    line-height: 1;
+    white-space: nowrap;
+    scroll-snap-align: start;
   }
 
   .ctaRow {
