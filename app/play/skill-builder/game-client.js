@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
 import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import {
   buildSkillBuilderQuestion,
+  hydrateSkillBuilderQuestion,
   listSkillBuilderTargets,
 } from "@/lib/question-engine/skill-builder";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const TOTAL_ROUNDS = 12;
 const TARGETS = listSkillBuilderTargets();
@@ -20,6 +27,7 @@ export default function SkillBuilderClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialQuestion,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [target, setTarget] = useState("integers");
@@ -27,8 +35,14 @@ export default function SkillBuilderClient({
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [level, setLevel] = useState(1);
-  const [feedback, setFeedback] = useState("Choose the strongest answer and keep building your mastery meter.");
-  const [question, setQuestion] = useState(() => buildSkillBuilderQuestion("integers", 1));
+  const [feedback, setFeedback] = useState(
+    "Choose the strongest answer and keep building your mastery meter."
+  );
+  const [feedbackTone, setFeedbackTone] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [question, setQuestion] = useState(() =>
+    hydrateSkillBuilderQuestion(initialQuestion)
+  );
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
@@ -44,19 +58,17 @@ export default function SkillBuilderClient({
     result: "active",
   });
 
-  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
+  const courseSummary =
+    courses.find((course) => course.id === courseId)?.title || "No class selected";
   const targetSummary = TARGETS.find((item) => item.slug === target) || TARGETS[0];
-  const masterySnapshot = useMemo(
-    () =>
-      buildAdaptiveSnapshot({
-        level,
-        streak,
-        correctAnswers: score,
-        attempts: sessionRef.current.attempts,
-      }),
-    [level, score, streak]
-  );
-
+  const attempts = sessionRef.current.attempts || 0;
+  const masterySnapshot = buildAdaptiveSnapshot({
+    level,
+    streak,
+    correctAnswers: score,
+    attempts,
+  });
+  const accuracy = Math.round(masterySnapshot.accuracy * 100);
   const masteryPercent = Math.max(
     8,
     Math.min(
@@ -87,6 +99,7 @@ export default function SkillBuilderClient({
       setLeaderboardRows(Array.isArray(payload.leaderboard) ? payload.leaderboard : []);
     } catch (error) {
       setFeedback(error.message || "Could not load class leaderboard.");
+      setFeedbackTone("miss");
     } finally {
       setLeaderboardLoading(false);
     }
@@ -176,6 +189,8 @@ export default function SkillBuilderClient({
     setStreak(0);
     setLevel(1);
     setFeedback("Choose the strongest answer and keep building your mastery meter.");
+    setFeedbackTone("");
+    setIsSaving(false);
     setQuestion(buildSkillBuilderQuestion(nextTarget, 1));
     sessionRef.current = {
       courseId: nextCourseId,
@@ -192,6 +207,7 @@ export default function SkillBuilderClient({
   async function startNewRun(resultToSave = "reset", nextTarget = target, nextCourseId = courseId) {
     const previousSnapshot = { ...sessionRef.current };
     if (previousSnapshot.attempts > 0 && !savedRunRef.current) {
+      setIsSaving(true);
       try {
         await saveSession({
           ...previousSnapshot,
@@ -199,7 +215,10 @@ export default function SkillBuilderClient({
         });
       } catch (error) {
         setFeedback(error.message || "Could not save that run.");
+        setFeedbackTone("miss");
         return;
+      } finally {
+        setIsSaving(false);
       }
     }
 
@@ -212,6 +231,8 @@ export default function SkillBuilderClient({
   }
 
   async function answerQuestion(choice) {
+    if (sessionRef.current.attempts >= TOTAL_ROUNDS || isSaving) return;
+
     const correct = question.checkAnswer(choice);
     const nextAttempts = sessionRef.current.attempts + 1;
     const nextScore = score + (correct ? 1 : 0);
@@ -231,6 +252,7 @@ export default function SkillBuilderClient({
     setStreak(nextStreak);
     setLevel(nextLevel);
     setFeedback(correct ? "Strong work. Your mastery meter moved up." : question.explanation);
+    setFeedbackTone(correct ? "correct" : "miss");
 
     sessionRef.current = {
       ...buildAdaptiveSnapshot({
@@ -249,6 +271,7 @@ export default function SkillBuilderClient({
     };
 
     if (finished) {
+      setIsSaving(true);
       try {
         await saveSession({
           ...sessionRef.current,
@@ -256,6 +279,9 @@ export default function SkillBuilderClient({
         });
       } catch (error) {
         setFeedback(error.message || "Could not save that run.");
+        setFeedbackTone("miss");
+      } finally {
+        setIsSaving(false);
       }
       return;
     }
@@ -264,31 +290,125 @@ export default function SkillBuilderClient({
     setQuestion(buildSkillBuilderQuestion(target, nextLevel));
   }
 
-  const runComplete = sessionRef.current.attempts >= TOTAL_ROUNDS;
+  const runComplete = attempts >= TOTAL_ROUNDS;
+  const resultTitle =
+    score >= 11
+      ? "Mastery is climbing."
+      : score >= 9
+        ? "A strong skill-building run."
+        : "Solid reps — keep building.";
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Builder Controls</h2>
-              <p>
-                {targetSummary.label} · {courseSummary}
+    <GameWorkspace className="skillBuilderWorkspace">
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message={`You completed ${targetSummary.label} and reached skill level ${level}. Your run keeps its target and class context.`}
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Skill level", value: level },
+              { label: "Mastery", value: `${masteryPercent}%` },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Build Again"}
+            onAction={() => startNewRun("restart_after_finish", target, courseId)}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your skill run and refreshing the leaderboard…"
+                : savedRunRef.current
+                  ? "Run saved."
+                  : feedback
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Question ${roundIndex} of ${TOTAL_ROUNDS}`}
+            title={targetSummary.label}
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Streak", value: streak },
+              { label: "Skill level", value: level },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+            ]}
+          >
+            <div className="skillBuilderMastery">
+              <div>
+                <span>Mastery meter</span>
+                <strong>{masteryPercent}%</strong>
+              </div>
+              <span className="skillBuilderMasteryTrack">
+                <span style={{ width: `${masteryPercent}%` }} />
+              </span>
+            </div>
+
+            <div className="gameQuestion skillBuilderQuestion">
+              <div className="skillBuilderPromptCard">
+                <p className="skillBuilderPromptLabel">{question.prompt}</p>
+                {question.leftLabel && question.rightLabel ? (
+                  <div className="skillBuilderCompareRow">
+                    <div className="skillBuilderValueCard"><MathText node={question.leftNode} /></div>
+                    <div className="skillBuilderVs">vs</div>
+                    <div className="skillBuilderValueCard"><MathText node={question.rightNode} /></div>
+                  </div>
+                ) : (
+                  <div className="skillBuilderEquation">
+                    {question.promptNode ? (
+                      <MathText node={question.promptNode} />
+                    ) : (
+                      <MathInlineText text={question.prompt} />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="skillBuilderChoices">
+                {question.choices.map((choice) => (
+                  <button
+                    key={String(choice)}
+                    type="button"
+                    className="btn skillBuilderChoice"
+                    onClick={() => answerQuestion(choice)}
+                    disabled={isSaving}
+                  >
+                    <MathText
+                      node={question.formatChoiceNode(choice)}
+                      className="mathChoiceContent"
+                    />
+                  </button>
+                ))}
+              </div>
+
+              <p className={`gameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+                <MathInlineText text={feedback} />
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+          </GameStage>
+        )}
+      </div>
+
+      <aside className="gameWorkspaceRail" aria-label="Skill Builder setup and stats">
+        <GameSidePanel eyebrow="Setup" title="Build your run" id="game-setup">
+          <p className="gameSetupSummary">
+            {targetSummary.label} · {courseSummary}
+          </p>
+          <div className="skillBuilderTargetSummary">
+            <strong>{targetSummary.label}</strong>
+            <p>{targetSummary.description}</p>
+          </div>
+          <div className="gameSetupOptions">
             <label>
               Target skill
               <select
                 className="input"
                 value={target}
-                onChange={(event) => startNewRun("switched_target", event.target.value, courseId)}
+                onChange={(event) =>
+                  startNewRun("switched_target", event.target.value, courseId)
+                }
+                disabled={isSaving}
               >
                 {TARGETS.map((option) => (
                   <option key={option.slug} value={option.slug}>
@@ -299,7 +419,12 @@ export default function SkillBuilderClient({
             </label>
             <label>
               Class context
-              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+              <select
+                className="input"
+                value={courseId}
+                onChange={(event) => handleCourseChange(event.target.value)}
+                disabled={isSaving}
+              >
                 <option value="">No class selected</option>
                 {courses.map((course) => (
                   <option key={course.id} value={course.id}>
@@ -308,121 +433,65 @@ export default function SkillBuilderClient({
                 ))}
               </select>
             </label>
-            <div className="card" style={{ background: "#f9fbfc" }}>
-              <strong>{targetSummary.label}</strong>
-              <p style={{ marginTop: "0.35rem" }}>{targetSummary.description}</p>
-            </div>
-            <div className="ctaRow">
-              <button className="btn" type="button" onClick={() => startNewRun("manual_reset", target, courseId)}>
-                Start Fresh Run
-              </button>
-            </div>
-          </div>
-        </details>
-
-        <div className="pillRow" style={{ marginTop: "1rem" }}>
-          <span className="pill">Round {Math.min(roundIndex, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</span>
-          <span className="pill">Score: {score}</span>
-          <span className="pill">Streak: {streak}</span>
-          <span className="pill">Skill Level: {level}</span>
-        </div>
-
-        <div className="skillBuilderMeter">
-          <div className="skillBuilderMeterFill" style={{ width: `${masteryPercent}%` }} />
-        </div>
-        <p className="skillBuilderMeterLabel">
-          Mastery Meter: {masteryPercent}% · Accuracy {Math.round(masterySnapshot.accuracy * 100)}%
-        </p>
-
-        <div className="card skillBuilderPromptCard" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
-          <span className="skillBuilderPromptLabel">{targetSummary.label}</span>
-          <h3 style={{ marginTop: "0.6rem" }}>
-            {question.promptNode ? <MathText node={question.promptNode} /> : <MathInlineText text={question.prompt} />}
-          </h3>
-          {question.leftLabel && question.rightLabel ? (
-            <div className="spiralReviewCompareRow">
-              <div className="spiralReviewValueCard"><MathText node={question.leftNode} /></div>
-              <div className="spiralReviewVs">vs</div>
-              <div className="spiralReviewValueCard"><MathText node={question.rightNode} /></div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="skillBuilderChoices">
-          {question.choices.map((choice) => (
             <button
-              key={String(choice)}
-              type="button"
               className="btn"
-              onClick={() => answerQuestion(choice)}
-              disabled={runComplete}
+              type="button"
+              onClick={() => startNewRun("manual_reset", target, courseId)}
+              disabled={isSaving}
             >
-              {question.formatChoiceNode ? (
-                <MathText node={question.formatChoiceNode(choice)} className="mathChoiceContent" />
-              ) : question.formatChoice ? (
-                question.formatChoice(choice)
-              ) : (
-                String(choice)
-              )}
+              Start Fresh Run
             </button>
-          ))}
-        </div>
+          </div>
+        </GameSidePanel>
 
-        <p style={{ marginTop: "1rem", minHeight: "1.5rem" }}><MathInlineText text={feedback} /></p>
-
-        {runComplete ? (
-          <div className="card" style={{ background: "#f9fbfc", marginTop: "1rem" }}>
-            <h3>Run Complete</h3>
-            <p>
-              You finished {targetSummary.label} with {score} correct answers and reached skill level {level}.
-            </p>
-            <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-              <button className="btn primary" type="button" onClick={() => startNewRun("restart_after_finish", target, courseId)}>
-                Build Again
-              </button>
+        <GameSidePanel eyebrow="Progress" title="Your stats" id="game-stats">
+          {savedStats ? (
+            <div className="gameSideStats">
+              <div>
+                <span>Games</span>
+                <strong>{savedStats.sessions_played}</strong>
+              </div>
+              <div>
+                <span>Average</span>
+                <strong>{formatScore(savedStats.average_score)}</strong>
+              </div>
+              <div>
+                <span>Last 10</span>
+                <strong>{formatScore(savedStats.last_10_average)}</strong>
+              </div>
+              <div>
+                <span>Best</span>
+                <strong>{formatScore(savedStats.best_score)}</strong>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Skill Builder Stats</h2>
-        <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
-          <div>
-            <span>Games Played</span>
-            <strong>{savedStats?.sessions_played || 0}</strong>
-          </div>
-          <div>
-            <span>Average</span>
-            <strong>{formatScore(savedStats?.average_score)}</strong>
-          </div>
-          <div>
-            <span>Last 10 Avg</span>
-            <strong>{formatScore(savedStats?.last_10_average)}</strong>
-          </div>
-          <div>
-            <span>Best</span>
-            <strong>{formatScore(savedStats?.best_score)}</strong>
-          </div>
-        </div>
-
-        <h2 style={{ marginTop: "1.25rem" }}>Class Leaderboard</h2>
-        {courseId && leaderboardLoading ? <p style={{ marginTop: "0.75rem" }}>Loading class leaderboard...</p> : null}
-        {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-          <p style={{ marginTop: "0.75rem" }}>No class scores yet. Finish a run to start the leaderboard.</p>
-        ) : null}
-        {!courseId ? <p style={{ marginTop: "0.75rem" }}>Choose a class to load the leaderboard.</p> : null}
-        {leaderboardRows.map((row, index) => (
-          <div key={`${row.player_id || row.display_name}-${index}`} className="card" style={{ background: "#f9fbfc", marginTop: "0.75rem" }}>
-            <strong>
-              #{index + 1} {row.display_name || "Student"}
-            </strong>
-            <p style={{ marginTop: "0.35rem" }}>
-              Score {formatScore(row.score)} · {row.sessions_played || 0} sessions
+          ) : (
+            <p className="gameSetupSummary">
+              No saved Skill Builder runs yet. Finish all twelve questions to start your record.
             </p>
-          </div>
-        ))}
-      </section>
-    </div>
+          )}
+
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare Skill Builder runs.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard…</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div
+                  key={`${row.player_id || row.display_name}-${index}`}
+                  className="gameLeaderboardRow"
+                >
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name || "Student"}</span>
+                  <strong>{formatScore(row.best_score ?? row.score)}</strong>
+                </div>
+              ))}
+            </div>
+          </details>
+        </GameSidePanel>
+      </aside>
+    </GameWorkspace>
   );
 }

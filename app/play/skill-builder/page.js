@@ -1,8 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import {
+  buildSkillBuilderQuestion,
+  serializeSkillBuilderQuestion,
+} from "@/lib/question-engine/skill-builder";
+import { GameShell } from "../game-shell";
 import SkillBuilderClient from "./game-client";
-import "../spiral-review/styles.css";
+import "../game-shell.css";
+import "./styles.css";
 
 export default async function SkillBuilderPage({ searchParams }) {
   const supabase = await createClient();
@@ -40,21 +46,26 @@ export default async function SkillBuilderPage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialQuestion = serializeSkillBuilderQuestion(
+    buildSkillBuilderQuestion("integers", 1)
+  );
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Skill Builder</h1>
-        <p>
-          Pick a target skill, build accuracy over a focused run, and watch the mastery meter rise as
-          your streak improves.
-        </p>
-      </section>
+    <GameShell
+      eyebrow="Adaptive practice · Solo"
+      title="Skill Builder"
+      description="Choose a math target, build a streak, and watch the challenge adapt as your mastery grows."
+      icon="↗"
+      tone="green"
+      badges={["12 focused questions", "Adaptive difficulty", "Class leaderboards"]}
+    >
       <SkillBuilderClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialQuestion={initialQuestion}
       />
-    </div>
+    </GameShell>
   );
 }
