@@ -4,11 +4,18 @@
   --red: #cd3b3b;
   --white: #ffffff;
   --black: #000000;
+  --sky: #eaf5fc;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-muted: #f4f8fb;
+  --muted: #536b7d;
+  --soft-line: #d7e2ea;
+  --shadow-sm: 0 8px 22px rgba(0, 50, 90, 0.08);
+  --shadow-md: 0 20px 54px rgba(0, 50, 90, 0.13);
 
   --ink: var(--navy);
   --paper: var(--white);
   --accent: var(--navy);
-  --line: var(--black);
+  --line: #b8c7d2;
 }
 
 * {
@@ -24,8 +31,12 @@ body {
 
 body {
   color: var(--ink);
-  background: linear-gradient(180deg, #d7e1e8 0%, var(--grey) 100%);
-  font-family: Georgia, "Times New Roman", serif;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(77, 158, 216, 0.2), transparent 30rem),
+    radial-gradient(circle at 94% 10%, rgba(205, 59, 59, 0.09), transparent 28rem),
+    linear-gradient(180deg, #edf5fa 0%, #dce8f0 100%);
+  font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -35,14 +46,16 @@ a {
 
 main {
   width: 100%;
+  max-width: 1720px;
   margin: 0 auto;
-  padding: 1.25rem clamp(0.75rem, 2vw, 1.5rem) 2.5rem;
+  padding: clamp(0.6rem, 1.5vw, 1.25rem) clamp(0.6rem, 2vw, 1.5rem) 2.5rem;
 }
 
 .shell {
-  border: 2px solid var(--line);
-  background: var(--paper);
-  border-radius: 10px;
+  border: 1px solid rgba(0, 50, 90, 0.15);
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -52,9 +65,10 @@ main {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: nowrap;
-  padding: 0.8rem 1rem;
-  border-bottom: 2px solid var(--line);
-  background: var(--white);
+  padding: 0.75rem clamp(0.85rem, 2vw, 1.35rem);
+  border-bottom: 1px solid var(--soft-line);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
 }
 
 .topbarBrand {
@@ -75,13 +89,12 @@ main {
 }
 
 .roleBadge {
-  border: 2px solid var(--line);
+  border: 1px solid rgba(0, 50, 90, 0.14);
   border-radius: 999px;
   background: #d7e8f6;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.06em;
   padding: 0.32rem 0.65rem;
   text-transform: uppercase;
@@ -127,20 +140,29 @@ main {
 }
 
 .nav a {
-  padding: 0.5rem 0.72rem;
-  border: 2px solid var(--line);
+  padding: 0.54rem 0.76rem;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--white);
+  background: transparent;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 750;
   white-space: nowrap;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    transform 100ms ease,
+    box-shadow 150ms ease;
+}
+
+.nav a:hover {
+  background: #edf5fa;
 }
 
 .nav a.active {
-  background: var(--navy);
+  background: linear-gradient(135deg, #00325a, #07598f);
   color: var(--white);
+  box-shadow: 0 7px 18px rgba(0, 50, 90, 0.2);
 }
 
 /* Pressed feedback so a tap registers instantly, before navigation starts. */
@@ -151,7 +173,7 @@ main {
 /* While a tab's destination is still loading, fill it like the active tab and
    pulse the label so it is obvious the click registered. */
 .nav a:has(.navLabelPending) {
-  background: var(--navy);
+  background: linear-gradient(135deg, #00325a, #07598f);
   color: var(--white);
 }
 
@@ -171,19 +193,19 @@ main {
 
 .navButton {
   padding: 0.5rem 0.72rem;
-  border: 2px solid var(--line);
+  border: 1px solid #cbd8e1;
   border-radius: 999px;
   background: var(--white);
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 750;
   cursor: pointer;
   transition: transform 90ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
 .navButton:hover {
-  box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+  border-color: #9db1c0;
+  box-shadow: 0 7px 16px rgba(0, 50, 90, 0.1);
 }
 
 .navButton:active {
@@ -192,17 +214,16 @@ main {
 }
 
 .content {
-  padding: 1rem;
+  padding: clamp(0.75rem, 1.5vw, 1.2rem);
 }
 
 .gameReadyBanner {
   display: block;
   padding: 0.9rem 1rem;
-  border-bottom: 2px solid var(--line);
-  background: #0b4da0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(90deg, #0b4da0, #1269c2);
   color: #ffffff;
   text-align: center;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -275,27 +296,29 @@ main {
 }
 
 .content > .stack {
-  gap: 0.18rem;
+  gap: 1rem;
 }
 
 .card {
-  border: 2px solid var(--line);
-  background: #f9fbfc;
-  border-radius: 10px;
-  padding: 1rem;
+  border: 1px solid var(--soft-line);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+  padding: clamp(1rem, 2vw, 1.35rem);
 }
 
 h1,
 h2,
 h3 {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
-  letter-spacing: 0.01em;
+  font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+  letter-spacing: -0.025em;
   color: var(--navy);
 }
 
 h1 {
   font-size: clamp(1.8rem, 3vw, 3rem);
   margin-bottom: 0.7rem;
+  line-height: 1.03;
 }
 
 p {
@@ -311,7 +334,7 @@ p {
 .list:has(> .card),
 .list:has(> article.card),
 .list:has(> section.card) {
-  gap: 0.18rem;
+  gap: 0.8rem;
 }
 
 .classCoTeacherBlock {
@@ -737,7 +760,7 @@ p {
   align-items: center;
   justify-content: center;
   min-width: 6.75rem;
-  border: 2px solid var(--line);
+  border: 1px solid var(--soft-line);
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   background: #f4f8fb;
@@ -846,16 +869,20 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 }
 
 .btn {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
   font-size: 0.95rem;
-  border: 2px solid var(--line);
+  border: 1px solid #b8c8d3;
   background: var(--white);
   color: var(--navy);
-  border-radius: 10px;
-  padding: 0.5rem 0.9rem;
+  border-radius: 12px;
+  padding: 0.58rem 0.95rem;
   cursor: pointer;
-  font-weight: 700;
-  transition: transform 90ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  font-weight: 750;
+  transition:
+    transform 100ms ease,
+    box-shadow 150ms ease,
+    opacity 120ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
 }
 
 .btn,
@@ -865,7 +892,8 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 }
 
 .btn:hover {
-  box-shadow: 0 2px 0 rgba(0,0,0,0.25);
+  border-color: #819aaa;
+  box-shadow: 0 8px 18px rgba(0, 50, 90, 0.12);
 }
 
 .btn:active {
@@ -879,11 +907,14 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 }
 
 .btn.primary {
-  background: var(--navy);
+  border-color: var(--navy);
+  background: linear-gradient(135deg, #00325a, #07598f);
   color: var(--white);
+  box-shadow: 0 8px 18px rgba(0, 50, 90, 0.16);
 }
 
 .btn.danger {
+  border-color: var(--red);
   background: var(--red);
   color: var(--white);
 }
@@ -914,13 +945,22 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 
 .input {
   width: 100%;
-  border: 2px solid #5f7484;
-  border-radius: 10px;
-  padding: 0.58rem 0.7rem;
+  border: 1px solid #9fb2c0;
+  border-radius: 12px;
+  padding: 0.68rem 0.78rem;
   font: inherit;
   font-weight: 400;
   background: var(--white);
   color: var(--black);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.input:focus {
+  border-color: #1474b7;
+  box-shadow: 0 0 0 4px rgba(20, 116, 183, 0.13);
+  outline: none;
 }
 
 .calendarGridHeader,
@@ -1068,7 +1108,7 @@ details[open] > summary.editorSummary .hideLabel {
   align-items: center;
   justify-content: center;
   min-width: 6.75rem;
-  border: 2px solid var(--line);
+  border: 1px solid var(--soft-line);
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   background: #f4f8fb;
@@ -1099,7 +1139,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
 .pill {
   display: inline-flex;
   align-items: center;
-  border: 2px solid var(--line);
+  border: 1px solid var(--soft-line);
   background: var(--white);
   border-radius: 999px;
   padding: 0.35rem 0.75rem;

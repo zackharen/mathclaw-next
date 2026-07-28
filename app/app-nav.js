@@ -21,7 +21,7 @@ export default function AppNav({ items }) {
   const pathname = usePathname();
 
   return (
-    <nav className="nav">
+    <nav className="nav" aria-label="Main navigation">
       {items.map((item) => (
         <Link
           key={item.href}

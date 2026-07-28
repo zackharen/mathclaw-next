@@ -179,25 +179,26 @@ export default async function GlobalHeader() {
   let navItems = PUBLIC_NAV_ITEMS;
   if (user && !isTeacher) {
     navItems = [
-      { href: "/about", label: "About" },
+      { href: "/", label: "Home" },
       { href: "/play", label: "Arcade" },
       { href: "/onboarding/profile", label: "Profile" },
       { href: "/report-bug", label: "Report Bug" },
+      { href: "/about", label: "About" },
     ];
   } else if (user) {
     navItems = [
-      { href: "/about", label: "About" },
-      ...(canAccessAdmin ? [{ href: "/admin", label: "Admin" }] : []),
-      { href: "/play", label: "Arcade" },
+      { href: "/", label: "Home" },
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/onboarding/profile", label: "Profile" },
+      { href: "/classes", label: "Classes" },
+      { href: "/play", label: "Arcade" },
       { href: "/projector", label: "Projector" },
-      { href: "/report-bug", label: "Report Bug" },
       { href: "/teachers", label: "Teachers" },
+      ...(canAccessAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+      { href: "/onboarding/profile", label: "Profile" },
+      { href: "/report-bug", label: "Report Bug" },
+      { href: "/about", label: "About" },
     ];
   }
-
-  navItems = [...navItems].sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <>
