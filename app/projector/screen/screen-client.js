@@ -24,6 +24,17 @@ function toolsForInputType(inputType) {
   return SCREEN_TOOLS[inputType] || SCREEN_TOOLS.display_only;
 }
 
+// Results pushed by the teacher carry the poll they were snapshotted from, so a
+// stale snapshot from an earlier poll cannot suppress a newly launched one.
+function pollResultsPollId(content) {
+  try {
+    const parsed = JSON.parse(String(content || "{}"));
+    return parsed?.pollId ? String(parsed.pollId) : "";
+  } catch {
+    return "";
+  }
+}
+
 function timerForScreen(timer, screenNumber) {
   if (!timer || !Array.isArray(timer.screenIds)) return null;
   return timer.screenIds.map(String).includes(String(screenNumber)) ? timer : null;
@@ -840,7 +851,15 @@ export default function ScreenClient({ initialToken = null }) {
 
   const tools = toolsForInputType(inputType);
   const visibleState = enabled ? state : null;
-  const pollActive = Boolean(enabled && tools.polls && activePoll);
+  // "Show results" pushes a poll_results snapshot to the targeted screens. When it
+  // is the open poll's own snapshot the teacher has chosen results over voting on
+  // this screen, so the overlay steps aside and lets the content through.
+  const showingResultsForActivePoll = Boolean(
+    state?.type === "poll_results" &&
+      activePoll?.id &&
+      pollResultsPollId(state.content) === String(activePoll.id)
+  );
+  const pollActive = Boolean(enabled && tools.polls && activePoll && !showingResultsForActivePoll);
   const pollChoiceLabel = activePoll?.choices?.find((choice) => String(choice.id) === String(pollVote?.choice))?.label || pollVote?.choice || "";
 
   return (

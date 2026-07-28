@@ -3725,9 +3725,12 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   font-weight: 900;
 }
 
+/* This widget fills the receiver's near-black stage, not the dashboard's light
+   results card (.projectorPollResultsCard), so it keeps the white every other
+   projector widget uses instead of overriding it back to navy. */
 .projectorPollResultsWidget {
   gap: clamp(1rem, 2vw, 1.5rem);
-  color: var(--navy);
+  color: #fff;
 }
 
 .projectorPollResultsHeader {
@@ -3737,13 +3740,16 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 .projectorPollResultsHeader h1 {
+  /* globals.css sets `h1, h2, h3 { color: var(--navy) }`, which outranks the
+     white inherited from the widget and would leave the question near-invisible. */
+  color: inherit;
   margin: 0;
   overflow-wrap: anywhere;
   font-size: 2rem;
 }
 
 .projectorPollResultsHeader span {
-  color: #51606d;
+  color: rgba(255, 255, 255, 0.78);
   font-weight: 900;
 }
 
