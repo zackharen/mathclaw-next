@@ -39,8 +39,8 @@ export function GameShell({
   );
 }
 
-export function GameWorkspace({ children }) {
-  return <div className="gameWorkspace">{children}</div>;
+export function GameWorkspace({ children, className = "" }) {
+  return <div className={`gameWorkspace ${className}`.trim()}>{children}</div>;
 }
 
 export function GameStage({

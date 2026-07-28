@@ -3,6 +3,17 @@
   gap: 1.25rem;
 }
 
+.lockerGameBoard {
+  display: grid;
+  gap: 1.15rem;
+  margin-top: 1rem;
+  border-radius: 20px;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  background:
+    radial-gradient(circle at 50% 18%, var(--game-accent-soft), transparent 24rem),
+    #f8fbfd;
+}
+
 .lockerPracticeHeader {
   display: flex;
   flex-wrap: wrap;
@@ -14,6 +25,26 @@
 .lockerPromptPanel {
   display: grid;
   gap: 0.9rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.lockerPromptPanel .lockerComboStrip {
+  grid-column: 1 / -1;
+}
+
+.lockerPromptPanel h3 {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.lockerPromptEyebrow {
+  margin: 0;
+  color: var(--game-accent-dark);
+  font-size: 0.75rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .lockerDirectionBadge {
@@ -54,6 +85,13 @@
 .lockerComboChip.isActive {
   border-color: #f4b400;
   background: #fff8dc;
+  box-shadow: 0 0 0 0.22rem rgba(244, 180, 0, 0.15);
+}
+
+.lockerComboChip.isComplete {
+  border-color: #86c69c;
+  background: #effaf2;
+  color: #0c6b3f;
 }
 
 .lockerDialShell {
@@ -148,6 +186,10 @@
 .lockerSliderPanel {
   display: grid;
   gap: 0.85rem;
+  border: 1px solid rgba(18, 59, 104, 0.12);
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .lockerSliderLabels {
@@ -179,6 +221,9 @@
 }
 
 .lockerFeedbackPanel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
   padding: 1rem 1.1rem;
   border-radius: 1rem;
   background: #f5f8fb;
@@ -187,6 +232,23 @@
 
 .lockerFeedbackPanel p {
   margin: 0.5rem 0 0;
+}
+
+.lockerFeedbackIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--game-accent-soft);
+  color: var(--game-accent-dark);
+  font-weight: 900;
+}
+
+.lockerSavedStatsTitle {
+  margin-top: 1.2rem;
+  font-size: 1rem;
 }
 
 @media (max-width: 720px) {
@@ -213,5 +275,17 @@
 
   .lockerSliderLabels {
     font-size: 0.84rem;
+  }
+
+  .lockerPromptPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .lockerPromptPanel .lockerComboStrip {
+    grid-column: 1;
+  }
+
+  .lockerDirectionBadge {
+    padding: 0.6rem 0.8rem;
   }
 }

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import LockerPracticeClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function LockerPracticePage({ searchParams }) {
@@ -41,20 +43,20 @@ export default async function LockerPracticePage({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Locker Practice</h1>
-        <p>
-          Practice the real feel of opening a school combination lock by turning the dial
-          left and right, one step at a time.
-        </p>
-      </section>
+    <GameShell
+      eyebrow="Life skills · Solo"
+      title="Locker Practice"
+      description="Learn the rhythm of a real combination lock by turning a responsive dial left and right, one deliberate step at a time."
+      icon="🔒"
+      tone="gold"
+      badges={["6 adaptive levels", "Realistic lock rules", "Class leaderboards"]}
+    >
       <LockerPracticeClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
       />
-    </div>
+    </GameShell>
   );
 }

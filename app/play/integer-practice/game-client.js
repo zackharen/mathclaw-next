@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MathInlineText, MathText } from "@/components/math-display";
+import {
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 import { buildIntegerNode } from "@/lib/math-display";
 import {
   applyAnswerToProfile,
@@ -474,6 +479,7 @@ export default function IntegerPracticeClient({
   personalStats,
   savedProfileState,
   masterySettings,
+  initialProblem,
 }) {
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [mode, setMode] = useState("adaptive");
@@ -485,7 +491,7 @@ export default function IntegerPracticeClient({
   const [session, setSession] = useState(() => createEmptySession(1));
   const [currentLevelId, setCurrentLevelId] = useState(1);
   const [overrideScaffolds, setOverrideScaffolds] = useState(null);
-  const [problem, setProblem] = useState(() => createProblem(getLevelById(1)));
+  const [problem, setProblem] = useState(initialProblem);
   const [answerText, setAnswerText] = useState("");
   const [feedback, setFeedback] = useState("Start easy, build confidence, and let the system coach the next step.");
   const [hintOpen, setHintOpen] = useState(false);
@@ -927,8 +933,8 @@ export default function IntegerPracticeClient({
     : session.answers.length;
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
+    <GameWorkspace className="integerGameWorkspace">
+      <GameSidePanel eyebrow="Setup" title="Choose your practice" id="integer-setup">
         <details className="gameControlsDetails" open>
           <summary className="gameControlsSummary">
             <div>
@@ -1084,26 +1090,24 @@ export default function IntegerPracticeClient({
             </button>
           </div>
         </details>
-      </section>
+      </GameSidePanel>
 
-      <section className="card integerMainPlayCard" style={{ background: "#fff" }}>
-        <h2>Practice Coach</h2>
-        <div className="pillRow">
-          <span className="pill">Level: {currentLevelId}</span>
-          <span className="pill">
-            {hasFiniteRunTarget ? `Run Progress: ${displayProgressCount}/${effectiveQuestionTarget}` : `Questions: ${displayProgressCount}`}
-          </span>
-          <span className="pill">Streak: {session.streak}</span>
-          {timeLeftMs !== null ? <span className="pill">Timer: {formatMs(timeLeftMs)}</span> : null}
-          <ProficiencyStatePill state={profileSummary.fluencyState} />
-        </div>
-        <div className="integerMasteryMeter">
-          <div className="integerMasteryMeterFill" style={{ width: `${masteryPercent(profileSummary, currentLevelId)}%` }} />
-        </div>
-        <p className="integerCoachLine">
+      <GameStage
+        eyebrow={hasFiniteRunTarget ? `Question ${Math.min(displayProgressCount + 1, effectiveQuestionTarget)} of ${effectiveQuestionTarget}` : INTEGER_MODE_PRESETS[mode].label}
+        title="Practice Coach"
+        status={runIsComplete ? "Run complete" : "Coach active"}
+        progress={hasFiniteRunTarget ? progressPercent : masteryPercent(profileSummary, currentLevelId)}
+        progressLabel={hasFiniteRunTarget ? `${displayProgressCount} of ${effectiveQuestionTarget} answered` : `Level ${currentLevelId} of ${INTEGER_LEVELS.length}`}
+        stats={[
+          { label: "Level", value: currentLevelId },
+          { label: "Streak", value: session.streak },
+          { label: "Fluency", value: profileSummary.fluencyState.replaceAll("_", " ") },
+        ]}
+      >
+        <p className="integerCoachLine integerModeSummary">
           {INTEGER_MODE_PRESETS[mode].description} Current supports: {scaffoldLabel(activeScaffolds)}.
+          {timeLeftMs !== null ? ` Timer: ${formatMs(timeLeftMs)}.` : ""}
         </p>
-        <LevelReadinessCard readiness={levelReadiness} />
         {overrideScaffolds?.remediationSkillTag ? (
           <div className="integerRemediationBanner">
             Targeted support is on for {overrideScaffolds.remediationSkillTag.replaceAll("_", " ")}.
@@ -1189,6 +1193,7 @@ export default function IntegerPracticeClient({
         )}
 
         {feedback ? <p className="integerFeedback"><MathInlineText text={feedback} /></p> : null}
+        <LevelReadinessCard readiness={levelReadiness} />
         {runIsComplete ? (
           <div className="ctaRow">
             <button className="btn primary" type="button" onClick={() => startRun(mode, currentLevelId, assignmentPlan)}>
@@ -1197,10 +1202,9 @@ export default function IntegerPracticeClient({
           </div>
         ) : null}
         <SessionSummaryCard summary={sessionSummary} />
-      </section>
+      </GameStage>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Growth</h2>
+      <GameSidePanel eyebrow="Progress" title="Your growth" id="integer-growth">
         <div className="kv compactKv">
           <div>
             <span>Games</span>
@@ -1251,7 +1255,7 @@ export default function IntegerPracticeClient({
             )) : <p>No badges yet. Start the ladder and they’ll appear.</p>}
           </div>
         </div>
-      </section>
+      </GameSidePanel>
 
       <section className="card integerWideCard" style={{ background: "#fff" }}>
         <h2>Progress Ladder</h2>
@@ -1336,6 +1340,6 @@ export default function IntegerPracticeClient({
           ))}
         </div>
       </section>
-    </div>
+    </GameWorkspace>
   );
 }

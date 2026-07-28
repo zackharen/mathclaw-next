@@ -3,8 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIntegerMasterySettings } from "@/lib/integer-practice/mastery-settings.server";
+import { createProblem } from "@/lib/integer-practice/engine";
+import { getLevelById } from "@/lib/integer-practice/levels";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import IntegerPracticeClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function IntegerPracticePage({ searchParams }) {
@@ -59,12 +63,17 @@ export default async function IntegerPracticePage({ searchParams }) {
     initialLeaderboard = leaderboardRows || [];
   }
 
+  const initialProblem = createProblem(getLevelById(1));
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Adding & Subtracting Integers</h1>
-        <p>Adaptive fluency practice with options for bigger numbers and multiple choice.</p>
-      </section>
+    <GameShell
+      eyebrow="Adaptive fluency · Solo"
+      title="Integer Practice"
+      description="Build durable integer fluency with a coach that changes the numbers, supports, and pace as your mastery grows."
+      icon="±"
+      tone="coral"
+      badges={["Adaptive coaching", "Saved mastery", "Teacher assignments"]}
+    >
       <IntegerPracticeClient
         userId={user.id}
         accountType={accountType}
@@ -74,7 +83,8 @@ export default async function IntegerPracticePage({ searchParams }) {
         personalStats={personalResult.data}
         savedProfileState={savedIntegerPractice}
         masterySettings={masterySettings}
+        initialProblem={initialProblem}
       />
-    </div>
+    </GameShell>
   );
 }

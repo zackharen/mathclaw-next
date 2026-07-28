@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const DIAL_SIZE = 40;
 const DIAL_STEP_DEGREES = 360 / DIAL_SIZE;
@@ -296,6 +301,7 @@ export default function LockerPracticeClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const [isSaving, setIsSaving] = useState(false);
   const [progress, setProgress] = useState({
     correctAttempts: 0,
     failedAttempts: 0,
@@ -481,6 +487,8 @@ export default function LockerPracticeClient({
   }
 
   async function completeCombo(successMessage) {
+    if (isSaving) return;
+    setIsSaving(true);
     const completedComboStats = { ...comboStatsRef.current };
     const snapshot = {
       courseId,
@@ -519,6 +527,7 @@ export default function LockerPracticeClient({
     try {
       await saveCompletedCombo(snapshot);
     } catch (error) {
+      setIsSaving(false);
       beginChallenge(
         adjustedLevel,
         0,
@@ -533,6 +542,7 @@ export default function LockerPracticeClient({
       setLevel(adjustedLevel);
     }
     beginChallenge(adjustedLevel, 0, buildChallenge(adjustedLevel), nextMessage);
+    setIsSaving(false);
   }
 
   function failCombo(reasonMessage) {
@@ -566,7 +576,7 @@ export default function LockerPracticeClient({
   }
 
   async function confirmStep() {
-    if (!currentStep) {
+    if (!currentStep || isSaving) {
       return;
     }
 
@@ -640,23 +650,109 @@ export default function LockerPracticeClient({
     setScreenReaderFeedback(nextHint);
   }
 
+  const attempts = progress.correctAttempts + progress.failedAttempts;
+  const accuracy = attempts > 0 ? Math.round((progress.correctAttempts / attempts) * 100) : 0;
+  const stepProgress = ((stepIndex + Math.min(1, Math.abs(sliderValue) / 8)) / challenge.steps.length) * 100;
+
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Practice Setup</h2>
-              <p>
-                Level {level} · {courseSummary} · Tolerance {config.tolerance === 0 ? "Exact" : `±${config.tolerance}`}
+    <GameWorkspace className="lockerGameWorkspace">
+      <div className="gameWorkspaceMain">
+        <GameStage
+          eyebrow={`Level ${level} · Step ${stepIndex + 1} of ${challenge.steps.length}`}
+          title="Locker Practice Station"
+          status={isSaving ? "Saving unlock" : "Dial ready"}
+          progress={stepProgress}
+          progressLabel={`${stepIndex} of ${challenge.steps.length} moves locked in`}
+          stats={[
+            { label: "Dial", value: currentNumber },
+            { label: "Streak", value: progress.streak },
+            { label: "Unlocks", value: progress.correctAttempts },
+          ]}
+        >
+          <div className="lockerGameBoard">
+            <div className="lockerPromptPanel">
+              <div>
+                <p className="lockerPromptEyebrow">Current instruction</p>
+                <h3>{stepPrompt}</h3>
+              </div>
+              {config.showDirection ? (
+                <div className="lockerDirectionBadge" aria-label={`Turn ${directionLabel(currentStep.direction)}`}>
+                  <span aria-hidden="true">{directionArrow(currentStep.direction)}</span>
+                  <strong>Turn {directionLabel(currentStep.direction)}</strong>
+                </div>
+              ) : null}
+              <div className="lockerComboStrip" aria-label={`Combination ${challenge.combo.join(", ")}`}>
+                {challenge.combo.map((value, index) => (
+                  <span
+                    key={`${value}-${index}`}
+                    className={`lockerComboChip ${index < stepIndex ? "isComplete" : ""} ${
+                      config.promptMode === "step" && index === stepIndex ? "isActive" : ""
+                    }`}
+                  >
+                    {index < stepIndex ? "✓" : value}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <DialFace
+              currentNumber={currentNumber}
+              highlightedNumber={currentStep.target}
+              dialRotationTicks={stepStartNumber + sliderValue}
+              showTargetHighlight={config.highlightTarget}
+            />
+
+            <div className="lockerSliderPanel">
+              <div className="lockerSliderLabels">
+                <span>{LEFT_TICK_LABEL}</span>
+                <span>{RIGHT_TICK_LABEL}</span>
+              </div>
+              <input
+                className="lockerSlider"
+                type="range"
+                min={-SLIDER_LIMIT}
+                max={SLIDER_LIMIT}
+                step={1}
+                value={sliderValue}
+                onChange={(event) => handleSliderChange(Number(event.target.value))}
+                aria-label="Locker dial turn slider"
+                aria-describedby="locker-slider-help locker-feedback"
+              />
+              <p id="locker-slider-help" className="lockerHelperText">
+                Start in the center. Slide right for clockwise or left for counterclockwise.
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
+
+            <div className="ctaRow lockerActionRow">
+              <button className="btn primary" type="button" onClick={confirmStep} disabled={isSaving}>
+                {isSaving ? "Saving unlock…" : "Lock in move"}
+              </button>
+              <button className="btn" type="button" onClick={() => resetCurrentStep(true)} disabled={isSaving}>
+                Reset step
+              </button>
+              <button className="btn" type="button" onClick={handleShowHint} disabled={isSaving}>
+                {visibleHint ? "Another hint" : "Show hint"}
+              </button>
+            </div>
+
+            <div id="locker-feedback" className="lockerFeedbackPanel" aria-live="polite">
+              <span className="lockerFeedbackIcon" aria-hidden="true">{visibleHint ? "?" : "↻"}</span>
+              <div>
+                <strong>{feedback}</strong>
+                {visibleHint ? <p>{visibleHint}</p> : null}
+              </div>
+            </div>
+            <p className="sr-only" aria-live="polite">{screenReaderFeedback}</p>
+          </div>
+        </GameStage>
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Choose the lock">
+          <p className="gameSetupSummary">
+            Level {level} · {courseSummary} · {config.tolerance === 0 ? "Exact stop" : `±${config.tolerance} tolerance`}
+          </p>
+          <div className="gameSetupOptions">
             <label>
               Class context
               <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
@@ -672,110 +768,21 @@ export default function LockerPracticeClient({
               New Locker
             </button>
           </div>
-        </details>
-      </section>
+        </GameSidePanel>
 
-      <section className="card lockerPracticeCard" style={{ background: "#fff" }}>
-        <div className="lockerPracticeHeader">
+        <GameSidePanel eyebrow="Progress" title="Your locker stats">
+          <div className="gameSideStats">
           <div>
-            <h2>Locker Practice Station</h2>
-            <p>{stepPrompt}</p>
-          </div>
-          <div className="pillRow">
-            <span className="pill">Level {level}</span>
-            <span className="pill">Step {stepIndex + 1} / {challenge.steps.length}</span>
-            <span className="pill">Under top marker: {currentNumber}</span>
-          </div>
-        </div>
-
-        <div className="lockerPromptPanel">
-          {config.showDirection ? (
-            <div className="lockerDirectionBadge" aria-label={`Turn ${directionLabel(currentStep.direction)}`}>
-              <span aria-hidden="true">{directionArrow(currentStep.direction)}</span>
-              <strong>Turn {directionLabel(currentStep.direction)}</strong>
-            </div>
-          ) : null}
-          <div className="lockerComboStrip" aria-label={`Combination ${challenge.combo.join(", ")}`}>
-            {challenge.combo.map((value, index) => (
-              <span
-                key={`${value}-${index}`}
-                className={`lockerComboChip ${
-                  config.promptMode === "step" && index === stepIndex ? "isActive" : ""
-                }`}
-              >
-                {value}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <DialFace
-          currentNumber={currentNumber}
-          highlightedNumber={currentStep.target}
-          dialRotationTicks={stepStartNumber + sliderValue}
-          showTargetHighlight={config.highlightTarget}
-        />
-
-        <div className="lockerSliderPanel">
-          <div className="lockerSliderLabels">
-            <span>{LEFT_TICK_LABEL}</span>
-            <span>{RIGHT_TICK_LABEL}</span>
-          </div>
-          <input
-            className="lockerSlider"
-            type="range"
-            min={-SLIDER_LIMIT}
-            max={SLIDER_LIMIT}
-            step={1}
-            value={sliderValue}
-            onChange={(event) => handleSliderChange(Number(event.target.value))}
-            aria-label="Locker dial turn slider"
-            aria-describedby="locker-slider-help locker-feedback"
-          />
-          <p id="locker-slider-help" className="lockerHelperText">
-            The slider starts centered for each step. Move it right to turn clockwise, or left to turn counterclockwise.
-          </p>
-        </div>
-
-        <div className="ctaRow lockerActionRow">
-          <button className="btn primary" type="button" onClick={confirmStep}>
-            That&apos;s good
-          </button>
-          <button className="btn" type="button" onClick={() => resetCurrentStep(true)}>
-            Reset step
-          </button>
-          <button className="btn" type="button" onClick={handleShowHint}>
-            {visibleHint ? "Show another hint" : "Show hint"}
-          </button>
-        </div>
-
-        <div id="locker-feedback" className="lockerFeedbackPanel" aria-live="polite">
-          <strong>{feedback}</strong>
-          {visibleHint ? <p>{visibleHint}</p> : null}
-        </div>
-        <p className="sr-only" aria-live="polite">
-          {screenReaderFeedback}
-        </p>
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Practice Progress</h2>
-        <div className="kv compactKv">
-          <div>
-            <span>Correct combos</span>
+            <span>Unlocks</span>
             <strong>{progress.correctAttempts}</strong>
           </div>
           <div>
-            <span>Misses</span>
-            <strong>{progress.failedAttempts}</strong>
+            <span>Accuracy</span>
+            <strong>{attempts ? `${accuracy}%` : "—"}</strong>
           </div>
           <div>
-            <span>Hints used</span>
+            <span>Hints</span>
             <strong>{progress.hintsUsed}</strong>
-          </div>
-          <div>
-            <span>Resets used</span>
-            <strong>{progress.resetsUsed}</strong>
           </div>
           <div>
             <span>Streak</span>
@@ -783,11 +790,11 @@ export default function LockerPracticeClient({
           </div>
         </div>
 
-        <h3 style={{ marginTop: "1rem" }}>Your Stats</h3>
+          <h3 className="lockerSavedStatsTitle">Saved history</h3>
         {savedStats ? (
-          <div className="kv compactKv" style={{ marginTop: "0.75rem" }}>
+            <div className="gameSideStats">
             <div>
-              <span>Saved runs</span>
+                <span>Runs</span>
               <strong>{savedStats.sessions_played}</strong>
             </div>
             <div>
@@ -807,23 +814,25 @@ export default function LockerPracticeClient({
           <p style={{ marginTop: "0.75rem" }}>Unlock a few lockers to start building stats.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
           {!courseId ? <p>Select a class to compare locker practice with classmates.</p> : null}
           {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
           {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
             <p>No class scores yet. Open a few lockers to get the leaderboard started.</p>
           ) : null}
           {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{formatScore(row.best_score)}</strong>
             </div>
           ))}
-        </div>
-      </section>
-    </div>
+            </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }
