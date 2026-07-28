@@ -25,6 +25,21 @@ function shortDate(iso) {
   return `${m}/${d}/${y}`;
 }
 
+function courseMonogram(course) {
+  const words = String(course.title || course.class_name || "Class")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
+}
+
+function courseRoleLabel(role) {
+  if (role === "owner") return "Owner";
+  if (role === "admin") return "Admin";
+  return "Co-Teacher";
+}
+
 function getBestDisplayName(profile, metadata, email, fallback = "-") {
   return (
     profile?.display_name ||
@@ -242,19 +257,46 @@ export default async function ClassesPage({ searchParams }) {
     error = loadError;
   }
 
+  const ownerCourseCount = courses.filter((course) => course.membership_role === "owner").length;
+  const readyCourseCount = courses.filter((course) => Boolean(course.student_join_code)).length;
+
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>{siteCopy.classesTitle}</h1>
-        <p>{siteCopy.classesDescription}</p>
-        <div className="ctaRow">
-          <Link className="btn primary" href="/classes/new">
-            Add Class
-          </Link>
+    <div className="stack classesWorkspace">
+      <section className="classesWorkspaceHero">
+        <div className="classesWorkspaceHeroCopy">
+          <p className="eyebrow">Teacher workspace</p>
+          <h1>{siteCopy.classesTitle}</h1>
+          <p>{siteCopy.classesDescription}</p>
+          <div className="classesWorkspaceHeroActions">
+            <Link className="btn primary" href="/classes/new">
+              <span aria-hidden="true">＋</span> Add Class
+            </Link>
+            <Link className="btn secondary" href="/dashboard">
+              Open Dashboard
+            </Link>
+          </div>
+        </div>
+        <div className="classesWorkspaceStats" aria-label="Classes overview">
+          <div>
+            <strong>{courses.length}</strong>
+            <span>Active {courses.length === 1 ? "class" : "classes"}</span>
+          </div>
+          <div>
+            <strong>{readyCourseCount}</strong>
+            <span>Join-code ready</span>
+          </div>
+          <div>
+            <strong>{games.length}</strong>
+            <span>Game options</span>
+          </div>
+          <div>
+            <strong>{ownerCourseCount}</strong>
+            <span>You own</span>
+          </div>
         </div>
       </section>
 
-      <section className="card">
+      <section className="classesWorkspaceContent">
         {qs.joinCodeUpdated === "1" ? (
           <div className="card noticeSuccess">
             <p>{formatJoinCodeNotice("1")}</p>
@@ -288,12 +330,27 @@ export default async function ClassesPage({ searchParams }) {
         {error ? <p>Could not load classes: {error.message}</p> : null}
 
         {!error && (!courses || courses.length === 0) ? (
-          <p>No classes yet. Use Add Class to create your first section.</p>
+          <div className="classesWorkspaceEmpty">
+            <span aria-hidden="true">＋</span>
+            <h2>Create your first class</h2>
+            <p>Set up a section, choose its schedule, and invite students when you are ready.</p>
+            <Link className="btn primary" href="/classes/new">
+              Add Class
+            </Link>
+          </div>
         ) : null}
 
         {!error && courses && courses.length > 0 ? (
-          <div className="list">
-            {courses.map((course) => {
+          <>
+            <div className="classesWorkspaceSectionHeader">
+              <div>
+                <p className="eyebrow">Your teaching portfolio</p>
+                <h2>Your classes</h2>
+              </div>
+              <p>Select a class to plan, review student progress, or adjust access.</p>
+            </div>
+            <div className="classesWorkspaceGrid">
+            {courses.map((course, index) => {
               const currentCoTeachers = coTeacherState.byCourseId.get(course.id) || [];
               const availableCoTeachers =
                 coTeacherState.candidateOptionsByCourseId.get(course.id) || [];
@@ -304,35 +361,59 @@ export default async function ClassesPage({ searchParams }) {
                 studentEnabled:
                   (gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true) && game.siteVisibleToStudents,
               }));
+              const liveGameCount = courseGames.filter((game) => game.studentEnabled).length;
 
               return (
-                <article key={course.id} className="card classCourseCard">
-                  <details className="arcadeSectionDetails classCourseDetails">
-                    <summary className="arcadeSectionSummary classCourseSummary">
-                      <div>
-                        <h2>{course.title}</h2>
-                        <p>
-                          {course.class_name} ·{" "}
-                          {course.schedule_model === "ab" ? `AB (${course.ab_meeting_day || "A/B"})` : "Every Day"} ·{" "}
-                          {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
-                        </p>
+                <article key={course.id} className={`classCourseCard classCourseTone${index % 5}`}>
+                  <div className="classCourseOverview">
+                    <div className="classCourseIdentity">
+                      <div className="classCourseMonogram" aria-hidden="true">
+                        {courseMonogram(course)}
                       </div>
-                      <span className="arcadeSectionToggle">
-                        <span className="showLabel">Show</span>
-                        <span className="hideLabel">Hide</span>
+                      <div className="classCourseTitle">
+                        <h2>{course.title}</h2>
+                        <p>{course.class_name}</p>
+                      </div>
+                    </div>
+                    <div className="classCourseStatusRow">
+                      <span>{course.schedule_model === "ab" ? `A/B · ${course.ab_meeting_day || "A/B"}` : "Every day"}</span>
+                      <span>{liveGameCount} games live</span>
+                      <span>{courseRoleLabel(course.membership_role)}</span>
+                    </div>
+                    <div className="classCourseJoinCode">
+                      <span>Student join code</span>
+                      <strong>{course.student_join_code || "Not set"}</strong>
+                    </div>
+                  </div>
+
+                  <nav className="classCourseQuickActions" aria-label={`${course.title} shortcuts`}>
+                    <Link href={`/classes/${course.id}/plan`}>
+                      <span className="classCourseActionIcon" aria-hidden="true">▤</span>
+                      <span><strong>Class Plan</strong><small>Lessons and pacing</small></span>
+                    </Link>
+                    <Link href={`/classes/${course.id}/students`}>
+                      <span className="classCourseActionIcon" aria-hidden="true">◎</span>
+                      <span><strong>Students</strong><small>Progress and awards</small></span>
+                    </Link>
+                    <Link href={`/classes/${course.id}/announcements`}>
+                      <span className="classCourseActionIcon" aria-hidden="true">◈</span>
+                      <span><strong>Announcements</strong><small>Daily class display</small></span>
+                    </Link>
+                  </nav>
+
+                  <details className="classCourseDetails">
+                    <summary className="classCourseManageSummary">
+                      <span>
+                        <strong>Manage class</strong>
+                        <small>Access, co-teachers, and game visibility</small>
                       </span>
+                      <span className="classCourseManageToggle" aria-hidden="true">＋</span>
                     </summary>
-                    <div className="arcadeSectionBody classCourseBody">
+                    <div className="classCourseBody">
                       <div className="classCourseMetaGrid">
                         <div>
                           <strong>Role</strong>
-                          <span>
-                            {course.membership_role === "owner"
-                              ? "Owner"
-                              : course.membership_role === "admin"
-                                ? "Admin"
-                                : "Co-Teacher"}
-                          </span>
+                          <span>{courseRoleLabel(course.membership_role)}</span>
                         </div>
                         <div>
                           <strong>Dates</strong>
@@ -344,7 +425,7 @@ export default async function ClassesPage({ searchParams }) {
                         </div>
                       </div>
 
-                      <div className="ctaRow">
+                      <div className="classCourseManagementActions">
                         <Link className="btn" href={`/classes/${course.id}/plan`}>
                           Open Plan
                         </Link>
@@ -479,7 +560,8 @@ export default async function ClassesPage({ searchParams }) {
                 </article>
               );
             })}
-          </div>
+            </div>
+          </>
         ) : null}
       </section>
     </div>
