@@ -402,6 +402,10 @@ export default function ScreenClient({ initialToken = null }) {
   const [screenName, setScreenName] = useState("");
   const [inputType, setInputType] = useState("display_only");
   const [enabled, setEnabled] = useState(true);
+  const [roomScreens, setRoomScreens] = useState([]);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [switcherMessage, setSwitcherMessage] = useState("");
+  const [switching, setSwitching] = useState(false);
   const [state, setState] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
@@ -475,6 +479,7 @@ export default function ScreenClient({ initialToken = null }) {
       setScreenName(payload.screenName || `Screen ${payload.screenNumber || 1}`);
       setInputType(payload.inputType || "display_only");
       setEnabled(payload.enabled !== false);
+      setRoomScreens(Array.isArray(payload.screens) ? payload.screens : []);
       setState(payload.state || null);
       setScreenTimer(timerForScreen(payload.timer, payload.screenNumber));
       if (payload.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
@@ -602,6 +607,54 @@ export default function ScreenClient({ initialToken = null }) {
       setStatus("error");
       setMessage(error.message);
     }
+  }
+
+  // Any half-finished submission belongs to the screen it was started on.
+  function discardPendingWork() {
+    if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+    setWorkPreviewUrl("");
+    setWorkFile(null);
+    setWorkStatus("idle");
+    setWorkSource("camera");
+  }
+
+  // Moves this device to another screen in the same Room. The current token is
+  // the proof of membership, so there is nothing to retype on a projector remote.
+  async function switchToScreen(nextScreenNumber) {
+    if (String(nextScreenNumber) === String(screenNumber)) {
+      setSwitcherOpen(false);
+      return;
+    }
+    setSwitching(true);
+    setSwitcherMessage("");
+    try {
+      const response = await fetch("/api/projector/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "switch-screen", token, screenNumber: nextScreenNumber }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not switch screens.");
+      window.history.replaceState(null, "", `/projector/screen?token=${encodeURIComponent(payload.token)}`);
+      discardPendingWork();
+      setMessage("");
+      setSwitcherOpen(false);
+      setToken(payload.token);
+    } catch (error) {
+      setSwitcherMessage(error.message);
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  function leaveRoom() {
+    window.history.replaceState(null, "", "/projector/screen");
+    discardPendingWork();
+    setSwitcherOpen(false);
+    setSwitcherMessage("");
+    setMessage("");
+    setStatus("idle");
+    setToken("");
   }
 
   async function toggleFullscreen() {
@@ -805,7 +858,19 @@ export default function ScreenClient({ initialToken = null }) {
       <header className="projectorScreenTopBar">
         <div className="projectorScreenTopBarGroup projectorScreenTopBarStart">
           <span className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
-          {screenName ? <span className="projectorScreenProfileBadge">{screenName}</span> : null}
+          {screenName ? (
+            <button
+              className="projectorScreenProfileBadge"
+              type="button"
+              title="Change which screen this device is"
+              onClick={() => {
+                setSwitcherMessage("");
+                setSwitcherOpen(true);
+              }}
+            >
+              {screenName}
+            </button>
+          ) : null}
         </div>
         <div className="projectorScreenTopBarGroup projectorScreenTopBarCenter">
           {enabled ? <ProjectorTimerOverlay timer={screenTimer} serverOffsetMs={timerOffsetMs} /> : null}
@@ -986,6 +1051,44 @@ export default function ScreenClient({ initialToken = null }) {
           />
         ) : null}
       </div>
+      {switcherOpen ? (
+        <div className="projectorScreenSwitcher" role="dialog" aria-modal="true" aria-label="Choose a screen">
+          <div className="projectorScreenSwitcherCard">
+            <p className="eyebrow">This device is</p>
+            <h1>{screenName}</h1>
+            <p className="projectorScreenSwitcherHint">Tap a screen to make this device that screen instead.</p>
+            <div className="projectorScreenSwitcherButtons">
+              {(roomScreens.length
+                ? roomScreens
+                : [{ screenNumber, name: screenName, enabled }]
+              ).map((screen) => (
+                <button
+                  className={String(screen.screenNumber) === String(screenNumber) ? "isActive" : ""}
+                  key={screen.screenNumber}
+                  type="button"
+                  disabled={switching}
+                  onClick={() => switchToScreen(screen.screenNumber)}
+                >
+                  <span className="projectorScreenSwitcherName">{screen.name}</span>
+                  <span className="projectorScreenSwitcherMeta">
+                    Screen {screen.screenNumber}
+                    {screen.enabled === false ? " · off" : ""}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {switcherMessage ? <p className="projectorMessage">{switcherMessage}</p> : null}
+            <div className="projectorScreenSwitcherActions">
+              <button type="button" disabled={switching} onClick={() => setSwitcherOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" disabled={switching} onClick={leaveRoom}>
+                Different room PIN
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {message ? <div className="projectorScreenError">{message}</div> : null}
     </main>
   );

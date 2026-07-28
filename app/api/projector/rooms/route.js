@@ -341,6 +341,35 @@ async function resolvePin(admin, pin, screenNumber) {
   return NextResponse.json({ token });
 }
 
+// A device that already holds a screen token is in the room, so it may move
+// itself to another screen in the same session without the PIN. Same reach as
+// re-entering the PIN it joined with; it never crosses to another teacher.
+async function switchScreen(admin, token, screenNumber) {
+  const safeToken = String(token || "").trim();
+  const safeScreenNumber = normalizeScreenNumber(screenNumber);
+  if (!safeToken) return jsonError("This device is not connected to a room.");
+  if (!safeScreenNumber) return jsonError("Choose a screen number from 1 to 12.");
+
+  try {
+    const session = await findSessionByToken(admin, safeToken);
+    if (!session || !findScreenNumberForToken(session.screen_tokens, safeToken)) {
+      return jsonError("Projector token not found.", 404);
+    }
+
+    const { activeRoom } = await listRooms(admin, session.teacher_id);
+    if (!roomScreenIds(activeRoom).includes(safeScreenNumber)) {
+      return jsonError("That screen is not part of the active Room.", 404);
+    }
+
+    const nextSession = await ensureSessionScreens(admin, session, activeRoom);
+    const nextToken = nextSession?.screen_tokens?.[safeScreenNumber];
+    if (!nextToken) return jsonError("That screen is not ready yet.", 404);
+    return NextResponse.json({ token: nextToken });
+  } catch (error) {
+    return jsonError(error.message || "Could not switch screens.", 500);
+  }
+}
+
 async function findSessionByToken(admin, token) {
   for (const screenId of SCREEN_IDS) {
     const { data, error } = await admin
@@ -534,7 +563,8 @@ export async function GET(request) {
       }
       // Resolve this screen's profile from the active Room's slots (index = screenNumber - 1)
       // so the receiver can learn its capability. Fall back for old sessions / missing slots.
-      const slot = normalizeSlots(activeRoom?.slots)[Number(screenNumber) - 1] || null;
+      const slots = normalizeSlots(activeRoom?.slots);
+      const slot = slots[Number(screenNumber) - 1] || null;
       return NextResponse.json({
         sessionId: session.id,
         screenNumber,
@@ -542,6 +572,13 @@ export async function GET(request) {
         screenName: slot?.name || `Screen ${screenNumber}`,
         inputType: INPUT_TYPES.has(slot?.inputType) ? slot.inputType : "display_only",
         enabled: slot?.enabled !== false,
+        // Every screen in the active Room, so a connected device can switch itself
+        // to another one by name without retyping the room PIN.
+        screens: slots.map((roomSlot, index) => ({
+          screenNumber: String(index + 1),
+          name: roomSlot.name || `Screen ${index + 1}`,
+          enabled: roomSlot.enabled !== false,
+        })),
         timer: screenTimerFrom(session.screen_states),
         serverNow: Date.now(),
       });
@@ -567,6 +604,10 @@ export async function POST(request) {
 
   if (body?.action === "resolve") {
     return resolvePin(admin, body.pin, body.screenNumber);
+  }
+
+  if (body?.action === "switch-screen") {
+    return switchScreen(admin, body.token, body.screenNumber);
   }
 
   const context = await getTeacherContext();
