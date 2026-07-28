@@ -21,6 +21,7 @@ const QUESTION_CONTENT_PREFIX = "__MATHCLAW_PROJECTOR_QUESTION_V1__";
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
 const REVIEW_STATE_KEY = "__mathclaw_projector_review_v1__";
 const TIMER_STATE_KEY = "__mathclaw_projector_timer_v1__";
+const POLL_RESTORE_STATE_KEY = "__mathclaw_projector_poll_restore_v1__";
 const TIMER_LABEL_LIMIT = 60;
 const TIMER_MAX_SECONDS = 4 * 60 * 60;
 const BROADCAST_SEND_TIMEOUT_MS = 1500;
@@ -265,7 +266,9 @@ function publicTakeoverStateFrom(screenStates) {
 
 function clientScreenStates(screenStates) {
   const source = screenStates && typeof screenStates === "object" ? screenStates : {};
-  const nextStates = { ...source };
+  // The poll restore snapshot is a full duplicate of screen_states and can be
+  // megabytes of image content — it must never travel to the dashboard.
+  const nextStates = stripPollRestoreState(source);
   const takeover = publicTakeoverStateFrom(source);
   if (takeover) nextStates[TAKEOVER_STATE_KEY] = takeover;
   const review = publicReviewStateFrom(source);
@@ -306,6 +309,26 @@ function timerStateFrom(screenStates) {
 function stripTimerState(screenStates) {
   const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
   delete nextStates[TIMER_STATE_KEY];
+  return nextStates;
+}
+
+// Launching a poll snapshots what every screen was showing so that one dashboard
+// button can end the poll and put the room back the way it was. Same shape as the
+// review-mode restoreStates snapshot.
+function pollRestoreStateFrom(screenStates) {
+  const restore = screenStates?.[POLL_RESTORE_STATE_KEY];
+  if (!restore || typeof restore !== "object") return null;
+  if (!restore.screenStates || typeof restore.screenStates !== "object") return null;
+  return {
+    pollId: String(restore.pollId || ""),
+    startedAt: restore.startedAt || null,
+    screenStates: restore.screenStates,
+  };
+}
+
+function stripPollRestoreState(screenStates) {
+  const nextStates = { ...(screenStates && typeof screenStates === "object" ? screenStates : {}) };
+  delete nextStates[POLL_RESTORE_STATE_KEY];
   return nextStates;
 }
 
@@ -1214,7 +1237,7 @@ async function loadScene(admin, teacherId, session, body) {
   return NextResponse.json({
     ok: true,
     title: scene.title,
-    screenStates: nextSessionStates,
+    screenStates: clientScreenStates(nextSessionStates),
     takeoverEnded: Boolean(restored.takeover),
   });
 }
@@ -1461,6 +1484,76 @@ async function endReview(admin, teacherId, session) {
   return NextResponse.json({ ok: true, ended: true, screenStates: clientScreenStates(nextStates) });
 }
 
+async function snapshotPollScreens(admin, teacherId, session, body) {
+  const pollId = String(body.pollId || "");
+  if (!isUuid(pollId)) return jsonError("Choose a poll.");
+
+  const current = sessionScreenStates(session);
+  // The timer marker is live state, not screen content — keep it out of the
+  // snapshot so ending the poll cannot resurrect an already-cleared timer.
+  const nextStates = {
+    ...current,
+    [POLL_RESTORE_STATE_KEY]: {
+      pollId,
+      startedAt: new Date().toISOString(),
+      screenStates: stripTimerState(stripPollRestoreState(current)),
+    },
+  };
+
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  return NextResponse.json({ ok: true, pollId });
+}
+
+async function endPollScreens(admin, teacherId, session, body) {
+  const current = sessionScreenStates(session);
+  const restore = pollRestoreStateFrom(current);
+  const requestedPollId = String(body.pollId || "");
+  // Only ever restore the snapshot belonging to the poll being ended. Launching a
+  // poll does not clear the previous one's snapshot, so without this guard a stale
+  // snapshot could wipe screens the teacher has since set up deliberately.
+  const stale = Boolean(restore && requestedPollId && restore.pollId && restore.pollId !== requestedPollId);
+
+  if (!restore || stale) {
+    const clearedStates = stripPollRestoreState(current);
+    if (restore) {
+      const result = await persistScreenStates(admin, session, teacherId, clearedStates);
+      if (result.error) return jsonError(result.error.message, 500);
+    }
+    return NextResponse.json({ ok: true, restored: false, screenStates: clientScreenStates(clearedStates) });
+  }
+
+  const nextStates = stripPollRestoreState(restore.screenStates);
+  // Carry a timer started during the poll across the restore.
+  if (current[TIMER_STATE_KEY]) nextStates[TIMER_STATE_KEY] = current[TIMER_STATE_KEY];
+  else delete nextStates[TIMER_STATE_KEY];
+
+  // Compare what the screens actually render, not just their slots, so a takeover
+  // or review that started during the poll is broadcast away too.
+  const changedScreenIds = SCREEN_IDS.filter(
+    (screenId) =>
+      JSON.stringify(effectiveScreenState(current, screenId) ?? null) !==
+      JSON.stringify(effectiveScreenState(nextStates, screenId) ?? null)
+  );
+
+  const result = await persistScreenStates(admin, session, teacherId, nextStates);
+  if (result.error) return jsonError(result.error.message, 500);
+  if (changedScreenIds.length) {
+    await broadcastScreenUpdates(
+      admin,
+      session.id,
+      changedScreenIds.map((screenId) => reviewBroadcastPayload(nextStates, screenId))
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    restored: true,
+    restoredScreenIds: changedScreenIds,
+    screenStates: clientScreenStates(nextStates),
+  });
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action");
@@ -1606,6 +1699,14 @@ export async function POST(request) {
     return endReview(admin, context.user.id, context.session);
   }
 
+  if (body?.action === "snapshot-poll-screens") {
+    return snapshotPollScreens(admin, context.user.id, context.session, body);
+  }
+
+  if (body?.action === "end-poll-screens") {
+    return endPollScreens(admin, context.user.id, context.session, body);
+  }
+
   if (body?.action === "save-scene") {
     const currentStates = sessionScreenStates(context.session);
     if (takeoverStateFrom(currentStates) || reviewStateFrom(currentStates)) {
@@ -1651,7 +1752,7 @@ export async function POST(request) {
     const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, screenId] : [screenId];
     const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);
     if (result.error) return jsonError(result.error.message, 500);
-    return NextResponse.json({ screenId, state: nextState, screenStates: nextStates, takeoverEnded: Boolean(restored.takeover) });
+    return NextResponse.json({ screenId, state: nextState, screenStates: clientScreenStates(nextStates), takeoverEnded: Boolean(restored.takeover) });
   }
 
   if (body?.action === "rotate-screens") {
@@ -1670,7 +1771,7 @@ export async function POST(request) {
     const broadcastIds = restored.takeover ? [...restored.takeover.activeScreenIds, ...activeScreenIds] : activeScreenIds;
     const result = await persistScreenStates(admin, context.session, context.user.id, rotated, broadcastIds);
     if (result.error) return jsonError(result.error.message, 500);
-    return NextResponse.json({ screenStates: rotated, takeoverEnded: Boolean(restored.takeover) });
+    return NextResponse.json({ screenStates: clientScreenStates(rotated), takeoverEnded: Boolean(restored.takeover) });
   }
 
   const screenIds = normalizeScreenIds(body.screenIds);
@@ -1697,7 +1798,7 @@ export async function POST(request) {
   const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);
   if (result.error) return jsonError(result.error.message, 500);
 
-  return NextResponse.json({ ok: true, takeoverEnded: Boolean(restored.takeover), screenStates: nextStates });
+  return NextResponse.json({ ok: true, takeoverEnded: Boolean(restored.takeover), screenStates: clientScreenStates(nextStates) });
 }
 
 export async function DELETE(request) {
@@ -1718,5 +1819,5 @@ export async function DELETE(request) {
   const result = await persistScreenStates(admin, context.session, context.user.id, nextStates, broadcastIds);
   if (result.error) return jsonError(result.error.message, 500);
 
-  return NextResponse.json({ ok: true, takeoverEnded: Boolean(restored.takeover), screenStates: nextStates });
+  return NextResponse.json({ ok: true, takeoverEnded: Boolean(restored.takeover), screenStates: clientScreenStates(nextStates) });
 }

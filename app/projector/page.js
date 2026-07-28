@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const TAKEOVER_STATE_KEY = "__mathclaw_projector_takeover_v1__";
+const POLL_RESTORE_STATE_KEY = "__mathclaw_projector_poll_restore_v1__";
 const DEFAULT_ROOM_SLOTS = Array.from({ length: 4 }, (_, index) => ({
   name: `Screen ${index + 1}`,
   inputType: "display_only",
@@ -31,9 +32,18 @@ function createEmptyScreenStates() {
 }
 
 function sanitizeSessionForClient(session) {
-  const screenStates = session?.screen_states && typeof session.screen_states === "object" ? session.screen_states : {};
+  const rawScreenStates = session?.screen_states && typeof session.screen_states === "object" ? session.screen_states : {};
+  // A running poll holds a full duplicate of screen_states so it can be restored
+  // when the poll ends. That snapshot can be megabytes of image content and the
+  // dashboard never reads it, so it must not be part of the page payload.
+  const hasPollRestore = Object.prototype.hasOwnProperty.call(rawScreenStates, POLL_RESTORE_STATE_KEY);
+  const screenStates = hasPollRestore ? { ...rawScreenStates } : rawScreenStates;
+  if (hasPollRestore) delete screenStates[POLL_RESTORE_STATE_KEY];
+
   const takeover = screenStates[TAKEOVER_STATE_KEY];
-  if (!takeover || typeof takeover !== "object") return session;
+  if (!takeover || typeof takeover !== "object") {
+    return hasPollRestore ? { ...session, screen_states: screenStates } : session;
+  }
 
   const sourceScreenId = SCREEN_IDS.includes(String(takeover.sourceScreenId || ""))
     ? String(takeover.sourceScreenId)

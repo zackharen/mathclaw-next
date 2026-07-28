@@ -2903,6 +2903,21 @@ export default function ProjectorClient({
     });
   }
 
+  // Record what every screen is showing at launch so "End Poll" can put the room
+  // back. A failed snapshot must not fail the launch — the poll still runs, End
+  // Poll just closes it without restoring.
+  async function snapshotPollScreens(pollId) {
+    try {
+      await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "snapshot-poll-screens", pollId }),
+      });
+    } catch {
+      // Ignored on purpose; see comment above.
+    }
+  }
+
   async function launchPoll() {
     if (!pollLaunchScreenIds.length) {
       setMessage("Turn on at least one active touch screen before launching a poll.");
@@ -2930,6 +2945,7 @@ export default function ProjectorClient({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not launch poll.");
       if (!payload.poll) throw new Error("Poll launched, but the dashboard did not receive the live poll payload.");
+      await snapshotPollScreens(payload.poll.id);
       setActivePoll(payload.poll || null);
       setPollResults(payload.results || null);
       setMessage(`Poll launched to ${pollLaunchDescription}.`);
@@ -2956,6 +2972,44 @@ export default function ProjectorClient({
       setPollResults(payload.results || pollResults);
       await loadPolls({ silent: true });
       setMessage("Poll closed.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setPollBusy(false);
+    }
+  }
+
+  // One button for the end of a poll: stop the voting and put every screen back to
+  // what it was showing before the poll launched, undoing the pushed results.
+  async function endPollAndRestoreScreens() {
+    const pollId = activePoll?.id || pollResults?.poll?.id || "";
+    setPollBusy(true);
+    setMessage("");
+    try {
+      if (activePoll?.id) {
+        const closeResponse = await fetch("/api/projector/polls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "close", pollId: activePoll.id }),
+        });
+        const closePayload = await closeResponse.json().catch(() => ({}));
+        if (!closeResponse.ok) throw new Error(closePayload.error || "Could not close poll.");
+      }
+      const response = await fetch("/api/projector", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "end-poll-screens", pollId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not put the screens back.");
+      applyScreenStates(payload.screenStates || {});
+      setActivePoll(null);
+      await loadPolls({ silent: true });
+      setMessage(
+        payload.restored
+          ? "Poll ended. Screens are back to what they were showing before the poll."
+          : "Poll ended. There was no saved screen setup to put back."
+      );
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -4343,6 +4397,11 @@ export default function ProjectorClient({
                   <button className="btn secondary" type="button" onClick={showPollResults} disabled={pollBusy || !pollResults?.poll || !targetScreenIds.length}>
                     Show results
                   </button>
+                  {activePoll || pollResults?.poll ? (
+                    <button className="btn secondary" type="button" onClick={endPollAndRestoreScreens} disabled={pollBusy}>
+                      End Poll &amp; Restore Screens
+                    </button>
+                  ) : null}
                 </div>
                 <p className="projectorPollTargetSummary">
                   Launch target: {pollLaunchScreenIds.length ? pollLaunchDescription : "no active touch screens"}.
