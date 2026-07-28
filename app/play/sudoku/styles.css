@@ -1,7 +1,20 @@
+.sudokuPlayfield {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  border-radius: 20px;
+  padding: clamp(0.75rem, 2.5vw, 1.5rem);
+  background:
+    radial-gradient(circle at 50% 0%, var(--game-accent-soft), transparent 23rem),
+    #f8fbfd;
+}
+
 .sudokuNumberPad {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.55rem;
+  width: min(100%, 34rem);
 }
 
 .sudokuBoard {
@@ -13,6 +26,7 @@
   border-radius: 18px;
   overflow: hidden;
   background: #0f2742;
+  box-shadow: 0 16px 34px rgba(15, 39, 66, 0.15);
 }
 
 .sudokuCell {
@@ -20,7 +34,8 @@
   border: 1px solid rgba(15, 39, 66, 0.15);
   background: #f8fbff;
   color: var(--navy);
-  min-height: 3.1rem;
+  aspect-ratio: 1;
+  min-width: 0;
   font: inherit;
   font-size: 1.2rem;
   font-weight: 700;
@@ -62,13 +77,23 @@
   border-bottom: 3px solid var(--navy);
 }
 
+.sudokuHelp {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 @media (max-width: 720px) {
   .sudokuNumberPad {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
   }
 
   .sudokuCell {
-    min-height: 2.5rem;
     font-size: 1rem;
+  }
+
+  .sudokuNumberPad .btn {
+    min-height: 2.7rem;
+    padding-inline: 0.4rem;
   }
 }

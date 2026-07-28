@@ -1,6 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createSeededRandom } from "@/lib/student-games/seeded-random";
+import {
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const DIFFICULTY_OPTIONS = [
@@ -18,10 +24,10 @@ function cloneGrid(grid) {
   return grid.map((row) => [...row]);
 }
 
-function randomDigits() {
+function randomDigits(random = Math.random) {
   const values = [...DIGITS];
   for (let index = values.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(random() * (index + 1));
     [values[index], values[swapIndex]] = [values[swapIndex], values[index]];
   }
   return values;
@@ -44,19 +50,19 @@ function isValidMove(grid, rowIndex, colIndex, value) {
   return true;
 }
 
-function fillSolvedBoard(grid, cellIndex = 0) {
+function fillSolvedBoard(grid, cellIndex = 0, random = Math.random) {
   if (cellIndex >= 81) return true;
   const rowIndex = Math.floor(cellIndex / 9);
   const colIndex = cellIndex % 9;
 
   if (grid[rowIndex][colIndex] !== 0) {
-    return fillSolvedBoard(grid, cellIndex + 1);
+    return fillSolvedBoard(grid, cellIndex + 1, random);
   }
 
-  for (const value of randomDigits()) {
+  for (const value of randomDigits(random)) {
     if (!isValidMove(grid, rowIndex, colIndex, value)) continue;
     grid[rowIndex][colIndex] = value;
-    if (fillSolvedBoard(grid, cellIndex + 1)) {
+    if (fillSolvedBoard(grid, cellIndex + 1, random)) {
       return true;
     }
     grid[rowIndex][colIndex] = 0;
@@ -65,15 +71,15 @@ function fillSolvedBoard(grid, cellIndex = 0) {
   return false;
 }
 
-function buildSolvedBoard() {
+function buildSolvedBoard(random = Math.random) {
   const grid = emptyGrid();
-  fillSolvedBoard(grid);
+  fillSolvedBoard(grid, 0, random);
   return grid;
 }
 
-function buildPuzzle(difficulty) {
+function buildPuzzle(difficulty, random = Math.random) {
   const difficultyConfig = DIFFICULTY_OPTIONS.find((option) => option.value === difficulty) || DIFFICULTY_OPTIONS[1];
-  const solution = buildSolvedBoard();
+  const solution = buildSolvedBoard(random);
   const puzzle = cloneGrid(solution);
   const coordinates = [];
 
@@ -84,7 +90,7 @@ function buildPuzzle(difficulty) {
   }
 
   for (let index = coordinates.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(random() * (index + 1));
     [coordinates[index], coordinates[swapIndex]] = [coordinates[swapIndex], coordinates[index]];
   }
 
@@ -161,8 +167,12 @@ export default function SudokuClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialSeed,
 }) {
-  const initialPuzzle = useMemo(() => buildPuzzle(DEFAULT_DIFFICULTY), []);
+  const initialPuzzle = useMemo(
+    () => buildPuzzle(DEFAULT_DIFFICULTY, createSeededRandom(initialSeed)),
+    [initialSeed]
+  );
   const [difficulty, setDifficulty] = useState(DEFAULT_DIFFICULTY);
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [puzzle, setPuzzle] = useState(initialPuzzle.puzzle);
@@ -500,160 +510,129 @@ export default function SudokuClient({
   }, [applyMove]);
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <div className="ctaRow" style={{ justifyContent: "space-between", alignItems: "center" }}>
-          <h2>Board</h2>
-          <div className="ctaRow" style={{ marginTop: 0 }}>
-            <button className="btn" type="button" onClick={() => startNewPuzzle(difficulty, "reset")}>
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        <GameStage
+          eyebrow={`${formatDifficultyLabel(difficulty)} puzzle`}
+          title="Sudoku Grid"
+          status={runState === "won" ? "Puzzle solved" : "Puzzle active"}
+          progress={completionPercent}
+          progressLabel={`${sessionRef.current.playerCorrectCells} of ${81 - sessionRef.current.clueCount} open cells correct`}
+          stats={[
+            { label: "Mistakes", value: mistakes },
+            { label: "Time", value: `${elapsedSeconds}s` },
+            { label: "Input", value: selectionSummary(selectedDigit) },
+          ]}
+        >
+          <div className="sudokuPlayfield">
+            <div className="sudokuBoard" aria-label={`${formatDifficultyLabel(difficulty)} Sudoku board`}>
+              {board.map((row, rowIndex) =>
+                row.map((value, colIndex) => {
+                  const fixed = puzzle[rowIndex][colIndex] !== 0;
+                  const selected = selectedCell[0] === rowIndex && selectedCell[1] === colIndex;
+                  const wrong = value !== 0 && value !== solution[rowIndex][colIndex];
+                  const sameDigit = selectedDigit !== 0 && value === selectedDigit;
+                  return (
+                    <button
+                      key={`${rowIndex}-${colIndex}`}
+                      type="button"
+                      className={`sudokuCell ${fixed ? "isFixed" : ""} ${selected ? "isSelected" : ""} ${
+                        wrong ? "isWrong" : ""
+                      } ${sameDigit ? "isMatching" : ""}`}
+                      onClick={() => setSelectedCell([rowIndex, colIndex])}
+                      aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}${value ? `, ${value}${fixed ? ", clue" : ""}` : ", empty"}`}
+                    >
+                      {value || ""}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="sudokuNumberPad" aria-label="Sudoku number pad">
+              {DIGITS.map((digit) => (
+                <button
+                  key={digit}
+                  className={`btn ${selectedDigit === digit ? "primary" : "ghost"}`}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDigit(digit);
+                    applyMove(selectedCell[0], selectedCell[1], digit);
+                  }}
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                className={`btn ${selectedDigit === 0 ? "primary" : "ghost"}`}
+                type="button"
+                onClick={() => {
+                  setSelectedDigit(0);
+                  applyMove(selectedCell[0], selectedCell[1], 0);
+                }}
+              >
+                Erase
+              </button>
+            </div>
+
+            <p className="sudokuHelp">Select a square, then tap a digit. Keyboard numbers, arrows, and Delete work too.</p>
+            <p className="gameFeedback" aria-live="polite">{status}</p>
+          </div>
+        </GameStage>
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Choose the puzzle">
+          <p className="gameSetupSummary">{formatDifficultyLabel(difficulty)} · {courseSummary}</p>
+          <div className="gameSetupOptions">
+            <label>
+              Difficulty
+              <select className="input" value={difficulty} onChange={(event) => startNewPuzzle(event.target.value, "changed_difficulty")}>
+                {DIFFICULTY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+                <option value="">No class leaderboard</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>{course.title}</option>
+                ))}
+              </select>
+            </label>
+            <button className="btn primary" type="button" onClick={() => startNewPuzzle(difficulty, "reset")}>
               New Puzzle
             </button>
           </div>
-        </div>
-        <div className="pillRow" style={{ marginTop: "0.75rem" }}>
-          <span className="pill">Difficulty: {formatDifficultyLabel(difficulty)}</span>
-          <span className="pill">Selected: {selectionSummary(selectedDigit)}</span>
-          <span className="pill">Mistakes: {mistakes}</span>
-          <span className="pill">Time: {elapsedSeconds}s</span>
-          <span className="pill">Complete: {completionPercent}%</span>
-          <span className="pill">Open Cells: {sessionRef.current.playerFilledCells}/{81 - sessionRef.current.clueCount}</span>
-        </div>
-        <details className="gameControlsDetails" style={{ marginTop: "0.75rem" }}>
-          <summary className="gameControlsSummary">
-            <div>
-              <h2 style={{ fontSize: "1.05rem" }}>Puzzle Controls</h2>
-              <p>{formatDifficultyLabel(difficulty)} puzzle · {courseSummary}</p>
-            </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody ctaRow">
-            <select
-              className="input"
-              style={{ maxWidth: "12rem" }}
-              value={difficulty}
-              onChange={(event) => startNewPuzzle(event.target.value, "changed_difficulty")}
-            >
-              {DIFFICULTY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className="input"
-              style={{ maxWidth: "18rem" }}
-              value={courseId}
-              onChange={(event) => handleCourseChange(event.target.value)}
-            >
-              <option value="">No class leaderboard</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        </details>
-        <div className="sudokuNumberPad" style={{ marginTop: "1rem" }}>
-          {DIGITS.map((digit) => (
-            <button
-              key={digit}
-              className={`btn ${selectedDigit === digit ? "primary" : "ghost"}`}
-              type="button"
-              onClick={() => {
-                setSelectedDigit(digit);
-                applyMove(selectedCell[0], selectedCell[1], digit);
-              }}
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            className={`btn ${selectedDigit === 0 ? "primary" : "ghost"}`}
-            type="button"
-            onClick={() => {
-              setSelectedDigit(0);
-              applyMove(selectedCell[0], selectedCell[1], 0);
-            }}
-          >
-            Erase
-          </button>
-        </div>
-        <div className="sudokuBoard" style={{ marginTop: "1rem" }}>
-          {board.map((row, rowIndex) =>
-            row.map((value, colIndex) => {
-              const fixed = puzzle[rowIndex][colIndex] !== 0;
-              const selected = selectedCell[0] === rowIndex && selectedCell[1] === colIndex;
-              const wrong = value !== 0 && value !== solution[rowIndex][colIndex];
-              const sameDigit = selectedDigit !== 0 && value === selectedDigit;
-              return (
-                <button
-                  key={`${rowIndex}-${colIndex}`}
-                  type="button"
-                  className={`sudokuCell ${fixed ? "isFixed" : ""} ${selected ? "isSelected" : ""} ${
-                    wrong ? "isWrong" : ""
-                  } ${sameDigit ? "isMatching" : ""}`}
-                  onClick={() => {
-                    setSelectedCell([rowIndex, colIndex]);
-                  }}
-                >
-                  {value || ""}
-                </button>
-              );
-            })
-          )}
-        </div>
-        <p style={{ marginTop: "0.75rem" }}>
-          Select a square, then tap a digit. You can also use the keyboard numbers 1-9, arrow keys, and delete.
-        </p>
-        {status ? <p style={{ marginTop: "0.5rem", fontWeight: 700 }}>{status}</p> : null}
-      </section>
+        </GameSidePanel>
 
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
-        {savedStats ? (
-          <div className="kv compactKv">
-            <div>
-              <span>Games</span>
-              <strong>{savedStats.sessions_played}</strong>
+        <GameSidePanel eyebrow="Progress" title="Your stats">
+          {savedStats ? (
+            <div className="gameSideStats">
+              <div><span>Games</span><strong>{savedStats.sessions_played}</strong></div>
+              <div><span>Average</span><strong>{formatScore(savedStats.average_score)}</strong></div>
+              <div><span>Last 10</span><strong>{formatScore(savedStats.last_10_average)}</strong></div>
+              <div><span>Best</span><strong>{savedStats.best_score}</strong></div>
             </div>
-            <div>
-              <span>Average</span>
-              <strong>{formatScore(savedStats.average_score)}</strong>
-            </div>
-            <div>
-              <span>Last 10</span>
-              <strong>{formatScore(savedStats.last_10_average)}</strong>
-            </div>
-            <div>
-              <span>Best</span>
-              <strong>{savedStats.best_score}</strong>
-            </div>
-          </div>
-        ) : (
-          <p>No saved puzzles yet.</p>
-        )}
+          ) : <p>No saved puzzles yet.</p>}
 
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare Sudoku runs with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class Sudoku scores yet. Solve a few squares to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare Sudoku runs.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? <p>No class Sudoku scores yet.</p> : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong><span>{row.display_name}</span><strong>{formatScore(row.best_score)}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }

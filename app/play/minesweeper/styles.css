@@ -1,14 +1,44 @@
+.minesweeperPlayfield {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  border-radius: 20px;
+  padding: clamp(0.85rem, 2.5vw, 1.5rem);
+  background:
+    radial-gradient(circle at 50% 0%, var(--game-accent-soft), transparent 22rem),
+    #f8fbfd;
+}
+
+.minesweeperModeBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.minesweeperModeBar > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.minesweeperBoardViewport {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+}
+
 .minesweeperBoard {
   display: grid;
   grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 0.35rem;
-  max-width: 32rem;
+  margin: 0 auto;
 }
 
 .minesweeperCell {
   aspect-ratio: 1;
-  border: 2px solid var(--ink);
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--ink) 64%, white);
+  border-radius: 7px;
   background: #d7e5f1;
   color: var(--ink);
   font-size: 1rem;
@@ -82,9 +112,18 @@
   border-color: #cd3b3b;
 }
 
-@media (max-width: 720px) {
+.minesweeperHelp {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
+@media (max-width: 720px) {
   .minesweeperBoard {
     gap: 0.25rem;
+  }
+
+  .minesweeperModeBar {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

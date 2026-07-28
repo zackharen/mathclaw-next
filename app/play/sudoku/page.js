@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import SudokuClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function SudokuPage({ searchParams }) {
@@ -41,17 +44,21 @@ export default async function SudokuPage({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Sudoku</h1>
-        <p>Fill every row, column, and 3x3 box with the digits 1 through 9.</p>
-      </section>
+    <GameShell
+      eyebrow="Logic · Solo"
+      title="Sudoku"
+      description="Complete every row, column, and 3×3 box with focused number placement and three levels of challenge."
+      icon="9"
+      tone="green"
+      badges={["Easy to hard", "Keyboard controls", "Progress scoring"]}
+    >
       <SudokuClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialSeed={randomUUID()}
       />
-    </div>
+    </GameShell>
   );
 }

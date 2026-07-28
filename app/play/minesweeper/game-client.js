@@ -1,6 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createSeededRandom } from "@/lib/student-games/seeded-random";
+import {
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const MIN_BOARD_SIZE = 6;
 const MAX_BOARD_SIZE = 22;
@@ -45,13 +51,13 @@ function neighbors(row, col, boardSize) {
   return cells;
 }
 
-function buildBoard(boardSize, mineCount, safeCell = null) {
+function buildBoard(boardSize, mineCount, safeCell = null, random = Math.random) {
   const board = createEmptyBoard(boardSize);
   const mineSpots = new Set();
   const safeKey = safeCell ? `${safeCell.row}:${safeCell.col}` : null;
 
   while (mineSpots.size < mineCount) {
-    const spot = `${Math.floor(Math.random() * boardSize)}:${Math.floor(Math.random() * boardSize)}`;
+    const spot = `${Math.floor(random() * boardSize)}:${Math.floor(random() * boardSize)}`;
     if (spot === safeKey) continue;
     mineSpots.add(spot);
   }
@@ -148,10 +154,18 @@ export default function MinesweeperClient({
   initialCourseId,
   initialLeaderboard,
   personalStats,
+  initialSeed,
 }) {
   const [boardSize, setBoardSize] = useState(DEFAULT_BOARD_SIZE);
   const [courseId, setCourseId] = useState(initialCourseId || "");
-  const [board, setBoard] = useState(() => buildBoard(DEFAULT_BOARD_SIZE, mineCountForSize(DEFAULT_BOARD_SIZE)));
+  const [board, setBoard] = useState(() =>
+    buildBoard(
+      DEFAULT_BOARD_SIZE,
+      mineCountForSize(DEFAULT_BOARD_SIZE),
+      null,
+      createSeededRandom(initialSeed)
+    )
+  );
   const [status, setStatus] = useState("Reveal every safe square and flag the mines.");
   const [runState, setRunState] = useState("active");
   const [mode, setMode] = useState("reveal");
@@ -520,163 +534,143 @@ export default function MinesweeperClient({
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class leaderboard";
 
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <div className="ctaRow" style={{ justifyContent: "space-between", alignItems: "center" }}>
-          <h2>Board</h2>
-          <div className="ctaRow" style={{ marginTop: 0 }}>
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        <GameStage
+          eyebrow={`${boardSize} × ${boardSize} board`}
+          title="Minefield"
+          status={runState === "won" ? "Board cleared" : runState === "lost" ? "Mine hit" : `${mode === "flag" ? "Flag" : "Reveal"} mode`}
+          progress={progress}
+          progressLabel={`${sessionRef.current.revealedSafeCells} safe squares revealed`}
+          stats={[
+            { label: "Mines left", value: minesRemaining },
+            { label: "Time", value: `${elapsedSeconds}s` },
+            { label: "Moves", value: moveCount },
+          ]}
+        >
+          <div className="minesweeperPlayfield">
+            <div className="minesweeperModeBar">
+              <div className="gameSetupChoiceRow">
             <button
               className={`btn ${mode === "reveal" ? "primary" : "ghost"}`}
               type="button"
               onClick={() => setMode("reveal")}
             >
-              Reveal Mode
+                  Reveal
             </button>
             <button
               className={`btn ${mode === "flag" ? "primary" : "ghost"}`}
               type="button"
               onClick={() => setMode("flag")}
             >
-              Flag Mode
+                  Flag
             </button>
+              </div>
+              <span>{flagsUsed}/{mineCount} flags placed</span>
+            </div>
+
+            <div className="minesweeperBoardViewport">
+              <div
+                className="minesweeperBoard"
+                style={{
+                  gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+                  width: boardSize <= 10 ? "min(100%, 32rem)" : `${boardSize * 30}px`,
+                  maxWidth: boardSize <= 10 ? "32rem" : "none",
+                }}
+              >
+                {board.map((row, rowIndex) =>
+                  row.map((cell, colIndex) => {
+                    let label = "";
+                    if (cell.revealed && cell.mine) label = "X";
+                    else if (cell.revealed && cell.adjacent > 0) label = String(cell.adjacent);
+                    else if (cell.flagged) label = "🚩";
+
+                    return (
+                      <button
+                        key={`${rowIndex}-${colIndex}`}
+                        type="button"
+                        className={`minesweeperCell ${cell.revealed ? "isRevealed" : ""} ${
+                          cell.mine && cell.revealed ? "isMine" : ""
+                        } ${cell.flagged ? "isFlagged" : ""} ${numberClassName(cell)}`}
+                        onClick={() => handleCellAction(rowIndex, colIndex)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          toggleFlag(rowIndex, colIndex);
+                        }}
+                        aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}${label ? `, ${label}` : ""}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <p className="minesweeperHelp">
+              Tap to reveal. Right-click to flag on desktop, or switch to Flag mode on touch screens.
+            </p>
+            {status ? (
+              <div className={`minesweeperStatusBanner ${statusTone}`} aria-live="polite">
+                <strong>{status}</strong>
+              </div>
+            ) : null}
+          </div>
+        </GameStage>
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Choose the minefield">
+          <p className="gameSetupSummary">{boardSize} × {boardSize} · {mineCount} mines · {courseSummary}</p>
+          <div className="gameSetupOptions">
+            <label>
+              Board size
+              <select className="input" value={String(boardSize)} onChange={(event) => handleBoardSizeChange(Number(event.target.value))}>
+                {BOARD_SIZE_OPTIONS.map((sizeOption) => (
+                  <option key={sizeOption} value={sizeOption}>{sizeOption} × {sizeOption}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+                <option value="">No class leaderboard</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>{course.title}</option>
+                ))}
+              </select>
+            </label>
             <button className="btn primary" type="button" onClick={() => startNewBoard("reset")}>
               New Board
             </button>
           </div>
-        </div>
-        <div className="pillRow" style={{ marginTop: "0.75rem" }}>
-          <span className="pill">Mode: {mode === "flag" ? "Flag" : "Reveal"}</span>
-          <span className="pill">Board: {boardSize}x{boardSize}</span>
-          <span className="pill">Flags: {flagsUsed}/{mineCount}</span>
-          <span className="pill">Mines Left: {minesRemaining}</span>
-          <span className="pill">Time: {elapsedSeconds}s</span>
-          <span className="pill">Progress: {progress}%</span>
-          <span className="pill">Safe Squares: {sessionRef.current.revealedSafeCells}</span>
-        </div>
-        <details className="gameControlsDetails" style={{ marginTop: "0.75rem" }}>
-          <summary className="gameControlsSummary">
-            <div>
-              <h2 style={{ fontSize: "1.05rem" }}>Board Controls</h2>
-              <p>
-                {String(boardSize) + " x " + String(boardSize) + " board · " + courseSummary}
-              </p>
+        </GameSidePanel>
+
+        <GameSidePanel eyebrow="Progress" title="Your stats">
+          {savedStats ? (
+            <div className="gameSideStats">
+              <div><span>Games</span><strong>{savedStats.sessions_played}</strong></div>
+              <div><span>Average</span><strong>{formatScore(savedStats.average_score)}</strong></div>
+              <div><span>Last 10</span><strong>{formatScore(savedStats.last_10_average)}</strong></div>
+              <div><span>Best</span><strong>{savedStats.best_score}</strong></div>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody ctaRow">
-            <select
-              className="input"
-              style={{ maxWidth: "12rem" }}
-              value={String(boardSize)}
-              onChange={(event) => handleBoardSizeChange(Number(event.target.value))}
-            >
-              {BOARD_SIZE_OPTIONS.map((sizeOption) => (
-                <option key={sizeOption} value={sizeOption}>
-                  {sizeOption} x {sizeOption}
-                </option>
+          ) : <p>No saved boards yet.</p>}
+
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to compare boards.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? <p>No class scores yet.</p> : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong><span>{row.display_name}</span><strong>{formatScore(row.best_score)}</strong>
+                </div>
               ))}
-            </select>
-            <select
-              className="input"
-              style={{ maxWidth: "18rem" }}
-              value={courseId}
-              onChange={(event) => handleCourseChange(event.target.value)}
-            >
-              <option value="">No class leaderboard</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        </details>
-        <div
-          className="minesweeperBoard"
-          style={{
-            marginTop: "1rem",
-            gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
-            maxWidth: boardSize <= 10 ? "32rem" : boardSize <= 16 ? "40rem" : "44rem",
-          }}
-        >
-          {board.map((row, rowIndex) =>
-            row.map((cell, colIndex) => {
-              let label = "";
-              if (cell.revealed && cell.mine) label = "X";
-              else if (cell.revealed && cell.adjacent > 0) label = String(cell.adjacent);
-              else if (cell.flagged) label = "🚩";
-
-              return (
-                <button
-                  key={`${rowIndex}-${colIndex}`}
-                  type="button"
-                  className={`minesweeperCell ${cell.revealed ? "isRevealed" : ""} ${
-                    cell.mine && cell.revealed ? "isMine" : ""
-                  } ${cell.flagged ? "isFlagged" : ""} ${numberClassName(cell)}`}
-                  onClick={() => handleCellAction(rowIndex, colIndex)}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    toggleFlag(rowIndex, colIndex);
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })
-          )}
-        </div>
-        <p style={{ marginTop: "0.75rem" }}>
-          Tap squares to reveal them. On desktop, right-click places flags. On mobile,
-          switch into Flag Mode when you want to mark mines.
-        </p>
-        {status ? <div className={`minesweeperStatusBanner ${statusTone}`} style={{ marginTop: "0.6rem" }}><strong>{status}</strong></div> : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
-        {savedStats ? (
-          <div className="kv compactKv">
-            <div>
-              <span>Games</span>
-              <strong>{savedStats.sessions_played}</strong>
             </div>
-            <div>
-              <span>Average</span>
-              <strong>{formatScore(savedStats.average_score)}</strong>
-            </div>
-            <div>
-              <span>Last 10</span>
-              <strong>{formatScore(savedStats.last_10_average)}</strong>
-            </div>
-            <div>
-              <span>Best</span>
-              <strong>{savedStats.best_score}</strong>
-            </div>
-          </div>
-        ) : (
-          <p>No saved boards yet.</p>
-        )}
-
-        <h3 style={{ marginTop: "1rem" }}>{courseId ? "Class Leaderboard" : "Leaderboard"}</h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to compare boards with classmates.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class scores yet. Clear a few squares to get it started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }

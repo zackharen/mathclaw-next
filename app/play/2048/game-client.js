@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createSeededRandom } from "@/lib/student-games/seeded-random";
+import {
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
 
 const SAVED_GAME_KEY = "mathclaw:2048:saved-game:v1";
 
-function randomEmptyCell(board) {
+function randomEmptyCell(board, random = Math.random) {
   const cells = [];
   board.forEach((row, r) => {
     row.forEach((cell, c) => {
@@ -12,20 +18,23 @@ function randomEmptyCell(board) {
     });
   });
   if (cells.length === 0) return null;
-  return cells[Math.floor(Math.random() * cells.length)];
+  return cells[Math.floor(random() * cells.length)];
 }
 
-function spawnTile(board) {
+function spawnTile(board, random = Math.random) {
   const next = board.map((row) => [...row]);
-  const cell = randomEmptyCell(next);
+  const cell = randomEmptyCell(next, random);
   if (!cell) return next;
   const [r, c] = cell;
-  next[r][c] = Math.random() < 0.9 ? 2 : 4;
+  next[r][c] = random() < 0.9 ? 2 : 4;
   return next;
 }
 
-function freshBoard() {
-  return spawnTile(spawnTile(Array.from({ length: 4 }, () => Array(4).fill(0))));
+function freshBoard(random = Math.random) {
+  return spawnTile(
+    spawnTile(Array.from({ length: 4 }, () => Array(4).fill(0)), random),
+    random
+  );
 }
 
 function slideLine(line) {
@@ -85,12 +94,6 @@ function gameOver(board) {
 
 function bestTileValue(board) {
   return Math.max(...board.flat());
-}
-
-function statusTone(label) {
-  if (label.toLowerCase().includes("saved")) return "var(--navy)";
-  if (label.toLowerCase().includes("could not")) return "var(--red)";
-  return "var(--navy)";
 }
 
 function formatScore(value) {
@@ -168,8 +171,9 @@ export default function Game2048Client({
   initialLeaderboard,
   personalStats,
   savedGame,
+  initialSeed,
 }) {
-  const [board, setBoard] = useState(freshBoard);
+  const [board, setBoard] = useState(() => freshBoard(createSeededRandom(initialSeed)));
   const [score, setScore] = useState(0);
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [status, setStatus] = useState("");
@@ -463,14 +467,100 @@ export default function Game2048Client({
     }
   }
 
+  const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class leaderboard";
+  const tileProgress = Math.min(100, (Math.log2(Math.max(2, bestTile)) / 11) * 100);
+
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <div className="ctaRow" style={{ justifyContent: "space-between", alignItems: "center" }}>
-          <h2>Current Game</h2>
-          <div className="ctaRow" style={{ marginTop: 0 }}>
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        <GameStage
+          eyebrow="Current board"
+          title="Power Tile Run"
+          status={isGameOver ? "Game over" : isWon ? "2048 reached" : hasLoadedSavedGame ? "Board active" : "Loading save"}
+          progress={tileProgress}
+          progressLabel={`Best tile ${bestTile} · Goal 2048`}
+          stats={[
+            { label: "Score", value: score },
+            { label: "Best tile", value: bestTile },
+            { label: "Saved best", value: localBest },
+          ]}
+        >
+          <div className="game2048Playfield">
+            <p className="gameQuestionPrompt">Use arrow keys, swipe the board, or tap the direction pad.</p>
+            <div
+              className="game2048Wrap"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
+              <div className="game2048Board" aria-label={`2048 board, score ${score}`}>
+                {board.flat().map((value, index) => (
+                  <div key={index} className={`game2048Tile value${value || 0}`}>
+                    {value || ""}
+                  </div>
+                ))}
+              </div>
+
+              {showOverlay ? (
+                <div className="game2048Overlay">
+                  <h3>{isGameOver ? "Game Over" : "2048 Reached!"}</h3>
+                  <p>
+                    {isGameOver
+                      ? "Nice run. Start another one and keep climbing."
+                      : "Huge win. You can keep playing or start a fresh board."}
+                  </p>
+                  <div className="ctaRow" style={{ justifyContent: "center" }}>
+                    {!isGameOver ? (
+                      <button className="btn" type="button" onClick={() => setShowOverlay(false)}>
+                        Keep Playing
+                      </button>
+                    ) : null}
+                    <button className="btn primary" type="button" onClick={() => startNewGame(null)}>
+                      Start Fresh
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="game2048Controls" aria-label="Move controls">
+              <div />
+              <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("up")} aria-label="Move up">
+                ↑
+              </button>
+              <div />
+              <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("left")} aria-label="Move left">
+                ←
+              </button>
+              <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("down")} aria-label="Move down">
+                ↓
+              </button>
+              <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("right")} aria-label="Move right">
+                →
+              </button>
+            </div>
+
+            <p className={`gameFeedback ${status.toLowerCase().includes("could not") ? "is-miss" : ""}`}>
+              {status || "Combine matching tiles and keep space open for the next move."}
+            </p>
+          </div>
+        </GameStage>
+      </div>
+
+      <div className="gameWorkspaceRail">
+        <GameSidePanel eyebrow="Setup" title="Manage the run">
+          <p className="gameSetupSummary">{courseSummary}</p>
+          <div className="gameSetupOptions">
+            <label>
+              Class context
+              <select className="input" value={courseId} onChange={(event) => handleCourseChange(event.target.value)}>
+                <option value="">No class leaderboard</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>{course.title}</option>
+                ))}
+              </select>
+            </label>
             <button
-              className="btn"
+              className="btn primary"
               onClick={async () => {
                 try {
                   await saveBoardState();
@@ -481,149 +571,46 @@ export default function Game2048Client({
               }}
               type="button"
             >
-              Save Now
+              Save Board
             </button>
             <button className="btn" onClick={() => startNewGame("reset")} type="button">
               New Game
             </button>
           </div>
-        </div>
+          <p className="game2048SaveNote">Save Board keeps a resume point on your account for another device.</p>
+        </GameSidePanel>
 
-        <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
-          <div className="pill">Score: {score}</div>
-          <div className="pill">Current Best Tile: {bestTile}</div>
-          <div className="pill">Saved Best Score: {localBest}</div>
-          <select
-            className="input"
-            style={{ maxWidth: "18rem" }}
-            value={courseId}
-            onChange={(e) => handleCourseChange(e.target.value)}
-          >
-            <option value="">No class leaderboard</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
-        </div>
-        <p style={{ marginTop: "0.75rem" }}>
-          Swipe on mobile or use the arrow keys on desktop. Changing the class context
-          starts a fresh board so scores stay tied to the right class.
-        </p>
-        <p style={{ marginTop: "0.5rem" }}>
-          `Save Now` keeps a resume point on your account so you can come back from another device too.
-        </p>
-
-        <div
-          className="game2048Wrap"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          <div className="game2048Board">
-            {board.flat().map((value, index) => (
-              <div key={index} className={`game2048Tile value${value || 0}`}>
-                {value || ""}
-              </div>
-            ))}
-          </div>
-
-          {showOverlay ? (
-            <div className="game2048Overlay">
-              <h3>{isGameOver ? "Game Over" : "2048 Reached!"}</h3>
-              <p>
-                {isGameOver
-                  ? "Nice run. Start another one and keep climbing."
-                  : "Huge win. You can keep playing or start a fresh board."}
-              </p>
-              <div className="ctaRow" style={{ justifyContent: "center" }}>
-                {!isGameOver ? (
-                  <button className="btn" type="button" onClick={() => setShowOverlay(false)}>
-                    Keep Playing
-                  </button>
-                ) : null}
-                <button className="btn primary" type="button" onClick={() => startNewGame(null)}>
-                  Start Fresh
-                </button>
-              </div>
+        <GameSidePanel eyebrow="Progress" title="Your stats">
+          {personalStats ? (
+            <div className="gameSideStats">
+              <div><span>Games</span><strong>{personalStats.sessions_played}</strong></div>
+              <div><span>High score</span><strong>{personalStats.best_score}</strong></div>
+              <div><span>Average</span><strong>{formatScore(personalStats.average_score)}</strong></div>
+              <div><span>Last 10</span><strong>{formatScore(personalStats.last_10_average)}</strong></div>
             </div>
-          ) : null}
-        </div>
+          ) : (
+            <p>No saved games yet.</p>
+          )}
 
-        <div className="game2048Controls">
-          <div />
-          <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("up")}>
-            Up
-          </button>
-          <div />
-          <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("left")}>
-            Left
-          </button>
-          <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("down")}>
-            Down
-          </button>
-          <button className="btn gameMoveBtn" type="button" onClick={() => applyMove("right")}>
-            Right
-          </button>
-        </div>
-
-        <p style={{ marginTop: "0.75rem" }}>
-          Use your arrow keys or swipe on the board. Saving with a class selected lets
-          teachers see your progress.
-        </p>
-        {status ? (
-          <p style={{ marginTop: "0.4rem", color: statusTone(status), fontWeight: 700 }}>
-            {status}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
-        {personalStats ? (
-          <div className="kv compactKv">
-            <div>
-              <span>Games</span>
-              <strong>{personalStats.sessions_played}</strong>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to see your classmates here.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Save a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name || `Student ${String(row.player_id).slice(0, 8)}`}</span>
+                  <strong>{formatScore(row.best_score)}</strong>
+                </div>
+              ))}
             </div>
-            <div>
-              <span>High Score</span>
-              <strong>{personalStats.best_score}</strong>
-            </div>
-            <div>
-              <span>Average</span>
-              <strong>{formatScore(personalStats.average_score)}</strong>
-            </div>
-            <div>
-              <span>Last 10</span>
-              <strong>{formatScore(personalStats.last_10_average)}</strong>
-            </div>
-          </div>
-        ) : (
-          <p>No saved games yet.</p>
-        )}
-
-        <h3 style={{ marginTop: "1rem" }}>
-          {courseId ? "Class Leaderboard" : "Leaderboard"}
-        </h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to see your classmates here.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class scores yet. Save a run to get the leaderboard started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>
-                #{index + 1} {row.display_name || `Student ${String(row.player_id).slice(0, 8)}`}
-              </strong>
-              <p>
-                High Score: {row.best_score} · Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </div>
+    </GameWorkspace>
   );
 }

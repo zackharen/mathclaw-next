@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import Game2048Client from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 function sortLeaderboardRows(rows) {
@@ -65,21 +68,22 @@ export default async function Game2048Page({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>2048</h1>
-        <p>
-          Merge tiles, chase bigger powers of two, and save every run to your MathClaw
-          profile. Pick a class if you want that score tied back to a teacher’s view.
-        </p>
-      </section>
+    <GameShell
+      eyebrow="Strategy · Solo"
+      title="2048"
+      description="Slide, combine, and climb through powers of two. Save the board to continue anywhere or chase a class high score."
+      icon="2ⁿ"
+      tone="coral"
+      badges={["Keyboard + swipe", "Cross-device saves", "Class leaderboards"]}
+    >
       <Game2048Client
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
         savedGame={savedGame}
+        initialSeed={randomUUID()}
       />
-    </div>
+    </GameShell>
   );
 }

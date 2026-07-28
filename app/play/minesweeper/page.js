@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import MinesweeperClient from "./game-client";
+import "../game-shell.css";
 import "./styles.css";
 
 export default async function MinesweeperPage({ searchParams }) {
@@ -41,19 +44,21 @@ export default async function MinesweeperPage({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>
-          Minesweeper <span aria-hidden="true">😎</span>
-        </h1>
-        <p>Reveal safe squares, flag the mines, and clear the board without blowing up.</p>
-      </section>
+    <GameShell
+      eyebrow="Logic · Solo"
+      title="Minesweeper"
+      description="Read the clues, mark the danger, and clear every safe square. Your first reveal is always protected."
+      icon="💣"
+      tone="gold"
+      badges={["6–22 square boards", "Safe first move", "Touch flag mode"]}
+    >
       <MinesweeperClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
+        initialSeed={randomUUID()}
       />
-    </div>
+    </GameShell>
   );
 }
