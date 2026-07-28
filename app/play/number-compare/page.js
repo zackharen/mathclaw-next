@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listAccessibleCourses, resolvePreferredCourseId } from "@/lib/student-games/courses";
+import { GameShell } from "../game-shell";
 import NumberCompareClient from "./game-client";
+import "../game-shell.css";
 
 export default async function NumberComparePage({ searchParams }) {
   const supabase = await createClient();
@@ -39,17 +41,20 @@ export default async function NumberComparePage({ searchParams }) {
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h1>Which Number Is Bigger?</h1>
-        <p>Mix decimals, negatives, fractions, and radicals, then click the larger value.</p>
-      </section>
+    <GameShell
+      eyebrow="Math skills · Solo"
+      title="Which Number Is Bigger?"
+      description="Read both values, trust your number sense, and build a streak across a focused ten-question run."
+      icon="↔"
+      tone="coral"
+      badges={["10 questions", "Adaptive challenge", "Class leaderboards"]}
+    >
       <NumberCompareClient
         courses={courses}
         initialCourseId={initialCourseId}
         initialLeaderboard={initialLeaderboard}
         personalStats={personalResult.data}
       />
-    </div>
+    </GameShell>
   );
 }

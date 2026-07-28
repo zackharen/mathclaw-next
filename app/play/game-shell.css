@@ -1,0 +1,600 @@
+.gameExperience {
+  --game-accent: #2563eb;
+  --game-accent-dark: #123f8f;
+  --game-accent-soft: #dbeafe;
+  display: grid;
+  gap: 1rem;
+}
+
+.gameExperience.is-coral {
+  --game-accent: #f97316;
+  --game-accent-dark: #9a3412;
+  --game-accent-soft: #ffedd5;
+}
+
+.gameExperience.is-green {
+  --game-accent: #10b981;
+  --game-accent-dark: #065f46;
+  --game-accent-soft: #d1fae5;
+}
+
+.gameExperience.is-gold {
+  --game-accent: #f59e0b;
+  --game-accent-dark: #92400e;
+  --game-accent-soft: #fef3c7;
+}
+
+.gameExperienceHero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(1.5rem, 5vw, 5rem);
+  min-height: 19rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 26px;
+  padding: clamp(1.35rem, 4vw, 3.25rem);
+  color: #fff;
+  background:
+    radial-gradient(circle at 90% 5%, color-mix(in srgb, var(--game-accent) 70%, white), transparent 21rem),
+    linear-gradient(135deg, #081b2d 0%, #0b2d49 56%, var(--game-accent-dark) 100%);
+  box-shadow: 0 24px 60px rgba(3, 22, 39, 0.24);
+}
+
+.gameExperienceHero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: auto -6rem -9rem auto;
+  width: 24rem;
+  height: 24rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3rem rgba(255, 255, 255, 0.035),
+    0 0 0 7rem rgba(255, 255, 255, 0.025);
+}
+
+.gameExperienceHeroCopy {
+  max-width: 51rem;
+}
+
+.gameExperienceBreadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: clamp(1.5rem, 3vw, 2.6rem);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.gameExperienceBreadcrumbs a {
+  color: #fff;
+}
+
+.gameExperienceBreadcrumbs a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.gameExperienceEyebrow,
+.gameStageEyebrow,
+.gameSidePanelEyebrow,
+.gameResultsEyebrow {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gameExperienceEyebrow {
+  color: color-mix(in srgb, var(--game-accent) 55%, white);
+}
+
+.gameExperienceHero h1 {
+  max-width: 46rem;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.45rem, 6vw, 5.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+}
+
+.gameExperienceDescription {
+  max-width: 43rem;
+  margin-top: 1.15rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: clamp(1rem, 1.8vw, 1.22rem);
+}
+
+.gameExperienceBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1.35rem;
+}
+
+.gameExperienceBadges span {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 0.42rem 0.72rem;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 750;
+  backdrop-filter: blur(10px);
+}
+
+.gameExperienceMark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(10rem, 17vw, 15rem);
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 34%;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)),
+    var(--game-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 24px 50px rgba(0, 0, 0, 0.24);
+  transform: rotate(5deg);
+}
+
+.gameExperienceMark span {
+  color: #fff;
+  font-size: clamp(4rem, 9vw, 8rem);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 12px 25px rgba(0, 0, 0, 0.2);
+  transform: rotate(-5deg);
+}
+
+.gameExperienceMark small {
+  position: absolute;
+  inset: auto 0 1.05rem;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.11em;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(-5deg);
+}
+
+.gameWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(18rem, 0.72fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.gameWorkspaceMain,
+.gameWorkspaceRail {
+  display: grid;
+  gap: 1rem;
+}
+
+.gameStage,
+.gameSidePanel,
+.gameResults {
+  border: 1px solid var(--soft-line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-sm);
+}
+
+.gameStage {
+  overflow: hidden;
+  padding: clamp(1rem, 2.5vw, 1.65rem);
+}
+
+.gameStageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.gameStageEyebrow,
+.gameSidePanelEyebrow {
+  color: var(--game-accent-dark);
+}
+
+.gameStageHeader h2,
+.gameSidePanel h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+}
+
+.gameStageStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--game-accent) 25%, white);
+  border-radius: 999px;
+  padding: 0.42rem 0.7rem;
+  background: var(--game-accent-soft);
+  color: var(--game-accent-dark);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.gameStageStatus i {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: var(--game-accent);
+  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--game-accent) 17%, transparent);
+}
+
+.gameRunMeter {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1.25rem;
+}
+
+.gameRunMeter > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.gameRunMeterTrack {
+  display: block;
+  height: 0.58rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5edf3;
+}
+
+.gameRunMeterTrack > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--game-accent), color-mix(in srgb, var(--game-accent) 58%, white));
+  transition: width 220ms ease;
+}
+
+.gameLiveStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.gameLiveStats > div {
+  display: grid;
+  gap: 0.16rem;
+  border: 1px solid #e0e8ee;
+  border-radius: 14px;
+  padding: 0.72rem 0.8rem;
+  background: #f6f9fb;
+}
+
+.gameLiveStats span,
+.gameResultsStats span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gameLiveStats strong {
+  color: var(--navy);
+  font-size: 1.18rem;
+}
+
+.gameQuestion {
+  display: grid;
+  gap: 1rem;
+  min-height: 25rem;
+  align-content: center;
+  margin-top: 1rem;
+  border-radius: 18px;
+  padding: clamp(1rem, 3vw, 2rem);
+  background:
+    radial-gradient(circle at 50% 0%, var(--game-accent-soft), transparent 21rem),
+    #f8fbfd;
+  text-align: center;
+}
+
+.gameQuestionPrompt {
+  max-width: 38rem;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.gameChoiceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.gameChoice {
+  min-height: clamp(8.5rem, 17vw, 12rem);
+  border: 2px solid color-mix(in srgb, var(--game-accent) 22%, #cbd7df);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--navy);
+  font-size: clamp(2rem, 5vw, 4.6rem);
+  box-shadow: 0 14px 28px rgba(0, 50, 90, 0.09);
+}
+
+.gameChoice:hover {
+  border-color: var(--game-accent);
+  background: color-mix(in srgb, var(--game-accent-soft) 32%, white);
+  box-shadow: 0 18px 34px rgba(0, 50, 90, 0.15);
+  transform: translateY(-2px);
+}
+
+.gameFeedback {
+  min-height: 1.7rem;
+  margin: 0;
+  color: var(--game-accent-dark);
+  font-weight: 800;
+}
+
+.gameFeedback.is-miss {
+  color: #b42318;
+}
+
+.gameSidePanel {
+  padding: 1.15rem;
+}
+
+.gameSidePanel + .gameSidePanel {
+  margin-top: 0;
+}
+
+.gameSetupSummary {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.gameSetupOptions {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.gameSetupOptions label:not(.toggleRow) {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.gameSetupChoiceRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.gameSetupChoiceRow .btn {
+  padding-inline: 0.55rem;
+  font-size: 0.82rem;
+}
+
+.gameSideStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.gameSideStats > div {
+  display: grid;
+  gap: 0.16rem;
+  border-radius: 13px;
+  padding: 0.68rem;
+  background: #f4f8fb;
+}
+
+.gameSideStats span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.gameSideStats strong {
+  font-size: 1.08rem;
+}
+
+.gameLeaderboardDetails {
+  margin-top: 1rem;
+  border-top: 1px solid var(--soft-line);
+  padding-top: 0.85rem;
+}
+
+.gameLeaderboardDetails summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.gameLeaderboardList {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.gameLeaderboardRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 11px;
+  padding: 0.55rem 0.62rem;
+  background: #f5f8fa;
+  font-size: 0.82rem;
+}
+
+.gameLeaderboardRow span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gameResults {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 36rem;
+  overflow: hidden;
+  padding: clamp(1.5rem, 5vw, 4rem);
+  background:
+    radial-gradient(circle at 50% 18%, var(--game-accent-soft), transparent 20rem),
+    #fff;
+  text-align: center;
+}
+
+.gameResults::before,
+.gameResults::after {
+  content: "";
+  position: absolute;
+  width: 8rem;
+  height: 8rem;
+  border: 1rem solid color-mix(in srgb, var(--game-accent) 11%, transparent);
+  transform: rotate(25deg);
+}
+
+.gameResults::before {
+  inset: -4rem auto auto -4rem;
+}
+
+.gameResults::after {
+  inset: auto -4rem -4rem auto;
+}
+
+.gameResultsBurst {
+  display: grid;
+  place-items: center;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 50%;
+  background: var(--game-accent);
+  color: #fff;
+  font-size: 2.2rem;
+  font-weight: 900;
+  box-shadow: 0 15px 30px color-mix(in srgb, var(--game-accent) 30%, transparent);
+}
+
+.gameResultsEyebrow {
+  margin-top: 1.2rem;
+  color: var(--game-accent-dark);
+}
+
+.gameResults h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+}
+
+.gameResultsMessage {
+  max-width: 35rem;
+  margin-top: 0.65rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.gameResultsStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(7rem, 1fr));
+  gap: 0.65rem;
+  width: min(100%, 32rem);
+  margin-top: 1.4rem;
+}
+
+.gameResultsStats > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 15px;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.gameResultsStats strong {
+  color: var(--navy);
+  font-size: 1.5rem;
+}
+
+.gameResultsActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1.4rem;
+}
+
+.gameResultsSaveStatus {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 980px) {
+  .gameWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .gameWorkspaceRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .gameExperienceHero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .gameExperienceMark {
+    display: none;
+  }
+
+  .gameExperienceBreadcrumbs {
+    margin-bottom: 1.35rem;
+  }
+
+  .gameWorkspaceRail,
+  .gameChoiceGrid,
+  .gameLiveStats,
+  .gameResultsStats {
+    grid-template-columns: 1fr;
+  }
+
+  .gameQuestion {
+    min-height: 0;
+  }
+
+  .gameChoice {
+    min-height: 7rem;
+  }
+
+  .gameStageHeader {
+    display: grid;
+  }
+
+  .gameStageStatus {
+    width: fit-content;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gameRunMeterTrack > span,
+  .gameChoice {
+    transition: none;
+  }
+}

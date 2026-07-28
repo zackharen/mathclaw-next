@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MathText, buildLabelNode } from "@/components/math-display";
 import { buildAdaptiveSnapshot, nextAdaptiveLevel } from "@/lib/question-engine/adaptive";
 import { numberCompareEngine } from "@/lib/question-engine/generators";
+import {
+  GameResults,
+  GameSidePanel,
+  GameStage,
+  GameWorkspace,
+} from "../game-shell";
+
+const TOTAL_ROUNDS = 10;
 
 function formatScore(value) {
   return Math.round(Number(value || 0) * 10) / 10;
@@ -23,8 +31,11 @@ export default function NumberCompareClient({
   });
   const [courseId, setCourseId] = useState(initialCourseId || "");
   const [score, setScore] = useState(0);
+  const [attempts, setAttempts] = useState(0);
   const [level, setLevel] = useState(1);
   const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [pair, setPair] = useState(() => [
     numberCompareEngine.buildQuestion(settings),
     numberCompareEngine.buildQuestion(settings),
@@ -32,6 +43,7 @@ export default function NumberCompareClient({
   const [leaderboardRows, setLeaderboardRows] = useState(initialLeaderboard || []);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [savedStats, setSavedStats] = useState(personalStats);
+  const savedRunRef = useRef(false);
   const courseSummary = courses.find((course) => course.id === courseId)?.title || "No class selected";
   const sessionRef = useRef({
     score: 0,
@@ -129,19 +141,21 @@ export default function NumberCompareClient({
       ...buildAdaptiveSnapshot({
         level,
         correctAnswers: score,
-        attempts: sessionRef.current.attempts,
+        attempts,
       }),
       score,
+      attempts,
       courseId,
       settings,
     };
-  }, [courseId, level, score, settings]);
+  }, [attempts, courseId, level, score, settings]);
 
   useEffect(() => {
     function handlePageHide() {
       const snapshot = { ...sessionRef.current };
-      if (snapshot.attempts <= 0) return;
+      if (snapshot.attempts <= 0 || savedRunRef.current) return;
       saveSession(snapshot, { keepalive: true }).catch(() => {});
+      savedRunRef.current = true;
       sessionRef.current = {
         ...sessionRef.current,
         score: 0,
@@ -156,9 +170,10 @@ export default function NumberCompareClient({
 
   async function handleCourseChange(nextCourseId) {
     const previousSnapshot = { ...sessionRef.current };
-    if (previousSnapshot.attempts > 0) {
+    if (previousSnapshot.attempts > 0 && !savedRunRef.current) {
       try {
         await saveSession(previousSnapshot);
+        savedRunRef.current = true;
       } catch (error) {
         setFeedback(error.message || "Could not save score.");
         return;
@@ -174,9 +189,12 @@ export default function NumberCompareClient({
       courseId: nextCourseId,
       settings,
     };
+    savedRunRef.current = false;
     setScore(0);
+    setAttempts(0);
     setLevel(1);
     setFeedback("");
+    setFeedbackTone("");
     setCourseId(nextCourseId);
     setPair([
       numberCompareEngine.buildQuestion(settings),
@@ -186,9 +204,10 @@ export default function NumberCompareClient({
 
   async function startNewRun() {
     const previousSnapshot = { ...sessionRef.current };
-    if (previousSnapshot.attempts > 0) {
+    if (previousSnapshot.attempts > 0 && !savedRunRef.current) {
       try {
         await saveSession({ ...previousSnapshot, result: "reset" });
+        savedRunRef.current = true;
       } catch (error) {
         setFeedback(error.message || "Could not save that run.");
         return;
@@ -204,9 +223,12 @@ export default function NumberCompareClient({
       courseId,
       settings,
     };
+    savedRunRef.current = false;
     setScore(0);
+    setAttempts(0);
     setLevel(1);
     setFeedback("");
+    setFeedbackTone("");
     setPair([
       numberCompareEngine.buildQuestion(settings),
       numberCompareEngine.buildQuestion(settings),
@@ -223,22 +245,27 @@ export default function NumberCompareClient({
   }
 
   async function answer(index) {
+    if (attempts >= TOTAL_ROUNDS || isSaving) return;
+
     const values = [pair[0].value, pair[1].value];
     const winner = values[0] === values[1] ? null : values[0] > values[1] ? 0 : 1;
     const correct = winner === null || winner === index;
     const nextScore = score + (correct ? 1 : 0);
     const nextAttempts = sessionRef.current.attempts + 1;
+    const runComplete = nextAttempts >= TOTAL_ROUNDS;
     const nextLevel = nextAdaptiveLevel({
       currentLevel: level,
       correct,
       streak: correct ? 1 : 0,
       riseAfterStreak: 1,
     });
-    if (correct) setScore((current) => current + 1);
+    setScore(nextScore);
+    setAttempts(nextAttempts);
     setLevel(nextLevel);
-    setFeedback(correct ? "Nice!" : "Try the next one.");
+    setFeedback(correct ? "Nice read — keep the streak moving." : "Not this time. Reset and read both values carefully.");
+    setFeedbackTone(correct ? "correct" : "miss");
 
-    sessionRef.current = {
+    const nextSnapshot = {
       ...sessionRef.current,
       ...buildAdaptiveSnapshot({
         level: nextLevel,
@@ -250,30 +277,106 @@ export default function NumberCompareClient({
       courseId,
       settings,
     };
+    sessionRef.current = nextSnapshot;
+
+    if (runComplete) {
+      setIsSaving(true);
+      try {
+        await saveSession({ ...nextSnapshot, result: "finished" });
+        savedRunRef.current = true;
+      } catch (error) {
+        setFeedback(error.message || "Your run is complete, but the score could not be saved yet.");
+        setFeedbackTone("miss");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     setPair([
       numberCompareEngine.buildQuestion(settings),
       numberCompareEngine.buildQuestion(settings),
     ]);
   }
 
+  const runComplete = attempts >= TOTAL_ROUNDS;
+  const accuracy = attempts > 0 ? Math.round((score / attempts) * 100) : 0;
+  const resultTitle =
+    score >= 9 ? "Number sense superstar." : score >= 7 ? "Strong comparison run." : "Good practice — run it back.";
+
   return (
-    <div className="featureGrid">
-      <section className="card" style={{ background: "#fff" }}>
-        <details className="gameControlsDetails">
-          <summary className="gameControlsSummary">
-            <div>
-              <h2>Game Controls</h2>
-              <p>
-                {String(settings.decimals.length) + " decimal mode" + (settings.decimals.length === 1 ? "" : "s") + " · " + (settings.positiveNegative ? "Integers on" : "Integers off") + " · " + (settings.fractions ? "Fractions on" : "Fractions off") + " · " + (settings.squareRoots ? "Roots on" : "Roots off") + " · " + courseSummary}
+    <GameWorkspace>
+      <div className="gameWorkspaceMain">
+        {runComplete ? (
+          <GameResults
+            title={resultTitle}
+            message="Your score is saved with the same class and difficulty settings. Replay to beat it or head back to the Arcade for something new."
+            stats={[
+              { label: "Correct", value: `${score}/${TOTAL_ROUNDS}` },
+              { label: "Accuracy", value: `${accuracy}%` },
+              { label: "Level reached", value: level },
+            ]}
+            actionLabel={isSaving ? "Saving Run…" : "Play Again"}
+            onAction={startNewRun}
+            actionDisabled={isSaving}
+            statusMessage={
+              isSaving
+                ? "Saving your score and refreshing the leaderboard…"
+                : savedRunRef.current
+                  ? "Run saved."
+                  : feedback
+            }
+          />
+        ) : (
+          <GameStage
+            eyebrow={`Question ${attempts + 1} of ${TOTAL_ROUNDS}`}
+            title="Pick the bigger number"
+            progress={(attempts / TOTAL_ROUNDS) * 100}
+            progressLabel={`${attempts} of ${TOTAL_ROUNDS} answered`}
+            stats={[
+              { label: "Score", value: score },
+              { label: "Accuracy", value: attempts ? `${accuracy}%` : "—" },
+              { label: "Level", value: level },
+            ]}
+          >
+            <div className="gameQuestion">
+              <p className="gameQuestionPrompt">
+                Tap the larger value. If both values are exactly equal, either answer counts.
+              </p>
+              <div className="gameChoiceGrid">
+                {pair.map((entry, index) => (
+                  <button
+                    key={`${entry.label}-${index}`}
+                    className="btn gameChoice"
+                    type="button"
+                    onClick={() => answer(index)}
+                    disabled={isSaving}
+                  >
+                    <MathText node={buildLabelNode(entry.label)} className="mathChoiceContent" />
+                  </button>
+                ))}
+              </div>
+              <p className={`gameFeedback ${feedbackTone === "miss" ? "is-miss" : ""}`}>
+                {feedback || "Read both sides before you choose."}
               </p>
             </div>
-            <span className="gameControlsToggle">
-              <span className="showLabel">Show</span>
-              <span className="hideLabel">Hide</span>
-            </span>
-          </summary>
-          <div className="gameControlsBody list">
-            <div className="ctaRow">
+          </GameStage>
+        )}
+      </div>
+
+      <aside className="gameWorkspaceRail" aria-label="Game setup and stats">
+        <GameSidePanel eyebrow="Setup" title="Tune this run" id="game-setup">
+          <p className="gameSetupSummary">
+            {String(settings.decimals.length) + " decimal mode" + (settings.decimals.length === 1 ? "" : "s")}
+            {" · "}
+            {settings.positiveNegative ? "Integers on" : "Integers off"}
+            {" · "}
+            {settings.fractions ? "Fractions on" : "Fractions off"}
+            {" · "}
+            {settings.squareRoots ? "Roots on" : "Roots off"}
+          </p>
+          <div className="gameSetupOptions">
+            <div className="gameSetupChoiceRow">
               {[1, 2, 3, 4].map((place) => (
                 <button
                   key={place}
@@ -281,13 +384,22 @@ export default function NumberCompareClient({
                   className={"btn " + (settings.decimals.includes(place) ? "primary" : "")}
                   onClick={() => toggleDecimal(place)}
                 >
-                  {place === 1 ? "Tenths" : place === 2 ? "Hundredths" : place === 3 ? "Thousandths" : "Ten-Thousandths"}
+                  {place === 1 ? "Tenths" : place === 2 ? "Hundredths" : place === 3 ? "Thousandths" : "10-thousandths"}
                 </button>
               ))}
             </div>
-            <label className="toggleRow"><input type="checkbox" checked={settings.positiveNegative} onChange={(e) => setSettings((current) => ({ ...current, positiveNegative: e.target.checked }))} /> Positive / negative integers</label>
-            <label className="toggleRow"><input type="checkbox" checked={settings.fractions} onChange={(e) => setSettings((current) => ({ ...current, fractions: e.target.checked }))} /> Fractions</label>
-            <label className="toggleRow"><input type="checkbox" checked={settings.squareRoots} onChange={(e) => setSettings((current) => ({ ...current, squareRoots: e.target.checked }))} /> Square roots</label>
+            <label className="toggleRow">
+              <input type="checkbox" checked={settings.positiveNegative} onChange={(e) => setSettings((current) => ({ ...current, positiveNegative: e.target.checked }))} />
+              Positive / negative integers
+            </label>
+            <label className="toggleRow">
+              <input type="checkbox" checked={settings.fractions} onChange={(e) => setSettings((current) => ({ ...current, fractions: e.target.checked }))} />
+              Fractions
+            </label>
+            <label className="toggleRow">
+              <input type="checkbox" checked={settings.squareRoots} onChange={(e) => setSettings((current) => ({ ...current, squareRoots: e.target.checked }))} />
+              Square roots
+            </label>
             <label>
               Class context
               <select className="input" value={courseId} onChange={(e) => handleCourseChange(e.target.value)}>
@@ -295,34 +407,15 @@ export default function NumberCompareClient({
                 {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
               </select>
             </label>
-            <button className="btn primary" type="button" onClick={startNewRun}>
-              Start New Run
+            <button className="btn" type="button" onClick={startNewRun} disabled={isSaving}>
+              Reset Run
             </button>
           </div>
-        </details>
-      </section>
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Pick The Bigger Number</h2>
-        <div className="pillRow">
-          <span className="pill">Score: {score}</span>
-          <span className="pill">Level: {level}</span>
-        </div>
-        <p style={{ marginTop: "0.75rem" }}>
-          Tap the larger value. If both values are exactly equal, either button counts as correct.
-        </p>
-        <div className="choiceGrid" style={{ marginTop: "1rem" }}>
-          {pair.map((entry, index) => (
-            <button key={`${entry.label}-${index}`} className="btn bigChoice" type="button" onClick={() => answer(index)}>
-              <MathText node={buildLabelNode(entry.label)} className="mathChoiceContent" />
-            </button>
-          ))}
-        </div>
-        {feedback ? <p style={{ marginTop: "0.75rem" }}>{feedback}</p> : null}
-      </section>
-      <section className="card" style={{ background: "#fff" }}>
-        <h2>Your Stats</h2>
+        </GameSidePanel>
+
+        <GameSidePanel eyebrow="Progress" title="Your stats" id="game-stats">
         {savedStats ? (
-          <div className="kv compactKv">
+          <div className="gameSideStats">
             <div>
               <span>Games</span>
               <strong>{savedStats.sessions_played}</strong>
@@ -341,28 +434,28 @@ export default function NumberCompareClient({
             </div>
           </div>
         ) : (
-          <p>No saved rounds yet.</p>
+          <p className="gameSetupSummary">No saved runs yet. Finish ten questions to start your record.</p>
         )}
 
-        <h3 style={{ marginTop: "1rem" }}>
-          {courseId ? "Class Leaderboard" : "Leaderboard"}
-        </h3>
-        <div className="list" style={{ marginTop: "0.75rem" }}>
-          {!courseId ? <p>Select a class to see your classmates here.</p> : null}
-          {courseId && leaderboardLoading ? <p>Loading class leaderboard...</p> : null}
-          {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
-            <p>No class scores yet. Play a few rounds to get the leaderboard started.</p>
-          ) : null}
-          {leaderboardRows.map((row, index) => (
-            <div key={row.player_id} className="card" style={{ background: "#f9fbfc" }}>
-              <strong>#{index + 1} {row.display_name}</strong>
-              <p>
-                Avg: {formatScore(row.average_score)} · Last 10: {formatScore(row.last_10_average)} · Best: {row.best_score}
-              </p>
+          <details className="gameLeaderboardDetails">
+            <summary>{courseId ? `${courseSummary} leaderboard` : "Class leaderboard"}</summary>
+            <div className="gameLeaderboardList">
+              {!courseId ? <p>Select a class to see your classmates.</p> : null}
+              {courseId && leaderboardLoading ? <p>Loading class leaderboard…</p> : null}
+              {courseId && !leaderboardLoading && leaderboardRows.length === 0 ? (
+                <p>No class scores yet. Finish a run to get it started.</p>
+              ) : null}
+              {leaderboardRows.map((row, index) => (
+                <div key={row.player_id} className="gameLeaderboardRow">
+                  <strong>#{index + 1}</strong>
+                  <span>{row.display_name}</span>
+                  <strong>{row.best_score}</strong>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+          </details>
+        </GameSidePanel>
+      </aside>
+    </GameWorkspace>
   );
 }
