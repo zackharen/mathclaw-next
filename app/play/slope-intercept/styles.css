@@ -34,6 +34,7 @@
   grid-template-columns: minmax(0, 1.9fr) minmax(15rem, 0.78fr);
   gap: 0.8rem;
   align-items: stretch;
+  min-width: 0;
 }
 
 .slopeGameShell {
@@ -47,6 +48,7 @@
 
 .slopeInterceptGraphFrame {
   position: relative;
+  min-width: 0;
   min-height: 31rem;
   border: 2px solid var(--line);
   border-radius: 22px;
@@ -56,6 +58,7 @@
 
 .slopeInterceptGraph {
   width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 31rem;
 }
