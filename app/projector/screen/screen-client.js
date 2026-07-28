@@ -220,14 +220,15 @@ async function drawSnapshotBackground(context, width, height, state, includeVide
 
 // Transparent annotation layer registered through SCREEN_TOOLS. Ink is
 // client-side only and cleared whenever new content arrives (contentKey).
-const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, suspended }, ref) {
+// Pen state lives in ScreenClient because the toolbar renders in the top bar
+// while the canvas covers the content area below it.
+const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer(
+  { color, contentKey, erasing, onStrokeCountChange, penOn, suspended },
+  ref
+) {
   const canvasRef = useRef(null);
   const strokesRef = useRef([]);
   const activeStrokeRef = useRef(null);
-  const [penOn, setPenOn] = useState(false);
-  const [color, setColor] = useState(DRAW_COLORS[0]);
-  const [erasing, setErasing] = useState(false);
-  const [strokeCount, setStrokeCount] = useState(0);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -241,11 +242,12 @@ const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // DPR capped at 1.5 to keep full-viewport canvas work light on old iPads.
-    // Skip degenerate sizes (browsers can report 0x0 while hidden or mid-switch).
+    // DPR capped at 1.5 to keep the canvas work light on old iPads. The canvas
+    // now covers the content area under the top bar, so it is sized from its own
+    // layout box. Skip degenerate sizes (browsers can report 0x0 while hidden).
     const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-    const width = Math.round(window.innerWidth * ratio);
-    const height = Math.round(window.innerHeight * ratio);
+    const width = Math.round((canvas.clientWidth || 0) * ratio);
+    const height = Math.round((canvas.clientHeight || 0) * ratio);
     if (width < 8 || height < 8) return;
     canvas.width = width;
     canvas.height = height;
@@ -254,6 +256,14 @@ const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, 
 
   useEffect(() => {
     resizeCanvas();
+    const canvas = canvasRef.current;
+    // Observe the canvas itself: the content area also changes when the top bar
+    // wraps to a second row, which a window resize listener would miss.
+    if (canvas && window.ResizeObserver) {
+      const observer = new ResizeObserver(resizeCanvas);
+      observer.observe(canvas);
+      return () => observer.disconnect();
+    }
     window.addEventListener("resize", resizeCanvas);
     return () => window.removeEventListener("resize", resizeCanvas);
   }, [resizeCanvas]);
@@ -263,9 +273,9 @@ const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, 
     activeStrokeRef.current = null;
     redraw();
     // Zero-delay timeout avoids setState synchronously inside the effect body.
-    const id = window.setTimeout(() => setStrokeCount(0), 0);
+    const id = window.setTimeout(() => onStrokeCountChange(0), 0);
     return () => window.clearTimeout(id);
-  }, [contentKey, redraw]);
+  }, [contentKey, onStrokeCountChange, redraw]);
 
   // While a poll overlay is up it owns the screen, so the pen is inert.
   const penActive = penOn && !suspended;
@@ -311,29 +321,28 @@ const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, 
     if (!stroke || !event.isPrimary) return;
     activeStrokeRef.current = null;
     strokesRef.current = [...strokesRef.current, stroke];
-    setStrokeCount(strokesRef.current.length);
-  }
-
-  function undoStroke() {
-    strokesRef.current = strokesRef.current.slice(0, -1);
-    setStrokeCount(strokesRef.current.length);
-    redraw();
-  }
-
-  function clearStrokes() {
-    strokesRef.current = [];
-    activeStrokeRef.current = null;
-    setStrokeCount(0);
-    redraw();
+    onStrokeCountChange(strokesRef.current.length);
   }
 
   useImperativeHandle(ref, () => ({
+    undo() {
+      strokesRef.current = strokesRef.current.slice(0, -1);
+      onStrokeCountChange(strokesRef.current.length);
+      redraw();
+    },
+    clear() {
+      strokesRef.current = [];
+      activeStrokeRef.current = null;
+      onStrokeCountChange(0);
+      redraw();
+    },
     async capture(state) {
       const source = canvasRef.current;
-      // Hidden pages can report a 0x0 viewport; the ink canvas keeps the last
-      // real layout size, so prefer it as the aspect source when that happens.
-      let viewportWidth = window.innerWidth;
-      let viewportHeight = window.innerHeight;
+      // Snapshots cover the content area, not the whole window, so the aspect
+      // comes from the canvas box. Hidden pages can report 0x0; the canvas keeps
+      // the last real backing size, so prefer it as the fallback aspect source.
+      let viewportWidth = Math.round(source?.clientWidth || 0);
+      let viewportHeight = Math.round(source?.clientHeight || 0);
       if (viewportWidth < 8 || viewportHeight < 8) {
         viewportWidth = source?.width >= 8 ? source.width : 1280;
         viewportHeight = source?.height >= 8 ? source.height : 720;
@@ -374,53 +383,14 @@ const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer({ contentKey, 
   }));
 
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        className={`projectorDrawCanvas${penActive ? "" : " isPenOff"}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-      />
-      {!suspended ? (
-        <div className="projectorDrawToolbar" aria-label="Drawing tools">
-          <button
-            className={penOn ? "isActive" : ""}
-            type="button"
-            onClick={() => setPenOn((current) => !current)}
-          >
-            {penOn ? "Done" : "Draw"}
-          </button>
-          {penOn ? (
-            <>
-              {DRAW_COLORS.map((swatch) => (
-                <button
-                  aria-label={`Pen color ${swatch}`}
-                  className={`projectorDrawSwatch${!erasing && color === swatch ? " isActive" : ""}`}
-                  key={swatch}
-                  style={{ background: swatch }}
-                  type="button"
-                  onClick={() => {
-                    setColor(swatch);
-                    setErasing(false);
-                  }}
-                />
-              ))}
-              <button className={erasing ? "isActive" : ""} type="button" onClick={() => setErasing((current) => !current)}>
-                Eraser
-              </button>
-              <button type="button" onClick={undoStroke} disabled={!strokeCount}>
-                Undo
-              </button>
-              <button type="button" onClick={clearStrokes} disabled={!strokeCount}>
-                Clear
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-    </>
+    <canvas
+      ref={canvasRef}
+      className={`projectorDrawCanvas${penActive ? "" : " isPenOff"}`}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+    />
   );
 });
 
@@ -449,6 +419,10 @@ export default function ScreenClient({ initialToken = null }) {
   const [pollStatus, setPollStatus] = useState("idle");
   const [screenTimer, setScreenTimer] = useState(null);
   const [timerOffsetMs, setTimerOffsetMs] = useState(0);
+  const [drawPenOn, setDrawPenOn] = useState(false);
+  const [drawColor, setDrawColor] = useState(DRAW_COLORS[0]);
+  const [drawErasing, setDrawErasing] = useState(false);
+  const [drawStrokeCount, setDrawStrokeCount] = useState(0);
   const workInputRef = useRef(null);
   const drawLayerRef = useRef(null);
   const snapshotRequestRef = useRef(null);
@@ -813,6 +787,7 @@ export default function ScreenClient({ initialToken = null }) {
 
   const tools = toolsForInputType(inputType);
   const visibleState = enabled ? state : null;
+  const pollActive = Boolean(enabled && tools.polls && activePoll);
   const pollChoiceLabel = activePoll?.choices?.find((choice) => String(choice.id) === String(pollVote?.choice))?.label || pollVote?.choice || "";
 
   return (
@@ -825,135 +800,192 @@ export default function ScreenClient({ initialToken = null }) {
       data-input-type={inputType}
       data-enabled={enabled ? "true" : "false"}
     >
-      <div className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
-      {/* Fullscreen is display setup, not a student tool, so it stays available on every profile. */}
-      <button className="projectorFullscreenButton" type="button" onClick={toggleFullscreen}>
-        {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-      </button>
-      {screenName ? <div className="projectorScreenProfileBadge">{screenName}</div> : null}
-      {enabled ? <ProjectorTimerOverlay timer={screenTimer} serverOffsetMs={timerOffsetMs} /> : null}
-      {enabled && tools.polls && activePoll ? (
-        <section className="projectorPollOverlay" aria-label="Live poll">
-          <div className="projectorPollQuestion">
-            <p className="eyebrow">Live Poll</p>
-            {activePoll.questionType === "latex" ? (
-              <ProjectorScreenContent state={{ type: "latex", content: activePoll.question }} />
-            ) : (
-              <h1>{activePoll.question}</h1>
-            )}
-          </div>
-          <label className="projectorPollNameField">
-            <span>Your name</span>
-            <input
-              autoComplete="name"
-              maxLength={40}
-              value={pollStudentName}
-              onChange={(event) => setPollStudentName(event.target.value)}
-              placeholder="Optional"
-            />
-          </label>
-          <div className={`projectorPollChoices projectorPollChoices-${activePoll.type || "multiple_choice"}`}>
-            {(activePoll.choices || []).map((choice) => (
-              <button
-                className={String(pollVote?.choice) === String(choice.id) ? "isSelected" : ""}
-                key={choice.id}
-                type="button"
-                onClick={() => submitPollVote(choice.id)}
-                disabled={pollStatus === "submitting"}
-              >
-                {choice.label}
-              </button>
-            ))}
-          </div>
-          {pollVote?.choice ? (
-            <p className="projectorPollRecorded">
-              Answer recorded: <strong>{pollChoiceLabel}</strong>. Tap another choice to change your vote.
-            </p>
-          ) : null}
-        </section>
-      ) : enabled ? (
-        <ProjectorScreenContent state={state} />
-      ) : (
-        <ProjectorScreenInactiveState />
-      )}
-      {enabled && tools.draw ? (
-        <ProjectorDrawLayer
-          ref={drawLayerRef}
-          contentKey={`${state?.type || ""} ${state?.content || ""} ${state?.topText || ""}`}
-          suspended={Boolean(tools.polls && activePoll)}
-        />
-      ) : null}
-      {enabled && tools.interactive ? (
-        <div className="projectorScreenTools" data-interactive="true">
-          {tools.submitWork ? (
-            <section className="projectorSubmitWork" aria-label="Submit work">
-              <input
-                ref={workInputRef}
-                className="projectorSubmitWorkInput"
-                accept="image/*"
-                capture="environment"
-                type="file"
-                onChange={chooseWorkPhoto}
-              />
-              {!workPreviewUrl ? (
-                <div className="projectorSubmitWorkChoices">
-                  {tools.draw ? (
-                    <button
-                      className="projectorSubmitWorkButton projectorSubmitDrawingButton"
-                      type="button"
-                      onClick={captureDrawingForSubmit}
-                      disabled={workStatus === "submitting"}
-                    >
-                      Send Drawing
-                    </button>
-                  ) : null}
-                  <button
-                    className="projectorSubmitWorkButton"
-                    type="button"
-                    onClick={() => workInputRef.current?.click()}
-                    disabled={workStatus === "submitting"}
-                  >
-                    {workStatus === "sent" ? "Submit Another" : "Submit work"}
-                  </button>
-                </div>
-              ) : (
-                <div className="projectorSubmitWorkPreview">
-                  <img src={workPreviewUrl} alt="Work preview" />
-                  <div className="projectorSubmitWorkFields">
-                    <label>
-                      <span>Your name</span>
-                      <input
-                        autoComplete="name"
-                        maxLength={40}
-                        value={workStudentName}
-                        onChange={(event) => setWorkStudentName(event.target.value)}
-                        placeholder="Optional"
-                      />
-                    </label>
-                    <label>
-                      <span>Question</span>
-                      <input
-                        maxLength={80}
-                        value={workLabel}
-                        onChange={(event) => setWorkLabel(event.target.value)}
-                        placeholder="Optional"
-                      />
-                    </label>
-                  </div>
-                  <div className="projectorSubmitWorkActions">
-                    <button type="button" onClick={retakeWorkPhoto} disabled={workStatus === "submitting"}>
-                      Retake
-                    </button>
-                    <button type="button" onClick={submitWorkPhoto} disabled={workStatus === "submitting"}>
-                      {workStatus === "submitting" ? "Sending..." : "Send to teacher"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-          ) : null}
+      {/* Every chrome element lives in this one minimal bar so the content area
+          below it is never covered by the timer, the badge, or the tools. */}
+      <header className="projectorScreenTopBar">
+        <div className="projectorScreenTopBarGroup projectorScreenTopBarStart">
+          <span className={`projectorStatusDot ${status === "connected" ? "isConnected" : ""}`} title={status} />
+          {screenName ? <span className="projectorScreenProfileBadge">{screenName}</span> : null}
         </div>
-      ) : null}
+        <div className="projectorScreenTopBarGroup projectorScreenTopBarCenter">
+          {enabled ? <ProjectorTimerOverlay timer={screenTimer} serverOffsetMs={timerOffsetMs} /> : null}
+        </div>
+        <div className="projectorScreenTopBarGroup projectorScreenTopBarEnd">
+          {enabled && tools.draw && !pollActive ? (
+            <div className="projectorDrawToolbar" aria-label="Drawing tools">
+              <button
+                className={drawPenOn ? "isActive" : ""}
+                type="button"
+                onClick={() => setDrawPenOn((current) => !current)}
+              >
+                {drawPenOn ? "Done" : "Draw"}
+              </button>
+              {drawPenOn ? (
+                <>
+                  {DRAW_COLORS.map((swatch) => (
+                    <button
+                      aria-label={`Pen color ${swatch}`}
+                      className={`projectorDrawSwatch${!drawErasing && drawColor === swatch ? " isActive" : ""}`}
+                      key={swatch}
+                      style={{ background: swatch }}
+                      type="button"
+                      onClick={() => {
+                        setDrawColor(swatch);
+                        setDrawErasing(false);
+                      }}
+                    />
+                  ))}
+                  <button
+                    className={drawErasing ? "isActive" : ""}
+                    type="button"
+                    onClick={() => setDrawErasing((current) => !current)}
+                  >
+                    Eraser
+                  </button>
+                  <button type="button" onClick={() => drawLayerRef.current?.undo()} disabled={!drawStrokeCount}>
+                    Undo
+                  </button>
+                  <button type="button" onClick={() => drawLayerRef.current?.clear()} disabled={!drawStrokeCount}>
+                    Clear
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {enabled && tools.interactive ? (
+            <div className="projectorScreenTools" data-interactive="true">
+              {tools.submitWork ? (
+                <section className="projectorSubmitWork" aria-label="Submit work">
+                  <input
+                    ref={workInputRef}
+                    className="projectorSubmitWorkInput"
+                    accept="image/*"
+                    capture="environment"
+                    type="file"
+                    onChange={chooseWorkPhoto}
+                  />
+                  {!workPreviewUrl ? (
+                    <div className="projectorSubmitWorkChoices">
+                      {tools.draw ? (
+                        <button
+                          className="projectorSubmitWorkButton projectorSubmitDrawingButton"
+                          type="button"
+                          onClick={captureDrawingForSubmit}
+                          disabled={workStatus === "submitting"}
+                        >
+                          Send Drawing
+                        </button>
+                      ) : null}
+                      <button
+                        className="projectorSubmitWorkButton"
+                        type="button"
+                        onClick={() => workInputRef.current?.click()}
+                        disabled={workStatus === "submitting"}
+                      >
+                        {workStatus === "sent" ? "Submit Another" : "Submit work"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="projectorSubmitWorkPreview">
+                      <img src={workPreviewUrl} alt="Work preview" />
+                      <div className="projectorSubmitWorkFields">
+                        <label>
+                          <span>Your name</span>
+                          <input
+                            autoComplete="name"
+                            maxLength={40}
+                            value={workStudentName}
+                            onChange={(event) => setWorkStudentName(event.target.value)}
+                            placeholder="Optional"
+                          />
+                        </label>
+                        <label>
+                          <span>Question</span>
+                          <input
+                            maxLength={80}
+                            value={workLabel}
+                            onChange={(event) => setWorkLabel(event.target.value)}
+                            placeholder="Optional"
+                          />
+                        </label>
+                      </div>
+                      <div className="projectorSubmitWorkActions">
+                        <button type="button" onClick={retakeWorkPhoto} disabled={workStatus === "submitting"}>
+                          Retake
+                        </button>
+                        <button type="button" onClick={submitWorkPhoto} disabled={workStatus === "submitting"}>
+                          {workStatus === "submitting" ? "Sending..." : "Send to teacher"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+          {/* Fullscreen is display setup, not a student tool, so it stays available on every profile. */}
+          <button className="projectorFullscreenButton" type="button" onClick={toggleFullscreen}>
+            {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </button>
+        </div>
+      </header>
+      <div className="projectorScreenViewport">
+        {pollActive ? (
+          <section className="projectorPollOverlay" aria-label="Live poll">
+            <div className="projectorPollQuestion">
+              <p className="eyebrow">Live Poll</p>
+              {activePoll.questionType === "latex" ? (
+                <ProjectorScreenContent state={{ type: "latex", content: activePoll.question }} />
+              ) : (
+                <h1>{activePoll.question}</h1>
+              )}
+            </div>
+            <label className="projectorPollNameField">
+              <span>Your name</span>
+              <input
+                autoComplete="name"
+                maxLength={40}
+                value={pollStudentName}
+                onChange={(event) => setPollStudentName(event.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <div className={`projectorPollChoices projectorPollChoices-${activePoll.type || "multiple_choice"}`}>
+              {(activePoll.choices || []).map((choice) => (
+                <button
+                  className={String(pollVote?.choice) === String(choice.id) ? "isSelected" : ""}
+                  key={choice.id}
+                  type="button"
+                  onClick={() => submitPollVote(choice.id)}
+                  disabled={pollStatus === "submitting"}
+                >
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+            {pollVote?.choice ? (
+              <p className="projectorPollRecorded">
+                Answer recorded: <strong>{pollChoiceLabel}</strong>. Tap another choice to change your vote.
+              </p>
+            ) : null}
+          </section>
+        ) : enabled ? (
+          <ProjectorScreenContent state={state} />
+        ) : (
+          <ProjectorScreenInactiveState />
+        )}
+        {enabled && tools.draw ? (
+          <ProjectorDrawLayer
+            ref={drawLayerRef}
+            color={drawColor}
+            contentKey={`${state?.type || ""} ${state?.content || ""} ${state?.topText || ""}`}
+            erasing={drawErasing}
+            onStrokeCountChange={setDrawStrokeCount}
+            penOn={drawPenOn}
+            suspended={pollActive}
+          />
+        ) : null}
+      </div>
       {message ? <div className="projectorScreenError">{message}</div> : null}
     </main>
   );
