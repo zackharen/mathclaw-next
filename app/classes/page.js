@@ -26,10 +26,16 @@ function shortDate(iso) {
 }
 
 function courseMonogram(course) {
-  const words = String(course.title || course.class_name || "Class")
+  const title = String(course.title || course.class_name || "Class").trim();
+  const sectionCode = title.includes("|")
+    ? title.split("|")[0].replace(/[^a-z0-9]/gi, "")
+    : "";
+  if (sectionCode) return sectionCode.slice(0, 2).toUpperCase();
+
+  const words = title
     .trim()
     .split(/\s+/)
-    .filter(Boolean);
+    .filter((word) => /[a-z0-9]/i.test(word));
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return `${words[0][0] || ""}${words[1][0] || ""}`.toUpperCase();
 }
