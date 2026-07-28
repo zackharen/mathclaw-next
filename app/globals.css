@@ -2641,6 +2641,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
     position: relative;
     align-items: center;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 0.75rem;
     padding-block: 0.7rem;
   }
@@ -2672,11 +2673,11 @@ details[open] > summary.gameControlsSummary .hideLabel {
   }
 
   .mobileNav {
-    display: block;
-    flex: 0 0 auto;
+    display: contents;
   }
 
   .mobileNavTrigger {
+    order: 2;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2737,11 +2738,13 @@ details[open] > summary.gameControlsSummary .hideLabel {
   }
 
   .mobileNavPanel {
-    position: absolute;
+    position: static;
     z-index: 80;
-    inset: calc(100% + 0.45rem) 0 auto auto;
-    width: min(22rem, calc(100vw - 1.7rem));
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
     max-height: min(70vh, 36rem);
+    margin-top: 0.05rem;
     overflow-y: auto;
     border: 1px solid rgba(0, 50, 90, 0.16);
     border-radius: 18px;
