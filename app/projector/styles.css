@@ -1834,6 +1834,68 @@ body:has(.projectorScreenStage) .gameReadyBanner {
     #0f172a;
 }
 
+.projectorTimerOverlay {
+  position: absolute;
+  top: clamp(0.75rem, 2vh, 1.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  max-width: min(92vw, 40rem);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  background: rgba(10, 12, 16, 0.85);
+  color: #fff;
+  padding: 0.5rem 1.4rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.projectorTimerOverlayTime {
+  font-size: clamp(2.2rem, 6vw, 4.5rem);
+  font-weight: 900;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.projectorTimerOverlayLabel {
+  overflow-wrap: anywhere;
+  font-size: clamp(0.85rem, 1.6vw, 1.2rem);
+  font-weight: 800;
+  color: #dbeafe;
+}
+
+.projectorTimerOverlayStatus {
+  font-size: clamp(0.8rem, 1.4vw, 1.05rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fcd34d;
+}
+
+.projectorTimerOverlay.isPaused {
+  border-style: dashed;
+}
+
+.projectorTimerOverlay.isFinished {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(153, 27, 27, 0.92);
+  animation: projectorTimerPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes projectorTimerPulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+
 .projectorScreenInactiveState {
   width: min(92vw, 48rem);
   display: grid;
@@ -2244,6 +2306,23 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   font-size: 26px;
 }
 
+.projectorScreenPreviewStage .projectorTimerOverlay {
+  top: 24px;
+  max-width: 1178px;
+}
+
+.projectorScreenPreviewStage .projectorTimerOverlayTime {
+  font-size: 72px;
+}
+
+.projectorScreenPreviewStage .projectorTimerOverlayLabel {
+  font-size: 19px;
+}
+
+.projectorScreenPreviewStage .projectorTimerOverlayStatus {
+  font-size: 17px;
+}
+
 .projectorScreenPreviewStage .projectorWaiting {
   font-size: 51px;
 }
@@ -2520,6 +2599,112 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   background: #f5f3ff;
   box-shadow: 0 10px 24px rgba(8, 18, 28, 0.1);
   padding: 0.75rem 0.9rem;
+}
+
+.projectorTimerDock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 2px solid #b45309;
+  border-radius: 12px;
+  background: #fffbeb;
+  color: #78350f;
+  box-shadow: 0 10px 24px rgba(8, 18, 28, 0.1);
+  padding: 0.75rem 0.9rem;
+}
+
+.projectorTimerDock h2,
+.projectorTimerDock p {
+  margin: 0;
+}
+
+.projectorTimerDock h2 {
+  font-variant-numeric: tabular-nums;
+}
+
+.projectorTimerDock span {
+  display: block;
+  color: #92400e;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.projectorTimerDockActions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.projectorTimerDockActions button {
+  flex: none;
+  border: 2px solid #b45309;
+  border-radius: 8px;
+  background: #fff;
+  color: #b45309;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.projectorTimerDockActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.projectorTimerForm {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.projectorTimerPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.projectorTimerDuration {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 0.5rem;
+}
+
+.projectorTimerDuration label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #51606d;
+}
+
+.projectorTimerDuration input {
+  min-width: 0;
+  border: 2px solid #c8d6df;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  font-weight: 800;
+}
+
+.projectorTimerTargets {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.projectorTimerTargets > span {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #51606d;
+}
+
+.projectorTimerTargetButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
 }
 
 .projectorReviewDock {
