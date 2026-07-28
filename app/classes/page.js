@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import SubmitButton from "@/app/components/SubmitButton";
+import { EmptyState, StatusNotice } from "@/app/components/FeedbackPanel";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -304,46 +306,34 @@ export default async function ClassesPage({ searchParams }) {
 
       <section className="classesWorkspaceContent">
         {qs.joinCodeUpdated === "1" ? (
-          <div className="card noticeSuccess">
-            <p>{formatJoinCodeNotice("1")}</p>
-          </div>
+          <StatusNotice>{formatJoinCodeNotice("1")}</StatusNotice>
         ) : null}
         {qs.joinCodeError ? (
-          <div className="card noticeError">
-            <p>{formatJoinCodeNotice(String(qs.joinCodeError))}</p>
-          </div>
+          <StatusNotice tone="error">{formatJoinCodeNotice(String(qs.joinCodeError))}</StatusNotice>
         ) : null}
         {qs.coTeacher ? (
-          <div className="card noticeSuccess">
-            <p>{formatCoTeacherNotice(String(qs.coTeacher))}</p>
-          </div>
+          <StatusNotice>{formatCoTeacherNotice(String(qs.coTeacher))}</StatusNotice>
         ) : null}
         {qs.coTeacherError ? (
-          <div className="card noticeError">
-            <p>{formatCoTeacherNotice(String(qs.coTeacherError))}</p>
-          </div>
+          <StatusNotice tone="error">{formatCoTeacherNotice(String(qs.coTeacherError))}</StatusNotice>
         ) : null}
         {qs.gameControl ? (
-          <div className="card noticeSuccess">
-            <p>{formatGameControlNotice(String(qs.gameControl), String(qs.gameSlug || ""))}</p>
-          </div>
+          <StatusNotice>{formatGameControlNotice(String(qs.gameControl), String(qs.gameSlug || ""))}</StatusNotice>
         ) : null}
         {qs.gameControlError ? (
-          <div className="card noticeError">
-            <p>{formatGameControlNotice(String(qs.gameControlError), String(qs.gameSlug || ""))}</p>
-          </div>
+          <StatusNotice tone="error">
+            {formatGameControlNotice(String(qs.gameControlError), String(qs.gameSlug || ""))}
+          </StatusNotice>
         ) : null}
-        {error ? <p>Could not load classes: {error.message}</p> : null}
+        {error ? <StatusNotice tone="error">Could not load classes: {error.message}</StatusNotice> : null}
 
         {!error && (!courses || courses.length === 0) ? (
-          <div className="classesWorkspaceEmpty">
-            <span aria-hidden="true">＋</span>
-            <h2>Create your first class</h2>
-            <p>Set up a section, choose its schedule, and invite students when you are ready.</p>
-            <Link className="btn primary" href="/classes/new">
-              Add Class
-            </Link>
-          </div>
+          <EmptyState
+            eyebrow="Your teaching portfolio"
+            title="Create your first class"
+            description="Set up a section, choose its schedule, and invite students when you are ready."
+            action={<Link className="btn primary" href="/classes/new">Add Class</Link>}
+          />
         ) : null}
 
         {!error && courses && courses.length > 0 ? (
@@ -442,17 +432,17 @@ export default async function ClassesPage({ searchParams }) {
                           <form action={regenerateStudentJoinCodeAction}>
                             <input type="hidden" name="course_id" value={course.id} />
                             <input type="hidden" name="return_to" value="classes" />
-                            <button className="btn" type="submit">
+                            <SubmitButton pendingLabel="Generating Code…">
                               New Join Code
-                            </button>
+                            </SubmitButton>
                           </form>
                         ) : null}
                         {course.membership_role === "owner" || course.membership_role === "admin" ? (
                           <form action={deleteClassAction}>
                             <input type="hidden" name="course_id" value={course.id} />
-                            <button className="btn danger" type="submit">
+                            <SubmitButton className="btn danger" pendingLabel="Deleting Class…">
                               Delete Class
-                            </button>
+                            </SubmitButton>
                           </form>
                         ) : null}
                       </div>
@@ -482,9 +472,9 @@ export default async function ClassesPage({ searchParams }) {
                                       <input type="hidden" name="course_id" value={course.id} />
                                       <input type="hidden" name="profile_id" value={teacher.profileId} />
                                       <input type="hidden" name="return_to" value="classes" />
-                                      <button className="btn ghost" type="submit">
+                                      <SubmitButton className="btn ghost" pendingLabel="Removing…">
                                         Remove Co-Teacher
-                                      </button>
+                                      </SubmitButton>
                                     </form>
                                   </div>
                                 ))}
@@ -506,9 +496,13 @@ export default async function ClassesPage({ searchParams }) {
                                   </option>
                                 ))}
                               </select>
-                              <button className="btn ghost" type="submit" disabled={availableCoTeachers.length === 0}>
+                              <SubmitButton
+                                className="btn ghost"
+                                pendingLabel="Adding…"
+                                disabled={availableCoTeachers.length === 0}
+                              >
                                 Add Co-Teacher
-                              </button>
+                              </SubmitButton>
                             </form>
                           </div>
                         </details>
@@ -553,9 +547,12 @@ export default async function ClassesPage({ searchParams }) {
                                   <p>{getGameSupportCopy(game)}</p>
                                   <p><strong>Site-wide rollout:</strong> {game.siteStatusLabel}</p>
                                 </div>
-                                <button className={`btn ${game.courseEnabled ? "ghost" : "primary"}`} type="submit">
+                                <SubmitButton
+                                  className={`btn ${game.courseEnabled ? "ghost" : "primary"}`}
+                                  pendingLabel={game.courseEnabled ? "Hiding Game…" : "Showing Game…"}
+                                >
                                   {game.courseEnabled ? "Hide Game" : "Show Game"}
-                                </button>
+                                </SubmitButton>
                               </form>
                             ))}
                           </div>

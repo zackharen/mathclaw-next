@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SubmitButton from "@/app/components/SubmitButton";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -265,9 +266,9 @@ export default async function PlayPage({ searchParams }) {
                     autoComplete="off"
                     spellCheck="false"
                   />
-                  <button className="btn primary" type="submit">
+                  <SubmitButton className="btn primary" pendingLabel="Joining Class…">
                     Join Class
-                  </button>
+                  </SubmitButton>
                 </div>
                 <p style={{ marginTop: "0.75rem", opacity: 0.8 }}>
                   Codes are not case-sensitive. You can paste them in exactly as your teacher shares them.
@@ -453,9 +454,9 @@ export default async function PlayPage({ searchParams }) {
                   />
                 </label>
                 <div className="ctaRow">
-                  <button className="btn primary" type="submit">
+                  <SubmitButton className="btn primary" pendingLabel="Saving Question…">
                     Save Question
-                  </button>
+                  </SubmitButton>
                 </div>
               </div>
             </form>

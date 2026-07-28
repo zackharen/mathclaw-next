@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import SubmitButton from "@/app/components/SubmitButton";
+import { EmptyState, StatusNotice } from "@/app/components/FeedbackPanel";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -306,10 +308,7 @@ export default async function DashboardPage({ searchParams }) {
   if (error) {
     return (
       <div className="stack">
-        <section className="card">
-          <h1>{siteCopy.dashboardTitle}</h1>
-          <p>Could not load dashboard data: {error.message}</p>
-        </section>
+        <StatusNotice tone="error">Could not load dashboard data: {error.message}</StatusNotice>
       </div>
     );
   }
@@ -317,15 +316,12 @@ export default async function DashboardPage({ searchParams }) {
   if (!courses || courses.length === 0) {
     return (
       <div className="stack">
-        <section className="card">
-          <h1>{siteCopy.dashboardTitle}</h1>
-          <p>No classes yet. Create one to see pacing status.</p>
-          <div className="ctaRow">
-            <Link className="btn primary" href="/classes/new">
-              Add Class
-            </Link>
-          </div>
-        </section>
+        <EmptyState
+          eyebrow="Teaching command center"
+          title="Create your first class"
+          description="Add a class to see pacing, student progress, and today’s teaching priorities here."
+          action={<Link className="btn primary" href="/classes/new">Add Class</Link>}
+        />
       </div>
     );
   }
@@ -525,29 +521,23 @@ export default async function DashboardPage({ searchParams }) {
         </div>
       </section>
 
-      {qs.joinCodeUpdated === "1" ? <div className="card noticeSuccess"><p>{formatJoinCodeNotice("1")}</p></div> : null}
-      {qs.joinCodeError ? <div className="card noticeError"><p>{formatJoinCodeNotice(String(qs.joinCodeError))}</p></div> : null}
-      {qs.coTeacher ? <div className="card noticeSuccess"><p>{formatCoTeacherNotice(String(qs.coTeacher))}</p></div> : null}
-      {qs.coTeacherError ? <div className="card noticeError"><p>{formatCoTeacherNotice(String(qs.coTeacherError))}</p></div> : null}
+      {qs.joinCodeUpdated === "1" ? <StatusNotice>{formatJoinCodeNotice("1")}</StatusNotice> : null}
+      {qs.joinCodeError ? <StatusNotice tone="error">{formatJoinCodeNotice(String(qs.joinCodeError))}</StatusNotice> : null}
+      {qs.coTeacher ? <StatusNotice>{formatCoTeacherNotice(String(qs.coTeacher))}</StatusNotice> : null}
+      {qs.coTeacherError ? <StatusNotice tone="error">{formatCoTeacherNotice(String(qs.coTeacherError))}</StatusNotice> : null}
       {qs.gameControl ? (
-        <div className="card noticeSuccess">
-          <p>{formatGameControlNotice(String(qs.gameControl), String(qs.gameSlug || ""))}</p>
-        </div>
+        <StatusNotice>{formatGameControlNotice(String(qs.gameControl), String(qs.gameSlug || ""))}</StatusNotice>
       ) : null}
       {qs.gameControlError ? (
-        <div className="card noticeError">
-          <p>{formatGameControlNotice(String(qs.gameControlError), String(qs.gameSlug || ""))}</p>
-        </div>
+        <StatusNotice tone="error">
+          {formatGameControlNotice(String(qs.gameControlError), String(qs.gameSlug || ""))}
+        </StatusNotice>
       ) : null}
       {qs.classSettings ? (
-        <div className="card noticeSuccess">
-          <p>{formatClassSettingsNotice(String(qs.classSettings))}</p>
-        </div>
+        <StatusNotice>{formatClassSettingsNotice(String(qs.classSettings))}</StatusNotice>
       ) : null}
       {qs.classSettingsError ? (
-        <div className="card noticeError">
-          <p>{formatClassSettingsNotice(String(qs.classSettingsError))}</p>
-        </div>
+        <StatusNotice tone="error">{formatClassSettingsNotice(String(qs.classSettingsError))}</StatusNotice>
       ) : null}
 
       <section className="teacherDashboardPulse">
@@ -694,13 +684,13 @@ export default async function DashboardPage({ searchParams }) {
                     <form action={regenerateStudentJoinCodeAction}>
                       <input type="hidden" name="course_id" value={card.course.id} />
                       <input type="hidden" name="return_to" value="dashboard" />
-                      <button className="btn" type="submit">New Join Code</button>
+                      <SubmitButton pendingLabel="Generating Code…">New Join Code</SubmitButton>
                     </form>
                   ) : null}
                   {card.course.membership_role === "owner" || card.course.membership_role === "admin" ? (
                     <form action={deleteClassAction}>
                       <input type="hidden" name="course_id" value={card.course.id} />
-                      <button className="btn danger" type="submit">Delete Class</button>
+                      <SubmitButton className="btn danger" pendingLabel="Deleting Class…">Delete Class</SubmitButton>
                     </form>
                   ) : null}
                 </div>
@@ -743,7 +733,9 @@ export default async function DashboardPage({ searchParams }) {
                           ))}
                         </select>
                       </label>
-                      <button className="btn primary" type="submit">Save Class Settings</button>
+                      <SubmitButton className="btn primary" pendingLabel="Saving Settings…">
+                        Save Class Settings
+                      </SubmitButton>
                     </form>
                   </div>
                 </details>
@@ -773,7 +765,9 @@ export default async function DashboardPage({ searchParams }) {
                                 <input type="hidden" name="course_id" value={card.course.id} />
                                 <input type="hidden" name="profile_id" value={teacher.profileId} />
                                 <input type="hidden" name="return_to" value="dashboard" />
-                                <button className="btn ghost" type="submit">Remove Co-Teacher</button>
+                                <SubmitButton className="btn ghost" pendingLabel="Removing…">
+                                  Remove Co-Teacher
+                                </SubmitButton>
                               </form>
                             </div>
                           ))}
@@ -795,9 +789,13 @@ export default async function DashboardPage({ searchParams }) {
                             </option>
                           ))}
                         </select>
-                        <button className="btn ghost" type="submit" disabled={card.availableCoTeachers.length === 0}>
+                        <SubmitButton
+                          className="btn ghost"
+                          pendingLabel="Adding…"
+                          disabled={card.availableCoTeachers.length === 0}
+                        >
                           Add Co-Teacher
-                        </button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </details>
@@ -842,9 +840,12 @@ export default async function DashboardPage({ searchParams }) {
                             <p>{getGameSupportCopy(game)}</p>
                             <p><strong>Site-wide rollout:</strong> {game.siteStatusLabel}</p>
                           </div>
-                          <button className={`btn ${game.courseEnabled ? "ghost" : "primary"}`} type="submit">
+                          <SubmitButton
+                            className={`btn ${game.courseEnabled ? "ghost" : "primary"}`}
+                            pendingLabel={game.courseEnabled ? "Hiding Game…" : "Showing Game…"}
+                          >
                             {game.courseEnabled ? "Hide Game" : "Show Game"}
-                          </button>
+                          </SubmitButton>
                         </form>
                       ))}
                     </div>

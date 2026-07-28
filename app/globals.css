@@ -4066,6 +4066,100 @@ details[open] > summary.adminSectionSummary .hideLabel {
   background: color-mix(in srgb, var(--red) 10%, white);
 }
 
+.feedbackPanel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.feedbackPanel p {
+  margin: 0;
+}
+
+.feedbackPanelIcon {
+  display: grid;
+  flex: 0 0 1.8rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 900;
+}
+
+.noticeError .feedbackPanelIcon {
+  background: var(--red);
+}
+
+.feedbackEmptyState,
+.feedbackErrorState {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  padding: clamp(1.5rem, 4vw, 2.6rem);
+  border: 2px dashed color-mix(in srgb, var(--navy) 26%, white);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(16, 151, 206, 0.12), transparent 38%),
+    #fff;
+}
+
+.feedbackEmptyState h2,
+.feedbackErrorState h1,
+.feedbackEmptyState p,
+.feedbackErrorState p {
+  margin: 0;
+}
+
+.feedbackEmptyGlyph,
+.feedbackErrorGlyph {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--navy), #087fb5);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 900;
+  box-shadow: 0 10px 22px rgba(0, 50, 90, 0.18);
+}
+
+.feedbackErrorGlyph {
+  background: linear-gradient(135deg, var(--red), #f07855);
+}
+
+.btn.isPending {
+  cursor: wait;
+}
+
+.buttonSpinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.45rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  vertical-align: -0.1em;
+  animation: buttonSpinner 700ms linear infinite;
+}
+
+@keyframes buttonSpinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buttonSpinner {
+    animation: none;
+    border-right-color: currentColor;
+  }
+}
+
 .adminToast {
   position: fixed;
   left: 1rem;

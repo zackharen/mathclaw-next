@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClassAction } from "./actions";
+import SubmitButton from "@/app/components/SubmitButton";
 
 function shortDate(iso) {
   if (!iso) return "";
@@ -236,7 +237,9 @@ export default function NewClassForm({
       <input type="hidden" name="timezone" value={timezone} />
 
       <div className="ctaRow">
-        <button className="btn primary" type="submit">Create Class</button>
+        <SubmitButton className="btn primary" pendingLabel="Creating Class…">
+          Create Class
+        </SubmitButton>
       </div>
     </form>
   );
