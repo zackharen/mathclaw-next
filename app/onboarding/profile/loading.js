@@ -1,5 +1,5 @@
 import RouteSkeleton from "@/app/components/RouteSkeleton";
 
 export default function Loading() {
-  return <RouteSkeleton hero stats={3} cards={6} columns={2} label="Loading the arcade…" />;
+  return <RouteSkeleton hero stats={3} cards={3} label="Loading your account workspace…" />;
 }

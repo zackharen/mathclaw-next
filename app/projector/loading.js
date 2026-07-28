@@ -4,10 +4,11 @@ export default function Loading() {
   return (
     <RouteSkeleton
       hero
-      stats={4}
+      stats={3}
       cards={4}
       columns={2}
-      label="Loading your teaching dashboard…"
+      tone="dark"
+      label="Loading Projector Studio…"
     />
   );
 }

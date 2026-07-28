@@ -277,6 +277,187 @@ function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, m
   return previewsByRuleId;
 }
 
+// The loaders below were inline awaits in the page body. They are extracted verbatim so
+// the page can run them as parallel waves instead of one long chain of round trips.
+async function loadProfileRow(admin, userId) {
+  const { data, error } = await admin
+    .from("profiles")
+    .select(
+      "display_name, nickname, school_name, timezone, discoverable, school_year_start, school_year_end"
+    )
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (
+    error &&
+    typeof error.message === "string" &&
+    (error.message.includes("nickname") ||
+      error.message.includes("school_year_start") ||
+      error.message.includes("discoverable"))
+  ) {
+    const retry = await admin
+      .from("profiles")
+      .select("display_name, school_name, timezone, school_year_start, school_year_end")
+      .eq("id", userId)
+      .maybeSingle();
+
+    return retry.data ? { ...retry.data, nickname: "", discoverable: true } : null;
+  }
+
+  return data;
+}
+
+async function loadSchoolCalendarDays(supabase, userId, schoolYearStart, schoolYearEnd) {
+  const { data, error } = await supabase
+    .from("school_calendar_days")
+    .select("class_date, day_type, reason_id, note")
+    .eq("owner_id", userId)
+    .gte("class_date", schoolYearStart)
+    .lte("class_date", schoolYearEnd)
+    .order("class_date", { ascending: true });
+
+  if (error && isMissingTableError(error, "school_calendar_days")) {
+    return { schoolDays: [], overridesUnavailable: true };
+  }
+  if (error) throw new Error(error.message);
+  return { schoolDays: data || [], overridesUnavailable: false };
+}
+
+async function loadMarkingPeriods(supabase, userId, isTeacher) {
+  if (!isTeacher) return { markingPeriods: [], migrationNeeded: false };
+
+  const { data, error } = await supabase
+    .from("teacher_marking_period_rules")
+    .select("id, name, start_day_number, end_day_number")
+    .eq("owner_id", userId)
+    .order("start_day_number", { ascending: true });
+
+  if (error && typeof error.message === "string" && error.message.includes("teacher_marking_period_rules")) {
+    return { markingPeriods: [], migrationNeeded: true };
+  }
+  if (error) throw new Error(error.message);
+  return { markingPeriods: data || [], migrationNeeded: false };
+}
+
+async function loadTeacherAbsences(supabase, userId, isTeacher, schoolYearStart, schoolYearEnd) {
+  if (!isTeacher) return { teacherAbsences: [], migrationNeeded: false };
+
+  const { data, error } = await supabase
+    .from("teacher_absences")
+    .select("id, absence_date, course_id, note")
+    .eq("owner_id", userId)
+    .gte("absence_date", schoolYearStart)
+    .lte("absence_date", schoolYearEnd)
+    .order("absence_date", { ascending: true });
+
+  if (error && typeof error.message === "string" && error.message.includes("teacher_absences")) {
+    return { teacherAbsences: [], migrationNeeded: true };
+  }
+  if (error) throw new Error(error.message);
+  return { teacherAbsences: data || [], migrationNeeded: false };
+}
+
+async function loadAssignmentRuleState(supabase, userId, isTeacher, schoolYearStart, schoolYearEnd) {
+  if (!isTeacher) {
+    return { rules: [], overrides: [], rulesMigrationNeeded: false, overridesMigrationNeeded: false };
+  }
+
+  const [
+    { data: rulesData, error: rulesError },
+    { data: overridesData, error: overridesError },
+  ] = await Promise.all([
+    supabase
+      .from("teacher_announcement_assignment_rules")
+      .select("id, course_id, label, cadence, count_per_period, settings, is_active")
+      .eq("owner_id", userId)
+      .eq("is_active", true)
+      .order("label", { ascending: true }),
+    supabase
+      .from("teacher_announcement_assignment_rule_overrides")
+      .select("id, rule_id, course_id, original_date, assignment_date, is_skipped")
+      .eq("owner_id", userId)
+      .gte("original_date", schoolYearStart)
+      .lte("original_date", schoolYearEnd),
+  ]);
+
+  let rules = [];
+  let rulesMigrationNeeded = false;
+  if (
+    rulesError &&
+    typeof rulesError.message === "string" &&
+    rulesError.message.includes("teacher_announcement_assignment_rules")
+  ) {
+    rulesMigrationNeeded = true;
+  } else if (rulesError) {
+    throw new Error(rulesError.message);
+  } else {
+    rules = rulesData || [];
+  }
+
+  let overrides = [];
+  let overridesMigrationNeeded = false;
+  if (
+    overridesError &&
+    typeof overridesError.message === "string" &&
+    overridesError.message.includes("teacher_announcement_assignment_rule_overrides")
+  ) {
+    overridesMigrationNeeded = true;
+  } else if (overridesError) {
+    throw new Error(overridesError.message);
+  } else {
+    overrides = overridesData || [];
+  }
+
+  return { rules, overrides, rulesMigrationNeeded, overridesMigrationNeeded };
+}
+
+async function loadAnnouncementTemplate(supabase, userId) {
+  const { data, error } = await supabase
+    .from("announcement_templates")
+    .select(
+      "body_template, include_do_now, include_quote, include_day_number, include_day_of_week, include_regular_assignments, regular_assignments"
+    )
+    .eq("owner_id", userId)
+    .eq("is_default", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (
+    error &&
+    typeof error.message === "string" &&
+    (error.message.includes("include_do_now") ||
+      error.message.includes("include_quote") ||
+      error.message.includes("include_day_number") ||
+      error.message.includes("include_day_of_week") ||
+      error.message.includes("include_regular_assignments") ||
+      error.message.includes("regular_assignments"))
+  ) {
+    const retry = await supabase
+      .from("announcement_templates")
+      .select("body_template")
+      .eq("owner_id", userId)
+      .eq("is_default", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (retry.error) throw new Error(retry.error.message);
+    return retry.data
+      ? {
+          ...retry.data,
+          include_do_now: false,
+          include_quote: false,
+          include_day_number: false,
+          include_day_of_week: false,
+          include_regular_assignments: false,
+          regular_assignments: "",
+        }
+      : null;
+  }
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
@@ -289,7 +470,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const markingPeriodError = qs.marking_period_error;
   const assignmentsUpdated = qs.assignments_updated === "1";
   const assignmentError = qs.assignment_error;
-  const siteCopy = await getSiteCopy();
+  const siteCopyPromise = getSiteCopy();
 
   const supabase = await createClient();
   const {
@@ -302,95 +483,64 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const admin = createAdminClient();
   const defaults = defaultSchoolYearDates();
-  const accountType = await getAccountTypeForUser(supabase, user);
+
+  // Wave 1: nothing here depends on anything else this page loads.
+  const [siteCopy, accountType, schoolOptions, profile] = await Promise.all([
+    siteCopyPromise,
+    getAccountTypeForUser(supabase, user),
+    listSchoolOptions().catch(() => []),
+    loadProfileRow(admin, user.id),
+  ]);
+
   const isTeacher = isTeacherAccountType(accountType);
-  let schoolOptions = [];
-
-  try {
-    schoolOptions = await listSchoolOptions();
-  } catch {
-    schoolOptions = [];
-  }
-
-  let { data: profile, error: profileError } = await admin
-    .from("profiles")
-    .select(
-      "display_name, nickname, school_name, timezone, discoverable, school_year_start, school_year_end"
-    )
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (
-    profileError &&
-    typeof profileError.message === "string" &&
-    (profileError.message.includes("nickname") ||
-      profileError.message.includes("school_year_start") ||
-      profileError.message.includes("discoverable"))
-  ) {
-    const retry = await admin
-      .from("profiles")
-      .select("display_name, school_name, timezone, school_year_start, school_year_end")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    profile = retry.data
-        ? {
-            ...retry.data,
-            nickname: "",
-            discoverable: true,
-          }
-      : null;
-
-    profileError = retry.error;
-  }
-
   const schoolYearStart = profile?.school_year_start || defaults.start;
   const schoolYearEnd = profile?.school_year_end || defaults.end;
 
-  const { data: abSeedCourse } = await supabase
-    .from("courses")
-    .select("ab_pattern_start_date")
-    .eq("owner_id", user.id)
-    .eq("schedule_model", "ab")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: teacherCourses } = isTeacher
-    ? await supabase
-        .from("courses")
-        .select("id, title, class_name, school_year_start, school_year_end, schedule_model, ab_meeting_day")
-        .eq("owner_id", user.id)
-        .order("title", { ascending: true })
-    : { data: [] };
+  // Wave 2: every read below needs only the school-year window and the account type,
+  // so they run together rather than as eight sequential round trips.
+  const [
+    { data: abSeedCourse },
+    { data: teacherCourses },
+    { data: reasons },
+    schoolCalendar,
+    markingPeriodState,
+    absenceState,
+    assignmentRuleState,
+    templateRow,
+  ] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("ab_pattern_start_date")
+      .eq("owner_id", user.id)
+      .eq("schedule_model", "ab")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    isTeacher
+      ? supabase
+          .from("courses")
+          .select("id, title, class_name, school_year_start, school_year_end, schedule_model, ab_meeting_day")
+          .eq("owner_id", user.id)
+          .order("title", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("day_off_reasons")
+      .select("id, label")
+      .or(`owner_id.is.null,owner_id.eq.${user.id}`)
+      .order("label", { ascending: true }),
+    loadSchoolCalendarDays(supabase, user.id, schoolYearStart, schoolYearEnd),
+    loadMarkingPeriods(supabase, user.id, isTeacher),
+    loadTeacherAbsences(supabase, user.id, isTeacher, schoolYearStart, schoolYearEnd),
+    loadAssignmentRuleState(supabase, user.id, isTeacher, schoolYearStart, schoolYearEnd),
+    loadAnnouncementTemplate(supabase, user.id),
+  ]);
 
   const weekdays = buildWeekdays(schoolYearStart, schoolYearEnd);
   const abPatternStartIso = abSeedCourse?.ab_pattern_start_date || schoolYearStart;
   const abByDate = buildABMap(weekdays, abPatternStartIso);
 
-  const { data: reasons } = await supabase
-    .from("day_off_reasons")
-    .select("id, label")
-    .or(`owner_id.is.null,owner_id.eq.${user.id}`)
-    .order("label", { ascending: true });
-
-  let schoolDays = [];
-  let schoolCalendarOverridesUnavailable = false;
-  const { data: schoolDaysData, error: schoolDaysError } = await supabase
-    .from("school_calendar_days")
-    .select("class_date, day_type, reason_id, note")
-    .eq("owner_id", user.id)
-    .gte("class_date", schoolYearStart)
-    .lte("class_date", schoolYearEnd)
-    .order("class_date", { ascending: true });
-
-  if (schoolDaysError && isMissingTableError(schoolDaysError, "school_calendar_days")) {
-    schoolCalendarOverridesUnavailable = true;
-  } else if (schoolDaysError) {
-    throw new Error(schoolDaysError.message);
-  } else {
-    schoolDays = schoolDaysData || [];
-  }
+  const schoolDays = schoolCalendar.schoolDays;
+  const schoolCalendarOverridesUnavailable = schoolCalendar.overridesUnavailable;
 
   const schoolDayByDate = new Map(
     (schoolDays || []).map((row) => [row.class_date, row])
@@ -402,27 +552,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
     Array.from(schoolDayNumberMap.entries()).map(([num, date]) => [date, num])
   );
 
-  let markingPeriods = [];
-  let markingPeriodsMigrationNeeded = false;
-  if (isTeacher) {
-    const { data: periodsData, error: periodsError } = await supabase
-      .from("teacher_marking_period_rules")
-      .select("id, name, start_day_number, end_day_number")
-      .eq("owner_id", user.id)
-      .order("start_day_number", { ascending: true });
-
-    if (
-      periodsError &&
-      typeof periodsError.message === "string" &&
-      periodsError.message.includes("teacher_marking_period_rules")
-    ) {
-      markingPeriodsMigrationNeeded = true;
-    } else if (periodsError) {
-      throw new Error(periodsError.message);
-    } else {
-      markingPeriods = periodsData || [];
-    }
-  }
+  const markingPeriods = markingPeriodState.markingPeriods;
+  const markingPeriodsMigrationNeeded = markingPeriodState.migrationNeeded;
 
   // Official school-year accounting: the target year length is the highest
   // marking period day number (180 with standard quarters).
@@ -433,29 +564,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const markingPeriodShortfall = Math.max(0, markingPeriodTargetDay - schoolDayCount);
   const markingPeriodExtraDays = Math.max(0, schoolDayCount - markingPeriodTargetDay);
 
-  let teacherAbsences = [];
-  let absencesMigrationNeeded = false;
-  if (isTeacher) {
-    const { data: absencesData, error: absencesError } = await supabase
-      .from("teacher_absences")
-      .select("id, absence_date, course_id, note")
-      .eq("owner_id", user.id)
-      .gte("absence_date", schoolYearStart)
-      .lte("absence_date", schoolYearEnd)
-      .order("absence_date", { ascending: true });
-
-    if (
-      absencesError &&
-      typeof absencesError.message === "string" &&
-      absencesError.message.includes("teacher_absences")
-    ) {
-      absencesMigrationNeeded = true;
-    } else if (absencesError) {
-      throw new Error(absencesError.message);
-    } else {
-      teacherAbsences = absencesData || [];
-    }
-  }
+  const teacherAbsences = absenceState.teacherAbsences;
+  const absencesMigrationNeeded = absenceState.migrationNeeded;
 
   const teacherCourseById = new Map(
     (teacherCourses || []).map((course) => [course.id, course])
@@ -470,50 +580,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
   );
   const classesColumnWidth = `max(12rem, ${longestCourseLabelChars + 7}ch)`;
 
-  let assignmentRules = [];
-  let assignmentRuleOverrides = [];
-  let assignmentRuleOverridesMigrationNeeded = false;
-  let assignmentRulesMigrationNeeded = false;
-  if (isTeacher) {
-    const { data: rulesData, error: rulesError } = await supabase
-      .from("teacher_announcement_assignment_rules")
-      .select("id, course_id, label, cadence, count_per_period, settings, is_active")
-      .eq("owner_id", user.id)
-      .eq("is_active", true)
-      .order("label", { ascending: true });
+  const assignmentRules = assignmentRuleState.rules;
+  const assignmentRuleOverrides = assignmentRuleState.overrides;
+  const assignmentRulesMigrationNeeded = assignmentRuleState.rulesMigrationNeeded;
+  const assignmentRuleOverridesMigrationNeeded = assignmentRuleState.overridesMigrationNeeded;
 
-    if (
-      rulesError &&
-      typeof rulesError.message === "string" &&
-      rulesError.message.includes("teacher_announcement_assignment_rules")
-    ) {
-      assignmentRulesMigrationNeeded = true;
-    } else if (rulesError) {
-      throw new Error(rulesError.message);
-    } else {
-      assignmentRules = rulesData || [];
-    }
-
-    const { data: overridesData, error: overridesError } = await supabase
-      .from("teacher_announcement_assignment_rule_overrides")
-      .select("id, rule_id, course_id, original_date, assignment_date, is_skipped")
-      .eq("owner_id", user.id)
-      .gte("original_date", schoolYearStart)
-      .lte("original_date", schoolYearEnd);
-
-    if (
-      overridesError &&
-      typeof overridesError.message === "string" &&
-      overridesError.message.includes("teacher_announcement_assignment_rule_overrides")
-    ) {
-      assignmentRuleOverridesMigrationNeeded = true;
-    } else if (overridesError) {
-      throw new Error(overridesError.message);
-    } else {
-      assignmentRuleOverrides = overridesData || [];
-    }
-  }
-
+  // Wave 3: the only read that needs the course list loaded above.
   let assignmentCalendarDays = [];
   if (isTeacher && teacherCourses?.length) {
     const { data: calendarData, error: calendarError } = await supabase
@@ -544,49 +616,6 @@ export default async function OnboardingProfilePage({ searchParams }) {
     overrides: assignmentRuleOverrides,
     schoolDayNumberByDate: dateToSchoolDayNumber,
   });
-
-  let { data: templateRow, error: templateError } = await supabase
-    .from("announcement_templates")
-    .select(
-      "body_template, include_do_now, include_quote, include_day_number, include_day_of_week, include_regular_assignments, regular_assignments"
-    )
-    .eq("owner_id", user.id)
-    .eq("is_default", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (
-    templateError &&
-    typeof templateError.message === "string" &&
-    (templateError.message.includes("include_do_now") ||
-      templateError.message.includes("include_quote") ||
-      templateError.message.includes("include_day_number") ||
-      templateError.message.includes("include_day_of_week") ||
-      templateError.message.includes("include_regular_assignments") ||
-      templateError.message.includes("regular_assignments"))
-  ) {
-    const retry = await supabase
-      .from("announcement_templates")
-      .select("body_template")
-      .eq("owner_id", user.id)
-      .eq("is_default", true)
-      .limit(1)
-      .maybeSingle();
-      templateRow = retry.data
-        ? {
-            ...retry.data,
-            include_do_now: false,
-            include_quote: false,
-            include_day_number: false,
-            include_day_of_week: false,
-            include_regular_assignments: false,
-            regular_assignments: "",
-          }
-        : null;
-    templateError = retry.error;
-  }
-
-  if (templateError) throw new Error(templateError.message);
 
   const defaultTemplate = normalizeAnnouncementTemplate(templateRow?.body_template);
   const includeDoNow = templateRow?.include_do_now ?? false;

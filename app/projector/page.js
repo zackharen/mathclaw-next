@@ -302,11 +302,16 @@ export default async function ProjectorPage() {
   if (error) throw new Error(error.message);
 
   const session = existingSession || (await createUniquePinSession(supabase, user.id));
-  const libraryItems = await loadLibraryItems(supabase, user.id);
-  const sceneItems = await loadSceneItems(supabase, user.id);
-  const sceneFolders = await loadSceneFolders(supabase, user.id);
-  const playlistState = await loadPlaylists(supabase, user.id);
-  const { rooms, activeRoom } = await loadRoomProfiles(supabase, user.id);
+  // Each loader touches a different table and none reads the others' results, so the
+  // studio no longer waits on five sequential round trips before it can render.
+  const [libraryItems, sceneItems, sceneFolders, playlistState, { rooms, activeRoom }] =
+    await Promise.all([
+      loadLibraryItems(supabase, user.id),
+      loadSceneItems(supabase, user.id),
+      loadSceneFolders(supabase, user.id),
+      loadPlaylists(supabase, user.id),
+      loadRoomProfiles(supabase, user.id),
+    ]);
   const clientSession = sanitizeSessionForClient(session);
 
   return (

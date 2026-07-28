@@ -106,11 +106,11 @@ export default async function PlayPage({ searchParams }) {
     redirect("/auth/sign-in?redirect=/play");
   }
 
-  let { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id, display_name, nickname")
-    .eq("id", user.id)
-    .maybeSingle();
+  // The profile row and the account-type lookup are independent reads, so they run together.
+  let [{ data: profile, error: profileError }, accountType] = await Promise.all([
+    supabase.from("profiles").select("id, display_name, nickname").eq("id", user.id).maybeSingle(),
+    getAccountTypeForUser(supabase, user),
+  ]);
 
   if (
     profileError &&
@@ -130,7 +130,6 @@ export default async function PlayPage({ searchParams }) {
     redirect("/onboarding/profile");
   }
 
-  const accountType = await getAccountTypeForUser(supabase, user);
   const isStudent = isStudentAccountType(accountType);
 
   const [courses, statsResult, awardsResult, studentQuestionsResult] = await Promise.all([

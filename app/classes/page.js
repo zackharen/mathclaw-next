@@ -1,22 +1,18 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import SubmitButton from "@/app/components/SubmitButton";
+import CoTeacherPanel, { CoTeacherPanelFallback } from "@/app/components/CoTeacherPanel";
 import { EmptyState, StatusNotice } from "@/app/components/FeedbackPanel";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  getAccountTypeForUser,
-  isTeacherAccountType,
-  normalizeAccountType,
-} from "@/lib/auth/account-type";
+import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
+import { EMPTY_CO_TEACHER_STATE, loadCoTeacherState } from "@/lib/courses/co-teachers";
 import { getSiteCopy } from "@/lib/site-config";
 import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
-  addCoTeacherAction,
   deleteClassAction,
   regenerateStudentJoinCodeAction,
-  removeCoTeacherAction,
   updateCourseGameSettingAction,
 } from "./actions";
 import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
@@ -46,17 +42,6 @@ function courseRoleLabel(role) {
   if (role === "owner") return "Owner";
   if (role === "admin") return "Admin";
   return "Co-Teacher";
-}
-
-function getBestDisplayName(profile, metadata, email, fallback = "-") {
-  return (
-    profile?.display_name ||
-    metadata?.display_name ||
-    metadata?.full_name ||
-    metadata?.name ||
-    (email ? String(email).split("@")[0] : "") ||
-    fallback
-  );
 }
 
 function formatJoinCodeNotice(status) {
@@ -163,11 +148,10 @@ export default async function ClassesPage({ searchParams }) {
   let error = null;
   let courses = [];
   let games = [];
-  let coTeacherState = {
-    byCourseId: new Map(),
-    candidateOptionsByCourseId: new Map(),
-  };
   let gameSettingsByKey = new Map();
+  // Started but deliberately not awaited: the co-teacher lists only feed a collapsed
+  // disclosure, so they stream in behind Suspense instead of blocking the class cards.
+  let coTeacherStatePromise = Promise.resolve(EMPTY_CO_TEACHER_STATE);
   try {
     [courses, games] = await Promise.all([
       listEditableCoursesForUser(
@@ -180,87 +164,11 @@ export default async function ClassesPage({ searchParams }) {
         includeDisabledBySite: true,
       }),
     ]);
-    gameSettingsByKey = await listCourseGameSettingsMap(courses.map((course) => course.id));
     courses = sortCoursesAlphabetically(courses);
-
-    const ownerCourses = courses.filter((course) => course.membership_role === "owner");
-    const ownerCourseIds = ownerCourses.map((course) => course.id);
-
-    if (ownerCourseIds.length > 0) {
-      const admin = createAdminClient();
-      const { data: authUsersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
-      const authUsers = (authUsersData?.users || []).filter(
-        (authUser) => authUser?.app_metadata?.account_deleted !== true
-      );
-      const authUsersById = new Map(authUsers.map((authUser) => [authUser.id, authUser]));
-      const managedUserIds = authUsers.map((authUser) => authUser.id);
-
-      const [{ data: memberships }, { data: profiles }] = await Promise.all([
-        admin
-          .from("course_members")
-          .select("course_id, profile_id, role")
-          .in("course_id", ownerCourseIds)
-          .in("role", ["owner", "editor"]),
-        managedUserIds.length > 0
-          ? admin
-              .from("profiles")
-              .select("id, display_name")
-              .in("id", managedUserIds)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]));
-      const currentByCourseId = new Map();
-
-      for (const membership of memberships || []) {
-        if (!membership?.profile_id) continue;
-        const course = ownerCourses.find((item) => item.id === membership.course_id);
-        if (!course || membership.profile_id === course.owner_id) continue;
-
-        const authUser = authUsersById.get(membership.profile_id);
-        const profile = profilesById.get(membership.profile_id);
-        const displayName = getBestDisplayName(profile, authUser?.user_metadata, authUser?.email);
-        const current = currentByCourseId.get(membership.course_id) || [];
-        current.push({
-          profileId: membership.profile_id,
-          role: membership.role || "editor",
-          displayName,
-          email: authUser?.email || "",
-        });
-        currentByCourseId.set(membership.course_id, current);
-      }
-
-      const teacherCandidates = authUsers
-        .filter((authUser) => {
-          const metadataType = authUser?.user_metadata?.account_type;
-          return normalizeAccountType(metadataType) === "teacher";
-        })
-        .map((authUser) => {
-          const profile = profilesById.get(authUser.id);
-          return {
-            id: authUser.id,
-            email: authUser.email || "",
-            displayName: getBestDisplayName(profile, authUser.user_metadata, authUser.email),
-          };
-        });
-
-      const candidateOptionsByCourseId = new Map();
-      for (const course of ownerCourses) {
-        const currentMembers = new Set([
-          course.owner_id,
-          ...(currentByCourseId.get(course.id) || []).map((member) => member.profileId),
-        ]);
-        candidateOptionsByCourseId.set(
-          course.id,
-          teacherCandidates.filter((candidate) => !currentMembers.has(candidate.id))
-        );
-      }
-
-      coTeacherState = {
-        byCourseId: currentByCourseId,
-        candidateOptionsByCourseId,
-      };
-    }
+    coTeacherStatePromise = loadCoTeacherState(
+      courses.filter((course) => course.membership_role === "owner")
+    );
+    gameSettingsByKey = await listCourseGameSettingsMap(courses.map((course) => course.id));
   } catch (loadError) {
     error = loadError;
   }
@@ -347,9 +255,6 @@ export default async function ClassesPage({ searchParams }) {
             </div>
             <div className="classesWorkspaceGrid">
             {courses.map((course, index) => {
-              const currentCoTeachers = coTeacherState.byCourseId.get(course.id) || [];
-              const availableCoTeachers =
-                coTeacherState.candidateOptionsByCourseId.get(course.id) || [];
               const courseGames = games.map((game) => ({
                 ...game,
                 courseEnabled: gameSettingsByKey.get(`${course.id}:${game.slug}`) ?? true,
@@ -448,64 +353,14 @@ export default async function ClassesPage({ searchParams }) {
                       </div>
 
                       {course.membership_role === "owner" ? (
-                        <details className="gameControlsDetails classNestedDetails">
-                          <summary className="gameControlsSummary" aria-label={`${course.title} co-teachers`}>
-                            <div>
-                              <h2>Co-Teachers</h2>
-                              <p>{currentCoTeachers.length} co-teacher{currentCoTeachers.length === 1 ? "" : "s"} connected</p>
-                            </div>
-                            <span className="gameControlsToggle" aria-hidden="true">
-                              <span className="showLabel">Show</span>
-                              <span className="hideLabel">Hide</span>
-                            </span>
-                          </summary>
-                          <div className="gameControlsBody classNestedBody">
-                            {currentCoTeachers.length > 0 ? (
-                              <div className="classCoTeacherList">
-                                {currentCoTeachers.map((teacher) => (
-                                  <div key={teacher.profileId} className="classCoTeacherItem">
-                                    <div>
-                                      <strong>{teacher.displayName}</strong>
-                                      <span>{teacher.email}</span>
-                                    </div>
-                                    <form action={removeCoTeacherAction}>
-                                      <input type="hidden" name="course_id" value={course.id} />
-                                      <input type="hidden" name="profile_id" value={teacher.profileId} />
-                                      <input type="hidden" name="return_to" value="classes" />
-                                      <SubmitButton className="btn ghost" pendingLabel="Removing…">
-                                        Remove Co-Teacher
-                                      </SubmitButton>
-                                    </form>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="classCoTeacherEmpty">No co-teachers yet.</p>
-                            )}
-                            <form action={addCoTeacherAction} className="classCoTeacherForm">
-                              <input type="hidden" name="course_id" value={course.id} />
-                              <input type="hidden" name="return_to" value="classes" />
-                              <select className="input" name="profile_id" defaultValue="" disabled={availableCoTeachers.length === 0}>
-                                <option value="" disabled>
-                                  {availableCoTeachers.length > 0 ? "Add a co-teacher" : "No more teachers available"}
-                                </option>
-                                {availableCoTeachers.map((candidate) => (
-                                  <option key={candidate.id} value={candidate.id}>
-                                    {candidate.displayName}
-                                    {candidate.email ? ` · ${candidate.email}` : ""}
-                                  </option>
-                                ))}
-                              </select>
-                              <SubmitButton
-                                className="btn ghost"
-                                pendingLabel="Adding…"
-                                disabled={availableCoTeachers.length === 0}
-                              >
-                                Add Co-Teacher
-                              </SubmitButton>
-                            </form>
-                          </div>
-                        </details>
+                        <Suspense fallback={<CoTeacherPanelFallback courseTitle={course.title} />}>
+                          <CoTeacherPanel
+                            statePromise={coTeacherStatePromise}
+                            courseId={course.id}
+                            courseTitle={course.title}
+                            returnTo="classes"
+                          />
+                        </Suspense>
                       ) : null}
 
                       <details className="gameControlsDetails classNestedDetails">
