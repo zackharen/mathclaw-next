@@ -373,7 +373,12 @@ export default function CometTypingClient({
             <div className="cometLane" aria-label={`Nova is ${progressPercent}% across the route`}>
               <div className="cometLaneTrack" />
               <div className="cometLaneProgress" style={{ width: `${progressPercent}%` }} />
-              <div className="cometRider" style={{ left: `calc(${progressPercent}% - 1.2rem)` }}>
+              <div
+                className="cometRider"
+                style={{
+                  left: `clamp(0.75rem, calc(${progressPercent}% - 1.2rem), calc(100% - 3.6rem))`,
+                }}
+              >
                 <span className="cometAvatar">☄</span>
                 <strong>{CHARACTER_NAME}</strong>
               </div>
