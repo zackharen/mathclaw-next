@@ -3365,6 +3365,10 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   margin: 0;
 }
 
+.projectorWorkshopHeader h2 {
+  color: #fff;
+}
+
 .projectorWorkshopHeader p:not(.eyebrow),
 .projectorWorkshopStatus,
 .projectorWorkshopEmptyNote {
