@@ -9,6 +9,7 @@ import { getAdminAccessContext, isUserInManagedSchool } from "@/lib/auth/admin-s
 import {
   DEFAULT_SITE_COPY,
   ensureSiteConfigCatalog,
+  getSiteCopy,
   normalizeSiteAudience,
   SITE_CONFIG_CACHE_TAG,
   SITE_COPY_SETTINGS_GAME,
@@ -1094,6 +1095,62 @@ export async function updateSiteCopyAction(formData) {
   revalidatePath("/report-bug");
   revalidatePath("/teachers");
   redirect("/admin?view=site-copy&siteCopyUpdated=1");
+}
+
+export async function updateHomeBannerAction(previousState, formData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const previousValue = String(previousState?.value || "");
+
+  if (!user || !canAccessAdminArea(user)) {
+    return {
+      status: "error",
+      message: "Only MathClaw admins can edit the banner.",
+      value: previousValue,
+    };
+  }
+
+  const homeBanner = String(formData.get("home_banner") || "").trim();
+
+  try {
+    const admin = createAdminClient();
+    await ensureSiteConfigCatalog(admin);
+    const currentSiteCopy = await getSiteCopy(admin);
+    const { updatedAt, updatedBy, ...currentMetadata } = currentSiteCopy;
+
+    const { error } = await admin.from("game_sessions").insert({
+      game_slug: SITE_COPY_SETTINGS_GAME.slug,
+      player_id: user.id,
+      course_id: null,
+      score: 1,
+      result: "site_copy_settings",
+      metadata: {
+        ...currentMetadata,
+        homeBanner,
+        source: "inline_home_banner",
+      },
+    });
+
+    if (error) throw error;
+
+    updateTag(SITE_CONFIG_CACHE_TAG);
+    revalidatePath("/");
+    revalidatePath("/admin");
+
+    return {
+      status: "success",
+      message: homeBanner ? "Banner saved." : "Banner hidden.",
+      value: homeBanner,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message: `Banner save failed: ${error.message}`,
+      value: previousValue,
+    };
+  }
 }
 
 export async function updateIntegerMasterySettingsAction(formData) {

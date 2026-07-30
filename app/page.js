@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/account-type";
 import { canAccessAdminArea } from "@/lib/auth/owner";
 import { getSiteCopy } from "@/lib/site-config";
+import HomeBannerEditor from "./home-banner-editor";
 import styles from "./page.module.css";
 
 const PUBLIC_FEATURES = [
@@ -38,12 +39,7 @@ function Arrow() {
 function PublicHome({ siteCopy }) {
   return (
     <div className={styles.home}>
-      {siteCopy.homeBanner ? (
-        <section className={styles.banner}>
-          <span className={styles.bannerDot} aria-hidden="true" />
-          <p>{siteCopy.homeBanner}</p>
-        </section>
-      ) : null}
+      <HomeBannerEditor initialValue={siteCopy.homeBanner} canEdit={false} />
 
       <section className={styles.publicHero}>
         <div className={styles.heroCopy}>
@@ -191,12 +187,7 @@ function SignedInHome({ siteCopy, user, accountType, canAccessAdmin }) {
 
   return (
     <div className={styles.home}>
-      {siteCopy.homeBanner ? (
-        <section className={styles.banner}>
-          <span className={styles.bannerDot} aria-hidden="true" />
-          <p>{siteCopy.homeBanner}</p>
-        </section>
-      ) : null}
+      <HomeBannerEditor initialValue={siteCopy.homeBanner} canEdit={canAccessAdmin} />
 
       <section className={styles.todayHero}>
         <div className={styles.todayCopy}>

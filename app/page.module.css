@@ -6,6 +6,7 @@
 .banner {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.7rem;
   border: 1px solid #f0c66a;
   border-radius: 16px;
@@ -16,8 +17,89 @@
 }
 
 .banner p {
+  flex: 1 1 auto;
   margin: 0;
   font-weight: 750;
+}
+
+.bannerEditable {
+  cursor: default;
+}
+
+.bannerEmpty {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.bannerEditButton,
+.bannerActions button {
+  min-height: 2.15rem;
+  border: 1px solid rgba(96, 69, 11, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #60450b;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.bannerEditButton:focus-visible,
+.bannerActions button:focus-visible,
+.bannerForm input:focus-visible {
+  outline: 3px solid rgba(0, 50, 90, 0.35);
+  outline-offset: 2px;
+}
+
+.bannerForm {
+  display: flex;
+  align-items: end;
+  flex: 1 1 32rem;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.bannerInputLabel {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.bannerForm input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(96, 69, 11, 0.35);
+  border-radius: 10px;
+  background: #fff;
+  color: #302306;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-weight: 700;
+}
+
+.bannerActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.bannerActions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.bannerFeedback {
+  flex: 1 0 100%;
+  margin-left: 1.32rem;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.bannerFeedbackError {
+  color: #9d2222;
 }
 
 .bannerDot,
@@ -91,7 +173,7 @@
   font-size: clamp(3.2rem, 7vw, 6.7rem);
   letter-spacing: -0.055em;
   line-height: 0.92;
-  text-wrap: balance;
+  text-wrap: pretty;
 }
 
 .todayHero h1 {
@@ -539,6 +621,7 @@
 .momentumStrip h2 {
   max-width: 700px;
   font-size: clamp(1.7rem, 3vw, 2.8rem);
+  text-wrap: pretty;
 }
 
 .momentumSteps {
@@ -643,6 +726,15 @@
   }
 
   .momentumSteps {
+    justify-content: flex-start;
+  }
+
+  .bannerForm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bannerActions {
     justify-content: flex-start;
   }
 }
