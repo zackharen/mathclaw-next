@@ -2707,6 +2707,20 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
 }
 
+/*
+ * The sticky composer creates its own stacking context. Lift that context only
+ * while one of its full-screen workspaces is open so the studio hero and docks
+ * cannot paint above the modal overlay.
+ */
+.projectorComposer:has(
+  .projectorFullLibraryOverlay,
+  .projectorRoomsOverlay,
+  .projectorWorkshopOverlay,
+  .projectorPlaylistOverlay
+) {
+  z-index: 100;
+}
+
 .projectorComposer > section,
 .projectorComposer > .projectorLibrary {
   overflow: hidden;
