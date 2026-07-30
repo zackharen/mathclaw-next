@@ -140,9 +140,14 @@ function toSceneSummary(scene) {
     folder_id: scene.folder_id ?? null,
     created_at: scene.created_at,
     updated_at: scene.updated_at,
-    // Screen-count labels and the playlist assignment prompt need to know which
-    // screens a scene fills, but not what is on them.
+    // Two different questions, and they disagree on a scene that saved a screen as
+    // null. "N of M screens filled" counts screens with something on them, while the
+    // playlist assignment check counts saved screen slots -- and has to agree with
+    // `load-scene`, which keys off the saved slots.
     filled_screen_ids: SCREEN_IDS.filter((screenId) => states[screenId]),
+    saved_screen_ids: SCREEN_IDS.filter((screenId) =>
+      Object.prototype.hasOwnProperty.call(states, screenId)
+    ),
   };
 }
 

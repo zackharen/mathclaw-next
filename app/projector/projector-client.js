@@ -590,12 +590,13 @@ function playlistEntryMeta(entry, library, scenes) {
   return "Entry";
 }
 
-// The page ships scenes without their screen_states, so prefer the filled-screen list
+// The page ships scenes without their screen_states, so prefer the saved-screen list
 // it sends instead. Scenes that arrive with real states (a fresh save, or the modal's
-// fetch) still resolve through screen_states.
+// fetch) still resolve through screen_states. This counts saved slots rather than
+// filled ones so it keeps agreeing with the `load-scene` endpoint.
 function sceneSavedScreenIds(scene) {
-  if (Array.isArray(scene?.filled_screen_ids)) {
-    return scene.filled_screen_ids
+  if (Array.isArray(scene?.saved_screen_ids)) {
+    return scene.saved_screen_ids
       .map(String)
       .filter((screenId) => ALL_SCREEN_IDS.includes(screenId))
       .sort((left, right) => Number(left) - Number(right));
@@ -629,8 +630,12 @@ async function readJsonResponse(response, fallbackMessage) {
   };
 }
 
+// Screens with content on them, which is not the same set as the saved slots above.
 function sceneFilledCount(scene, screenIds) {
-  const filled = new Set(sceneSavedScreenIds(scene));
+  if (scene?.screen_states && typeof scene.screen_states === "object") {
+    return screenIds.filter((screenId) => scene.screen_states[screenId]).length;
+  }
+  const filled = new Set((scene?.filled_screen_ids || []).map(String));
   return screenIds.filter((screenId) => filled.has(screenId)).length;
 }
 

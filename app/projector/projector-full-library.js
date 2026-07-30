@@ -289,7 +289,7 @@ export default function ProjectorFullLibrary({
   const [draftLoop, setDraftLoop] = useState(false);
   const [draftEntries, setDraftEntries] = useState([]);
   const lastSyncedPlaylistId = useRef("");
-  const sceneFetchFailedRef = useRef(false);
+  const sceneFetchRef = useRef({ inFlight: false, failed: false });
   const scenes = loadedScenes;
   const folders = loadedFolders;
   const playlists = loadedPlaylists;
@@ -406,18 +406,22 @@ export default function ProjectorFullLibrary({
     setDraftEntries(normalizePlaylistEntries(selectedPlaylist.entries));
   }, [selectedPlaylist]);
 
+  // Concurrency is tracked on a ref, not through the dependency array. Depending on
+  // `loadingScenes` would re-run this effect the instant it sets that state, and the
+  // cleanup from the first run would cancel the fetch it had just started -- the
+  // result would be dropped and `loadingScenes` would never clear.
   useEffect(() => {
     if (!open) {
       // Let a failed fetch try again the next time the modal is opened.
-      sceneFetchFailedRef.current = false;
+      sceneFetchRef.current.failed = false;
       return undefined;
     }
-    if (scenesHydrated || loadingScenes || sceneFetchFailedRef.current) return undefined;
-    let cancelled = false;
+    if (scenesHydrated || sceneFetchRef.current.inFlight || sceneFetchRef.current.failed) return undefined;
+
+    sceneFetchRef.current.inFlight = true;
     setLoadingScenes(true);
     fetchSceneLibrary()
       .then(({ scenes: nextScenes, folders: nextFolders }) => {
-        if (cancelled) return;
         setLoadedScenes(nextScenes);
         setLoadedFolders(nextFolders);
         setScenesHydrated(true);
@@ -426,20 +430,18 @@ export default function ProjectorFullLibrary({
         broadcastSceneLibrary(nextScenes, nextFolders);
       })
       .catch((error) => {
-        if (cancelled) return;
-        sceneFetchFailedRef.current = true;
+        sceneFetchRef.current.failed = true;
         setStatus(error.message);
       })
       .finally(() => {
-        if (!cancelled) setLoadingScenes(false);
+        sceneFetchRef.current.inFlight = false;
+        setLoadingScenes(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return undefined;
     // broadcastSceneLibrary is redefined every render; depending on it would refire
     // this fetch continuously while the modal is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingScenes, open, scenesHydrated]);
+  }, [open, scenesHydrated]);
 
   useEffect(() => {
     if (!open || playlistsMissing || playlistItems.length || loadedPlaylists.length || loadingPlaylists) return undefined;
