@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { containedRect } from "@/lib/projector/snapshot-layout";
 import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay, displayContent, questionForState } from "../projector-screen-renderer";
 import "../styles.css";
 
@@ -137,11 +138,9 @@ function drawWrappedSnapshotText(context, text, { width, y, font, color, lineHei
 }
 
 function drawContainedImage(context, source, sourceWidth, sourceHeight, width, height, offsetY = 0) {
-  if (!sourceWidth || !sourceHeight) return;
-  const scale = Math.min(width / sourceWidth, height / sourceHeight);
-  const drawWidth = sourceWidth * scale;
-  const drawHeight = sourceHeight * scale;
-  context.drawImage(source, (width - drawWidth) / 2, offsetY + (height - drawHeight) / 2, drawWidth, drawHeight);
+  const rect = containedRect(sourceWidth, sourceHeight, width, height, offsetY);
+  if (!rect) return;
+  context.drawImage(source, rect.x, rect.y, rect.width, rect.height);
 }
 
 function currentScreenVideo() {
