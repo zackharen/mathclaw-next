@@ -708,49 +708,112 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         {status ? <p className="projectorRoomsStatus">{status}</p> : null}
       </section>
       <style>{`
-        .projectorRoomsOverlay { position: fixed; inset: 0; z-index: 45; display: grid; align-items: start; justify-items: center; overflow: auto; background: rgba(8, 18, 28, 0.58); padding: clamp(0.75rem, 2vw, 2rem); }
-        .projectorRoomsModal { width: min(76rem, 100%); display: grid; gap: 0.85rem; border: 2px solid var(--navy); border-radius: 12px; background: #f7fafc; padding: clamp(1rem, 2vw, 1.4rem); }
+        .projectorRoomsOverlay {
+          position: fixed; inset: 0; z-index: 45; display: grid; align-items: start; justify-items: center;
+          overflow: auto; background: rgba(7, 18, 36, 0.72); padding: clamp(0.75rem, 2vw, 2rem);
+          backdrop-filter: blur(10px);
+        }
+        .projectorRoomsModal {
+          --workspace-pad: clamp(1rem, 2vw, 1.4rem);
+          width: min(76rem, 100%); max-height: calc(100dvh - 2rem); display: grid; gap: 0.85rem;
+          overflow: auto; border: 1px solid rgba(180, 199, 216, 0.82); border-radius: 24px;
+          background: linear-gradient(180deg, #f2f6fa 0%, #e9f0f6 100%);
+          box-shadow: 0 34px 90px rgba(3, 14, 31, 0.42), 0 8px 24px rgba(3, 14, 31, 0.18);
+          padding: var(--workspace-pad);
+        }
         .projectorRoomsHeader, .projectorRoomsEditorHeader, .projectorRoomsFooter { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
+        .projectorRoomsHeader {
+          margin: calc(0px - var(--workspace-pad)) calc(0px - var(--workspace-pad)) 0;
+          border-radius: 23px 23px 0 0;
+          background:
+            radial-gradient(circle at 82% 10%, rgba(118, 106, 255, 0.34), transparent 28%),
+            linear-gradient(135deg, #0d213d 0%, #183968 58%, #2d3e86 100%);
+          color: #fff;
+          padding: clamp(1.05rem, 2vw, 1.5rem) var(--workspace-pad);
+        }
         .projectorRoomsHeader h2, .projectorRoomsHeader p, .projectorRoomsFooter p, .projectorRoomsStatus { margin: 0; }
-        .projectorRoomsHeader button, .projectorRoomSlotActions button, .projectorRoomsList button, .projectorRoomsTabs button, .projectorScheduleDays button, .projectorScheduleBlockActions button { border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy); padding: 0.45rem 0.65rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
-        .projectorRoomsTabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-        .projectorRoomsTabs button.isActive, .projectorScheduleDays button.isActive { border-color: var(--navy); background: var(--navy); color: #fff; }
+        .projectorRoomsHeader .eyebrow { color: #9fd8ff; }
+        .projectorRoomsHeader p:not(.eyebrow) { color: rgba(235, 244, 255, 0.82); }
+        .projectorRoomsHeader button, .projectorRoomSlotActions button, .projectorRoomsList button, .projectorRoomsTabs button, .projectorScheduleDays button, .projectorScheduleBlockActions button {
+          border: 1px solid #c5d2dd; border-radius: 10px; background: #fff; color: var(--navy);
+          padding: 0.48rem 0.7rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer;
+          box-shadow: 0 2px 6px rgba(16, 42, 67, 0.08);
+          transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+        }
+        .projectorRoomsHeader button {
+          border-color: rgba(255, 255, 255, 0.42); background: rgba(255, 255, 255, 0.12); color: #fff;
+          box-shadow: none;
+        }
+        .projectorRoomsHeader button:hover { background: rgba(255, 255, 255, 0.2); }
+        .projectorRoomsTabs {
+          width: fit-content; display: flex; flex-wrap: wrap; gap: 0.35rem;
+          border: 1px solid #c9d6e1; border-radius: 16px; background: rgba(255, 255, 255, 0.78);
+          box-shadow: 0 5px 16px rgba(16, 42, 67, 0.08); padding: 0.35rem;
+        }
+        .projectorRoomsTabs button { border: 0; border-radius: 999px; box-shadow: none; }
+        .projectorRoomsTabs button.isActive, .projectorScheduleDays button.isActive {
+          border-color: #173e6d; background: linear-gradient(135deg, #102a43, #245690); color: #fff;
+          box-shadow: 0 5px 12px rgba(16, 42, 67, 0.2);
+        }
         .projectorRoomsBody { display: grid; grid-template-columns: minmax(13rem, 18rem) minmax(0, 1fr); gap: 1rem; align-items: start; }
         .projectorRoomsList, .projectorRoomsEditor, .projectorRoomSlots, .projectorRoomsNew, .projectorRoomsActivePreview { display: grid; gap: 0.65rem; min-width: 0; }
-        .projectorRoomsList { align-content: start; overflow: auto; }
+        .projectorRoomsList {
+          align-content: start; overflow: auto; border: 1px solid #cbd8e3; border-radius: 18px;
+          background: rgba(255, 255, 255, 0.82); box-shadow: 0 7px 20px rgba(16, 42, 67, 0.08); padding: 0.7rem;
+        }
         .projectorRoomsList button { text-align: left; }
-        .projectorRoomsList button.isActive { border-color: var(--navy); background: var(--navy); color: #fff; }
+        .projectorRoomsList button.isActive {
+          border-color: #173e6d; background: linear-gradient(135deg, #102a43, #245690); color: #fff;
+          box-shadow: 0 6px 14px rgba(16, 42, 67, 0.22);
+        }
         .projectorRoomsList strong, .projectorRoomsList span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .projectorRoomsNew { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem; }
-        .projectorRoomsEditor { min-height: 0; }
+        .projectorRoomsNew { border: 1px solid #d2dde6; border-radius: 14px; background: #f6f9fc; padding: 0.75rem; }
+        .projectorRoomsEditor {
+          min-height: 0; border: 1px solid #cbd8e3; border-radius: 18px;
+          background: rgba(255, 255, 255, 0.78); box-shadow: 0 7px 20px rgba(16, 42, 67, 0.08); padding: 0.85rem;
+        }
         .projectorRoomsEditorHeader { align-items: end; }
+        .projectorRoomsEditorHeader > .field { flex: 1 1 15rem; margin: 0; }
         .projectorRoomsEditorActions { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: flex-end; }
+        .projectorRoomsModal .field { display: grid; gap: 0.35rem; color: var(--navy); font-weight: 850; }
+        .projectorRoomsModal input:not([type="checkbox"]), .projectorRoomsModal select {
+          width: 100%; min-height: 2.65rem; border: 1px solid #9fb1c1; border-radius: 10px;
+          background: #fff; color: var(--ink); padding: 0.55rem 0.7rem; font: inherit; font-weight: 750;
+          box-shadow: inset 0 1px 2px rgba(16, 42, 67, 0.05);
+        }
         .projectorRoomSlots { padding-right: 0.25rem; }
-        .projectorRoomSlot { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 12rem) minmax(5.5rem, 7rem); gap: 0.6rem; align-items: end; border: 2px solid var(--line); border-radius: 8px; background: #fff; padding: 0.7rem; }
+        .projectorRoomSlot {
+          display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 12rem) minmax(5.5rem, 7rem);
+          gap: 0.65rem; align-items: end; border: 1px solid #c9d6e1; border-radius: 15px;
+          background: #f9fbfd; box-shadow: 0 4px 12px rgba(16, 42, 67, 0.06); padding: 0.75rem;
+        }
         .projectorRoomSlot.isInactive { border-color: #94a3b8; background: #f1f5f9; }
-        .projectorRoomSlot > strong { align-self: center; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--navy); color: #fff; }
+        .projectorRoomSlot > strong {
+          align-self: center; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px;
+          background: linear-gradient(135deg, #102a43, #2d5f96); color: #fff; box-shadow: 0 4px 10px rgba(16, 42, 67, 0.22);
+        }
         .projectorRoomSlotToggle { display: grid; gap: 0.35rem; color: var(--navy); font-size: 0.82rem; font-weight: 900; }
         .projectorRoomSlotToggle input { width: 1.25rem; height: 1.25rem; accent-color: var(--navy); }
         .projectorRoomSlotActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
         .projectorRoomSlotActions button:disabled, .projectorRoomsEditorActions button:disabled { cursor: not-allowed; opacity: 0.45; }
         .projectorRoomsActive { margin: 0.2rem 0 0; color: #51606d; font-size: 0.78rem; font-weight: 900; }
-        .projectorRoomsActivePreview { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem; }
-        .projectorRoomsActivePreview button { border: 1px solid #c8d6df; border-radius: 8px; background: #f7fafc; color: var(--navy); padding: 0.45rem 0.55rem; text-align: left; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
+        .projectorRoomsActivePreview { border: 1px solid #cbd8e3; border-radius: 14px; background: #fff; padding: 0.75rem; }
+        .projectorRoomsActivePreview button { border: 1px solid #c8d6df; border-radius: 10px; background: #f7fafc; color: var(--navy); padding: 0.5rem 0.6rem; text-align: left; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
         .projectorRoomsFooter { align-items: center; }
         .projectorRoomsFooter p, .projectorRoomsStatus { color: #51606d; font-weight: 800; }
-        .projectorRoomsStatus { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.55rem 0.7rem; }
+        .projectorRoomsStatus { border: 1px solid #cbd8e3; border-radius: 12px; background: #fff; padding: 0.6rem 0.75rem; }
         .projectorScheduleEditor { display: grid; gap: 0.85rem; }
         .projectorScheduleMissing { margin: 0; border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.75rem; color: #51606d; font-weight: 900; }
-        .projectorScheduleForm { display: grid; grid-template-columns: minmax(12rem, 1.4fr) repeat(2, minmax(7rem, 0.75fr)) minmax(12rem, 1fr) minmax(12rem, 1.2fr); gap: 0.65rem; align-items: end; border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.75rem; }
+        .projectorScheduleForm { display: grid; grid-template-columns: minmax(12rem, 1.4fr) repeat(2, minmax(7rem, 0.75fr)) minmax(12rem, 1fr) minmax(12rem, 1.2fr); gap: 0.65rem; align-items: end; border: 1px solid #cbd8e3; border-radius: 16px; background: #fff; padding: 0.8rem; }
         .projectorScheduleDays { display: flex; flex-wrap: wrap; gap: 0.4rem; }
         .projectorScheduleActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
         .projectorScheduleGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.65rem; }
-        .projectorScheduleDay { display: grid; gap: 0.5rem; align-content: start; border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem; min-width: 0; }
+        .projectorScheduleDay { display: grid; gap: 0.5rem; align-content: start; border: 1px solid #cbd8e3; border-radius: 14px; background: #fff; box-shadow: 0 4px 12px rgba(16, 42, 67, 0.06); padding: 0.75rem; min-width: 0; }
         .projectorScheduleDay.day-6, .projectorScheduleDay.day-0 { background: #f8fafc; }
         .projectorScheduleDay h3, .projectorScheduleDay p { margin: 0; }
         .projectorScheduleDay h3 { color: var(--navy); font-size: 0.95rem; }
         .projectorScheduleDay p { color: #64748b; font-size: 0.82rem; font-weight: 800; }
-        .projectorScheduleBlock { display: grid; gap: 0.5rem; border: 1px solid #c8d6df; border-radius: 8px; background: #f7fafc; padding: 0.55rem; }
+        .projectorScheduleBlock { display: grid; gap: 0.5rem; border: 1px solid #c8d6df; border-radius: 11px; background: #f5f8fb; padding: 0.6rem; }
         .projectorScheduleBlock strong, .projectorScheduleBlock span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .projectorScheduleBlock strong { color: var(--navy); }
         .projectorScheduleBlock span { color: #51606d; font-size: 0.78rem; font-weight: 850; }

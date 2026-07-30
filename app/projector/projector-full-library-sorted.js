@@ -65,7 +65,7 @@ function SortControl({ sort, onChange }) {
           right: max(2rem, calc((100vw - min(92rem, calc(100vw - 2rem))) * 0.5 + 1.4rem));
           z-index: 50;
           display: grid;
-          gap: 0.25rem;
+          gap: 0.3rem;
           color: var(--navy);
           font: inherit;
           font-size: 0.78rem;
@@ -73,14 +73,16 @@ function SortControl({ sort, onChange }) {
         }
         .projectorFullLibrarySort select {
           min-width: 8.5rem;
-          border: 2px solid #93a5b4;
-          border-radius: 8px;
+          min-height: 2.65rem;
+          border: 1px solid #9fb1c1;
+          border-radius: 11px;
           background: #fff;
           color: var(--ink);
           padding: 0.48rem 2rem 0.48rem 0.65rem;
           font: inherit;
           font-weight: 800;
           cursor: pointer;
+          box-shadow: 0 5px 14px rgba(16, 42, 67, 0.1), inset 0 1px 2px rgba(16, 42, 67, 0.05);
         }
         @media (max-width: 720px) {
           .projectorFullLibrarySort {

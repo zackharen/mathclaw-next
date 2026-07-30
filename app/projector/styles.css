@@ -3313,20 +3313,24 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   align-items: start;
   justify-items: center;
   overflow: auto;
-  background: rgba(8, 18, 28, 0.62);
+  background: rgba(7, 18, 36, 0.72);
   padding: clamp(0.75rem, 2vw, 1.5rem);
+  backdrop-filter: blur(10px);
 }
 
 .projectorWorkshopModal {
+  --workspace-pad: clamp(0.95rem, 1.8vw, 1.35rem);
   width: min(96rem, 100%);
   min-height: min(48rem, calc(100vh - 3rem));
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 0.85rem;
-  border: 2px solid var(--navy);
-  border-radius: 12px;
-  background: #f7fafc;
-  padding: clamp(0.85rem, 1.6vw, 1.25rem);
+  overflow: hidden;
+  border: 1px solid rgba(180, 199, 216, 0.82);
+  border-radius: 24px;
+  background: linear-gradient(180deg, #f2f6fa 0%, #e9f0f6 100%);
+  box-shadow: 0 34px 90px rgba(3, 14, 31, 0.42), 0 8px 24px rgba(3, 14, 31, 0.18);
+  padding: var(--workspace-pad);
 }
 
 .projectorWorkshopHeader,
@@ -3345,6 +3349,13 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorWorkshopHeader {
   justify-content: space-between;
   align-items: flex-start;
+  margin: calc(0px - var(--workspace-pad)) calc(0px - var(--workspace-pad)) 0;
+  border-radius: 23px 23px 0 0;
+  background:
+    radial-gradient(circle at 82% 10%, rgba(118, 106, 255, 0.34), transparent 28%),
+    linear-gradient(135deg, #0d213d 0%, #183968 58%, #2d3e86 100%);
+  color: #fff;
+  padding: clamp(1.05rem, 2vw, 1.5rem) var(--workspace-pad);
 }
 
 .projectorWorkshopHeader h2,
@@ -3361,12 +3372,32 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   font-weight: 800;
 }
 
+.projectorWorkshopHeader .eyebrow {
+  color: #9fd8ff;
+}
+
+.projectorWorkshopHeader p:not(.eyebrow) {
+  color: rgba(235, 244, 255, 0.82);
+}
+
+.projectorWorkshopHeaderActions button {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  box-shadow: none;
+}
+
+.projectorWorkshopHeaderActions button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .projectorWorkshopDefaults {
   align-items: flex-end;
-  border: 2px solid #d3dee7;
-  border-radius: 8px;
-  background: #fff;
-  padding: 0.7rem;
+  border: 1px solid #cfdae4;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 6px 18px rgba(16, 42, 67, 0.07);
+  padding: 0.8rem;
 }
 
 .projectorWorkshopDefaults > .field {
@@ -3376,10 +3407,10 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 
 .projectorWorkshopStatus {
   flex: 1 1 15rem;
-  border: 2px solid #d3dee7;
-  border-radius: 8px;
+  border: 1px solid #cbd8e3;
+  border-radius: 12px;
   background: #f7fafc;
-  padding: 0.55rem 0.7rem;
+  padding: 0.6rem 0.75rem;
 }
 
 .projectorWorkshopBody {
@@ -3400,17 +3431,29 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 .projectorWorkshopPool {
-  border-right: 2px solid #d3dee7;
-  padding-right: 0.75rem;
+  border: 1px solid #cbd8e3;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 7px 20px rgba(16, 42, 67, 0.08);
+  padding: 0.75rem;
+}
+
+.projectorWorkshopScenes {
+  border: 1px solid #cbd8e3;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 7px 20px rgba(16, 42, 67, 0.06);
+  padding: 0.75rem;
 }
 
 .projectorWorkshopSidebarSection {
   display: grid;
   gap: 0.55rem;
-  border: 2px solid #d3dee7;
-  border-radius: 8px;
+  border: 1px solid #cbd8e3;
+  border-radius: 14px;
   background: #fff;
-  padding: 0.55rem;
+  box-shadow: 0 4px 12px rgba(16, 42, 67, 0.06);
+  padding: 0.65rem;
 }
 
 .projectorWorkshopSidebarSection.isCollapsed {
@@ -3448,8 +3491,8 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   height: 1.45rem;
   display: grid;
   place-items: center;
-  border: 2px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid #c5d2dd;
+  border-radius: 9px;
   background: #f7fafc;
   font-weight: 900;
   line-height: 1;
@@ -3480,19 +3523,21 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   grid-template-columns: 4.5rem minmax(0, 1fr);
   gap: 0.45rem 0.55rem;
   align-items: center;
-  border: 2px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid #c5d2dd;
+  border-radius: 12px;
   background: #fff;
   color: var(--ink);
   padding: 0.45rem;
   text-align: left;
   font: inherit;
   cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
 }
 
 .projectorWorkshopPoolList button.isActive {
-  border-color: var(--navy);
-  box-shadow: 0 0 0 2px rgba(16, 42, 67, 0.1);
+  border-color: #245690;
+  background: #f3f8fd;
+  box-shadow: 0 0 0 3px rgba(36, 86, 144, 0.12);
 }
 
 .projectorWorkshopPoolList strong,
@@ -3524,7 +3569,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 11px;
   background: #0a0a0a;
   color: #fff;
   padding: 0.35rem;
@@ -3549,10 +3594,11 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorWorkshopRow {
   display: grid;
   gap: 0.75rem;
-  border: 2px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid #c7d4df;
+  border-radius: 16px;
   background: #fff;
-  padding: 0.75rem;
+  box-shadow: 0 6px 18px rgba(16, 42, 67, 0.08);
+  padding: 0.8rem;
 }
 
 .projectorWorkshopRow.isSaved {
@@ -3598,8 +3644,8 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorWorkshopSlotControls button,
 .projectorWorkshopSlotActions button,
 .projectorWorkshopSlotTop select {
-  border: 2px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid #c5d2dd;
+  border-radius: 10px;
   background: #f7fafc;
   color: var(--navy);
   padding: 0.35rem 0.5rem;
@@ -3625,10 +3671,11 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   min-width: 0;
   display: grid;
   gap: 0.5rem;
-  border: 2px solid #d3dee7;
-  border-radius: 8px;
+  border: 1px solid #cbd8e3;
+  border-radius: 14px;
   background: #f7fafc;
-  padding: 0.55rem;
+  box-shadow: 0 4px 12px rgba(16, 42, 67, 0.05);
+  padding: 0.6rem;
 }
 
 .projectorWorkshopSlotTop {
@@ -3645,14 +3692,22 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   width: 100%;
   min-height: 5.25rem;
   resize: vertical;
-  border: 2px solid #93a5b4;
-  border-radius: 8px;
+  border: 1px solid #9fb1c1;
+  border-radius: 10px;
   background: #fff;
   color: var(--ink);
   padding: 0.55rem 0.65rem;
   font: inherit;
   font-size: 0.88rem;
   font-weight: 800;
+}
+
+.projectorWorkshopModal input,
+.projectorWorkshopModal select {
+  border-width: 1px;
+  border-color: #9fb1c1;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 2px rgba(16, 42, 67, 0.05);
 }
 
 .projectorWorkshopVideo,
@@ -3702,10 +3757,8 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   }
 
   .projectorWorkshopPool {
-    border-right: 0;
-    border-bottom: 2px solid #d3dee7;
-    padding-right: 0;
-    padding-bottom: 0.75rem;
+    border: 1px solid #cbd8e3;
+    padding: 0.75rem;
   }
 
   .projectorWorkshopHeader,

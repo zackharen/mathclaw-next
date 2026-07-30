@@ -944,43 +944,84 @@ export default function ProjectorFullLibrary({
         }
         .projectorFullLibraryOverlay {
           position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
-          background: rgba(8, 18, 28, 0.58); padding: clamp(0.75rem, 2vw, 2rem);
+          background: rgba(7, 18, 36, 0.72); padding: clamp(0.75rem, 2vw, 2rem);
+          backdrop-filter: blur(10px);
         }
         .projectorFullLibraryModal {
+          --workspace-pad: clamp(1rem, 2vw, 1.4rem);
           width: min(92rem, 100%); max-height: min(54rem, calc(100dvh - 2rem));
           display: grid; grid-template-rows: auto auto auto auto auto minmax(0, 1fr); gap: 0.8rem; overflow: hidden;
-          border: 2px solid var(--navy); border-radius: 16px; background: #f7fafc;
-          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32); padding: clamp(1rem, 2vw, 1.4rem);
+          border: 1px solid rgba(180, 199, 216, 0.82); border-radius: 24px;
+          background: linear-gradient(180deg, #f2f6fa 0%, #e9f0f6 100%);
+          box-shadow: 0 34px 90px rgba(3, 14, 31, 0.42), 0 8px 24px rgba(3, 14, 31, 0.18);
+          padding: var(--workspace-pad);
         }
-        .projectorFullLibraryHeader { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+        .projectorFullLibraryHeader {
+          display: flex; align-items: start; justify-content: space-between; gap: 1rem;
+          margin: calc(0px - var(--workspace-pad)) calc(0px - var(--workspace-pad)) 0;
+          border-radius: 23px 23px 0 0;
+          background:
+            radial-gradient(circle at 82% 10%, rgba(118, 106, 255, 0.34), transparent 28%),
+            linear-gradient(135deg, #0d213d 0%, #183968 58%, #2d3e86 100%);
+          color: #fff;
+          padding: clamp(1.05rem, 2vw, 1.5rem) var(--workspace-pad);
+        }
         .projectorFullLibraryHeader h2, .projectorFullLibraryHeader p { margin: 0; }
         .projectorFullLibraryHeader p:not(.eyebrow) { margin-top: 0.25rem; }
-        .projectorFullLibraryHeader p:not(.eyebrow), .projectorFullLibrarySummary, .projectorFullLibraryStatus { color: #51606d; font-weight: 800; }
+        .projectorFullLibraryHeader .eyebrow { color: #9fd8ff; }
+        .projectorFullLibraryHeader p:not(.eyebrow) { color: rgba(235, 244, 255, 0.82); font-weight: 750; }
+        .projectorFullLibrarySummary, .projectorFullLibraryStatus { color: #51606d; font-weight: 800; }
         .projectorFullLibraryHeader button, .projectorFullLibraryFilters button, .projectorFullLibraryTabs button {
-          border: 2px solid var(--line); border-radius: 999px; background: #fff; color: var(--navy);
-          padding: 0.45rem 0.75rem; font: inherit; font-size: 0.84rem; font-weight: 900; cursor: pointer;
+          border: 1px solid #c5d2dd; border-radius: 999px; background: #fff; color: var(--navy);
+          padding: 0.5rem 0.8rem; font: inherit; font-size: 0.84rem; font-weight: 900; cursor: pointer;
+          box-shadow: 0 2px 6px rgba(16, 42, 67, 0.08);
+          transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
         }
-        .projectorFullLibraryTabs, .projectorFullLibraryFilters { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+        .projectorFullLibraryHeader button {
+          border-color: rgba(255, 255, 255, 0.42); background: rgba(255, 255, 255, 0.12); color: #fff;
+          box-shadow: none;
+        }
+        .projectorFullLibraryHeader button:hover { background: rgba(255, 255, 255, 0.2); }
+        .projectorFullLibraryTabs {
+          width: fit-content; display: flex; flex-wrap: wrap; gap: 0.35rem;
+          border: 1px solid #c9d6e1; border-radius: 16px; background: rgba(255, 255, 255, 0.78);
+          box-shadow: 0 5px 16px rgba(16, 42, 67, 0.08); padding: 0.35rem;
+        }
+        .projectorFullLibraryFilters { display: flex; flex-wrap: wrap; gap: 0.4rem; }
         .projectorFullLibraryTabs button, .projectorFullLibraryFilters button { display: inline-flex; align-items: center; gap: 0.35rem; }
+        .projectorFullLibraryTabs button { border: 0; box-shadow: none; }
         .projectorFullLibraryTabs button span, .projectorFullLibraryFilters button span {
           min-width: 1.35rem; border-radius: 999px; background: rgba(147, 165, 180, 0.18);
           padding: 0.04rem 0.32rem; text-align: center; font-size: 0.72rem;
         }
-        .projectorFullLibraryTabs button.isActive, .projectorFullLibraryFilters button.isActive { border-color: var(--navy); background: var(--navy); color: #fff; }
+        .projectorFullLibraryTabs button.isActive, .projectorFullLibraryFilters button.isActive {
+          border-color: #173e6d; background: linear-gradient(135deg, #102a43, #245690); color: #fff;
+          box-shadow: 0 5px 12px rgba(16, 42, 67, 0.2);
+        }
         .projectorFullLibraryTabs button:disabled { cursor: not-allowed; opacity: 0.45; }
-        .projectorFullLibraryControls { display: grid; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); gap: 0.75rem; align-items: end; }
+        .projectorFullLibraryControls {
+          display: grid; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); gap: 0.75rem; align-items: end;
+          border: 1px solid #cfdae4; border-radius: 16px; background: rgba(255, 255, 255, 0.82);
+          box-shadow: 0 6px 18px rgba(16, 42, 67, 0.07); padding: 0.8rem;
+        }
         .projectorFullLibraryControls label { display: grid; gap: 0.35rem; color: var(--navy); font-weight: 800; }
         .projectorFullLibraryControls input {
-          width: 100%; border: 2px solid #93a5b4; border-radius: 8px; padding: 0.6rem 0.7rem;
+          width: 100%; border: 1px solid #9fb1c1; border-radius: 11px; padding: 0.65rem 0.75rem;
           font: inherit; background: #fff; color: var(--ink);
+          box-shadow: inset 0 1px 2px rgba(16, 42, 67, 0.05);
         }
         .projectorFullLibrarySummary, .projectorFullLibraryStatus { margin: 0; font-size: 0.85rem; font-weight: 900; }
-        .projectorFullLibraryStatus { border: 2px solid #d3dee7; border-radius: 8px; background: #fff; color: var(--navy); padding: 0.55rem 0.7rem; }
+        .projectorFullLibraryStatus { border: 1px solid #cbd8e3; border-radius: 12px; background: #fff; color: var(--navy); padding: 0.6rem 0.75rem; }
         .projectorFullLibraryGrid {
           min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
           gap: 0.75rem; overflow: auto; padding-right: 0.2rem;
         }
-        .projectorFullLibraryCard { border: 2px solid var(--line); border-radius: 12px; background: #fff; padding: 0.55rem; }
+        .projectorFullLibraryCard {
+          border: 1px solid #c7d4df; border-radius: 16px; background: rgba(255, 255, 255, 0.94);
+          box-shadow: 0 6px 18px rgba(16, 42, 67, 0.08); padding: 0.6rem;
+          transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+        }
+        .projectorFullLibraryCard:hover { border-color: #91a9bd; box-shadow: 0 10px 24px rgba(16, 42, 67, 0.14); transform: translateY(-1px); }
         .projectorFullLibraryCard > button:first-child {
           width: 100%; display: grid; gap: 0.45rem; border: 0; background: transparent; color: var(--ink);
           padding: 0; text-align: left; font: inherit; cursor: pointer;
@@ -989,7 +1030,7 @@ export default function ProjectorFullLibrary({
           display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.55rem;
         }
         .projectorFullLibraryCardActions button {
-          border: 2px solid var(--line); border-radius: 8px; background: #f5f8fb; color: var(--ink);
+          border: 1px solid #c5d2dd; border-radius: 10px; background: #f5f8fb; color: var(--ink);
           padding: 0.35rem 0.55rem; font: inherit; font-size: 0.8rem; font-weight: 900; cursor: pointer;
         }
         .projectorFullLibraryCardActions button.projectorFullLibraryDelete {
@@ -1010,7 +1051,7 @@ export default function ProjectorFullLibrary({
         .projectorFullLibraryCard strong { color: var(--navy); font-size: 1.05rem; }
         .projectorFullLibraryCard em { color: #51606d; font-size: 0.78rem; font-style: normal; font-weight: 800; }
         .projectorFullLibraryThumb, .projectorFullLibrarySceneThumb {
-          aspect-ratio: 16 / 9; display: grid; overflow: hidden; border-radius: 10px; background: #0a0a0a; color: #fff;
+          aspect-ratio: 16 / 9; display: grid; overflow: hidden; border-radius: 12px; background: #0a0a0a; color: #fff;
           text-align: center; font-weight: 900; overflow-wrap: anywhere; white-space: pre-wrap;
         }
         .projectorFullLibraryThumb { place-items: center; padding: 0.5rem; }
@@ -1039,9 +1080,12 @@ export default function ProjectorFullLibrary({
         .projectorPlaylistList, .projectorPlaylistEditor, .projectorPlaylistEntryList, .projectorPlaylistPickers, .projectorPlaylistPickerGrid {
           min-width: 0; display: grid; gap: 0.65rem;
         }
-        .projectorPlaylistList { align-content: start; overflow: auto; }
+        .projectorPlaylistList {
+          align-content: start; overflow: auto; border: 1px solid #cbd8e3; border-radius: 16px;
+          background: rgba(255, 255, 255, 0.78); padding: 0.65rem;
+        }
         .projectorPlaylistList button, .projectorPlaylistEditorActions button, .projectorPlaylistEntryActions button, .projectorPlaylistPickerGrid button {
-          border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy);
+          border: 1px solid #c5d2dd; border-radius: 11px; background: #fff; color: var(--navy);
           padding: 0.5rem 0.65rem; font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer;
         }
         .projectorPlaylistList button { text-align: left; }
@@ -1050,23 +1094,27 @@ export default function ProjectorFullLibrary({
           display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .projectorPlaylistList span { opacity: 0.82; font-size: 0.76rem; }
-        .projectorPlaylistEditor { min-height: 0; overflow: auto; }
+        .projectorPlaylistEditor {
+          min-height: 0; overflow: auto; border: 1px solid #cbd8e3; border-radius: 16px;
+          background: rgba(255, 255, 255, 0.72); padding: 0.75rem;
+        }
         .projectorPlaylistEditorHeader {
           display: grid; grid-template-columns: minmax(12rem, 1fr) auto auto; gap: 0.65rem; align-items: end;
-          border: 2px solid #d3dee7; border-radius: 8px; background: #fff; padding: 0.7rem;
+          border: 1px solid #cfdae4; border-radius: 14px; background: #fff; padding: 0.75rem;
         }
         .projectorPlaylistEditorHeader label, .projectorPlaylistEntry label {
           display: grid; gap: 0.25rem; color: var(--navy); font-size: 0.78rem; font-weight: 900;
         }
         .projectorPlaylistEditorHeader input, .projectorPlaylistEntry input {
-          border: 2px solid #93a5b4; border-radius: 8px; background: #fff; color: var(--ink);
+          border: 1px solid #9fb1c1; border-radius: 10px; background: #fff; color: var(--ink);
           padding: 0.5rem 0.65rem; font: inherit; font-weight: 800;
         }
         .projectorPlaylistLoopToggle { align-items: center; grid-auto-flow: column; }
         .projectorPlaylistEditorActions, .projectorPlaylistEntryActions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
         .projectorPlaylistEntry {
           display: grid; grid-template-columns: 5rem minmax(0, 1fr) 6rem auto; gap: 0.65rem; align-items: center;
-          border: 2px solid var(--line); border-radius: 8px; background: #fff; padding: 0.55rem;
+          border: 1px solid #c7d4df; border-radius: 13px; background: #fff;
+          box-shadow: 0 4px 12px rgba(16, 42, 67, 0.06); padding: 0.6rem;
         }
         .projectorPlaylistEntryThumb, .projectorPlaylistPickerGrid span {
           aspect-ratio: 16 / 9; display: grid; place-items: center; overflow: hidden; border-radius: 6px;
