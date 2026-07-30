@@ -590,7 +590,16 @@ function playlistEntryMeta(entry, library, scenes) {
   return "Entry";
 }
 
+// The page ships scenes without their screen_states, so prefer the filled-screen list
+// it sends instead. Scenes that arrive with real states (a fresh save, or the modal's
+// fetch) still resolve through screen_states.
 function sceneSavedScreenIds(scene) {
+  if (Array.isArray(scene?.filled_screen_ids)) {
+    return scene.filled_screen_ids
+      .map(String)
+      .filter((screenId) => ALL_SCREEN_IDS.includes(screenId))
+      .sort((left, right) => Number(left) - Number(right));
+  }
   const source = scene?.screen_states && typeof scene.screen_states === "object" ? scene.screen_states : {};
   return Object.keys(source)
     .filter((screenId) => ALL_SCREEN_IDS.includes(screenId))
@@ -621,7 +630,8 @@ async function readJsonResponse(response, fallbackMessage) {
 }
 
 function sceneFilledCount(scene, screenIds) {
-  return screenIds.filter((screenId) => scene?.screen_states?.[screenId]).length;
+  const filled = new Set(sceneSavedScreenIds(scene));
+  return screenIds.filter((screenId) => filled.has(screenId)).length;
 }
 
 function sceneFolderLabel(scene, folders) {
@@ -667,6 +677,9 @@ export default function ProjectorClient({
   session,
   libraryItems = [],
   sceneItems = [],
+  // Set when the page sent scene metadata without screen_states. Anything that reads
+  // the contents of a saved scene has to ask for them first.
+  sceneStatesDeferred = false,
   sceneFolders = [],
   playlistItems = [],
   playlistsSetupMissing = false,
@@ -679,6 +692,8 @@ export default function ProjectorClient({
   const [scenes, setScenes] = useState(sceneItems);
   const [folders, setFolders] = useState(sceneFolders);
   const [playlists, setPlaylists] = useState(playlistItems);
+  const [sceneStatesReady, setSceneStatesReady] = useState(!sceneStatesDeferred);
+  const sceneStatesRequestRef = useRef(null);
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
@@ -924,6 +939,36 @@ export default function ProjectorClient({
     );
   }
 
+  // The page ships scenes without their screen_states so the studio can paint without
+  // waiting on megabytes of saved screen content. Surfaces that actually read a
+  // scene's contents — the Workshop's scene editor above all, where an empty scene
+  // would be saved back over a real one — call this first and wait for it.
+  function requestSceneStates() {
+    if (sceneStatesReady) return Promise.resolve();
+    if (sceneStatesRequestRef.current) return sceneStatesRequestRef.current;
+
+    const request = fetch("/api/projector?action=scenes", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Could not load scenes.");
+        const nextScenes = Array.isArray(payload.scenes) ? payload.scenes : [];
+        const nextFolders = Array.isArray(payload.folders) ? payload.folders : folders;
+        setScenes(nextScenes);
+        setFolders(nextFolders);
+        setSceneStatesReady(true);
+        syncSceneLibrary(nextScenes, nextFolders);
+      })
+      .catch((error) => {
+        setMessage(error.message);
+        // Let the next attempt retry instead of caching the failure.
+        sceneStatesRequestRef.current = null;
+        throw error;
+      });
+
+    sceneStatesRequestRef.current = request;
+    return request;
+  }
+
   function updateScenesAndSync(updater, nextFolders = folders) {
     const nextScenes = typeof updater === "function" ? updater(scenes) : updater;
     setScenes(nextScenes);
@@ -1048,6 +1093,9 @@ export default function ProjectorClient({
     function updateSceneLibrary(event) {
       if (event.detail?.source === "projector-client") return;
       if (Array.isArray(event.detail?.scenes)) {
+        // The full-library modal fetches the states this page deliberately skipped;
+        // adopting them here means the Workshop no longer has to ask for them.
+        if (event.detail.scenes.some((scene) => scene?.screen_states)) setSceneStatesReady(true);
         setScenes(event.detail.scenes);
         setLoadedScene((current) => {
           if (!current) return current;
@@ -4755,6 +4803,8 @@ export default function ProjectorClient({
             folders={folders}
             libraryItems={library}
             sceneItems={scenes}
+            sceneStatesReady={sceneStatesReady}
+            onRequestSceneStates={requestSceneStates}
             onFoldersChanged={updateFoldersAndSync}
             onScenesSaved={addWorkshopScenes}
             onSceneUpdated={updateSceneInLibrary}

@@ -124,6 +124,28 @@ async function loadLibraryItems(supabase, teacherId) {
   return data || [];
 }
 
+// A scene's screen_states holds the full content of every saved screen, and saved
+// screens are usually base64 images — a single scene can be megabytes. None of it is
+// on screen at first paint: the Scenes panel, every scene folder, and the full-library
+// modal all start closed, so the states were being serialized into the page payload
+// only to be thrown away. Ship the metadata the closed UI needs to label itself and
+// let the modal fetch the real states when it opens. Loading a scene onto screens
+// always re-reads screen_states server-side (`load-scene`), so nothing that reaches a
+// classroom screen depends on the states being in this payload.
+function toSceneSummary(scene) {
+  const states = scene?.screen_states && typeof scene.screen_states === "object" ? scene.screen_states : {};
+  return {
+    id: scene.id,
+    title: scene.title,
+    folder_id: scene.folder_id ?? null,
+    created_at: scene.created_at,
+    updated_at: scene.updated_at,
+    // Screen-count labels and the playlist assignment prompt need to know which
+    // screens a scene fills, but not what is on them.
+    filled_screen_ids: SCREEN_IDS.filter((screenId) => states[screenId]),
+  };
+}
+
 async function loadSceneItems(supabase, teacherId) {
   const { data, error } = await supabase
     .from("projector_scene_library_items")
@@ -146,12 +168,12 @@ async function loadSceneItems(supabase, teacherId) {
         if (fallbackError.code === "42P01" || fallbackError.code === "PGRST205") return [];
         throw new Error(fallbackError.message);
       }
-      return fallbackData || [];
+      return (fallbackData || []).map(toSceneSummary);
     }
     throw new Error(error.message);
   }
 
-  return data || [];
+  return (data || []).map(toSceneSummary);
 }
 
 async function loadSceneFolders(supabase, teacherId) {
@@ -321,6 +343,7 @@ export default async function ProjectorPage() {
         session={clientSession}
         libraryItems={libraryItems}
         sceneItems={sceneItems}
+        sceneStatesDeferred
         sceneFolders={sceneFolders}
         playlistItems={playlistState.playlists}
         playlistsSetupMissing={playlistState.setupMissing}
@@ -329,6 +352,7 @@ export default async function ProjectorPage() {
       <ProjectorFullLibrary
         libraryItems={libraryItems}
         sceneItems={sceneItems}
+        sceneStatesDeferred
         sceneFolders={sceneFolders}
         playlistItems={playlistState.playlists}
         playlistsSetupMissing={playlistState.setupMissing}

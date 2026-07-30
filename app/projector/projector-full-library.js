@@ -184,8 +184,16 @@ function searchableContentForItem(item) {
   return displayContent(item.content);
 }
 
+// Scenes arrive from the page without screen_states and carry filled_screen_ids
+// instead; once this modal fetches the real states, screen_states is authoritative.
 function sceneFilledCount(scene) {
-  return SCREEN_IDS.filter((screenId) => scene?.screen_states?.[screenId]).length;
+  if (scene?.screen_states && typeof scene.screen_states === "object") {
+    return SCREEN_IDS.filter((screenId) => scene.screen_states[screenId]).length;
+  }
+  if (Array.isArray(scene?.filled_screen_ids)) {
+    return scene.filled_screen_ids.map(String).filter((screenId) => SCREEN_IDS.includes(screenId)).length;
+  }
+  return 0;
 }
 
 function normalizePlaylistEntries(entries) {
@@ -253,6 +261,10 @@ function openSavedItemInComposer(item) {
 export default function ProjectorFullLibrary({
   libraryItems = [],
   sceneItems = [],
+  // Set when the page sent scene metadata without screen_states. The scene grid,
+  // search, and playlist previews all need the real states, so they are fetched the
+  // first time this modal opens rather than shipped with the page.
+  sceneStatesDeferred = false,
   sceneFolders = [],
   playlistItems = [],
   playlistsSetupMissing = false,
@@ -268,6 +280,7 @@ export default function ProjectorFullLibrary({
   const [loadedPlaylists, setLoadedPlaylists] = useState(playlistItems);
   const [playlistsMissing, setPlaylistsMissing] = useState(playlistsSetupMissing);
   const [loadingScenes, setLoadingScenes] = useState(false);
+  const [scenesHydrated, setScenesHydrated] = useState(() => !sceneStatesDeferred && sceneItems.length > 0);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
   const [renamingSceneId, setRenamingSceneId] = useState("");
   const [renamingSceneTitle, setRenamingSceneTitle] = useState("");
@@ -276,6 +289,7 @@ export default function ProjectorFullLibrary({
   const [draftLoop, setDraftLoop] = useState(false);
   const [draftEntries, setDraftEntries] = useState([]);
   const lastSyncedPlaylistId = useRef("");
+  const sceneFetchFailedRef = useRef(false);
   const scenes = loadedScenes;
   const folders = loadedFolders;
   const playlists = loadedPlaylists;
@@ -285,13 +299,30 @@ export default function ProjectorFullLibrary({
   const selectedPlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId) || playlists[0] || null;
 
   useEffect(() => {
-    if (sceneItems.length) setLoadedScenes(sceneItems);
+    // The Sort control re-orders this prop, so it has to keep seeding order and
+    // titles. When the states have already been fetched, carry them across instead of
+    // dropping back to the page's stateless metadata.
+    if (sceneItems.length) {
+      setLoadedScenes((current) => {
+        const fetchedStates = new Map(
+          current.filter((scene) => scene?.screen_states).map((scene) => [scene.id, scene.screen_states])
+        );
+        if (!fetchedStates.size) return sceneItems;
+        return sceneItems.map((scene) =>
+          fetchedStates.has(scene.id) ? { ...scene, screen_states: fetchedStates.get(scene.id) } : scene
+        );
+      });
+    }
     if (sceneFolders.length) setLoadedFolders(sceneFolders);
   }, [sceneFolders, sceneItems]);
 
   useEffect(() => {
     function updateSceneLibrary(event) {
-      if (Array.isArray(event.detail?.scenes)) setLoadedScenes(event.detail.scenes);
+      if (Array.isArray(event.detail?.scenes)) {
+        // Another surface already paid for the states; skip fetching them again.
+        if (event.detail.scenes.some((scene) => scene?.screen_states)) setScenesHydrated(true);
+        setLoadedScenes(event.detail.scenes);
+      }
       if (Array.isArray(event.detail?.folders)) setLoadedFolders(event.detail.folders);
     }
 
@@ -376,18 +407,28 @@ export default function ProjectorFullLibrary({
   }, [selectedPlaylist]);
 
   useEffect(() => {
-    if (!open || sceneItems.length || loadedScenes.length || loadingScenes) return undefined;
+    if (!open) {
+      // Let a failed fetch try again the next time the modal is opened.
+      sceneFetchFailedRef.current = false;
+      return undefined;
+    }
+    if (scenesHydrated || loadingScenes || sceneFetchFailedRef.current) return undefined;
     let cancelled = false;
     setLoadingScenes(true);
     fetchSceneLibrary()
       .then(({ scenes: nextScenes, folders: nextFolders }) => {
-        if (!cancelled) {
-          setLoadedScenes(nextScenes);
-          setLoadedFolders(nextFolders);
-        }
+        if (cancelled) return;
+        setLoadedScenes(nextScenes);
+        setLoadedFolders(nextFolders);
+        setScenesHydrated(true);
+        // The studio keeps its own copy of the scene list; hand it the fetched states
+        // so both surfaces agree.
+        broadcastSceneLibrary(nextScenes, nextFolders);
       })
       .catch((error) => {
-        if (!cancelled) setStatus(error.message);
+        if (cancelled) return;
+        sceneFetchFailedRef.current = true;
+        setStatus(error.message);
       })
       .finally(() => {
         if (!cancelled) setLoadingScenes(false);
@@ -395,7 +436,10 @@ export default function ProjectorFullLibrary({
     return () => {
       cancelled = true;
     };
-  }, [loadedScenes.length, loadingScenes, open, sceneItems.length]);
+    // broadcastSceneLibrary is redefined every render; depending on it would refire
+    // this fetch continuously while the modal is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingScenes, open, scenesHydrated]);
 
   useEffect(() => {
     if (!open || playlistsMissing || playlistItems.length || loadedPlaylists.length || loadingPlaylists) return undefined;

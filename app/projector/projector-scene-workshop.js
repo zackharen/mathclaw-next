@@ -195,6 +195,11 @@ export default function ProjectorSceneWorkshop({
   folders = [],
   libraryItems = [],
   sceneItems = [],
+  // Saved scenes reach this component without their screen_states so the studio can
+  // paint quickly. Editing a scene rebuilds it from those states, so the scene editor
+  // stays disabled until they have been fetched.
+  sceneStatesReady = true,
+  onRequestSceneStates,
   onFoldersChanged,
   onScenesSaved,
   onSceneUpdated,
@@ -265,6 +270,13 @@ export default function ProjectorSceneWorkshop({
   }
 
   function editExistingScene(scene) {
+    // Without the real states this would open an empty copy that saves back over the
+    // saved scene, so refuse rather than risk clearing it.
+    if (!sceneStatesReady) {
+      setStatus("Still loading saved scenes. Try again in a moment.");
+      onRequestSceneStates?.();
+      return;
+    }
     setRows((current) => [sceneRowFromExisting(scene, defaultSlotCount), ...current]);
     setStatus(`Opened "${scene.title}" for Workshop editing.`);
   }
@@ -518,7 +530,14 @@ export default function ProjectorSceneWorkshop({
 
   const launcher = (
     <section className="projectorLibrary projectorWorkshopLauncher" aria-label="Projector Scene Workshop">
-      <button className="projectorLibraryHeader projectorPanelToggle" type="button" onClick={() => setOpen(true)}>
+      <button
+        className="projectorLibraryHeader projectorPanelToggle"
+        type="button"
+        onClick={() => {
+          setOpen(true);
+          if (!sceneStatesReady) onRequestSceneStates?.();
+        }}
+      >
         <div className="projectorPlaylistsLauncherSummary">
           <h2>Scene Workshop</h2>
           <p className="projectorRoomsActive">Build scenes off live</p>
@@ -605,12 +624,17 @@ export default function ProjectorSceneWorkshop({
                 </label>
                 <div className="projectorWorkshopPoolList">
                   {filteredScenes.length ? filteredScenes.map((scene) => (
-                    <button key={scene.id} type="button" onClick={() => editExistingScene(scene)}>
+                    <button
+                      key={scene.id}
+                      type="button"
+                      onClick={() => editExistingScene(scene)}
+                      disabled={!sceneStatesReady}
+                    >
                       <span className="projectorWorkshopAssetThumb">
                         {renderMiniPreview(slotFromSceneState(scene.screen_states?.["1"]))}
                       </span>
                       <strong>{scene.title}</strong>
-                      <em>Open in Workshop</em>
+                      <em>{sceneStatesReady ? "Open in Workshop" : "Loading scene..."}</em>
                     </button>
                   )) : <p className="projectorWorkshopEmptyNote">No saved scenes match that search.</p>}
                 </div>
