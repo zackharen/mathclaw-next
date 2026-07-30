@@ -729,10 +729,6 @@
   gap: 0.75rem;
 }
 
-.projectorSidebarLauncherButton {
-  width: 100%;
-}
-
 .projectorPollComposer,
 .projectorPollResultsCard {
   display: grid;

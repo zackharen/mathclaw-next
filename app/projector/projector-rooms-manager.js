@@ -102,7 +102,6 @@ async function endProjectorTakeover() {
 export default function ProjectorRoomsManager({ session, initialActiveRoom = null, initialRooms = [] }) {
   const [rooms, setRooms] = useState(initialRooms.length ? initialRooms : [defaultRoom()]);
   const [activeRoomId, setActiveRoomId] = useState(initialActiveRoom?.id || rooms.find((room) => room.is_active)?.id || "default");
-  const [launcherOpen, setLauncherOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState(activeRoomId);
   const [draftName, setDraftName] = useState("");
@@ -425,9 +424,9 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       <button
         className="projectorLibraryHeader projectorPanelToggle"
         type="button"
-        onClick={() => setLauncherOpen((current) => !current)}
-        aria-expanded={launcherOpen}
-        aria-label={`${launcherOpen ? "Collapse" : "Expand"} Rooms`}
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-label="Open Rooms"
       >
         <div className="projectorRoomsLauncherSummary">
           <p className="eyebrow">Active: {activeRoom.name}</p>
@@ -435,13 +434,6 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         </div>
         <span className="projectorPanelCount">{rooms.length}</span>
       </button>
-      {launcherOpen ? (
-        <div className="projectorPanelBody">
-          <button className="btn secondary projectorSidebarLauncherButton" type="button" onClick={() => setOpen(true)}>
-            Manage Rooms
-          </button>
-        </div>
-      ) : null}
       <style>{`
         .projectorRoomsLauncherSummary { display: grid; gap: 0.2rem; min-width: 0; }
         .projectorRoomsLauncherSummary h2 { margin: 0; }
