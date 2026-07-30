@@ -353,15 +353,17 @@ export default async function ProjectorPage() {
         playlistItems={playlistState.playlists}
         playlistsSetupMissing={playlistState.setupMissing}
       />
-      <ProjectorRoomsManager session={clientSession} initialRooms={rooms} initialActiveRoom={activeRoom} />
-      <ProjectorFullLibrary
-        libraryItems={libraryItems}
-        sceneItems={sceneItems}
-        sceneStatesDeferred
-        sceneFolders={sceneFolders}
-        playlistItems={playlistState.playlists}
-        playlistsSetupMissing={playlistState.setupMissing}
-      />
+      <div className="projectorExternalManageTools">
+        <ProjectorRoomsManager session={clientSession} initialRooms={rooms} initialActiveRoom={activeRoom} />
+        <ProjectorFullLibrary
+          libraryItems={libraryItems}
+          sceneItems={sceneItems}
+          sceneStatesDeferred
+          sceneFolders={sceneFolders}
+          playlistItems={playlistState.playlists}
+          playlistsSetupMissing={playlistState.setupMissing}
+        />
+      </div>
     </>
   );
 }

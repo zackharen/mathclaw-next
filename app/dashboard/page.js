@@ -145,6 +145,12 @@ function dashboardPaceStatus(card) {
   return { className: "isOnPace", label: "On pace" };
 }
 
+function dashboardCourseRoleLabel(role) {
+  if (role === "owner") return "Owner";
+  if (role === "admin") return "Admin";
+  return "Co-Teacher";
+}
+
 function getGameSupportCopy(game) {
   if (game.slug === "connect4") return "Students can open multiplayer matches from the Student Arcade.";
   if (game.slug === "2048") return "Students can practice solo strategy and build high scores.";
@@ -415,9 +421,6 @@ export default async function DashboardPage({ searchParams }) {
             <Link className="btn primary" href="/projector">
               Launch Projector
             </Link>
-            <Link className="btn secondary" href="/classes">
-              Manage Classes
-            </Link>
             <Link className="btn secondary" href="/classes/new">
               ＋ Add Class
             </Link>
@@ -492,6 +495,27 @@ export default async function DashboardPage({ searchParams }) {
               </div>
               <span className={`teacherDashboardPacePill ${paceStatus.className}`}>
                 {paceStatus.label}
+              </span>
+            </div>
+
+            <div className="teacherDashboardClassSummary" aria-label={`${card.course.title} class summary`}>
+              <span>
+                <strong>Schedule</strong>
+                {card.course.schedule_model === "ab"
+                  ? `A/B · ${card.course.ab_meeting_day || "A/B"}`
+                  : "Every day"}
+              </span>
+              <span>
+                <strong>Join code</strong>
+                {card.course.student_join_code || "Not set"}
+              </span>
+              <span>
+                <strong>Games live</strong>
+                {card.courseGames.filter((game) => game.studentEnabled).length}
+              </span>
+              <span>
+                <strong>Your role</strong>
+                {dashboardCourseRoleLabel(card.course.membership_role)}
               </span>
             </div>
 
@@ -581,13 +605,7 @@ export default async function DashboardPage({ searchParams }) {
                 <div className="classCourseMetaGrid">
                   <div>
                     <strong>Role</strong>
-                    <span>
-                      {card.course.membership_role === "owner"
-                        ? "Owner"
-                        : card.course.membership_role === "admin"
-                          ? "Admin"
-                          : "Co-Teacher"}
-                    </span>
+                    <span>{dashboardCourseRoleLabel(card.course.membership_role)}</span>
                   </div>
                   <div>
                     <strong>Dates</strong>

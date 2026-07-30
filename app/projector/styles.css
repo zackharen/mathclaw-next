@@ -3,6 +3,81 @@
   gap: 1rem;
 }
 
+.projectorWorkspaceTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  border: 1px solid #d8e1e9;
+  border-radius: 18px;
+  background: #eef2f7;
+  padding: 0.5rem;
+}
+
+.projectorWorkspaceTabs button {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: #475569;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.projectorWorkspaceTabs button:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.projectorWorkspaceTabs button.isActive {
+  border-color: #c7d2fe;
+  background: #fff;
+  color: #172554;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.projectorWorkspaceTabs strong {
+  font-size: 1rem;
+}
+
+.projectorWorkspaceTabs span {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.projectorDashboard.isLiveControls .projectorManageOnly,
+.projectorDashboard.isBuildManage .projectorLiveOnly,
+.projectorDashboard.isLiveControls .projectorRoomsLauncher,
+.projectorDashboard.isBuildManage .projectorTakeoverDock,
+.projectorDashboard.isBuildManage .projectorTimerDock,
+.projectorDashboard.isBuildManage .projectorReviewDock,
+.projectorDashboard.isBuildManage .projectorPlaylistDock,
+.projectorDashboard.isBuildManage .projectorTimedRotationDock,
+.projectorDashboard.isBuildManage .projectorSchedulePrompt,
+.projectorDashboard.isLiveControls ~ .projectorExternalManageTools {
+  display: none !important;
+}
+
+.projectorDashboard.isBuildManage .projectorLayout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.projectorDashboard.isBuildManage .projectorComposer {
+  position: static;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.projectorExternalManageTools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
 .projectorHeader {
   display: flex;
   align-items: stretch;
@@ -2791,6 +2866,12 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 @media (max-width: 720px) {
+  .projectorWorkspaceTabs,
+  .projectorDashboard.isBuildManage .projectorComposer,
+  .projectorExternalManageTools {
+    grid-template-columns: 1fr;
+  }
+
   .projectorHeader {
     display: grid;
   }

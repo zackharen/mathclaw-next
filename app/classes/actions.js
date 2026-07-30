@@ -17,8 +17,7 @@ import {
 import { logInternalEvent } from "@/lib/observability/events";
 
 function normalizeReturnTo(value) {
-  if (value === "dashboard") return "dashboard";
-  return value === "students" ? "students" : "classes";
+  return value === "students" ? "students" : "dashboard";
 }
 
 function buildRedirectPath({ returnTo, courseId, params }) {

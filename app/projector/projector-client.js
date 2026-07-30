@@ -702,6 +702,7 @@ export default function ProjectorClient({
   playlistItems = [],
   playlistsSetupMissing = false,
 }) {
+  const [workspace, setWorkspace] = useState("live");
   const [screenStates, setScreenStates] = useState(session.screen_states || {});
   const [takeoverState, setTakeoverState] = useState(() => takeoverStateFrom(session.screen_states || {}));
   const [reviewState, setReviewState] = useState(() => reviewStateFrom(session.screen_states || {}));
@@ -3618,7 +3619,7 @@ export default function ProjectorClient({
   }
 
   return (
-    <div className="projectorDashboard">
+    <div className={`projectorDashboard ${workspace === "live" ? "isLiveControls" : "isBuildManage"}`}>
       {assignmentPrompt ? (
         <div
           className="projectorAssignmentOverlay"
@@ -3950,6 +3951,27 @@ export default function ProjectorClient({
         </div>
       </section>
 
+      <nav className="projectorWorkspaceTabs" aria-label="Projector workspaces">
+        <button
+          className={workspace === "live" ? "isActive" : ""}
+          type="button"
+          aria-pressed={workspace === "live"}
+          onClick={() => setWorkspace("live")}
+        >
+          <strong>Live Controls</strong>
+          <span>Run screens, polls, timers, and the room in real time.</span>
+        </button>
+        <button
+          className={workspace === "manage" ? "isActive" : ""}
+          type="button"
+          aria-pressed={workspace === "manage"}
+          onClick={() => setWorkspace("manage")}
+        >
+          <strong>Build &amp; Manage</strong>
+          <span>Prepare items, scenes, playlists, rooms, and reusable tools.</span>
+        </button>
+      </nav>
+
       {takeoverState ? (
         <section className="projectorTakeoverDock" aria-label="Screen takeover">
           <div>
@@ -4093,7 +4115,7 @@ export default function ProjectorClient({
 
       <div className="projectorLayout">
         <div className="projectorGridColumn">
-          <div className="projectorStudioStage">
+          <div className="projectorStudioStage projectorLiveOnly">
             <div className="projectorStudioStageHeader">
               <div>
                 <p className="eyebrow">Live room canvas</p>
@@ -4348,7 +4370,7 @@ export default function ProjectorClient({
             })}
             </section>
           </div>
-          <div className="projectorRotateRow">
+          <div className="projectorRotateRow projectorLiveOnly">
             <button className="btn secondary" type="button" onClick={() => rotateScreens("backward")} disabled={sending}>
               ↶ Rotate Left
             </button>
@@ -4359,7 +4381,7 @@ export default function ProjectorClient({
               ⟳ Timed Rotate
             </button>
           </div>
-          <div className="projectorSceneSaveRow" aria-label="Save current screens as a scene">
+          <div className="projectorSceneSaveRow projectorManageOnly" aria-label="Save current screens as a scene">
             <label className="field">
               <span>Save Current Screens As</span>
               <input
@@ -4426,7 +4448,7 @@ export default function ProjectorClient({
           {!pollsSetupMissing ? (
             <SidebarPanel
               ariaLabel="Live polls"
-              className="projectorPollPanel"
+              className="projectorPollPanel projectorLiveOnly"
               count={activePoll ? "Live" : recentPolls.length}
               eyebrow="Touch screens"
               onToggle={() => togglePanel("polls")}
@@ -4563,7 +4585,7 @@ export default function ProjectorClient({
             </SidebarPanel>
           ) : null}
           {!workQueueSetupMissing ? (
-            <section className="projectorLibrary projectorWorkQueue" aria-label="Submitted work queue">
+            <section className="projectorLibrary projectorWorkQueue projectorLiveOnly" aria-label="Submitted work queue">
               <button
                 className="projectorLibraryHeader projectorPanelToggle"
                 type="button"
@@ -4676,7 +4698,7 @@ export default function ProjectorClient({
           ) : null}
           <SidebarPanel
             ariaLabel="Screen timer"
-            className="projectorTimerPanel"
+            className="projectorTimerPanel projectorLiveOnly"
             count={timerState ? 1 : 0}
             eyebrow="Screens"
             onToggle={() => togglePanel("timer")}
@@ -4755,7 +4777,7 @@ export default function ProjectorClient({
           {!wordListsSetupMissing ? (
             <SidebarPanel
               ariaLabel="Word Wall lists"
-              className="projectorWordWallPanel"
+              className="projectorWordWallPanel projectorManageOnly"
               count={wordLists.length}
               eyebrow="Autopilot"
               onToggle={() => togglePanel("wordWalls")}
@@ -4811,27 +4833,30 @@ export default function ProjectorClient({
           {!playlistsSetupMissing ? (
             <SidebarPanel
               ariaLabel="Projector Playlists"
-              className="projectorPlaylistsLauncher"
+              className="projectorPlaylistsLauncher projectorManageOnly"
               count={playlists.length}
               eyebrow={currentPlaylist ? `Now: ${currentPlaylist.name}` : "Timed rotations"}
               onLaunch={() => openFullLibraryTab("playlists")}
               title="Playlists"
             />
           ) : null}
-          <ProjectorSceneWorkshop
-            activeRoom={activeRoom}
-            folders={folders}
-            libraryItems={library}
-            sceneItems={scenes}
-            sceneStatesReady={sceneStatesReady}
-            onRequestSceneStates={requestSceneStates}
-            onFoldersChanged={updateFoldersAndSync}
-            onScenesSaved={addWorkshopScenes}
-            onSceneUpdated={updateSceneInLibrary}
-            onItemsSaved={addAutoSavedItems}
-          />
+          <div className="projectorManageOnly">
+            <ProjectorSceneWorkshop
+              activeRoom={activeRoom}
+              folders={folders}
+              libraryItems={library}
+              sceneItems={scenes}
+              sceneStatesReady={sceneStatesReady}
+              onRequestSceneStates={requestSceneStates}
+              onFoldersChanged={updateFoldersAndSync}
+              onScenesSaved={addWorkshopScenes}
+              onSceneUpdated={updateSceneInLibrary}
+              onItemsSaved={addAutoSavedItems}
+            />
+          </div>
           <SidebarPanel
             ariaLabel="Screen Selection"
+            className="projectorLiveOnly"
             count={targetSummary}
             eyebrow="Controls"
             onToggle={() => togglePanel("screens")}
@@ -5131,7 +5156,7 @@ export default function ProjectorClient({
 
           <SidebarPanel
             ariaLabel="Saved Room Setups"
-            className="projectorSceneLibrary"
+            className="projectorSceneLibrary projectorManageOnly"
             count={scenes.length}
             eyebrow="Scenes"
             onLaunch={() => openFullLibraryTab("scenes")}
@@ -5268,6 +5293,7 @@ export default function ProjectorClient({
 
           <SidebarPanel
             ariaLabel="Saved Projector Items"
+            className="projectorManageOnly"
             count={library.length}
             eyebrow="Library"
             onLaunch={() => openFullLibraryTab("items")}

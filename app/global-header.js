@@ -190,7 +190,6 @@ export default async function GlobalHeader() {
     navItems = [
       { href: "/", label: "Home" },
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/classes", label: "Classes" },
       { href: "/play", label: "Arcade" },
       { href: "/projector", label: "Projector" },
       { href: "/teachers", label: "Teachers" },

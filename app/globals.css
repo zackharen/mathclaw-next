@@ -1126,6 +1126,31 @@ p {
 .teacherDashboardPacePill.isBehind { background: #ffe4e6; color: #be123c; }
 .teacherDashboardPacePill.isSetup { background: #fef3c7; color: #92400e; }
 
+.teacherDashboardClassSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  border-top: 1px solid #e7edf2;
+  border-bottom: 1px solid #e7edf2;
+  background: #f8fafc;
+  padding: 0.75rem 1.05rem;
+}
+
+.teacherDashboardClassSummary span {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  color: #405469;
+  font-size: 0.84rem;
+}
+
+.teacherDashboardClassSummary strong {
+  color: #788896;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .teacherDashboardProgress {
   display: grid;
   gap: 0.45rem;
@@ -1550,6 +1575,10 @@ p {
   .teacherDashboardCourseTop {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .teacherDashboardClassSummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .teacherDashboardPacePill {
