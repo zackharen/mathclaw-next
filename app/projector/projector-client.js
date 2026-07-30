@@ -4580,13 +4580,12 @@ export default function ProjectorClient({
                 aria-expanded={openPanels.workQueue}
               >
                 <div className="projectorPlaylistsLauncherSummary">
-                  <h2>
-                    Submitted Work <span className="projectorLibraryLaunchCount">{workQueue.length}</span>
-                  </h2>
-                  <p className="projectorRoomsActive">
+                  <p className="eyebrow">
                     {newWorkCount ? `${newWorkCount} new photo${newWorkCount === 1 ? "" : "s"}` : "Teacher approval queue"}
                   </p>
+                  <h2>Submitted Work</h2>
                 </div>
+                <span className="projectorPanelCount">{workQueue.length}</span>
                 <strong className="projectorPanelChevron">{openPanels.workQueue ? "Hide" : "Show"}</strong>
               </button>
               {openPanels.workQueue ? (

@@ -538,8 +538,8 @@ export default function ProjectorSceneWorkshop({
         aria-expanded={launcherOpen}
       >
         <div className="projectorPlaylistsLauncherSummary">
+          <p className="eyebrow">Build scenes off live</p>
           <h2>Scene Workshop</h2>
-          <p className="projectorRoomsActive">Build scenes off live</p>
         </div>
         <strong className="projectorPanelChevron">{launcherOpen ? "Hide" : "Show"}</strong>
       </button>

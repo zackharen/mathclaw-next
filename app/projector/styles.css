@@ -686,11 +686,17 @@
 }
 
 .projectorLibraryHeader {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 0.75rem;
   color: var(--navy);
+  text-align: left;
+}
+
+.projectorLibraryHeader > div {
+  min-width: 0;
+  text-align: left;
 }
 
 .projectorPanelToggle {
@@ -718,17 +724,8 @@
   font-weight: 900;
 }
 
-.projectorLibraryLaunchCount {
-  min-width: 2rem;
-  border: 1px solid #93a5b4;
-  border-radius: 999px;
-  background: #fff;
-  padding: 0.15rem 0.5rem;
-  text-align: center;
-  font-weight: 900;
-}
-
 .projectorPanelChevron {
+  grid-column: -2;
   border: 1px solid #c8d6df;
   border-radius: 999px;
   background: #fff;
@@ -2735,6 +2732,46 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   box-shadow: none;
 }
 
+.projectorComposer > section[aria-label="Projector Playlists"] {
+  order: 1;
+}
+
+.projectorComposer > section[aria-label="Live polls"] {
+  order: 2;
+}
+
+.projectorComposer > section[aria-label="Projector Rooms"] {
+  order: 3;
+}
+
+.projectorComposer > section[aria-label="Saved Projector Items"] {
+  order: 4;
+}
+
+.projectorComposer > section[aria-label="Projector Scene Workshop"] {
+  order: 5;
+}
+
+.projectorComposer > section[aria-label="Saved Room Setups"] {
+  order: 6;
+}
+
+.projectorComposer > section[aria-label="Screen Selection"] {
+  order: 7;
+}
+
+.projectorComposer > section[aria-label="Screen timer"] {
+  order: 8;
+}
+
+.projectorComposer > section[aria-label="Submitted work queue"] {
+  order: 9;
+}
+
+.projectorComposer > section[aria-label="Word Wall lists"] {
+  order: 10;
+}
+
 .projectorSceneSaveRow {
   border: 1px solid #d5e0e8;
   border-radius: 16px;
@@ -3269,19 +3306,9 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   opacity: 0.5;
 }
 
-.projectorPlaylistsLauncher .projectorLibraryHeader {
-  justify-content: center;
-  text-align: center;
-}
-
-.projectorWorkshopLauncher .projectorLibraryHeader {
-  justify-content: center;
-  text-align: center;
-}
-
 .projectorPlaylistsLauncherSummary {
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: 0.2rem;
   width: 100%;
 }
@@ -3289,7 +3316,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorPlaylistsLauncherSummary h2 {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.55rem;
   margin: 0;
 }
