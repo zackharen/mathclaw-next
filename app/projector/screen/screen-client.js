@@ -936,7 +936,10 @@ export default function ScreenClient({ initialToken = null }) {
         </div>
         <div className="projectorScreenTopBarGroup projectorScreenTopBarEnd">
           {enabled && tools.draw && !pollActive ? (
-            <div className="projectorDrawToolbar" aria-label="Drawing tools">
+            <div
+              className={`projectorDrawToolbar${drawPenOn ? " isExpanded" : ""}`}
+              aria-label="Drawing tools"
+            >
               <button
                 className={drawPenOn ? "isActive" : ""}
                 type="button"
@@ -990,7 +993,9 @@ export default function ScreenClient({ initialToken = null }) {
                   />
                   {!workPreviewUrl ? (
                     <div className="projectorSubmitWorkChoices">
-                      {tools.draw ? (
+                      {/* Only offered once the pen is on: there is nothing worth sending
+                          from a screen nobody has drawn on yet. */}
+                      {tools.draw && drawPenOn ? (
                         <button
                           className="projectorSubmitWorkButton projectorSubmitDrawingButton"
                           type="button"

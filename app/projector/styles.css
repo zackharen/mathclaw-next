@@ -4069,6 +4069,12 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   gap: 0.3rem;
   padding: 0.15rem 0.4rem;
   border-radius: 999px;
+}
+
+/* Collapsed, the toolbar holds only the Draw button, and its own pill read as a
+   second border around that one button. The container chrome is only worth
+   drawing once there is a cluster of tools to group. */
+.projectorDrawToolbar.isExpanded {
   border: 2px solid rgba(255, 255, 255, 0.35);
   background: rgba(10, 10, 10, 0.85);
 }
