@@ -427,13 +427,13 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         type="button"
         onClick={() => setLauncherOpen((current) => !current)}
         aria-expanded={launcherOpen}
+        aria-label={`${launcherOpen ? "Collapse" : "Expand"} Rooms`}
       >
         <div className="projectorRoomsLauncherSummary">
           <p className="eyebrow">Active: {activeRoom.name}</p>
           <h2>Rooms</h2>
         </div>
         <span className="projectorPanelCount">{rooms.length}</span>
-        <strong className="projectorPanelChevron">{launcherOpen ? "Hide" : "Show"}</strong>
       </button>
       {launcherOpen ? (
         <div className="projectorPanelBody">

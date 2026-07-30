@@ -536,12 +536,12 @@ export default function ProjectorSceneWorkshop({
         type="button"
         onClick={() => setLauncherOpen((current) => !current)}
         aria-expanded={launcherOpen}
+        aria-label={`${launcherOpen ? "Collapse" : "Expand"} Scene Workshop`}
       >
         <div className="projectorPlaylistsLauncherSummary">
           <p className="eyebrow">Build scenes off live</p>
           <h2>Scene Workshop</h2>
         </div>
-        <strong className="projectorPanelChevron">{launcherOpen ? "Hide" : "Show"}</strong>
       </button>
       {launcherOpen ? (
         <div className="projectorPanelBody">
