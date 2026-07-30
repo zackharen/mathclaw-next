@@ -348,6 +348,23 @@ function QuestionDisplay({ promptContent = "", promptType = "text", question, re
 // Supabase Storage with `access-control-allow-origin: *`, but a source without
 // those headers would refuse to load at all, so a load error retries as a plain
 // request — giving up frame capture rather than playback.
+// The autoplay attribute alone is not enough here. Content arrives from the API,
+// so the element mounts well after page load, and a CORS retry mounts another one
+// — a browser that declines to treat either as an autoplay candidate leaves the
+// video parked on frame 0 with nothing asking again. Muted inline playback needs
+// no gesture, so asking once the media can play is allowed; a policy refusal just
+// rejects and leaves that same frame.
+//
+// Once per element, and only on its first canplay: turning the pen on pauses the
+// video deliberately (the ink has to line up with the frame under it), and canplay
+// can fire again after that, so a retry here would fight the drawing pause.
+function startPlaybackOnce(event) {
+  const video = event.currentTarget;
+  if (video.dataset.autostarted) return;
+  video.dataset.autostarted = "1";
+  if (video.paused) video.play()?.catch?.(() => {});
+}
+
 function ProjectorVideoMedia({ content }) {
   const [cors, setCors] = useState(true);
   return (
@@ -362,6 +379,7 @@ function ProjectorVideoMedia({ content }) {
       loop
       muted
       playsInline
+      onCanPlay={startPlaybackOnce}
       onError={() => setCors(false)}
     />
   );
