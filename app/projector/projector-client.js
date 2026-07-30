@@ -656,7 +656,18 @@ function screenTargetSummary(targetScreenIds, targetMode = "custom") {
   return `${targetScreenIds.length} selected`;
 }
 
-function SidebarPanel({ ariaLabel, children, className = "", count, eyebrow, onToggle, open, title }) {
+function SidebarPanel({
+  ariaLabel,
+  children,
+  className = "",
+  count,
+  eyebrow,
+  launchLabel,
+  onLaunch,
+  onToggle,
+  open,
+  title,
+}) {
   return (
     <section className={`projectorLibrary ${className}`} aria-label={ariaLabel || title}>
       <button
@@ -672,7 +683,15 @@ function SidebarPanel({ ariaLabel, children, className = "", count, eyebrow, onT
         <span className="projectorPanelCount">{count}</span>
         <strong className="projectorPanelChevron">{open ? "Hide" : "Show"}</strong>
       </button>
-      {open ? <div className="projectorPanelBody">{children}</div> : null}
+      {open ? (
+        <div className="projectorPanelBody">
+          {onLaunch ? (
+            <button className="btn secondary projectorSidebarLauncherButton" type="button" onClick={onLaunch}>
+              {launchLabel}
+            </button>
+          ) : children}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -702,7 +721,16 @@ export default function ProjectorClient({
   const [openFolderIds, setOpenFolderIds] = useState(new Set());
   const [showNewFolderForm, setShowNewFolderForm] = useState(false);
   const [showSceneSaveFolderForm, setShowSceneSaveFolderForm] = useState(false);
-  const [openPanels, setOpenPanels] = useState({ polls: true, workQueue: true, timer: true, wordWalls: false, screens: true, scenes: false, library: false });
+  const [openPanels, setOpenPanels] = useState({
+    polls: false,
+    workQueue: false,
+    timer: false,
+    wordWalls: false,
+    playlists: false,
+    screens: false,
+    scenes: false,
+    library: false,
+  });
   const [targetMode, setTargetMode] = useState("all");
   const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
   const [type, setType] = useState("text");
@@ -934,6 +962,10 @@ export default function ProjectorClient({
 
   function togglePanel(panelName) {
     setOpenPanels((current) => ({ ...current, [panelName]: !current[panelName] }));
+  }
+
+  function openFullLibraryTab(tabName) {
+    window.dispatchEvent(new CustomEvent("projector:open-library-tab", { detail: { tab: tabName } }));
   }
 
   function syncSceneLibrary(nextScenes, nextFolders = folders) {
@@ -4545,6 +4577,7 @@ export default function ProjectorClient({
                 className="projectorLibraryHeader projectorPanelToggle"
                 type="button"
                 onClick={() => togglePanel("workQueue")}
+                aria-expanded={openPanels.workQueue}
               >
                 <div className="projectorPlaylistsLauncherSummary">
                   <h2>
@@ -4786,22 +4819,17 @@ export default function ProjectorClient({
             </SidebarPanel>
           ) : null}
           {!playlistsSetupMissing ? (
-            <section className="projectorLibrary projectorPlaylistsLauncher" aria-label="Projector Playlists">
-              <button
-                className="projectorLibraryHeader projectorPanelToggle"
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent("projector:open-playlists"))}
-              >
-                <div className="projectorPlaylistsLauncherSummary">
-                  <h2>
-                    Playlists <span className="projectorLibraryLaunchCount">{playlists.length}</span>
-                  </h2>
-                  <p className="projectorRoomsActive">
-                    {currentPlaylist ? `Now: ${currentPlaylist.name}` : "Timed rotations"}
-                  </p>
-                </div>
-              </button>
-            </section>
+            <SidebarPanel
+              ariaLabel="Projector Playlists"
+              className="projectorPlaylistsLauncher"
+              count={playlists.length}
+              eyebrow={currentPlaylist ? `Now: ${currentPlaylist.name}` : "Timed rotations"}
+              launchLabel="Open Playlists"
+              onLaunch={() => openFullLibraryTab("playlists")}
+              onToggle={() => togglePanel("playlists")}
+              open={openPanels.playlists}
+              title="Playlists"
+            />
           ) : null}
           <ProjectorSceneWorkshop
             activeRoom={activeRoom}
@@ -5119,6 +5147,8 @@ export default function ProjectorClient({
             className="projectorSceneLibrary"
             count={scenes.length}
             eyebrow="Scenes"
+            launchLabel="Open Scenes"
+            onLaunch={() => openFullLibraryTab("scenes")}
             onToggle={() => togglePanel("scenes")}
             open={openPanels.scenes}
             title="Scenes"
@@ -5256,6 +5286,8 @@ export default function ProjectorClient({
             ariaLabel="Saved Projector Items"
             count={library.length}
             eyebrow="Library"
+            launchLabel="Open Saved Items"
+            onLaunch={() => openFullLibraryTab("items")}
             onToggle={() => togglePanel("library")}
             open={openPanels.library}
             title="Saved Items"

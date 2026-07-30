@@ -95,100 +95,6 @@ function SortControl({ sort, onChange }) {
   );
 }
 
-function LibraryPanelLaunchers() {
-  useEffect(() => {
-    const panels = [
-      { ariaLabel: "Saved Room Setups", tabIndex: 1, title: "Scenes" },
-      { ariaLabel: "Saved Projector Items", tabIndex: 0, title: "Items" },
-    ];
-
-    function decoratePanel({ ariaLabel, title }) {
-      const section = document.querySelector(`section[aria-label="${ariaLabel}"]`);
-      const button = section?.querySelector(".projectorPanelToggle");
-      if (!button) return;
-
-      const heading = button.querySelector("h2");
-      const count = button.querySelector(".projectorPanelCount")?.textContent?.trim();
-      const label = count ? `${title} ${count}` : title;
-      const hasCountBadge = Boolean(heading?.querySelector(".projectorLibraryLaunchCount"));
-      if (heading && (heading.textContent !== label || (count && !hasCountBadge))) {
-        heading.replaceChildren(document.createTextNode(title));
-        if (count) {
-          const countBadge = document.createElement("span");
-          countBadge.className = "projectorLibraryLaunchCount";
-          countBadge.textContent = count;
-          heading.appendChild(countBadge);
-        }
-      }
-      button.setAttribute("aria-label", `Open ${title}`);
-    }
-
-    function openLibrary(event) {
-      if (!event.isTrusted) return;
-      const button = event.target.closest?.(".projectorPanelToggle");
-      const section = button?.closest?.("section[aria-label]");
-      const panel = panels.find((item) => item.ariaLabel === section?.getAttribute("aria-label"));
-      if (!panel) return;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      document.querySelector(".projectorFullLibraryLauncher")?.click();
-      window.setTimeout(() => {
-        document.querySelectorAll(".projectorFullLibraryTabs button")[panel.tabIndex]?.click();
-      }, 40);
-    }
-
-    panels.forEach(decoratePanel);
-    document.addEventListener("click", openLibrary, true);
-    return () => document.removeEventListener("click", openLibrary, true);
-  }, []);
-
-  return (
-    <style>{`
-      .projectorFullLibraryLauncher {
-        display: none !important;
-      }
-      section[aria-label="Saved Room Setups"] .projectorLibraryHeader,
-      section[aria-label="Saved Projector Items"] .projectorLibraryHeader {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-      }
-      section[aria-label="Saved Room Setups"] .projectorLibraryHeader .eyebrow,
-      section[aria-label="Saved Projector Items"] .projectorLibraryHeader .eyebrow,
-      section[aria-label="Saved Room Setups"] .projectorPanelChevron,
-      section[aria-label="Saved Projector Items"] .projectorPanelChevron {
-        display: none;
-      }
-      section[aria-label="Saved Room Setups"] .projectorLibraryHeader > div,
-      section[aria-label="Saved Projector Items"] .projectorLibraryHeader > div {
-        width: 100%;
-      }
-      section[aria-label="Saved Room Setups"] .projectorLibraryHeader h2,
-      section[aria-label="Saved Projector Items"] .projectorLibraryHeader h2 {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.55rem;
-      }
-      .projectorLibraryLaunchCount {
-        min-width: 2rem;
-        border: 1px solid #93a5b4;
-        border-radius: 999px;
-        background: #fff;
-        padding: 0.15rem 0.5rem;
-        text-align: center;
-        font-weight: 900;
-      }
-      section[aria-label="Saved Room Setups"] .projectorPanelCount,
-      section[aria-label="Saved Projector Items"] .projectorPanelCount {
-        display: none;
-      }
-    `}</style>
-  );
-}
-
 export default function ProjectorFullLibrarySorted(props) {
   const [sort, setSort] = useState("newest");
   const sortedLibraryItems = useMemo(
@@ -208,7 +114,7 @@ export default function ProjectorFullLibrarySorted(props) {
         sceneItems={sortedSceneItems}
       />
       <SortControl sort={sort} onChange={setSort} />
-      <LibraryPanelLaunchers />
+      <style>{`.projectorFullLibraryLauncher { display: none !important; }`}</style>
     </>
   );
 }
