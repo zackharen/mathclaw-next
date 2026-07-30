@@ -732,6 +732,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
           padding: clamp(1.05rem, 2vw, 1.5rem) var(--workspace-pad);
         }
         .projectorRoomsHeader h2, .projectorRoomsHeader p, .projectorRoomsFooter p, .projectorRoomsStatus { margin: 0; }
+        .projectorRoomsHeader h2 { color: #fff; }
         .projectorRoomsHeader .eyebrow { color: #9fd8ff; }
         .projectorRoomsHeader p:not(.eyebrow) { color: rgba(235, 244, 255, 0.82); }
         .projectorRoomsHeader button, .projectorRoomSlotActions button, .projectorRoomsList button, .projectorRoomsTabs button, .projectorScheduleDays button, .projectorScheduleBlockActions button {

@@ -967,6 +967,7 @@ export default function ProjectorFullLibrary({
           padding: clamp(1.05rem, 2vw, 1.5rem) var(--workspace-pad);
         }
         .projectorFullLibraryHeader h2, .projectorFullLibraryHeader p { margin: 0; }
+        .projectorFullLibraryHeader h2 { color: #fff; }
         .projectorFullLibraryHeader p:not(.eyebrow) { margin-top: 0.25rem; }
         .projectorFullLibraryHeader .eyebrow { color: #9fd8ff; }
         .projectorFullLibraryHeader p:not(.eyebrow) { color: rgba(235, 244, 255, 0.82); font-weight: 750; }
