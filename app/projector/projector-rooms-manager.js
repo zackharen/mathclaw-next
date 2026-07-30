@@ -102,6 +102,7 @@ async function endProjectorTakeover() {
 export default function ProjectorRoomsManager({ session, initialActiveRoom = null, initialRooms = [] }) {
   const [rooms, setRooms] = useState(initialRooms.length ? initialRooms : [defaultRoom()]);
   const [activeRoomId, setActiveRoomId] = useState(initialActiveRoom?.id || rooms.find((room) => room.is_active)?.id || "default");
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState(activeRoomId);
   const [draftName, setDraftName] = useState("");
@@ -421,18 +422,30 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
 
   const card = (
     <section className="projectorLibrary projectorRoomsLauncher" aria-label="Projector Rooms">
-      <button className="projectorLibraryHeader projectorPanelToggle" type="button" onClick={() => setOpen(true)}>
+      <button
+        className="projectorLibraryHeader projectorPanelToggle"
+        type="button"
+        onClick={() => setLauncherOpen((current) => !current)}
+        aria-expanded={launcherOpen}
+      >
         <div className="projectorRoomsLauncherSummary">
           <h2>
             Rooms <span className="projectorLibraryLaunchCount">{rooms.length}</span>
           </h2>
           <p className="projectorRoomsActive">Active: {activeRoom.name}</p>
         </div>
+        <strong className="projectorPanelChevron">{launcherOpen ? "Hide" : "Show"}</strong>
       </button>
+      {launcherOpen ? (
+        <div className="projectorPanelBody">
+          <button className="btn secondary projectorSidebarLauncherButton" type="button" onClick={() => setOpen(true)}>
+            Manage Rooms
+          </button>
+        </div>
+      ) : null}
       <style>{`
-        .projectorRoomsLauncher .projectorLibraryHeader { justify-content: center; text-align: center; }
-        .projectorRoomsLauncherSummary { display: grid; justify-items: center; gap: 0.2rem; width: 100%; }
-        .projectorRoomsLauncherSummary h2 { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; margin: 0; }
+        .projectorRoomsLauncherSummary { display: grid; gap: 0.2rem; min-width: 0; }
+        .projectorRoomsLauncherSummary h2 { display: inline-flex; align-items: center; gap: 0.55rem; margin: 0; }
       `}</style>
     </section>
   );

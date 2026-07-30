@@ -513,6 +513,18 @@ export default function ProjectorFullLibrary({
     window.dispatchEvent(new CustomEvent("projector:full-library-open", { detail: { open } }));
   }, [open]);
 
+  useEffect(() => {
+    function openLibraryTab(event) {
+      const nextTab = event.detail?.tab;
+      if (!["items", "scenes", "playlists"].includes(nextTab)) return;
+      setTab(nextTab);
+      setOpen(true);
+    }
+
+    window.addEventListener("projector:open-library-tab", openLibraryTab);
+    return () => window.removeEventListener("projector:open-library-tab", openLibraryTab);
+  }, []);
+
   if (!hasItems && !hasScenes && !hasPlaylists && !loadingScenes && !loadingPlaylists && playlistsMissing) return null;
 
   function updatePlaylists(nextPlaylists) {
