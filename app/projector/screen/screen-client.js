@@ -748,11 +748,20 @@ export default function ScreenClient({ initialToken = null }) {
     setWorkFile(null);
     setWorkStatus("idle");
     setMessage("");
-    if (workSource === "drawing") {
-      captureDrawingForSubmit();
-      return;
-    }
     workInputRef.current?.click();
+  }
+
+  // Drops the pending capture and hands the screen back so the ink can be edited.
+  // Nothing is discarded but the snapshot itself: the strokes are still on the
+  // canvas and the video is still parked on the frame they were drawn over, so
+  // Send Drawing captures the edited version.
+  function resumeDrawing() {
+    if (workPreviewUrl) URL.revokeObjectURL(workPreviewUrl);
+    setWorkPreviewUrl("");
+    setWorkFile(null);
+    setWorkStatus("idle");
+    setMessage("");
+    setDrawPenOn(true);
   }
 
   // Files the current screen (content + ink) into the same submit-work flow a
@@ -1025,9 +1034,15 @@ export default function ScreenClient({ initialToken = null }) {
                         </label>
                       </div>
                       <div className="projectorSubmitWorkActions">
-                        <button type="button" onClick={retakeWorkPhoto} disabled={workStatus === "submitting"}>
-                          Retake
-                        </button>
+                        {workSource === "drawing" ? (
+                          <button type="button" onClick={resumeDrawing} disabled={workStatus === "submitting"}>
+                            Keep drawing
+                          </button>
+                        ) : (
+                          <button type="button" onClick={retakeWorkPhoto} disabled={workStatus === "submitting"}>
+                            Retake
+                          </button>
+                        )}
                         <button type="button" onClick={submitWorkPhoto} disabled={workStatus === "submitting"}>
                           {workStatus === "submitting" ? "Sending..." : "Send to teacher"}
                         </button>
