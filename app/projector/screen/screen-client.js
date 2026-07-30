@@ -136,12 +136,16 @@ function drawWrappedSnapshotText(context, text, { width, y, font, color, lineHei
   return y + Math.min(lines.length, maxLines) * lineHeight;
 }
 
-function drawContainedImage(context, source, sourceWidth, sourceHeight, width, height) {
+function drawContainedImage(context, source, sourceWidth, sourceHeight, width, height, offsetY = 0) {
   if (!sourceWidth || !sourceHeight) return;
   const scale = Math.min(width / sourceWidth, height / sourceHeight);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
-  context.drawImage(source, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+  context.drawImage(source, (width - drawWidth) / 2, offsetY + (height - drawHeight) / 2, drawWidth, drawHeight);
+}
+
+function currentScreenVideo() {
+  return document.querySelector(".projectorScreenStage video.projectorScreenMedia");
 }
 
 // Flattens the screen's current content into the snapshot background. Media is
@@ -179,9 +183,12 @@ async function drawSnapshotBackground(context, width, height, state, includeVide
     });
   } else if (state.type === "video") {
     if (includeVideo) {
-      const video = document.querySelector(".projectorScreenStage video.projectorScreenMedia");
+      const video = currentScreenVideo();
       if (video && video.videoWidth) {
-        drawContainedImage(context, video, video.videoWidth, video.videoHeight, width, height);
+        // On screen the top text stacks above the video, so the frame goes in the
+        // space that is left instead of painting over the text.
+        const reserved = state.topText ? cursorY : 0;
+        drawContainedImage(context, video, video.videoWidth, video.videoHeight, width, height - reserved, reserved);
       }
     }
   } else if (question) {
@@ -441,6 +448,30 @@ export default function ScreenClient({ initialToken = null }) {
   const workInputRef = useRef(null);
   const drawLayerRef = useRef(null);
   const snapshotRequestRef = useRef(null);
+  const pausedForDrawingRef = useRef(false);
+
+  // Only changes when the receiver's <video> is actually replaced, so the pause
+  // effect below does not re-run on every polled state refresh.
+  const videoSourceKey = state?.type === "video" ? String(state?.content || "") : "";
+
+  // Turning the pen on freezes playback so the ink stays lined up with the frame
+  // underneath it, and the submitted snapshot shows that same frame. Local to this
+  // device by design — other screens playing the same video are untouched. A poll
+  // overlay unmounts the content, so there is simply no video to pause until it ends.
+  useEffect(() => {
+    const video = currentScreenVideo();
+    if (!video) {
+      pausedForDrawingRef.current = false;
+      return;
+    }
+    if (drawPenOn) {
+      video.pause();
+      pausedForDrawingRef.current = true;
+    } else if (pausedForDrawingRef.current) {
+      pausedForDrawingRef.current = false;
+      video.play()?.catch?.(() => {});
+    }
+  }, [activePoll, drawPenOn, enabled, videoSourceKey]);
 
   // Kept in a ref so the realtime channel handler always sees current
   // enabled/inputType/state without re-subscribing on every change.

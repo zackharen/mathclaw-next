@@ -343,6 +343,30 @@ function QuestionDisplay({ promptContent = "", promptType = "text", question, re
   );
 }
 
+// Drawing snapshots flatten the current video frame onto a canvas, which taints
+// it unless the media was fetched with CORS. Projector video is served from
+// Supabase Storage with `access-control-allow-origin: *`, but a source without
+// those headers would refuse to load at all, so a load error retries as a plain
+// request — giving up frame capture rather than playback.
+function ProjectorVideoMedia({ content }) {
+  const [cors, setCors] = useState(true);
+  return (
+    <video
+      className="projectorScreenMedia"
+      // Changing crossOrigin on a live element does not re-fetch, so the retry
+      // needs a fresh element.
+      key={cors ? "cors" : "plain"}
+      src={content}
+      crossOrigin={cors ? "anonymous" : undefined}
+      autoPlay
+      loop
+      muted
+      playsInline
+      onError={() => setCors(false)}
+    />
+  );
+}
+
 function ProjectorScreenContentBody({ state }) {
   if (!state) return <div className="projectorWaiting">waiting for content</div>;
   const content = displayContent(state.content);
@@ -358,19 +382,7 @@ function ProjectorScreenContentBody({ state }) {
     // previous image's object-fit geometry when src changes in place on the same node.
     return <img className="projectorScreenMedia" key={content} src={content} alt="" />;
   }
-  if (state.type === "video") {
-    return (
-      <video
-        className="projectorScreenMedia"
-        key={content}
-        src={content}
-        autoPlay
-        loop
-        muted
-        playsInline
-      />
-    );
-  }
+  if (state.type === "video") return <ProjectorVideoMedia key={content} content={content} />;
   return <div className="projectorWaiting">waiting for content</div>;
 }
 
