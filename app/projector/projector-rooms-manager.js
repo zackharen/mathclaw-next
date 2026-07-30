@@ -429,11 +429,10 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         aria-expanded={launcherOpen}
       >
         <div className="projectorRoomsLauncherSummary">
-          <h2>
-            Rooms <span className="projectorLibraryLaunchCount">{rooms.length}</span>
-          </h2>
-          <p className="projectorRoomsActive">Active: {activeRoom.name}</p>
+          <p className="eyebrow">Active: {activeRoom.name}</p>
+          <h2>Rooms</h2>
         </div>
+        <span className="projectorPanelCount">{rooms.length}</span>
         <strong className="projectorPanelChevron">{launcherOpen ? "Hide" : "Show"}</strong>
       </button>
       {launcherOpen ? (
@@ -445,7 +444,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
       ) : null}
       <style>{`
         .projectorRoomsLauncherSummary { display: grid; gap: 0.2rem; min-width: 0; }
-        .projectorRoomsLauncherSummary h2 { display: inline-flex; align-items: center; gap: 0.55rem; margin: 0; }
+        .projectorRoomsLauncherSummary h2 { margin: 0; }
       `}</style>
     </section>
   );
