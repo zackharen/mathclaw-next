@@ -412,10 +412,10 @@ const ProjectorDrawLayer = forwardRef(function ProjectorDrawLayer(
   );
 });
 
-export default function ScreenClient({ initialToken = null }) {
+export default function ScreenClient({ initialToken = null, initialPin = "", initialScreenNumber = "" }) {
   const [token, setToken] = useState(initialToken || "");
-  const [pin, setPin] = useState("");
-  const [screenNumber, setScreenNumber] = useState("1");
+  const [pin, setPin] = useState(initialPin);
+  const [screenNumber, setScreenNumber] = useState(initialScreenNumber || "1");
   const [sessionId, setSessionId] = useState("");
   const [screenName, setScreenName] = useState("");
   const [inputType, setInputType] = useState("display_only");
@@ -497,6 +497,8 @@ export default function ScreenClient({ initialToken = null }) {
       setToken(String(params.get("token") || "").trim());
     }
   }, [initialToken]);
+
+  const autoConnectedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -630,15 +632,14 @@ export default function ScreenClient({ initialToken = null }) {
     };
   }, [loadActivePoll, loadScreen, reconnectKey, sessionId, screenNumber]);
 
-  async function resolvePin(event) {
-    event.preventDefault();
+  const connectWithPin = useCallback(async (nextPin, nextScreenNumber) => {
     setStatus("connecting");
     setMessage("");
     try {
       const response = await fetch("/api/projector/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resolve", pin, screenNumber }),
+        body: JSON.stringify({ action: "resolve", pin: nextPin, screenNumber: nextScreenNumber }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not connect.");
@@ -649,7 +650,23 @@ export default function ScreenClient({ initialToken = null }) {
       setStatus("error");
       setMessage(error.message);
     }
+  }, []);
+
+  async function resolvePin(event) {
+    event.preventDefault();
+    await connectWithPin(pin, screenNumber);
   }
+
+  // The URL named a screen the server had no token for, so resolve one rather
+  // than showing the PIN form the copied link was meant to skip. Guarded by a
+  // ref because a failed resolve leaves the props unchanged, and retrying on
+  // every render would hammer the API.
+  useEffect(() => {
+    if (initialToken || !initialPin || !initialScreenNumber) return;
+    if (autoConnectedRef.current) return;
+    autoConnectedRef.current = true;
+    connectWithPin(initialPin, initialScreenNumber);
+  }, [initialToken, initialPin, initialScreenNumber, connectWithPin]);
 
   // Any half-finished submission belongs to the screen it was started on.
   function discardPendingWork() {

@@ -11,8 +11,9 @@ export default async function ProjectorScreenPinPage({ params }) {
   const safeScreen = String(screenNumber || "").trim();
 
   let initialToken = null;
+  const addressed = /^\d{6}$/.test(safePin) && SCREEN_IDS.includes(safeScreen);
 
-  if (/^\d{6}$/.test(safePin) && SCREEN_IDS.includes(safeScreen)) {
+  if (addressed) {
     try {
       const admin = createAdminClient();
       const { data: session } = await admin
@@ -26,5 +27,9 @@ export default async function ProjectorScreenPinPage({ params }) {
     }
   }
 
-  return <ScreenClient initialToken={initialToken} />;
+  // A screen added to a Room after its session was created has no token yet;
+  // tokens are minted lazily by the rooms API, not by saving the Room. Handing
+  // the client the address it was opened with lets it resolve one instead of
+  // dropping the teacher on a blank PIN form the copied URL was meant to skip.
+  return <ScreenClient initialToken={initialToken} initialPin={addressed ? safePin : ""} initialScreenNumber={addressed ? safeScreen : ""} />;
 }
