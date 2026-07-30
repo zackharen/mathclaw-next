@@ -61,6 +61,9 @@ export default function HomeBannerEditor({ initialValue, canEdit }) {
                 if (event.key === "Escape") {
                   event.preventDefault();
                   cancelEditing();
+                } else if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
                 }
               }}
               maxLength={240}
