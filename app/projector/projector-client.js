@@ -675,13 +675,13 @@ function SidebarPanel({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
+        aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
       >
         <div>
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
           <h2>{title}</h2>
         </div>
         <span className="projectorPanelCount">{count}</span>
-        <strong className="projectorPanelChevron">{open ? "Hide" : "Show"}</strong>
       </button>
       {open ? (
         <div className="projectorPanelBody">
@@ -4578,6 +4578,7 @@ export default function ProjectorClient({
                 type="button"
                 onClick={() => togglePanel("workQueue")}
                 aria-expanded={openPanels.workQueue}
+                aria-label={`${openPanels.workQueue ? "Collapse" : "Expand"} Submitted Work`}
               >
                 <div className="projectorPlaylistsLauncherSummary">
                   <p className="eyebrow">
@@ -4586,7 +4587,6 @@ export default function ProjectorClient({
                   <h2>Submitted Work</h2>
                 </div>
                 <span className="projectorPanelCount">{workQueue.length}</span>
-                <strong className="projectorPanelChevron">{openPanels.workQueue ? "Hide" : "Show"}</strong>
               </button>
               {openPanels.workQueue ? (
                 <div className="projectorPanelBody">
