@@ -207,7 +207,6 @@ export default function ProjectorSceneWorkshop({
 }) {
   const activeRoomSlots = normalizeSlots(activeRoom?.slots);
   const defaultSlotCount = Math.max(1, activeRoomSlots.filter((slot) => slot.enabled !== false).length || activeRoomSlots.length || 4);
-  const [launcherOpen, setLauncherOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState(() => [makeSceneRow(defaultSlotCount)]);
   const [poolItems, setPoolItems] = useState([]);
@@ -534,29 +533,18 @@ export default function ProjectorSceneWorkshop({
       <button
         className="projectorLibraryHeader projectorPanelToggle"
         type="button"
-        onClick={() => setLauncherOpen((current) => !current)}
-        aria-expanded={launcherOpen}
-        aria-label={`${launcherOpen ? "Collapse" : "Expand"} Scene Workshop`}
+        onClick={() => {
+          setOpen(true);
+          if (!sceneStatesReady) onRequestSceneStates?.();
+        }}
+        aria-haspopup="dialog"
+        aria-label="Open Scene Workshop"
       >
         <div className="projectorPlaylistsLauncherSummary">
           <p className="eyebrow">Build scenes off live</p>
           <h2>Scene Workshop</h2>
         </div>
       </button>
-      {launcherOpen ? (
-        <div className="projectorPanelBody">
-          <button
-            className="btn secondary projectorSidebarLauncherButton"
-            type="button"
-            onClick={() => {
-              setOpen(true);
-              if (!sceneStatesReady) onRequestSceneStates?.();
-            }}
-          >
-            Open Scene Workshop
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 

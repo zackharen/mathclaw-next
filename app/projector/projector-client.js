@@ -662,20 +662,22 @@ function SidebarPanel({
   className = "",
   count,
   eyebrow,
-  launchLabel,
   onLaunch,
   onToggle,
   open,
   title,
 }) {
+  const launchesWorkspace = typeof onLaunch === "function";
+
   return (
     <section className={`projectorLibrary ${className}`} aria-label={ariaLabel || title}>
       <button
         className="projectorLibraryHeader projectorPanelToggle"
         type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
+        onClick={launchesWorkspace ? onLaunch : onToggle}
+        aria-expanded={launchesWorkspace ? undefined : open}
+        aria-haspopup={launchesWorkspace ? "dialog" : undefined}
+        aria-label={launchesWorkspace ? `Open ${title}` : `${open ? "Collapse" : "Expand"} ${title}`}
       >
         <div>
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
@@ -683,15 +685,7 @@ function SidebarPanel({
         </div>
         <span className="projectorPanelCount">{count}</span>
       </button>
-      {open ? (
-        <div className="projectorPanelBody">
-          {onLaunch ? (
-            <button className="btn secondary projectorSidebarLauncherButton" type="button" onClick={onLaunch}>
-              {launchLabel}
-            </button>
-          ) : children}
-        </div>
-      ) : null}
+      {!launchesWorkspace && open ? <div className="projectorPanelBody">{children}</div> : null}
     </section>
   );
 }
@@ -726,10 +720,7 @@ export default function ProjectorClient({
     workQueue: false,
     timer: false,
     wordWalls: false,
-    playlists: false,
     screens: false,
-    scenes: false,
-    library: false,
   });
   const [targetMode, setTargetMode] = useState("all");
   const [selectedTargetScreens, setSelectedTargetScreens] = useState([]);
@@ -4823,10 +4814,7 @@ export default function ProjectorClient({
               className="projectorPlaylistsLauncher"
               count={playlists.length}
               eyebrow={currentPlaylist ? `Now: ${currentPlaylist.name}` : "Timed rotations"}
-              launchLabel="Open Playlists"
               onLaunch={() => openFullLibraryTab("playlists")}
-              onToggle={() => togglePanel("playlists")}
-              open={openPanels.playlists}
               title="Playlists"
             />
           ) : null}
@@ -5146,10 +5134,7 @@ export default function ProjectorClient({
             className="projectorSceneLibrary"
             count={scenes.length}
             eyebrow="Scenes"
-            launchLabel="Open Scenes"
             onLaunch={() => openFullLibraryTab("scenes")}
-            onToggle={() => togglePanel("scenes")}
-            open={openPanels.scenes}
             title="Scenes"
           >
             <label className="field">
@@ -5285,10 +5270,7 @@ export default function ProjectorClient({
             ariaLabel="Saved Projector Items"
             count={library.length}
             eyebrow="Library"
-            launchLabel="Open Saved Items"
             onLaunch={() => openFullLibraryTab("items")}
-            onToggle={() => togglePanel("library")}
-            open={openPanels.library}
             title="Saved Items"
           >
             <label className="field">
