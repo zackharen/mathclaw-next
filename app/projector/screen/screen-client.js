@@ -166,13 +166,17 @@ async function drawSnapshotBackground(context, width, height, state, includeVide
       maxLines: 3,
     }) + height * 0.02;
   }
+  // On screen the top text stacks above the media, so media is drawn into the
+  // space that is left rather than painting over the text.
+  const mediaTop = state.topText ? cursorY : 0;
+  const mediaHeight = height - mediaTop;
   if (state.type === "image" || /^data:image\/gif/i.test(content) || /\.gif(\?|#|$)/i.test(content)) {
     await new Promise((resolve) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
       image.onload = () => {
         try {
-          drawContainedImage(context, image, image.naturalWidth, image.naturalHeight, width, height);
+          drawContainedImage(context, image, image.naturalWidth, image.naturalHeight, width, mediaHeight, mediaTop);
         } catch {
           // A tainted or broken frame just leaves the dark background.
         }
@@ -185,10 +189,7 @@ async function drawSnapshotBackground(context, width, height, state, includeVide
     if (includeVideo) {
       const video = currentScreenVideo();
       if (video && video.videoWidth) {
-        // On screen the top text stacks above the video, so the frame goes in the
-        // space that is left instead of painting over the text.
-        const reserved = state.topText ? cursorY : 0;
-        drawContainedImage(context, video, video.videoWidth, video.videoHeight, width, height - reserved, reserved);
+        drawContainedImage(context, video, video.videoWidth, video.videoHeight, width, mediaHeight, mediaTop);
       }
     }
   } else if (question) {
