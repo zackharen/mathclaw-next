@@ -18,6 +18,7 @@ import {
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
 import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
+import { buildABMap } from "@/lib/school-calendar";
 import SubmitButton from "@/app/components/SubmitButton";
 
 const DEFAULT_ANNOUNCEMENT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
@@ -155,29 +156,6 @@ function schoolCalendarErrorText(code) {
   return "";
 }
 
-
-function buildABMap(dates, abPatternStartIso) {
-  const map = new Map();
-  if (!abPatternStartIso) {
-    dates.forEach((d) => map.set(d, "-"));
-    return map;
-  }
-
-  const start = parseDateAtUTC(abPatternStartIso);
-  let current = "A";
-
-  for (const date of dates) {
-    const dateObj = parseDateAtUTC(date);
-    if (dateObj < start) {
-      map.set(date, "-");
-      continue;
-    }
-    map.set(date, current);
-    current = current === "A" ? "B" : "A";
-  }
-
-  return map;
-}
 
 const WEEKDAY_OPTIONS = [
   { value: 1, label: "Monday" },
@@ -537,7 +515,6 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const weekdays = buildWeekdays(schoolYearStart, schoolYearEnd);
   const abPatternStartIso = abSeedCourse?.ab_pattern_start_date || schoolYearStart;
-  const abByDate = buildABMap(weekdays, abPatternStartIso);
 
   const schoolDays = schoolCalendar.schoolDays;
   const schoolCalendarOverridesUnavailable = schoolCalendar.overridesUnavailable;
@@ -545,6 +522,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
   const schoolDayByDate = new Map(
     (schoolDays || []).map((row) => [row.class_date, row])
   );
+  const abByDate = buildABMap(weekdays, abPatternStartIso, schoolDayByDate);
   const { map: schoolDayNumberMap, count: schoolDayCount } =
     buildSchoolDayNumberMap(weekdays, schoolDayByDate);
 
