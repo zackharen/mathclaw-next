@@ -25,6 +25,7 @@ export default function NewClassForm({
         id: item.id,
         classCode: item.class_code,
         className: item.class_name,
+        providerName: item.curriculum_providers?.name || "Curriculum",
       })),
     [libraries]
   );
@@ -97,7 +98,7 @@ export default function NewClassForm({
 
       {classMode === "curriculum" ? (
         <label>
-          Curriculum Track (Math Medic)
+          Curriculum Track
           <select
             className="input"
             name="selected_library_id"
@@ -107,7 +108,7 @@ export default function NewClassForm({
           >
             {libraryOptions.map((option) => (
               <option key={option.id} value={option.id}>
-                {option.classCode} - {option.className}
+                {option.classCode} - {option.className} · {option.providerName}
               </option>
             ))}
           </select>

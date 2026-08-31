@@ -67,7 +67,6 @@ export default async function NewClassPage() {
   const { data: libraries, error: librariesError } = await supabase
     .from("curriculum_libraries")
     .select("id, class_code, class_name, curriculum_providers!inner(code, name)")
-    .eq("curriculum_providers.code", "math_medic")
     .order("class_name", { ascending: true });
 
   const defaults = defaultSchoolYearDates();

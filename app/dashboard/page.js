@@ -220,7 +220,6 @@ export default async function DashboardPage({ searchParams }) {
       supabase
         .from("curriculum_libraries")
         .select("id, class_code, class_name, curriculum_providers!inner(code, name)")
-        .eq("curriculum_providers.code", "math_medic")
         .order("class_name", { ascending: true })
         .then(({ data, error: librariesError }) => {
           if (librariesError) throw new Error(librariesError.message);
