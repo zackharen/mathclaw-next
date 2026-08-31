@@ -9,6 +9,10 @@ import {
   buildSchoolDayNumberByDate,
   buildSchoolWideDayNumberByDate,
 } from "@/lib/announcements/assignment-rules";
+import {
+  announcementTemplateForCourse,
+  shouldIncludeCurriculumDoNow,
+} from "@/lib/announcements/curriculum-content";
 
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -398,8 +402,13 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
   if (templateError) throw new Error(templateError.message);
 
-  const template = normalizeTemplate(templateRow?.body_template);
+  const hasCurriculum = Boolean(course.selected_library_id);
+  const template = announcementTemplateForCourse(
+    normalizeTemplate(templateRow?.body_template),
+    hasCurriculum
+  );
   const includeDoNow = templateRow?.include_do_now ?? false;
+  const includeCurriculumDoNow = shouldIncludeCurriculumDoNow(includeDoNow, hasCurriculum);
   const includeQuote = templateRow?.include_quote ?? false;
   const includeDayNumber = templateRow?.include_day_number ?? false;
   const includeDayOfWeek = templateRow?.include_day_of_week ?? false;
@@ -460,7 +469,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
         return `Lesson ${index + 1}: ${rowLesson?.title || "TBD"}`;
       })
       .join("\n");
-    const doNow = includeDoNow
+    const doNow = includeCurriculumDoNow
       ? buildDoNow({ lessonTitle: lesson?.title, objective: lesson?.objective, standards })
       : "";
     const quote = includeQuote
@@ -494,7 +503,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       quote,
     });
 
-    if (includeDoNow && doNow && !template.includes("{do_now}")) {
+    if (includeCurriculumDoNow && doNow && !template.includes("{do_now}")) {
       content = `${content}\n${doNow}`.trim();
     }
     if (includeQuote && !template.includes("{quote}")) {
@@ -564,7 +573,7 @@ export async function generateAnnouncementsAction(formData) {
     supabase,
     user.id,
     courseId,
-    "id, title, school_year_start, school_year_end, owner_id, schedule_model, ab_meeting_day"
+    "id, title, school_year_start, school_year_end, owner_id, schedule_model, ab_meeting_day, selected_library_id"
   );
   const course = access?.course;
 

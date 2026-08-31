@@ -486,7 +486,7 @@ export async function updateScheduleAction(formData) {
     supabase,
     user.id,
     courseId,
-    "id, title, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end"
+    "id, title, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end, selected_library_id"
   );
   const course = access?.course;
 

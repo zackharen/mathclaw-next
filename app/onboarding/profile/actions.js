@@ -75,7 +75,7 @@ function normalizeDateInput(value) {
 async function regenerateAnnouncementsForTeacherCourses(supabase, userId) {
   const { data: courses, error } = await supabase
     .from("courses")
-    .select("id, title, owner_id, school_year_start, school_year_end, schedule_model, ab_meeting_day")
+    .select("id, title, owner_id, school_year_start, school_year_end, schedule_model, ab_meeting_day, selected_library_id")
     .eq("owner_id", userId);
 
   if (error) throw new Error(error.message);
