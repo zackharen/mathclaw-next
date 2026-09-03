@@ -1314,6 +1314,73 @@ p {
   border-top: 1px solid #e7edf2;
 }
 
+.teacherDashboardArchive {
+  overflow: hidden;
+  border: 1px solid #d8e1e8;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.teacherDashboardArchive > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  cursor: pointer;
+  padding: 1rem 1.1rem;
+}
+
+.teacherDashboardArchive > summary::-webkit-details-marker {
+  display: none;
+}
+
+.teacherDashboardArchive > summary > span:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.teacherDashboardArchive > summary strong {
+  color: #29465c;
+}
+
+.teacherDashboardArchive > summary small {
+  color: #788a99;
+}
+
+.teacherDashboardArchiveList {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid #d8e1e8;
+  padding: 1rem;
+}
+
+.teacherDashboardArchiveRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #d8e1e8;
+  border-radius: 14px;
+  background: #fff;
+  padding: 0.9rem;
+}
+
+.teacherDashboardArchiveRow > div:first-child {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.teacherDashboardArchiveRow span,
+.teacherDashboardArchiveRow small {
+  color: #687b8c;
+}
+
+.teacherDashboardArchiveRow .ctaRow {
+  flex: none;
+  margin-top: 0;
+}
+
 .classCourseMetaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -1592,6 +1659,17 @@ p {
   .teacherDashboardCourseActions a + a {
     border-top: 1px solid #e7edf2;
     border-left: 0;
+  }
+
+  .teacherDashboardArchiveRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .teacherDashboardArchiveRow .ctaRow,
+  .teacherDashboardArchiveRow .ctaRow form,
+  .teacherDashboardArchiveRow .ctaRow .btn {
+    width: 100%;
   }
 
   .classCourseQuickActions {

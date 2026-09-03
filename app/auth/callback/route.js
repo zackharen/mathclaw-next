@@ -28,6 +28,7 @@ async function joinCourseByCodeForUser(userId, rawJoinCode) {
     .from("courses")
     .select("id, owner_id")
     .ilike("student_join_code", joinCode)
+    .is("archived_at", null)
     .order("updated_at", { ascending: false })
     .limit(1);
 

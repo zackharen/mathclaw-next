@@ -67,7 +67,7 @@ export async function deleteClassAction(formData) {
   const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
   const course = access?.course;
 
-  if (!course) return;
+  if (!course || !["owner", "admin"].includes(access.role)) return;
 
   const writeClient = getCourseWriteClient(access, supabase);
   const { error } = await writeClient.from("courses").delete().eq("id", course.id);
@@ -75,6 +75,57 @@ export async function deleteClassAction(formData) {
 
   revalidatePath("/classes");
   revalidatePath("/dashboard");
+  revalidatePath("/play");
+}
+
+async function setClassArchivedAction(formData, archived) {
+  const courseId = String(formData.get("course_id") || "").trim();
+  if (!courseId) redirect("/dashboard?classLifecycleError=missing-course");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/auth/sign-in?redirect=/dashboard");
+
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, owner_id, archived_at"
+  );
+
+  if (!access?.course || !["owner", "admin"].includes(access.role)) {
+    redirect("/dashboard?classLifecycleError=course-not-found");
+  }
+
+  const now = new Date().toISOString();
+  const writeClient = getCourseWriteClient(access, supabase);
+  const { error } = await writeClient
+    .from("courses")
+    .update({
+      archived_at: archived ? now : null,
+      updated_at: now,
+    })
+    .eq("id", access.course.id);
+
+  if (error) {
+    redirect(`/dashboard?classLifecycleError=${archived ? "archive-failed" : "restore-failed"}`);
+  }
+
+  revalidatePath("/classes");
+  revalidatePath("/dashboard");
+  revalidatePath("/play");
+  redirect(`/dashboard?classLifecycle=${archived ? "archived" : "restored"}`);
+}
+
+export async function archiveClassAction(formData) {
+  return setClassArchivedAction(formData, true);
+}
+
+export async function restoreClassAction(formData) {
+  return setClassArchivedAction(formData, false);
 }
 
 export async function updateClassSettingsAction(formData) {

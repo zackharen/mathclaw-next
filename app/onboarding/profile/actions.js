@@ -76,7 +76,8 @@ async function regenerateAnnouncementsForTeacherCourses(supabase, userId) {
   const { data: courses, error } = await supabase
     .from("courses")
     .select("id, title, owner_id, school_year_start, school_year_end, schedule_model, ab_meeting_day, selected_library_id")
-    .eq("owner_id", userId);
+    .eq("owner_id", userId)
+    .is("archived_at", null);
 
   if (error) throw new Error(error.message);
 
@@ -407,7 +408,8 @@ export async function saveSchoolCalendarAction(formData) {
     .select(
       "id, owner_id, schedule_model, ab_meeting_day, ab_pattern_start_date"
     )
-    .eq("owner_id", user.id);
+    .eq("owner_id", user.id)
+    .is("archived_at", null);
 
   if (
     coursesError &&
@@ -417,7 +419,8 @@ export async function saveSchoolCalendarAction(formData) {
     const retry = await admin
       .from("courses")
       .select("id, owner_id, schedule_model, ab_pattern_start_date")
-      .eq("owner_id", user.id);
+      .eq("owner_id", user.id)
+      .is("archived_at", null);
 
     courses = (retry.data || []).map((course) => ({ ...course, ab_meeting_day: null }));
     coursesError = retry.error;

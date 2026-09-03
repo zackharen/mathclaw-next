@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import SubmitButton from "@/app/components/SubmitButton";
+import DeleteClassButton from "@/app/admin/delete-class-button";
 import CoTeacherPanel, { CoTeacherPanelFallback } from "@/app/components/CoTeacherPanel";
 import { EmptyState, StatusNotice } from "@/app/components/FeedbackPanel";
 import { createClient } from "@/lib/supabase/server";
@@ -12,8 +13,10 @@ import { EMPTY_CO_TEACHER_STATE, loadCoTeacherState } from "@/lib/courses/co-tea
 import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
 import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
+  archiveClassAction,
   deleteClassAction,
   regenerateStudentJoinCodeAction,
+  restoreClassAction,
   updateClassSettingsAction,
   updateCourseGameSettingAction,
 } from "@/app/classes/actions";
@@ -91,6 +94,26 @@ function formatClassSettingsNotice(status) {
   if (status === "invalid-curriculum") return "Choose a valid curriculum before saving.";
   if (status === "save-failed") return "Could not update class settings. Please try again.";
   return "";
+}
+
+function formatClassLifecycleNotice(status) {
+  if (status === "archived") return "Class archived. Its data is preserved and students can no longer access it.";
+  if (status === "restored") return "Class restored to your active dashboard.";
+  if (status === "missing-course" || status === "course-not-found") {
+    return "That class could not be found for this update.";
+  }
+  if (status === "archive-failed") return "Could not archive that class. Please try again.";
+  if (status === "restore-failed") return "Could not restore that class. Please try again.";
+  return "";
+}
+
+function formatArchivedDate(value) {
+  if (!value) return "Archived";
+  return `Archived ${new Date(value).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })}`;
 }
 
 function formatCurriculumLabel(library) {
@@ -199,6 +222,7 @@ export default async function DashboardPage({ searchParams }) {
 
   let error = null;
   let courses = [];
+  let archivedCourses = [];
   let games = [];
   let curriculumLibraries = [];
   let gameSettingsByKey = new Map();
@@ -211,7 +235,8 @@ export default async function DashboardPage({ searchParams }) {
       listEditableCoursesForUser(
         supabase,
         user.id,
-        "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at, selected_library_id"
+        "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at, selected_library_id, archived_at",
+        { includeArchived: true }
       ),
       listGamesWithCourseSettings(supabase, null, {
         viewerAccountType: "teacher",
@@ -226,7 +251,10 @@ export default async function DashboardPage({ searchParams }) {
           return data || [];
         }),
     ]);
-    courses = sortCoursesAlphabetically(courses);
+    archivedCourses = sortCoursesAlphabetically(
+      courses.filter((course) => Boolean(course.archived_at))
+    );
+    courses = sortCoursesAlphabetically(courses.filter((course) => !course.archived_at));
     coTeacherStatePromise = loadCoTeacherState(
       courses.filter((course) => course.membership_role === "owner")
     );
@@ -242,7 +270,7 @@ export default async function DashboardPage({ searchParams }) {
     );
   }
 
-  if (!courses || courses.length === 0) {
+  if ((!courses || courses.length === 0) && archivedCourses.length === 0) {
     return (
       <div className="stack">
         <EmptyState
@@ -262,14 +290,17 @@ export default async function DashboardPage({ searchParams }) {
   ];
   // These four only depend on the loaded courses, so they run as a single wave
   // instead of the three sequential round trips this used to make.
-  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }, courseGameSettings] =
-    await Promise.all([
-      supabase
+  const planRowsPromise = courseIds.length
+    ? supabase
         .from("course_lesson_plan")
         .select("course_id, class_date, lesson_slot, status, curriculum_lessons(source_lesson_code, title)")
         .in("course_id", courseIds)
         .order("class_date", { ascending: true })
-        .order("lesson_slot", { ascending: true }),
+        .order("lesson_slot", { ascending: true })
+    : Promise.resolve({ data: [] });
+  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }, courseGameSettings] =
+    await Promise.all([
+      planRowsPromise,
       Promise.all(
         selectedLibraryIds.map(async (libraryId) => {
           const { count } = await supabase
@@ -323,6 +354,7 @@ export default async function DashboardPage({ searchParams }) {
           .select("id, owner_id, class_name")
           .in("owner_id", connectedUserIds)
           .in("class_name", classNames)
+          .is("archived_at", null)
       : { data: [] };
 
   const colleagueCourseIds = (colleagueCourses || []).map((course) => course.id);
@@ -468,6 +500,14 @@ export default async function DashboardPage({ searchParams }) {
       {qs.classSettingsError ? (
         <StatusNotice tone="error">{formatClassSettingsNotice(String(qs.classSettingsError))}</StatusNotice>
       ) : null}
+      {qs.classLifecycle ? (
+        <StatusNotice>{formatClassLifecycleNotice(String(qs.classLifecycle))}</StatusNotice>
+      ) : null}
+      {qs.classLifecycleError ? (
+        <StatusNotice tone="error">
+          {formatClassLifecycleNotice(String(qs.classLifecycleError))}
+        </StatusNotice>
+      ) : null}
 
       <section className="teacherDashboardPulse">
         <div className="teacherDashboardSectionHeader">
@@ -477,6 +517,14 @@ export default async function DashboardPage({ searchParams }) {
           </div>
           <p>Open a class to adjust pacing, check students, or prepare what comes next.</p>
         </div>
+        {cards.length === 0 ? (
+          <EmptyState
+            eyebrow="Active classes"
+            title="No active classes"
+            description="Restore an archived class below or add a new class when you are ready."
+            action={<Link className="btn primary" href="/classes/new">Add Class</Link>}
+          />
+        ) : (
         <div className="teacherDashboardGrid">
         {cards.map((card, index) => {
           const paceStatus = dashboardPaceStatus(card);
@@ -635,9 +683,9 @@ export default async function DashboardPage({ searchParams }) {
                     </form>
                   ) : null}
                   {card.course.membership_role === "owner" || card.course.membership_role === "admin" ? (
-                    <form action={deleteClassAction}>
+                    <form action={archiveClassAction}>
                       <input type="hidden" name="course_id" value={card.course.id} />
-                      <SubmitButton className="btn danger" pendingLabel="Deleting Class…">Delete Class</SubmitButton>
+                      <SubmitButton pendingLabel="Archiving Class…">Archive Class</SubmitButton>
                     </form>
                   ) : null}
                 </div>
@@ -754,7 +802,47 @@ export default async function DashboardPage({ searchParams }) {
           );
         })}
         </div>
+        )}
       </section>
+
+      {archivedCourses.length > 0 ? (
+        <details className="teacherDashboardArchive">
+          <summary>
+            <span>
+              <strong>Archived classes</strong>
+              <small>{archivedCourses.length} class{archivedCourses.length === 1 ? "" : "es"} preserved</small>
+            </span>
+            <span className="pill">View archive</span>
+          </summary>
+          <div className="teacherDashboardArchiveList">
+            {archivedCourses.map((course) => (
+              <article key={course.id} className="teacherDashboardArchiveRow">
+                <div>
+                  <strong>{course.title}</strong>
+                  <span>{course.class_name}</span>
+                  <small>{formatArchivedDate(course.archived_at)}</small>
+                </div>
+                {course.membership_role === "owner" || course.membership_role === "admin" ? (
+                  <div className="ctaRow">
+                    <form action={restoreClassAction}>
+                      <input type="hidden" name="course_id" value={course.id} />
+                      <SubmitButton className="btn primary" pendingLabel="Restoring Class…">
+                        Restore Class
+                      </SubmitButton>
+                    </form>
+                    <form action={deleteClassAction}>
+                      <input type="hidden" name="course_id" value={course.id} />
+                      <DeleteClassButton label="Delete Permanently" />
+                    </form>
+                  </div>
+                ) : (
+                  <span className="pill">Archived by owner</span>
+                )}
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

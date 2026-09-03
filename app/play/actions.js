@@ -79,6 +79,7 @@ export async function joinClassByCodeAction(formData) {
         .from("courses")
         .select("id, owner_id, title")
         .ilike("student_join_code", joinCode)
+        .is("archived_at", null)
         .order("updated_at", { ascending: false })
         .limit(1);
 
@@ -113,6 +114,7 @@ export async function joinClassByCodeAction(formData) {
       .from("courses")
       .select("id, owner_id, title")
       .ilike("student_join_code", joinCode)
+      .is("archived_at", null)
       .order("updated_at", { ascending: false })
       .limit(1);
 

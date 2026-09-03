@@ -345,6 +345,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       .select("ab_pattern_start_date")
       .eq("owner_id", userId)
       .eq("schedule_model", "ab")
+      .is("archived_at", null)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();

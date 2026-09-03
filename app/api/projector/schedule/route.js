@@ -133,6 +133,7 @@ async function listCourses(admin, teacherId) {
     .from("courses")
     .select("id, title, class_name")
     .eq("owner_id", teacherId)
+    .is("archived_at", null)
     .order("title", { ascending: true })
     .order("class_name", { ascending: true });
 
@@ -248,6 +249,7 @@ async function validateSchedulePayload(admin, teacherId, body, currentBlockId = 
       .select("id")
       .eq("id", courseId)
       .eq("owner_id", teacherId)
+      .is("archived_at", null)
       .maybeSingle();
     if (courseError) return { error: jsonError(courseError.message, 500) };
     if (!course) return { error: jsonError("That class does not belong to you.", 404) };

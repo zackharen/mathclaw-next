@@ -491,6 +491,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
       .select("ab_pattern_start_date")
       .eq("owner_id", user.id)
       .eq("schedule_model", "ab")
+      .is("archived_at", null)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
@@ -499,6 +500,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
           .from("courses")
           .select("id, title, class_name, school_year_start, school_year_end, schedule_model, ab_meeting_day")
           .eq("owner_id", user.id)
+          .is("archived_at", null)
           .order("title", { ascending: true })
       : Promise.resolve({ data: [] }),
     supabase

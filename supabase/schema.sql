@@ -98,6 +98,7 @@ create table if not exists public.courses (
   timezone text not null default 'America/New_York',
   selected_library_id uuid references public.curriculum_libraries (id),
   student_join_code text unique,
+  archived_at timestamptz,
   pacing_mode text not null default 'one_lesson_per_day' check (
     pacing_mode in (
       'one_lesson_per_day',

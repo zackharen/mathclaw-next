@@ -146,7 +146,8 @@ export default async function TeachersPage({ searchParams }) {
     const { data: ownedCourses } = await supabase
       .from("courses")
       .select("id, owner_id")
-      .in("owner_id", teacherIdsForStats);
+      .in("owner_id", teacherIdsForStats)
+      .is("archived_at", null);
 
     const coursesByOwner = new Map();
     const ownedCourseIds = [];

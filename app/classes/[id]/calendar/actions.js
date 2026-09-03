@@ -352,7 +352,8 @@ async function copyCourseCalendarToOthers({ supabase, writeClient, course, userI
     .from("courses")
     .select("id, school_year_start, school_year_end, schedule_model, ab_pattern_start_date")
     .eq("owner_id", course.owner_id)
-    .neq("id", course.id);
+    .neq("id", course.id)
+    .is("archived_at", null);
 
   if (!otherCourses || otherCourses.length === 0) return [];
 
