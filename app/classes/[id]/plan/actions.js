@@ -113,6 +113,7 @@ function buildDefaultCalendarRows(course, startDate, endDate, existingDates) {
         course_id: course.id,
         class_date: classDate,
         day_type: dayType,
+        is_grace_day: false,
         ab_day: abDay,
         reason_id: null,
         note: null,

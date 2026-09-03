@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildDefaultDisplayName } from "@/lib/auth/account-type";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
+import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { generateAnnouncementsForCourse } from "../../classes/[id]/announcements/actions";
 
 function parseDateAtUTC(isoDate) {
@@ -120,10 +121,10 @@ function parseSchoolCalendarRows(formData) {
       updates.set(classDate, row);
     }
 
-    if (key.startsWith("teacher_out__")) {
-      const classDate = key.replace("teacher_out__", "");
+    if (key.startsWith("grace_day__") || key.startsWith("teacher_out__")) {
+      const classDate = key.replace(/^(grace_day|teacher_out)__/, "");
       const row = updates.get(classDate) || {};
-      row.teacher_out = true;
+      row.is_grace_day = true;
       updates.set(classDate, row);
     }
   }
@@ -156,7 +157,7 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
     let abDay = null;
     const override = overrideMap.get(isoDate);
     if (override) {
-      dayType = override.day_type;
+      dayType = normalizeCalendarDayType(override.day_type);
     }
 
     if (course.schedule_model === "ab") {
@@ -170,6 +171,7 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
       course_id: course.id,
       class_date: isoDate,
       day_type: dayType,
+      is_grace_day: dayType !== "off" && isGraceDay(override),
       ab_day: abDay,
       reason_id: override?.reason_id || null,
       note: override?.note || null,
@@ -459,19 +461,22 @@ export async function saveSchoolCalendarAction(formData) {
   }
 
   const rawUpdates = parseSchoolCalendarRows(formData);
-  const allowed = new Set(["instructional", "off", "half", "modified", "grace_day"]);
+  const allowed = new Set(["instructional", "off", "half", "modified"]);
 
   const overrides = [];
   for (const [classDate, row] of rawUpdates.entries()) {
-    const dayType = row.teacher_out ? "grace_day" : row.day_type;
+    const dayType = normalizeCalendarDayType(row.day_type);
+    const graceDay =
+      dayType !== "off" && Boolean(row.is_grace_day || row.day_type === "grace_day");
     if (!allowed.has(dayType)) continue;
 
-    if (dayType === "instructional") continue;
+    if (dayType === "instructional" && !graceDay) continue;
 
     overrides.push({
       owner_id: user.id,
       class_date: classDate,
       day_type: dayType,
+      is_grace_day: graceDay,
       reason_id: row.reason_id ? row.reason_id : null,
       note: row.note && row.note.trim() ? row.note.trim() : null,
     });
@@ -543,7 +548,7 @@ export async function pushSchoolCalendarToAllClassesAction() {
 
   const { data: overrides, error: overridesError } = await admin
     .from("school_calendar_days")
-    .select("class_date, day_type, reason_id, note")
+    .select("class_date, day_type, is_grace_day, reason_id, note")
     .eq("owner_id", user.id)
     .gte("class_date", schoolYearStart)
     .lte("class_date", schoolYearEnd);

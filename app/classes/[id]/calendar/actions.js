@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
+import { normalizeCalendarDayType } from "@/lib/school-calendar";
 import { generateAnnouncementsForCourse } from "../announcements/actions";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
@@ -14,7 +15,7 @@ const PACING_MODES = new Set([
   "two_lessons_per_day",
   "manual_complete",
 ]);
-const DAY_TYPES = new Set(["instructional", "off", "half", "modified", "grace_day"]);
+const DAY_TYPES = new Set(["instructional", "off", "half", "modified"]);
 
 function perfLog(action, details) {
   if (!PERF_ENABLED) return;
@@ -125,7 +126,8 @@ function parseBulkUpdates(formData) {
     if (key.startsWith("day_type__")) {
       const classDate = key.replace("day_type__", "");
       const row = updates.get(classDate) || {};
-      row.day_type = String(value || "");
+      row.day_type = normalizeCalendarDayType(String(value || ""));
+      if (row.is_grace_day === undefined) row.is_grace_day = false;
       updates.set(classDate, row);
     }
 
@@ -143,11 +145,11 @@ function parseBulkUpdates(formData) {
       updates.set(classDate, row);
     }
 
-    if (key.startsWith("out__")) {
-      const classDate = key.replace("out__", "");
+    if (key.startsWith("grace_day__") || key.startsWith("out__")) {
+      const classDate = key.replace(/^(grace_day|out)__/, "");
       if (value === "on") {
         const row = updates.get(classDate) || {};
-        row.day_type = "grace_day";
+        row.is_grace_day = true;
         updates.set(classDate, row);
       }
     }
@@ -180,6 +182,7 @@ async function bulkUpsertCalendarUpdates({
       course_id: courseId,
       class_date: classDate,
       day_type: dayType,
+      is_grace_day: dayType !== "off" && Boolean(row.is_grace_day),
       reason_id:
         shouldApplySelectedDayType && isBulkTarget && selectedReasonShouldApply
           ? selectedReasonId === "__clear__"
@@ -314,6 +317,7 @@ export async function generateCalendarAction(formData) {
       course_id: course.id,
       class_date: toISODate(cursor),
       day_type: dayType,
+      is_grace_day: false,
       ab_day: abDay,
       reason_id: null,
       note: null,
@@ -343,7 +347,6 @@ async function copyCourseCalendarToOthers({ supabase, writeClient, course, userI
     .from("course_calendar_days")
     .select("class_date, day_type, reason_id")
     .eq("course_id", course.id)
-    .neq("day_type", "grace_day")
     .order("class_date", { ascending: true });
 
   if (!sourceDays || sourceDays.length === 0) return [];
@@ -380,7 +383,7 @@ async function copyCourseCalendarToOthers({ supabase, writeClient, course, userI
       await supabase
         .from("course_calendar_days")
         .update({
-          day_type: day.day_type,
+          day_type: normalizeCalendarDayType(day.day_type),
           reason_id: day.reason_id ?? null,
           updated_at: new Date().toISOString(),
         })
@@ -575,6 +578,7 @@ export async function updateCalendarDayAction(formData) {
   const courseId = formData.get("course_id");
   const classDate = formData.get("class_date");
   const dayType = formData.get("day_type");
+  const graceDay = formData.get("is_grace_day") === "on";
   const reasonId = formData.get("reason_id");
   const note = formData.get("note");
   const autoRegenerate = formData.get("auto_regenerate") === "1";
@@ -587,8 +591,9 @@ export async function updateCalendarDayAction(formData) {
     return;
   }
 
-  const allowed = new Set(["instructional", "off", "half", "modified", "grace_day"]);
-  if (!allowed.has(dayType)) return;
+  const normalizedDayType = normalizeCalendarDayType(dayType);
+  const allowed = new Set(["instructional", "off", "half", "modified"]);
+  if (!allowed.has(normalizedDayType)) return;
 
   const supabase = await createClient();
   const {
@@ -609,7 +614,9 @@ export async function updateCalendarDayAction(formData) {
   const writeClient = getCourseWriteClient(access, supabase);
 
   const payload = {
-    day_type: dayType,
+    day_type: normalizedDayType,
+    is_grace_day:
+      normalizedDayType !== "off" && (graceDay || dayType === "grace_day"),
     reason_id: typeof reasonId === "string" && reasonId ? reasonId : null,
     note: typeof note === "string" && note.trim() ? note.trim() : null,
     updated_at: new Date().toISOString(),
@@ -637,7 +644,8 @@ export async function updateCalendarDayAction(formData) {
   perfLog("updateCalendarDayAction", {
     course: course.id,
     classDate,
-    dayType,
+    dayType: normalizedDayType,
+    graceDay,
     autoRegenerate,
     relabeledDays,
     ms: Date.now() - actionStart,

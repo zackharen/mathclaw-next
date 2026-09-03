@@ -8,6 +8,7 @@ import { normalizeAccountType } from "@/lib/auth/account-type";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
+import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 
 function normalizeScheduleModel(value) {
   return value === "ab" ? "ab" : "every_day";
@@ -169,7 +170,7 @@ export async function createClassAction(formData) {
     if (sourceCourse) {
       const { data: sourceDays, error: sourceDaysError } = await writeClient
         .from("course_calendar_days")
-        .select("class_date, day_type, ab_day, reason_id, note")
+        .select("class_date, day_type, is_grace_day, ab_day, reason_id, note")
         .eq("course_id", sourceCourse.id)
         .gte("class_date", schoolYearStart)
         .lte("class_date", schoolYearEnd);
@@ -179,7 +180,8 @@ export async function createClassAction(formData) {
       const rowsToCopy = (sourceDays || []).map((day) => ({
         course_id: newCourse.id,
         class_date: day.class_date,
-        day_type: day.day_type,
+        day_type: normalizeCalendarDayType(day.day_type),
+        is_grace_day: isGraceDay(day) && normalizeCalendarDayType(day.day_type) !== "off",
         ab_day: day.ab_day,
         reason_id: day.reason_id,
         note: day.note,
@@ -216,6 +218,7 @@ export async function createClassAction(formData) {
         course_id: newCourse.id,
         class_date: iso,
         day_type: dayType,
+        is_grace_day: false,
         ab_day: abDay,
         reason_id: null,
         note: null,

@@ -13,6 +13,11 @@ import {
   announcementTemplateForCourse,
   shouldIncludeCurriculumDoNow,
 } from "@/lib/announcements/curriculum-content";
+import {
+  formatCalendarScheduleType,
+  isGraceDay,
+  normalizeCalendarDayType,
+} from "@/lib/school-calendar";
 
 function formatDate(isoDate) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -148,15 +153,6 @@ function formatABDay(abDay) {
   return abDay === "A" || abDay === "B" ? `${abDay} Day` : "";
 }
 
-function formatScheduleType(dayType) {
-  if (dayType === "instructional") return "Full Day Schedule";
-  if (dayType === "half") return "Half Day Schedule";
-  if (dayType === "modified") return "Modified Day Schedule";
-  if (dayType === "grace_day") return "Grace Day Schedule";
-  if (dayType === "off") return "No School";
-  return "Full Day Schedule";
-}
-
 function isMissingTeacherAbsencesTableError(error) {
   const message = String(error?.message || "");
   return message.includes("teacher_absences");
@@ -237,7 +233,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
   const { data: calendarDays, error: calendarError } = await supabase
     .from("course_calendar_days")
-    .select("class_date, day_type, ab_day, reason_id")
+    .select("class_date, day_type, is_grace_day, ab_day, reason_id")
     .eq("course_id", course.id)
     .order("class_date", { ascending: true });
 
@@ -461,9 +457,9 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
   function buildAnnouncementContent({ classDate, rowsForDate, lesson, standards, day }) {
     const reasonLabel = day?.reason_id ? reasonById.get(day.reason_id) : "";
-    const dayType = day?.day_type || "instructional";
+    const dayType = normalizeCalendarDayType(day?.day_type || "instructional");
     const abDay = formatABDay(day?.ab_day || schoolAbDayByDate.get(classDate));
-    const scheduleType = formatScheduleType(dayType);
+    const scheduleType = formatCalendarScheduleType(day);
     const lessonSummary = rowsForDate
       .map((row, index) => {
         const rowLesson = lessonById.get(row.lesson_id);
@@ -492,7 +488,10 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       day_type: dayType,
       schedule_type: scheduleType,
       reason: reasonLabel || "",
-      lesson_title: rowsForDate.length > 1 ? lessonSummary : lesson?.title || "Grace Day",
+      lesson_title:
+        rowsForDate.length > 1
+          ? lessonSummary
+          : lesson?.title || (isGraceDay(day) ? "Grace Day" : "No lesson scheduled"),
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
       day_number: dayNumber,

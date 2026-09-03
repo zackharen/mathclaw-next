@@ -19,7 +19,11 @@ import {
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
 import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
-import { buildABMap } from "@/lib/school-calendar";
+import {
+  buildABMap,
+  isGraceDay,
+  normalizeCalendarDayType,
+} from "@/lib/school-calendar";
 import SubmitButton from "@/app/components/SubmitButton";
 
 const DEFAULT_ANNOUNCEMENT_TEMPLATE = `Day #{day_number} | {date} | {ab_day} | {schedule_type}
@@ -289,7 +293,7 @@ async function loadProfileRow(admin, userId) {
 async function loadSchoolCalendarDays(supabase, userId, schoolYearStart, schoolYearEnd) {
   const { data, error } = await supabase
     .from("school_calendar_days")
-    .select("class_date, day_type, reason_id, note")
+    .select("class_date, day_type, is_grace_day, reason_id, note")
     .eq("owner_id", userId)
     .gte("class_date", schoolYearStart)
     .lte("class_date", schoolYearEnd)
@@ -734,7 +738,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 <span>Date</span>
                 <span>Day #</span>
                 <span>AB</span>
-                <span>Out?</span>
+                <span>Grace Day</span>
                 <span>Day Type</span>
                 <span>Reason</span>
                 <span>Note</span>
@@ -750,15 +754,16 @@ export default async function OnboardingProfilePage({ searchParams }) {
                       <span>{dayNum ? `#${dayNum}` : "—"}</span>
                       <span>{abByDate.get(date) || "-"}</span>
                       <input
-                        className="schoolCalendarOutCheck"
+                        className="schoolCalendarGraceCheck"
                         type="checkbox"
-                        name={`teacher_out__${date}`}
-                        defaultChecked={row?.day_type === "grace_day"}
+                        name={`grace_day__${date}`}
+                        defaultChecked={isGraceDay(row)}
+                        aria-label={`Grace Day for ${prettyDate(date)}`}
                       />
                       <select
                         className="input"
                         name={`day_type__${date}`}
-                        defaultValue={row?.day_type || "instructional"}
+                        defaultValue={normalizeCalendarDayType(row?.day_type || "instructional")}
                       >
                         <option value="instructional">Full</option>
                         <option value="off">Off</option>

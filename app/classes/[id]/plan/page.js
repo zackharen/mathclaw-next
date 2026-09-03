@@ -20,6 +20,7 @@ import CopyButton from "../announcements/copy-button";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
+import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -293,7 +294,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
       : Promise.resolve({ count: 0 }),
     courseDataClient
       .from("course_calendar_days")
-      .select("class_date, day_type, ab_day, reason_id, note")
+      .select("class_date, day_type, is_grace_day, ab_day, reason_id, note")
       .eq("course_id", course.id)
       .order("class_date", { ascending: true }),
     supabase
@@ -626,7 +627,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         <option value="off">Off</option>
                         <option value="half">Half Day</option>
                         <option value="modified">Modified</option>
-                        <option value="grace_day">Grace Day</option>
                       </select>
                       <select className="input" name="selected_reason_id" defaultValue="" form="class-plan-schedule-form">
                         <option value="">Keep Row Reason</option>
@@ -643,7 +643,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       <span>Date</span>
                       <span>MP</span>
                       <span>AB</span>
-                      <span>Out?</span>
+                      <span>Grace Day</span>
                       <span>Day Type</span>
                       <span>Reason</span>
                       <span>Note</span>
@@ -661,23 +661,23 @@ export default async function ClassPlanPage({ params, searchParams }) {
                           <label className="calendarSelectCell">
                             <input
                               type="checkbox"
-                              name={`out__${day.class_date}`}
-                              defaultChecked={day.day_type === "grace_day"}
+                              name={`grace_day__${day.class_date}`}
+                              defaultChecked={isGraceDay(day)}
+                              aria-label={`Grace Day for ${prettyDate(day.class_date)}`}
                               form="class-plan-schedule-form"
                             />
-                            <span>Out</span>
+                            <span>Grace</span>
                           </label>
                           <select
                             className="input"
                             name={`day_type__${day.class_date}`}
-                            defaultValue={day.day_type}
+                            defaultValue={normalizeCalendarDayType(day.day_type)}
                             form="class-plan-schedule-form"
                           >
                             <option value="instructional">Full</option>
                             <option value="off">Off</option>
                             <option value="half">Half Day</option>
                             <option value="modified">Modified</option>
-                            <option value="grace_day">Grace Day</option>
                           </select>
                           <select
                             className="input"
@@ -797,7 +797,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     : dayPlanRows.some((row) => row.status === "completed")
                       ? "partly completed"
                       : "planned";
-              const noLessonLabel = day.day_type === "off" ? "No School" : "Grace Day";
+              const noLessonLabel =
+                day.day_type === "off"
+                  ? "No School"
+                  : isGraceDay(day)
+                    ? "Grace Day"
+                    : "No lesson scheduled";
               const mpName = getMarkingPeriodName(day.class_date);
               const schoolDayNum = schoolDayNumberByDate.get(day.class_date);
 
@@ -810,7 +815,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     </p>
                     {day.note ? <p>{day.note}</p> : null}
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
-                      Day Type: {day.day_type}
+                      Day Type: {normalizeCalendarDayType(day.day_type)}{isGraceDay(day) ? " · Grace Day" : ""}
                     </p>
 
                     {announcementText ? (
@@ -822,7 +827,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       <details className="dayModifyDetails">
                         <summary className="btn">Modify This Day</summary>
                         <form
-                          className="calendarRow"
+                          className="calendarRow calendarRowWithGrace"
                           action={updateCalendarDayAction}
                           style={{ marginTop: "0.6rem" }}
                           data-auto-regenerate-target="1"
@@ -831,13 +836,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
                           <input type="hidden" name="class_date" value={day.class_date} />
                           <span>{prettyDate(day.class_date)}</span>
                           <span>{day.ab_day || "-"}</span>
-                          <select className="input" name="day_type" defaultValue={day.day_type}>
+                          <select className="input" name="day_type" defaultValue={normalizeCalendarDayType(day.day_type)}>
                             <option value="instructional">Full</option>
                             <option value="off">Off</option>
                             <option value="half">Half Day</option>
                             <option value="modified">Modified</option>
-                            <option value="grace_day">Grace Day</option>
                           </select>
+                          <label className="calendarSelectCell">
+                            <input type="checkbox" name="is_grace_day" defaultChecked={isGraceDay(day)} />
+                            <span>Grace Day</span>
+                          </label>
                           <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
                             <option value="">None</option>
                             {reasons.map((reason) => (
@@ -937,7 +945,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     <details className="dayModifyDetails">
                       <summary className="btn">Modify This Day</summary>
                       <form
-                        className="calendarRow"
+                        className="calendarRow calendarRowWithGrace"
                         action={updateCalendarDayAction}
                         style={{ marginTop: "0.6rem" }}
                         data-auto-regenerate-target="1"
@@ -946,12 +954,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         <input type="hidden" name="class_date" value={day.class_date} />
                         <span>{prettyDate(day.class_date)}</span>
                         <span>{day.ab_day || "-"}</span>
-                        <select className="input" name="day_type" defaultValue={day.day_type}>
+                        <select className="input" name="day_type" defaultValue={normalizeCalendarDayType(day.day_type)}>
                           <option value="instructional">Full</option>
                           <option value="off">Off</option>
                           <option value="half">Half Day</option>
                           <option value="modified">Modified</option>
                         </select>
+                        <label className="calendarSelectCell">
+                          <input type="checkbox" name="is_grace_day" defaultChecked={isGraceDay(day)} />
+                          <span>Grace Day</span>
+                        </label>
                         <select className="input" name="reason_id" defaultValue={day.reason_id || ""}>
                           <option value="">None</option>
                           {reasons.map((reason) => (
