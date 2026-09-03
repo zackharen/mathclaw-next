@@ -179,6 +179,103 @@ function buildCourseCalendarRows({ course, schoolYearStart, schoolYearEnd, overr
   return rows;
 }
 
+async function applySchoolCalendarToTeacherCourses({
+  admin,
+  userId,
+  schoolYearStart,
+  schoolYearEnd,
+  overrides,
+}) {
+  const overrideMap = new Map(
+    (overrides || []).map((row) => [row.class_date, row])
+  );
+
+  let { data: courses, error: coursesError } = await admin
+    .from("courses")
+    .select(
+      "id, owner_id, schedule_model, ab_meeting_day, ab_pattern_start_date"
+    )
+    .eq("owner_id", userId)
+    .is("archived_at", null);
+
+  if (
+    coursesError &&
+    typeof coursesError.message === "string" &&
+    coursesError.message.includes("ab_meeting_day")
+  ) {
+    const retry = await admin
+      .from("courses")
+      .select("id, owner_id, schedule_model, ab_pattern_start_date")
+      .eq("owner_id", userId)
+      .is("archived_at", null);
+
+    courses = (retry.data || []).map((course) => ({
+      ...course,
+      ab_meeting_day: null,
+    }));
+    coursesError = retry.error;
+  }
+
+  if (coursesError) {
+    throw new Error(coursesError.message);
+  }
+
+  for (const course of courses || []) {
+    const { error: courseUpdateError } = await admin
+      .from("courses")
+      .update({
+        school_year_start: schoolYearStart,
+        school_year_end: schoolYearEnd,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", course.id)
+      .eq("owner_id", userId);
+
+    if (courseUpdateError) {
+      throw new Error(courseUpdateError.message);
+    }
+
+    const { error: clearCourseCalendarError } = await admin
+      .from("course_calendar_days")
+      .delete()
+      .eq("course_id", course.id);
+
+    if (clearCourseCalendarError) {
+      throw new Error(clearCourseCalendarError.message);
+    }
+
+    const rows = buildCourseCalendarRows({
+      course,
+      schoolYearStart,
+      schoolYearEnd,
+      overrideMap,
+    });
+
+    if (rows.length > 0) {
+      const { error: insertCourseCalendarError } = await admin
+        .from("course_calendar_days")
+        .insert(rows);
+
+      if (insertCourseCalendarError) {
+        throw new Error(insertCourseCalendarError.message);
+      }
+    }
+
+    await rebuildPlanFromCalendar({
+      supabase: admin,
+      courseId: course.id,
+      userId,
+    });
+
+    revalidatePath(`/classes/${course.id}/plan`);
+  }
+
+  revalidatePath("/onboarding/profile");
+  revalidatePath("/dashboard");
+  revalidatePath("/classes");
+  revalidatePath("/");
+}
+
 function parsePositiveInt(value, fallback = 1) {
   const parsed = Number.parseInt(String(value || ""), 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -401,90 +498,69 @@ export async function saveSchoolCalendarAction(formData) {
     }
   }
 
-  const overrideMap = new Map(overrides.map((row) => [row.class_date, row]));
-
-  let { data: courses, error: coursesError } = await admin
-    .from("courses")
-    .select(
-      "id, owner_id, schedule_model, ab_meeting_day, ab_pattern_start_date"
-    )
-    .eq("owner_id", user.id)
-    .is("archived_at", null);
-
-  if (
-    coursesError &&
-    typeof coursesError.message === "string" &&
-    coursesError.message.includes("ab_meeting_day")
-  ) {
-    const retry = await admin
-      .from("courses")
-      .select("id, owner_id, schedule_model, ab_pattern_start_date")
-      .eq("owner_id", user.id)
-      .is("archived_at", null);
-
-    courses = (retry.data || []).map((course) => ({ ...course, ab_meeting_day: null }));
-    coursesError = retry.error;
-  }
-
-  if (coursesError) {
-    throw new Error(coursesError.message);
-  }
-
-  for (const course of courses || []) {
-    const { error: courseUpdateError } = await admin
-      .from("courses")
-      .update({
-        school_year_start: schoolYearStart,
-        school_year_end: schoolYearEnd,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", course.id)
-      .eq("owner_id", user.id);
-
-    if (courseUpdateError) {
-      throw new Error(courseUpdateError.message);
-    }
-
-    const { error: clearCourseCalendarError } = await admin
-      .from("course_calendar_days")
-      .delete()
-      .eq("course_id", course.id);
-
-    if (clearCourseCalendarError) {
-      throw new Error(clearCourseCalendarError.message);
-    }
-
-    const rows = buildCourseCalendarRows({
-      course,
-      schoolYearStart,
-      schoolYearEnd,
-      overrideMap,
-    });
-
-    if (rows.length > 0) {
-      const { error: insertCourseCalendarError } = await admin
-        .from("course_calendar_days")
-        .insert(rows);
-
-      if (insertCourseCalendarError) {
-        throw new Error(insertCourseCalendarError.message);
-      }
-    }
-
-    await rebuildPlanFromCalendar({
-      supabase: admin,
-      courseId: course.id,
-      userId: user.id,
-    });
-
-    revalidatePath(`/classes/${course.id}/plan`);
-  }
-
-  revalidatePath("/onboarding/profile");
-  revalidatePath("/classes");
-  revalidatePath("/");
+  await applySchoolCalendarToTeacherCourses({
+    admin,
+    userId: user.id,
+    schoolYearStart,
+    schoolYearEnd,
+    overrides,
+  });
 
   redirect(`/onboarding/profile?school_calendar_updated=1&t=${Date.now()}#school-calendar`);
+}
+
+export async function pushSchoolCalendarToAllClassesAction() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/sign-in?redirect=/onboarding/profile");
+  }
+
+  const admin = createAdminClient();
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("school_year_start, school_year_end")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    throw new Error(profileError.message);
+  }
+
+  const schoolYearStart = normalizeDateInput(profile?.school_year_start);
+  const schoolYearEnd = normalizeDateInput(profile?.school_year_end);
+
+  if (
+    !schoolYearStart ||
+    !schoolYearEnd ||
+    parseDateAtUTC(schoolYearStart) >= parseDateAtUTC(schoolYearEnd)
+  ) {
+    redirect(`/onboarding/profile?school_calendar_push_error=profile&t=${Date.now()}#school-calendar`);
+  }
+
+  const { data: overrides, error: overridesError } = await admin
+    .from("school_calendar_days")
+    .select("class_date, day_type, reason_id, note")
+    .eq("owner_id", user.id)
+    .gte("class_date", schoolYearStart)
+    .lte("class_date", schoolYearEnd);
+
+  if (overridesError && !isMissingSchoolCalendarTableError(overridesError)) {
+    throw new Error(overridesError.message);
+  }
+
+  await applySchoolCalendarToTeacherCourses({
+    admin,
+    userId: user.id,
+    schoolYearStart,
+    schoolYearEnd,
+    overrides: overrides || [],
+  });
+
+  redirect(`/onboarding/profile?school_calendar_pushed=1&t=${Date.now()}#school-calendar`);
 }
 
 export async function addTeacherAbsenceAction(formData) {

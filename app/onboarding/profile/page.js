@@ -13,6 +13,7 @@ import {
   saveStandardMarkingPeriodRulesAction,
   saveAnnouncementTemplateAction,
   saveTeacherAnnouncementAssignmentRuleAction,
+  pushSchoolCalendarToAllClassesAction,
   saveSchoolCalendarAction,
   saveTeacherMarkingPeriodAction,
 } from "./actions";
@@ -439,6 +440,8 @@ async function loadAnnouncementTemplate(supabase, userId) {
 export default async function OnboardingProfilePage({ searchParams }) {
   const qs = (await searchParams) || {};
   const schoolCalendarUpdated = qs.school_calendar_updated === "1";
+  const schoolCalendarPushed = qs.school_calendar_pushed === "1";
+  const schoolCalendarPushError = qs.school_calendar_push_error || "";
   const schoolCalendarError = qs.school_calendar_error || "";
   const schoolCalendarErrorMessage = schoolCalendarErrorText(schoolCalendarError);
   const templateUpdated = qs.template_updated === "1";
@@ -797,6 +800,31 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 ) : null}
               </div>
             </form>
+
+            <div className="profileCalendarPush">
+              <div>
+                <strong>Need to sync again?</strong>
+                <p>
+                  Push the last saved school calendar to every active class you own.
+                </p>
+              </div>
+              <form action={pushSchoolCalendarToAllClassesAction}>
+                <SubmitButton
+                  className="btn ghost"
+                  pendingLabel="Pushing Schedule…"
+                >
+                  Push Saved Schedule to All Classes
+                </SubmitButton>
+              </form>
+              {schoolCalendarPushed ? (
+                <span className="statusNote">Schedule pushed to all active classes.</span>
+              ) : null}
+              {schoolCalendarPushError ? (
+                <span className="statusNote">
+                  Save the school-year dates before pushing the schedule.
+                </span>
+              ) : null}
+            </div>
           </details>
 
           <details style={{ marginTop: "1.1rem" }}>

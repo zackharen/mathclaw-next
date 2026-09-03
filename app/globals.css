@@ -3232,6 +3232,27 @@ details[open] > summary.gameControlsSummary .hideLabel {
   cursor: pointer;
 }
 
+.profileCalendarPush {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.profileCalendarPush > div {
+  flex: 1 1 18rem;
+}
+
+.profileCalendarPush p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+
 .assignmentPreviewGrid {
   grid-template-columns: 5.5rem 14.5rem 7rem var(--classes-col, 12rem);
   width: fit-content;
