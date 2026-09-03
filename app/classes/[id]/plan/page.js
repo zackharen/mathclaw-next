@@ -21,6 +21,7 @@ import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
+import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -159,24 +160,6 @@ function isWeekendISODate(value) {
   const date = new Date(year, month - 1, day);
   const weekday = date.getDay();
   return weekday === 0 || weekday === 6;
-}
-
-function formatLessonLabel(sourceLessonCode, title) {
-  const safeTitle = title || "Untitled Lesson";
-  if (!sourceLessonCode) return safeTitle;
-
-  const normalizedCode = String(sourceLessonCode).trim();
-  const normalizedTitle = String(safeTitle).trim();
-
-  if (
-    normalizedTitle
-      .toLowerCase()
-      .startsWith(`${normalizedCode.toLowerCase()}:`)
-  ) {
-    return normalizedTitle;
-  }
-
-  return `${normalizedCode}: ${normalizedTitle}`;
 }
 
 function gameHref(slug, courseId) {

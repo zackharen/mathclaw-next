@@ -6,6 +6,7 @@ import DeleteClassButton from "@/app/admin/delete-class-button";
 import CoTeacherPanel, { CoTeacherPanelFallback } from "@/app/components/CoTeacherPanel";
 import { EmptyState, StatusNotice } from "@/app/components/FeedbackPanel";
 import { createClient } from "@/lib/supabase/server";
+import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { getSiteCopy } from "@/lib/site-config";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
@@ -121,19 +122,6 @@ function formatCurriculumLabel(library) {
   const providerName = library.curriculum_providers?.name;
   const className = library.class_name || "Curriculum";
   return providerName ? `${className} · ${providerName}` : className;
-}
-
-function formatLessonLabel(sourceLessonCode, title) {
-  const safeTitle = title || "Untitled Lesson";
-  if (!sourceLessonCode) return safeTitle;
-  const normalizedCode = String(sourceLessonCode).trim();
-  const normalizedTitle = String(safeTitle).trim();
-
-  if (normalizedTitle.toLowerCase().startsWith(`${normalizedCode.toLowerCase()}:`)) {
-    return normalizedTitle;
-  }
-
-  return `${normalizedCode}: ${normalizedTitle}`;
 }
 
 function paceDeltaLabel(delta) {
