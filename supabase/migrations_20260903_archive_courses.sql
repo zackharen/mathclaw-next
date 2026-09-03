@@ -13,12 +13,7 @@ for select
 to authenticated
 using (
   archived_at is null
-  and exists (
-    select 1
-    from public.student_course_memberships
-    where student_course_memberships.course_id = courses.id
-      and student_course_memberships.profile_id = (select auth.uid())
-  )
+  and public.rls_is_enrolled_in_course(auth.uid(), id)
 );
 
 create or replace function public.list_accessible_courses()
