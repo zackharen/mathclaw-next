@@ -13,7 +13,7 @@ import {
   announcementTemplateForCourse,
   shouldIncludeCurriculumDoNow,
 } from "@/lib/announcements/curriculum-content";
-import { formatAnnouncementLessonTitle } from "@/lib/announcements/lesson-title";
+import { buildAnnouncementCurriculum } from "@/lib/announcements/lesson-title";
 import {
   formatCalendarScheduleType,
   isGraceDay,
@@ -478,21 +478,22 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     const selectedAssignments = buildAssignmentText(assignmentsByDate.get(classDate) || []);
     const assignments = [selectedAssignments, regularAssignment].filter(Boolean).join("\n");
     const teacherAbsencesText = formatTeacherAbsenceList(teacherAbsences, classDate);
+    const curriculumContent = buildAnnouncementCurriculum({
+      template,
+      rowsForDate,
+      lessonById,
+      standardsByLesson,
+      fallback: isGraceDay(day) ? "Grace Day" : "No lesson scheduled",
+    });
 
-    let content = applyTemplate(template, {
+    let content = applyTemplate(curriculumContent.template, {
       date: formatDate(classDate),
       class_name: course.title || "Class",
       ab_day: abDay,
       day_type: dayType,
       schedule_type: scheduleType,
       reason: reasonLabel || "",
-      lesson_title: formatAnnouncementLessonTitle({
-        rowsForDate,
-        lessonById,
-        fallback: isGraceDay(day) ? "Grace Day" : "No lesson scheduled",
-      }),
-      objective: lesson?.objective || "No objective provided.",
-      standards: standards.length ? standards.join(", ") : "None listed",
+      ...curriculumContent.values,
       day_number: dayNumber,
       day_of_week: dayOfWeek,
       assignments,
