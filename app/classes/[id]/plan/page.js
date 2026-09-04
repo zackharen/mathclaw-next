@@ -21,8 +21,11 @@ import { generateAnnouncementsAction } from "../announcements/actions";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
+import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
+import LessonResourcesPanel from "./lesson-resources-panel";
 import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
+import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -295,7 +298,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     courseDataClient
       .from("course_lesson_plan")
       .select(
-        "class_date, lesson_slot, status, curriculum_lessons(sequence_index, source_lesson_code, title, objective)"
+        "class_date, lesson_slot, status, curriculum_lessons(id, sequence_index, source_lesson_code, title, objective)"
       )
       .eq("course_id", course.id)
       .gte("class_date", lessonWindowStart)
@@ -339,6 +342,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
   const schoolDays = schoolDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];
+  const lessonResourceData = await loadLessonResourcePlanningData({
+    userId: user.id,
+    lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
+  });
 
   // Build school-day# map by walking all weekdays in the school year,
   // using school_calendar_days only to identify off days (same logic as profile page).
@@ -714,14 +721,22 @@ export default async function ClassPlanPage({ params, searchParams }) {
             <h2>Daily Plan &amp; Announcements</h2>
             <p>Review the lesson, mark it complete, and copy the day&apos;s announcement in one place.</p>
           </div>
-          {calendarDays.length > 0 ? (
-            <form action={generateAnnouncementsAction}>
-              <input type="hidden" name="course_id" value={course.id} />
-              <button className="btn" type="submit">
-                {announcementCount > 0 ? "Refresh Announcements" : "Generate Announcements"}
-              </button>
-            </form>
-          ) : null}
+          <div className="classPlanWorkspaceActions">
+            {lessonResourceData.available ? (
+              <LessonResourceLibrarySharing
+                connectedTeachers={lessonResourceData.connectedTeachers}
+                initialTeacherIds={lessonResourceData.librarySharedWith}
+              />
+            ) : null}
+            {calendarDays.length > 0 ? (
+              <form action={generateAnnouncementsAction}>
+                <input type="hidden" name="course_id" value={course.id} />
+                <button className="btn" type="submit">
+                  {announcementCount > 0 ? "Refresh Announcements" : "Generate Announcements"}
+                </button>
+              </form>
+            ) : null}
+          </div>
         </div>
         {!curriculumEnabled ? (
           <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
@@ -783,6 +798,22 @@ export default async function ClassPlanPage({ params, searchParams }) {
             {visibleLessonDays.map((day) => {
               const dayPlanRows = planRowsByDate.get(day.class_date) || [];
               const firstLesson = dayPlanRows[0]?.curriculum_lessons;
+              const lessonOptions = dayPlanRows.reduce((options, row) => {
+                const lesson = row.curriculum_lessons;
+                if (!lesson?.id || options.some((option) => option.id === lesson.id)) return options;
+                options.push({
+                  id: lesson.id,
+                  label: formatLessonLabel(lesson.source_lesson_code, lesson.title),
+                });
+                return options;
+              }, []);
+              const lessonIdsForDay = new Set(lessonOptions.map((lesson) => lesson.id));
+              const ownResourcesForDay = lessonResourceData.ownResources.filter((resource) =>
+                resource.lessonIds.some((lessonId) => lessonIdsForDay.has(lessonId))
+              );
+              const sharedResourcesForDay = lessonResourceData.sharedResources.filter((resource) =>
+                resource.lessonIds.some((lessonId) => lessonIdsForDay.has(lessonId))
+              );
               const suggestedSkills = findSuggestedSkills({ lesson: firstLesson, enabledGames });
               const announcementText = announcementByDate.get(day.class_date) || "";
               const reasonLabel = day.reason_id ? reasonById.get(day.reason_id) : null;
@@ -951,6 +982,18 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       ) : null}
                     </section>
                   </div>
+
+                  {lessonResourceData.available && lessonOptions.length > 0 ? (
+                    <LessonResourcesPanel
+                      courseId={course.id}
+                      classDate={day.class_date}
+                      ownerId={user.id}
+                      lessonOptions={lessonOptions}
+                      initialOwnResources={ownResourcesForDay}
+                      sharedResources={sharedResourcesForDay}
+                      connectedTeachers={lessonResourceData.connectedTeachers}
+                    />
+                  ) : null}
 
                   <div className="ctaRow compactDayActions classPlanDayControls">
                     <details className="dayModifyDetails">

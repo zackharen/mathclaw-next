@@ -3382,6 +3382,61 @@ details[open] > summary.btn:not(.btnNoToggle),
   flex-shrink: 0;
 }
 
+.classPlanWorkspaceActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.classPlanResourceSharing,
+.classPlanAddResource,
+.classPlanResourceActions details {
+  position: relative;
+}
+
+.classPlanResourceSharingPanel,
+.classPlanAddResourcePanel,
+.classPlanResourceSharePopover {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid #b9cbd8;
+  border-radius: 10px;
+  background: var(--white);
+  box-shadow: 0 12px 28px rgba(24, 47, 65, 0.13);
+}
+
+.classPlanResourceSharingPanel {
+  width: min(30rem, calc(100vw - 3rem));
+}
+
+.classPlanTeacherChecklist,
+.classPlanLessonChoices {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.classPlanTeacherChecklist label,
+.classPlanLessonChoices label,
+.classPlanResourceSharePopover label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  cursor: pointer;
+}
+
+.classPlanTeacherChecklist label > span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.classPlanTeacherChecklist small {
+  color: var(--muted);
+}
+
 .classPlanDayWorkspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -3451,6 +3506,144 @@ details[open] > summary.btn:not(.btnNoToggle),
 
 .classPlanDayControls {
   justify-content: flex-end;
+}
+
+.classPlanResources {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #d8e2e9;
+}
+
+.classPlanResourcesHeader,
+.classPlanResourceCard,
+.classPlanResourceActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.classPlanResourcesHeader p {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.classPlanAddResource {
+  flex: 0 0 auto;
+  width: min(34rem, 100%);
+  text-align: right;
+}
+
+.classPlanAddResourcePanel {
+  text-align: left;
+}
+
+.classPlanAddResourcePanel fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid #d8e2e9;
+  border-radius: 8px;
+}
+
+.classPlanAddResourcePanel legend {
+  padding: 0 0.3rem;
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.classPlanAddResourcePanel > label,
+.classPlanAddResourcePanel form,
+.classPlanAddResourcePanel form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.classPlanResourceTypeTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.classPlanResourceList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.classPlanResourceCard {
+  align-items: center;
+  padding: 0.65rem;
+  border: 1px solid #d8e2e9;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.classPlanResourceCard > div:first-child {
+  min-width: 0;
+}
+
+.classPlanResourceIdentity {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.classPlanResourceIdentity > span:first-child {
+  color: #0c668f;
+  font-size: 1.15rem;
+}
+
+.classPlanResourceIdentity > span:last-child {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.classPlanResourceIdentity strong,
+.classPlanResourceIdentity small {
+  overflow-wrap: anywhere;
+}
+
+.classPlanResourceIdentity small,
+.classPlanResourcesEmpty {
+  color: var(--muted);
+}
+
+.classPlanResourceLessonChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0 1.7rem;
+}
+
+.classPlanResourceLessonChip {
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: #e7f2f7;
+  color: #24546d;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.classPlanResourceActions {
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.classPlanResourceSharePopover {
+  width: min(18rem, calc(100vw - 3rem));
+}
+
+.classPlanSharedResources {
+  margin-top: 0.1rem;
+}
+
+.classPlanSharedResources > .classPlanResourceList {
+  margin-top: 0.55rem;
 }
 
 .classPlanTitleRow {
@@ -3635,8 +3828,29 @@ details[open] > summary.btn:not(.btnNoToggle),
   }
 
   .classPlanWorkspaceHeader form,
-  .classPlanWorkspaceHeader .btn {
+  .classPlanWorkspaceHeader .btn,
+  .classPlanWorkspaceActions,
+  .classPlanWorkspaceActions > *,
+  .classPlanResourcesHeader,
+  .classPlanAddResource,
+  .classPlanResourceCard,
+  .classPlanResourceActions {
     width: 100%;
+  }
+
+  .classPlanWorkspaceActions,
+  .classPlanResourcesHeader,
+  .classPlanResourceCard,
+  .classPlanResourceActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .classPlanResourceSharingPanel,
+  .classPlanAddResourcePanel,
+  .classPlanResourceSharePopover {
+    width: 100%;
+    box-shadow: none;
   }
 
   .classPlanHeaderControls {
