@@ -3530,6 +3530,36 @@ details[open] > summary.btn:not(.btnNoToggle),
   border-top: 1px solid #d8e2e9;
 }
 
+.assessmentFolderForm {
+  width: min(760px, calc(100vw - 4rem));
+}
+
+.assessmentLessonChoices {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid #d8e2e9;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.assessmentLessonChoices label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.assessmentDayResources {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #d8e2e9;
+}
+
+
 .classPlanResourcesHeader,
 .classPlanResourceCard,
 .classPlanResourceActions {

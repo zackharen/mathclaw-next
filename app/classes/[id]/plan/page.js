@@ -23,9 +23,11 @@ import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
+import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
 import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
+import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -346,6 +348,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
     userId: user.id,
     lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
   });
+  const assessmentFolderData = curriculumEnabled
+    ? await loadAssessmentFolderData({ userId: user.id, course })
+    : null;
 
   // Build school-day# map by walking all weekdays in the school year,
   // using school_calendar_days only to identify off days (same logic as profile page).
@@ -402,6 +407,23 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const reasonById = new Map(reasons.map((reason) => [reason.id, reason.label]));
   const pacingMode = normalizePacingMode(course.pacing_mode);
   const weekdayModifiers = normalizeWeekdayModifiers(course.pacing_weekday_modifiers);
+  const assessmentOccurrenceByKey = new Map(
+    (assessmentFolderData?.occurrences || []).map((item) => [occurrenceKey(item.rule_id, item.original_date), item])
+  );
+  const assessmentResourcesByDate = new Map();
+  for (const resource of assessmentFolderData?.resources || []) {
+    const occurrence = assessmentOccurrenceByKey.get(occurrenceKey(resource.rule_id, resource.original_date));
+    if (!occurrence || occurrence.is_skipped) continue;
+    const items = assessmentResourcesByDate.get(occurrence.assignment_date) || [];
+    items.push({ ...resource, assignment_date: occurrence.assignment_date });
+    assessmentResourcesByDate.set(occurrence.assignment_date, items);
+  }
+  const assessmentLessonLabelById = new Map(
+    (assessmentFolderData?.lessons || []).map((lesson) => [
+      lesson.id,
+      formatLessonLabel(lesson.source_lesson_code, lesson.title),
+    ])
+  );
 
   const meetsA = course.ab_meeting_day !== "B";
   const meetsB = course.ab_meeting_day !== "A";
@@ -718,6 +740,19 @@ export default async function ClassPlanPage({ params, searchParams }) {
         ) : null}
       </section>
 
+      {assessmentFolderData?.available ? (
+        <AssessmentFolder
+          courseId={course.id}
+          ownerId={user.id}
+          occurrences={assessmentFolderData.occurrences}
+          lessons={assessmentFolderData.lessons}
+          initialResources={assessmentFolderData.resources}
+          initialDefaultLessonIds={assessmentFolderData.defaultLessonIds}
+          defaultLessonCount={assessmentFolderData.defaultLessonCount}
+          initialSiteNames={lessonResourceData.siteNames}
+        />
+      ) : null}
+
       <section className="card" id="lesson-by-day">
         <div className="classPlanWorkspaceHeader">
           <div>
@@ -836,6 +871,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     : "No lesson scheduled";
               const mpName = getMarkingPeriodName(day.class_date);
               const schoolDayNum = schoolDayNumberByDate.get(day.class_date);
+              const assessmentResourcesForDay = assessmentResourcesByDate.get(day.class_date) || [];
 
               if (dayPlanRows.length === 0) {
                 return (
@@ -855,6 +891,17 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
                     {announcementText ? (
                       <pre className="announcementText">{announcementText}</pre>
+                    ) : null}
+
+                    {assessmentResourcesForDay.length ? (
+                      <div className="assessmentDayResources">
+                        <strong>Assessment Resources</strong>
+                        <AssessmentResourceList
+                          resources={assessmentResourcesForDay}
+                          lessonLabelById={assessmentLessonLabelById}
+                          compact
+                        />
+                      </div>
                     ) : null}
 
                     <div className="ctaRow compactDayActions">
@@ -1005,6 +1052,17 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       connectedTeachers={lessonResourceData.connectedTeachers}
                       initialSiteNames={lessonResourceData.siteNames}
                     />
+                  ) : null}
+
+                  {assessmentResourcesForDay.length ? (
+                    <div className="assessmentDayResources">
+                      <strong>Assessment Resources</strong>
+                      <AssessmentResourceList
+                        resources={assessmentResourcesForDay}
+                        lessonLabelById={assessmentLessonLabelById}
+                        compact
+                      />
+                    </div>
                   ) : null}
 
                   <div className="ctaRow compactDayActions classPlanDayControls">

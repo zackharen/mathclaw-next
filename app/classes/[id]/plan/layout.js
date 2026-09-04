@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseAccessForUser } from "@/lib/courses/access";
-import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
+import { buildRuleAssignmentOccurrences, numberRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
 
 function shortMonthDate(iso) {
   if (!iso) return "";
@@ -60,7 +60,7 @@ function formatAssignmentOccurrence(occurrence) {
     occurrence.assignment_date !== occurrence.original_date
       ? ` (from ${shortMonthDate(occurrence.original_date)})`
       : "";
-  return `${shortDate(occurrence.assignment_date)}${moved}: ${occurrence.label}${due}`;
+  return `${shortDate(occurrence.assignment_date)}${moved}: ${occurrence.label} ${occurrence.assessment_number}${due}`;
 }
 
 function isMissingTable(error, tableName) {
@@ -158,14 +158,18 @@ async function loadAssignmentPanelData({ courseId }) {
   }
 
   const todayIso = new Date().toISOString().slice(0, 10);
-  const occurrences = buildRuleAssignmentOccurrences({
-    rules,
-    course,
-    calendarDays,
-    markingPeriodRules,
-    schoolDayNumberByDate,
-    overrides,
-  });
+  const occurrences = numberRuleAssignmentOccurrences(
+    buildRuleAssignmentOccurrences({
+      rules,
+      course,
+      calendarDays,
+      markingPeriodRules,
+      schoolDayNumberByDate,
+      overrides,
+      includeSkipped: true,
+    }),
+    markingPeriodRules
+  ).filter((occurrence) => !occurrence.is_skipped);
   const upcoming = occurrences.filter((occurrence) => occurrence.assignment_date >= todayIso).slice(0, 12);
 
   return { rules, upcoming };
