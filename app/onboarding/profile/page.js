@@ -188,20 +188,23 @@ function ruleSummary(rule) {
     Number.isInteger(dueDays) && dueDays > 0
       ? `, due ${dueDays} school day${dueDays === 1 ? "" : "s"} later`
       : "";
+  const pacingSuffix = settings.one_lesson_on_assignment_day
+    ? ", 1 lesson that day in two-lesson classes"
+    : "";
   if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
     const weekInterval = settings.week_interval || (rule.cadence === "biweekly" ? 2 : 1);
     const days = (settings.weekdays || [5]).map(weekdayName).join(", ");
-    return `Every ${weekInterval} week${Number(weekInterval) === 1 ? "" : "s"} on ${days}${startSuffix}${dueSuffix}`;
+    return `Every ${weekInterval} week${Number(weekInterval) === 1 ? "" : "s"} on ${days}${startSuffix}${dueSuffix}${pacingSuffix}`;
   }
   if (rule.cadence === "monthly") {
     const days = (settings.month_days || [1]).slice(0, 1).join(", ");
     const shift = settings.monthly_shift === "before" ? "before" : "after";
-    return `Every month on day ${days}; if needed, use the first school day ${shift}${startSuffix}${dueSuffix}`;
+    return `Every month on day ${days}; if needed, use the first school day ${shift}${startSuffix}${dueSuffix}${pacingSuffix}`;
   }
   const days = settings.weekdays?.length
     ? ` on ${settings.weekdays.map(weekdayName).join(", ")}`
     : "";
-  return `${count} time${count === 1 ? "" : "s"} per marking period${days}${startSuffix}${dueSuffix}`;
+  return `${count} time${count === 1 ? "" : "s"} per marking period${days}${startSuffix}${dueSuffix}${pacingSuffix}`;
 }
 
 function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, markingPeriods, overrides, schoolDayNumberByDate }) {

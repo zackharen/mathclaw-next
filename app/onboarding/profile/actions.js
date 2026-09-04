@@ -83,6 +83,11 @@ async function regenerateAnnouncementsForTeacherCourses(supabase, userId) {
   if (error) throw new Error(error.message);
 
   for (const course of courses || []) {
+    await rebuildPlanFromCalendar({
+      supabase,
+      courseId: course.id,
+      userId,
+    });
     await generateAnnouncementsForCourse({
       supabase,
       writeClient: supabase,
@@ -834,6 +839,8 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   const dueSchoolDays = Number.isInteger(dueSchoolDaysRaw)
     ? Math.max(1, Math.min(60, dueSchoolDaysRaw))
     : null;
+  const oneLessonOnAssignmentDay =
+    dueSchoolDays === null && formData.get("one_lesson_on_assignment_day") === "on";
 
   const settings = {
     weekdays,
@@ -843,6 +850,7 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
     no_meeting_shift: noMeetingShift,
     start_date: ruleStartDate || null,
     due_school_days: dueSchoolDays,
+    one_lesson_on_assignment_day: oneLessonOnAssignmentDay,
   };
 
   if ((cadence === "weekly" || cadence === "marking_period") && settings.weekdays.length === 0) {

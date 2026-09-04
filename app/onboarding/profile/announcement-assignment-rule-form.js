@@ -23,6 +23,7 @@ export default function AnnouncementAssignmentRuleForm({
 }) {
   const settings = rule?.settings || {};
   const [cadence, setCadence] = useState(rule?.cadence || "weekly");
+  const [dueSchoolDays, setDueSchoolDays] = useState(asString(settings.due_school_days, ""));
   const selectedWeekdays = useMemo(
     () => new Set((settings.weekdays || []).map((day) => String(day))),
     [settings.weekdays]
@@ -82,18 +83,35 @@ export default function AnnouncementAssignmentRuleForm({
           />
         </label>
         <label style={{ maxWidth: "14rem" }}>
-          Due After (school days, optional)
+          Due After (blank means same day)
           <input
             className="input"
             type="number"
             min="1"
             max="60"
             name="due_school_days"
-            defaultValue={asString(settings.due_school_days, "")}
+            value={dueSchoolDays}
+            onChange={(event) => setDueSchoolDays(event.target.value)}
             placeholder="e.g. 4"
           />
         </label>
       </div>
+
+      <label style={{ display: "flex", alignItems: "flex-start", gap: "0.55rem", maxWidth: "42rem" }}>
+        <input
+          type="checkbox"
+          name="one_lesson_on_assignment_day"
+          defaultChecked={settings.one_lesson_on_assignment_day === true}
+          disabled={dueSchoolDays !== ""}
+          style={{ marginTop: "0.2rem" }}
+        />
+        <span>
+          <strong>Schedule only 1 lesson on this assignment day</strong>
+          <span className="statusNote" style={{ display: "block" }}>
+            Available only when the assignment is due the same day. Leave “Due After” blank.
+          </span>
+        </span>
+      </label>
 
       {cadence === "weekly" ? (
         <div className="list">
