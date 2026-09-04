@@ -6,6 +6,7 @@ import {
   LESSON_RESOURCE_BUCKET,
   LESSON_RESOURCE_FILE_ACCEPT,
   formatLessonResourceSize,
+  getLessonResourceSiteSuggestion,
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
@@ -47,6 +48,7 @@ export default function LessonResourcesPanel({
   initialOwnResources,
   sharedResources,
   connectedTeachers,
+  initialSiteNames,
 }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
@@ -57,6 +59,8 @@ export default function LessonResourcesPanel({
   const [resourceType, setResourceType] = useState("link");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
+  const [siteName, setSiteName] = useState("");
+  const [learnedSiteNames, setLearnedSiteNames] = useState({});
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [sharingId, setSharingId] = useState("");
@@ -68,6 +72,29 @@ export default function LessonResourcesPanel({
     () => new Map(lessonOptions.map((lesson) => [lesson.id, lesson.label])),
     [lessonOptions]
   );
+  const siteNames = useMemo(
+    () => ({ ...(initialSiteNames || {}), ...learnedSiteNames }),
+    [initialSiteNames, learnedSiteNames]
+  );
+  const siteSuggestion = useMemo(
+    () => getLessonResourceSiteSuggestion(url, siteNames),
+    [url, siteNames]
+  );
+
+  function changeUrl(value) {
+    const previousSuggestion = getLessonResourceSiteSuggestion(url, siteNames);
+    const nextSuggestion = getLessonResourceSiteSuggestion(value, siteNames);
+    setUrl(value);
+    if (previousSuggestion.hostname !== nextSuggestion.hostname) setSiteName("");
+    setTitle((current) =>
+      !current || current === previousSuggestion.name ? nextSuggestion.name : current
+    );
+  }
+
+  function changeSiteName(value) {
+    setTitle((current) => (!current || current === siteName ? value : current));
+    setSiteName(value);
+  }
 
   function toggleLesson(lessonId) {
     setSelectedLessonIds((current) =>
@@ -103,11 +130,19 @@ export default function LessonResourcesPanel({
         lessonIds: selectedLessonIds,
         title,
         url,
+        siteName,
       });
       setOwnResources((current) => [...current, data.resource]);
       setShareSelections((current) => ({ ...current, [data.resource.id]: [] }));
       setTitle("");
       setUrl("");
+      setSiteName("");
+      if (data.resource.siteNamePreference?.hostname) {
+        setLearnedSiteNames((current) => ({
+          ...current,
+          [data.resource.siteNamePreference.hostname]: data.resource.siteNamePreference.displayName,
+        }));
+      }
       setStatus("Link added to the lesson.");
       router.refresh();
     } catch (error) {
@@ -271,7 +306,13 @@ export default function LessonResourcesPanel({
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 maxLength={160}
-                placeholder={resourceType === "link" ? "Example: Lesson slides" : "Defaults to the file name"}
+                placeholder={
+                  resourceType === "link"
+                    ? siteSuggestion.name
+                      ? `Defaults to ${siteSuggestion.name}`
+                      : "Example: Lesson slides"
+                    : "Defaults to the file name"
+                }
               />
             </label>
 
@@ -283,11 +324,27 @@ export default function LessonResourcesPanel({
                     className="input"
                     type="url"
                     value={url}
-                    onChange={(event) => setUrl(event.target.value)}
+                    onChange={(event) => changeUrl(event.target.value)}
                     placeholder="https://…"
                     required
                   />
                 </label>
+                {siteSuggestion.source === "unknown" ? (
+                  <label className="classPlanSiteNamePrompt">
+                    <span>
+                      What should MathClaw call links from <strong>{siteSuggestion.hostname}</strong> going forward?
+                    </span>
+                    <input
+                      className="input"
+                      value={siteName}
+                      onChange={(event) => changeSiteName(event.target.value)}
+                      maxLength={80}
+                      placeholder="Example: Illustrative Mathematics"
+                      required
+                    />
+                    <small>This name is private to your account and will be used automatically next time.</small>
+                  </label>
+                ) : null}
                 <button className="btn" type="submit" disabled={saving}>
                   {saving ? "Adding…" : "Add Link to Lesson"}
                 </button>

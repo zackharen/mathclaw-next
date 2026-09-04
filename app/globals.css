@@ -3562,6 +3562,17 @@ details[open] > summary.btn:not(.btnNoToggle),
   gap: 0.35rem;
 }
 
+.classPlanSiteNamePrompt {
+  padding: 0.7rem;
+  border: 1px solid #b9cbd8;
+  border-radius: 8px;
+  background: #f1f7fa;
+}
+
+.classPlanSiteNamePrompt small {
+  color: var(--muted);
+}
+
 .classPlanResourceTypeTabs {
   display: flex;
   flex-wrap: wrap;

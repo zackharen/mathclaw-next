@@ -4,6 +4,8 @@ import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-
 import { getCourseAccessForUser } from "@/lib/courses/access";
 import {
   LESSON_RESOURCE_BUCKET,
+  getLessonResourceSiteSuggestion,
+  normalizeLessonResourceSiteName,
   normalizeLessonResourceTitle,
   normalizeLessonResourceUrl,
   validateLessonResourceFile,
@@ -196,17 +198,46 @@ export async function POST(request) {
       if (body.action === "create-link") {
         const url = normalizeLessonResourceUrl(body.url);
         if (!url) return jsonError("Enter a valid http or https link.");
-        const fallbackTitle = new URL(url).hostname.replace(/^www\./, "");
+        const { data: savedSiteRows, error: savedSiteError } = await admin
+          .from("lesson_resource_site_names")
+          .select("hostname, display_name")
+          .eq("owner_id", user.id);
+        if (savedSiteError) throw new Error(savedSiteError.message);
+        const savedSiteNames = Object.fromEntries(
+          (savedSiteRows || []).map((row) => [row.hostname, row.display_name])
+        );
+        let siteSuggestion = getLessonResourceSiteSuggestion(url, savedSiteNames);
+        if (siteSuggestion.source === "unknown") {
+          const siteName = normalizeLessonResourceSiteName(body.siteName);
+          if (!siteName) {
+            return jsonError(`Tell MathClaw what to call ${siteSuggestion.hostname} going forward.`);
+          }
+          const { error: siteNameError } = await admin.from("lesson_resource_site_names").upsert(
+            {
+              owner_id: user.id,
+              hostname: siteSuggestion.hostname,
+              display_name: siteName,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "owner_id,hostname" }
+          );
+          if (siteNameError) throw new Error(siteNameError.message);
+          siteSuggestion = { ...siteSuggestion, name: siteName, source: "saved" };
+        }
         created = await createResource({
           admin,
           userId: user.id,
           lessonIds,
           resource: {
             resource_type: "link",
-            title: normalizeLessonResourceTitle(body.title, fallbackTitle),
+            title: normalizeLessonResourceTitle(body.title, siteSuggestion.name),
             url,
           },
         });
+        created.siteNamePreference = {
+          hostname: siteSuggestion.hostname,
+          displayName: siteSuggestion.name,
+        };
       } else {
         const storagePath = String(body.storagePath || "");
         if (!storagePath.startsWith(`${user.id}/`) || storagePath.includes("..")) {

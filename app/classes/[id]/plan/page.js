@@ -992,6 +992,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       initialOwnResources={ownResourcesForDay}
                       sharedResources={sharedResourcesForDay}
                       connectedTeachers={lessonResourceData.connectedTeachers}
+                      initialSiteNames={lessonResourceData.siteNames}
                     />
                   ) : null}
 
