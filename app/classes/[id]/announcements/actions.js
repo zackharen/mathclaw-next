@@ -13,6 +13,7 @@ import {
   announcementTemplateForCourse,
   shouldIncludeCurriculumDoNow,
 } from "@/lib/announcements/curriculum-content";
+import { formatAnnouncementLessonTitle } from "@/lib/announcements/lesson-title";
 import {
   formatCalendarScheduleType,
   isGraceDay,
@@ -226,7 +227,10 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   const lessonIds = [...new Set((planRows || []).map((row) => row.lesson_id).filter(Boolean))];
 
   const { data: lessons, error: lessonsError } = lessonIds.length
-    ? await supabase.from("curriculum_lessons").select("id, title, objective").in("id", lessonIds)
+    ? await supabase
+        .from("curriculum_lessons")
+        .select("id, source_lesson_code, title, objective")
+        .in("id", lessonIds)
     : { data: [], error: null };
 
   if (lessonsError) throw new Error(lessonsError.message);
@@ -460,12 +464,6 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     const dayType = normalizeCalendarDayType(day?.day_type || "instructional");
     const abDay = formatABDay(day?.ab_day || schoolAbDayByDate.get(classDate));
     const scheduleType = formatCalendarScheduleType(day);
-    const lessonSummary = rowsForDate
-      .map((row, index) => {
-        const rowLesson = lessonById.get(row.lesson_id);
-        return `Lesson ${index + 1}: ${rowLesson?.title || "TBD"}`;
-      })
-      .join("\n");
     const doNow = includeCurriculumDoNow
       ? buildDoNow({ lessonTitle: lesson?.title, objective: lesson?.objective, standards })
       : "";
@@ -488,10 +486,11 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       day_type: dayType,
       schedule_type: scheduleType,
       reason: reasonLabel || "",
-      lesson_title:
-        rowsForDate.length > 1
-          ? lessonSummary
-          : lesson?.title || (isGraceDay(day) ? "Grace Day" : "No lesson scheduled"),
+      lesson_title: formatAnnouncementLessonTitle({
+        rowsForDate,
+        lessonById,
+        fallback: isGraceDay(day) ? "Grace Day" : "No lesson scheduled",
+      }),
       objective: lesson?.objective || "No objective provided.",
       standards: standards.length ? standards.join(", ") : "None listed",
       day_number: dayNumber,
