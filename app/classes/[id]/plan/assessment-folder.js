@@ -11,6 +11,7 @@ import {
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
 import { createClient } from "@/lib/supabase/client";
+import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 
 function occurrenceKey(item) {
   return `${item.rule_id}|${item.original_date}`;
@@ -99,7 +100,10 @@ export default function AssessmentFolder({
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const lessonLabelById = useMemo(
-    () => new Map((lessons || []).map((lesson) => [lesson.id, `${lesson.source_lesson_code ? `${lesson.source_lesson_code}: ` : ""}${lesson.title}`])),
+    () => new Map((lessons || []).map((lesson) => [
+      lesson.id,
+      formatLessonLabel(lesson.source_lesson_code, lesson.title),
+    ])),
     [lessons]
   );
   const selectedOccurrence = activeOccurrences.find((item) => occurrenceKey(item) === selectedOccurrenceKey);
