@@ -23,7 +23,7 @@ import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
-import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
+import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
 
@@ -641,7 +641,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     </div>
                     <div className="calendarGridBody">
                       {visibleCalendarDays.map((day) => (
-                        <div className="calendarRowNoAction" key={day.class_date}>
+                        <div
+                          className={`calendarRowNoAction${isCalendarWeekStart(day.class_date) ? " calendarWeekStart" : ""}`}
+                          key={day.class_date}
+                        >
                           <label className="calendarSelectCell">
                             <input type="checkbox" name="selected_class_date" value={day.class_date} form="class-plan-schedule-form" />
                             <span>Select</span>
@@ -836,7 +839,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
               if (dayPlanRows.length === 0) {
                 return (
-                  <article key={day.class_date} className="card" style={{ background: "#fff" }}>
+                  <article
+                    key={day.class_date}
+                    className={`card${isCalendarWeekStart(day.class_date) ? " calendarWeekStart" : ""}`}
+                    style={{ background: "#fff" }}
+                  >
                     <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
                     <p>
                       {noLessonLabel}{reasonLabel ? ` | ${reasonLabel}` : ""}
@@ -892,7 +899,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
               }
 
               return (
-                <article key={day.class_date} className="card" style={{ background: "#fff" }}>
+                <article
+                  key={day.class_date}
+                  className={`card${isCalendarWeekStart(day.class_date) ? " calendarWeekStart" : ""}`}
+                  style={{ background: "#fff" }}
+                >
                   <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
                   <div className="classPlanDayWorkspace">
                     <section className="classPlanDayPane classPlanLessonPane">

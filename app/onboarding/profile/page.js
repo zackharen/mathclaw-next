@@ -21,6 +21,7 @@ import { joinClassByCodeAction } from "@/app/play/actions";
 import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
 import {
   buildABMap,
+  isCalendarWeekStart,
   isGraceDay,
   normalizeCalendarDayType,
 } from "@/lib/school-calendar";
@@ -749,7 +750,10 @@ export default async function OnboardingProfilePage({ searchParams }) {
                   const row = schoolDayByDate.get(date);
                   const dayNum = dateToSchoolDayNumber.get(date);
                   return (
-                    <div className="schoolCalendarRow" key={date}>
+                    <div
+                      className={`schoolCalendarRow${isCalendarWeekStart(date) ? " calendarWeekStart" : ""}`}
+                      key={date}
+                    >
                       <span>{prettyDate(date)}</span>
                       <span>{dayNum ? `#${dayNum}` : "—"}</span>
                       <span>{abByDate.get(date) || "-"}</span>

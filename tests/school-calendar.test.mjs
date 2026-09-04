@@ -4,9 +4,17 @@ import assert from "node:assert/strict";
 import {
   buildABMap,
   formatCalendarScheduleType,
+  isCalendarWeekStart,
   isGraceDay,
   normalizeCalendarDayType,
 } from "../lib/school-calendar.js";
+
+test("calendar week dividers identify Mondays without timezone ambiguity", () => {
+  assert.equal(isCalendarWeekStart("2026-11-02"), true);
+  assert.equal(isCalendarWeekStart("2026-10-30"), false);
+  assert.equal(isCalendarWeekStart("2026-02-30"), false);
+  assert.equal(isCalendarWeekStart("not-a-date"), false);
+});
 
 test("off days have no A/B label and do not advance the rotation", () => {
   const dates = ["2026-09-04", "2026-09-07", "2026-09-08", "2026-09-09"];
