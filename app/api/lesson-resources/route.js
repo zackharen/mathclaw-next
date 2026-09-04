@@ -198,30 +198,33 @@ export async function POST(request) {
       if (body.action === "create-link") {
         const url = normalizeLessonResourceUrl(body.url);
         if (!url) return jsonError("Enter a valid http or https link.");
-        const { data: savedSiteRows, error: savedSiteError } = await admin
-          .from("lesson_resource_site_names")
-          .select("hostname, display_name")
-          .eq("owner_id", user.id);
-        if (savedSiteError) throw new Error(savedSiteError.message);
-        const savedSiteNames = Object.fromEntries(
-          (savedSiteRows || []).map((row) => [row.hostname, row.display_name])
-        );
-        let siteSuggestion = getLessonResourceSiteSuggestion(url, savedSiteNames);
+        let siteSuggestion = getLessonResourceSiteSuggestion(url);
         if (siteSuggestion.source === "unknown") {
-          const siteName = normalizeLessonResourceSiteName(body.siteName);
+          const { data: savedSiteRow, error: savedSiteError } = await admin
+            .from("lesson_resource_site_names")
+            .select("display_name")
+            .eq("owner_id", user.id)
+            .eq("hostname", siteSuggestion.hostname)
+            .maybeSingle();
+          if (savedSiteError) throw new Error(savedSiteError.message);
+          const siteName = normalizeLessonResourceSiteName(
+            savedSiteRow?.display_name || body.siteName
+          );
           if (!siteName) {
             return jsonError(`Tell MathClaw what to call ${siteSuggestion.hostname} going forward.`);
           }
-          const { error: siteNameError } = await admin.from("lesson_resource_site_names").upsert(
-            {
-              owner_id: user.id,
-              hostname: siteSuggestion.hostname,
-              display_name: siteName,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "owner_id,hostname" }
-          );
-          if (siteNameError) throw new Error(siteNameError.message);
+          if (!savedSiteRow) {
+            const { error: siteNameError } = await admin.from("lesson_resource_site_names").upsert(
+              {
+                owner_id: user.id,
+                hostname: siteSuggestion.hostname,
+                display_name: siteName,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "owner_id,hostname" }
+            );
+            if (siteNameError) throw new Error(siteNameError.message);
+          }
           siteSuggestion = { ...siteSuggestion, name: siteName, source: "saved" };
         }
         created = await createResource({
