@@ -1227,7 +1227,7 @@ p {
 
 .teacherDashboardCourseActions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid #e7edf2;
   border-bottom: 1px solid #e7edf2;
 }
@@ -3365,6 +3365,94 @@ details[open] > summary.btn:not(.btnNoToggle),
   display: inline-block;
 }
 
+.classPlanWorkspaceHeader,
+.classPlanDayPaneHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.classPlanWorkspaceHeader > div > p {
+  margin-top: 0.35rem;
+  color: var(--muted);
+}
+
+.classPlanWorkspaceHeader form {
+  flex-shrink: 0;
+}
+
+.classPlanDayWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.classPlanDayPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid #d8e2e9;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.classPlanDayPaneHeader {
+  margin-bottom: 0.7rem;
+  color: var(--navy);
+  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  font-size: 0.8rem;
+}
+
+.classPlanStatus {
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: #e6edf2;
+  color: #486174;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.classPlanStatus-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.classPlanStatus-partly-completed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.classPlanAnnouncementPane .announcementText {
+  flex: 1;
+  margin-top: 0;
+  background: var(--white);
+}
+
+.classPlanEmptyAnnouncement {
+  flex: 1;
+  color: var(--muted);
+}
+
+.classPlanManualPacingNote {
+  margin-top: 0.7rem;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.classPlanPaneActions {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}
+
+.classPlanDayControls {
+  justify-content: flex-end;
+}
+
 .classPlanTitleRow {
   display: flex;
   align-items: flex-start;
@@ -3536,6 +3624,21 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 @media (max-width: 760px) {
+  .classPlanWorkspaceHeader,
+  .classPlanDayWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .classPlanWorkspaceHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .classPlanWorkspaceHeader form,
+  .classPlanWorkspaceHeader .btn {
+    width: 100%;
+  }
+
   .classPlanHeaderControls {
     grid-template-columns: 1fr;
   }

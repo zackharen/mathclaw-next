@@ -17,6 +17,7 @@ import {
   updateCalendarDayAction,
 } from "../calendar/actions";
 import CopyButton from "../announcements/copy-button";
+import { generateAnnouncementsAction } from "../announcements/actions";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
@@ -425,7 +426,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
       <section className="card">
         <div className="classPlanTitleRow">
           <div>
-            <h1>{course.title}: Plan</h1>
+            <h1>{course.title}: Plan &amp; Announcements</h1>
             <p>
               {course.class_name} |{" "}
               {course.schedule_model === "ab"
@@ -708,7 +709,20 @@ export default async function ClassPlanPage({ params, searchParams }) {
       </section>
 
       <section className="card" id="lesson-by-day">
-        <h2>Lesson by Day</h2>
+        <div className="classPlanWorkspaceHeader">
+          <div>
+            <h2>Daily Plan &amp; Announcements</h2>
+            <p>Review the lesson, mark it complete, and copy the day&apos;s announcement in one place.</p>
+          </div>
+          {calendarDays.length > 0 ? (
+            <form action={generateAnnouncementsAction}>
+              <input type="hidden" name="course_id" value={course.id} />
+              <button className="btn" type="submit">
+                {announcementCount > 0 ? "Refresh Announcements" : "Generate Announcements"}
+              </button>
+            </form>
+          ) : null}
+        </div>
         {!curriculumEnabled ? (
           <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
         ) : null}
@@ -849,82 +863,96 @@ export default async function ClassPlanPage({ params, searchParams }) {
               return (
                 <article key={day.class_date} className="card" style={{ background: "#fff" }}>
                   <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
-                  <div className="lessonPlanList">
-                    {dayPlanRows.map((row, index) => {
-                      const lesson = row.curriculum_lessons;
-                      const lessonLabel = lesson
-                        ? formatLessonLabel(lesson?.source_lesson_code, lesson?.title)
-                        : "No lesson assigned yet.";
-                      const objectiveText = lesson?.objective
-                        ? lesson.objective
-                        : lesson
-                          ? "No objective provided."
-                          : "Add full days and click Update Schedule.";
-
-                      return (
-                        <div className="lessonPlanItem" key={`${day.class_date}-${row.lesson_slot || index + 1}`}>
-                          <p>
-                            <strong>Lesson {index + 1}:</strong> {lessonLabel}
-                          </p>
-                          <p>{objectiveText}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
-                    Status: {dayStatus}
-                  </p>
-                  {!hideSuggestions && suggestedSkills.length > 0 ? (
-                    <div className="lessonSkillBlock">
-                      <strong>Suggested MathClaw Skills</strong>
-                      <div className="lessonSkillGrid">
-                        {suggestedSkills.map((skill) => (
-                          <div key={`${day.class_date}-${skill.slug}`} className="lessonSkillCard">
-                            <div>
-                              <p className="lessonSkillTitle">{GAME_LABELS[skill.slug] || skill.slug}</p>
-                              <p className="lessonSkillWhy">{skill.why}</p>
-                            </div>
-                            <Link className="btn" href={gameHref(skill.slug, course.id)}>
-                              Open Skill
-                            </Link>
-                          </div>
-                        ))}
+                  <div className="classPlanDayWorkspace">
+                    <section className="classPlanDayPane classPlanLessonPane">
+                      <div className="classPlanDayPaneHeader">
+                        <strong>Lesson Plan</strong>
+                        <span className={`classPlanStatus classPlanStatus-${dayStatus.replaceAll(" ", "-")}`}>
+                          {dayStatus}
+                        </span>
                       </div>
-                    </div>
-                  ) : null}
-                  {pacingMode === "manual_complete" ? (
-                    <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
-                      Manual pacing mode: this lesson repeats until you click Mark Complete.
-                    </p>
-                  ) : null}
+                      <div className="lessonPlanList">
+                        {dayPlanRows.map((row, index) => {
+                          const lesson = row.curriculum_lessons;
+                          const lessonLabel = lesson
+                            ? formatLessonLabel(lesson?.source_lesson_code, lesson?.title)
+                            : "No lesson assigned yet.";
+                          const objectiveText = lesson?.objective
+                            ? lesson.objective
+                            : lesson
+                              ? "No objective provided."
+                              : "Add full days and click Update Schedule.";
 
-                  {announcementText ? (
-                    <pre className="announcementText">{announcementText}</pre>
-                  ) : (
-                    <p style={{ marginTop: "0.6rem", opacity: 0.75 }}>
-                      No announcement generated for this day yet.
-                    </p>
-                  )}
+                          return (
+                            <div className="lessonPlanItem" key={`${day.class_date}-${row.lesson_slot || index + 1}`}>
+                              <p>
+                                <strong>Lesson {index + 1}:</strong> {lessonLabel}
+                              </p>
+                              <p>{objectiveText}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {!hideSuggestions && suggestedSkills.length > 0 ? (
+                        <div className="lessonSkillBlock">
+                          <strong>Suggested MathClaw Skills</strong>
+                          <div className="lessonSkillGrid">
+                            {suggestedSkills.map((skill) => (
+                              <div key={`${day.class_date}-${skill.slug}`} className="lessonSkillCard">
+                                <div>
+                                  <p className="lessonSkillTitle">{GAME_LABELS[skill.slug] || skill.slug}</p>
+                                  <p className="lessonSkillWhy">{skill.why}</p>
+                                </div>
+                                <Link className="btn" href={gameHref(skill.slug, course.id)}>
+                                  Open Skill
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {pacingMode === "manual_complete" ? (
+                        <p className="classPlanManualPacingNote">
+                          Manual pacing mode: this lesson repeats until you click Mark Complete.
+                        </p>
+                      ) : null}
+                      <div className="ctaRow classPlanPaneActions">
+                        {dayPlanRows.every((row) => row.status === "completed") ? (
+                          <form action={markLessonPlannedAction}>
+                            <input type="hidden" name="course_id" value={course.id} />
+                            <input type="hidden" name="class_date" value={day.class_date} />
+                            <button className="btn primary" type="submit">Completed</button>
+                          </form>
+                        ) : (
+                          <form action={markLessonCompleteAction}>
+                            <input type="hidden" name="course_id" value={course.id} />
+                            <input type="hidden" name="class_date" value={day.class_date} />
+                            <button className="btn" type="submit">Mark Complete</button>
+                          </form>
+                        )}
+                      </div>
+                    </section>
 
-                  <div className="ctaRow compactDayActions">
-                    {announcementText ? <CopyButton text={announcementText} /> : null}
-
-                    {dayPlanRows.length > 0 ? (
-                      dayPlanRows.every((row) => row.status === "completed") ? (
-                        <form action={markLessonPlannedAction}>
-                          <input type="hidden" name="course_id" value={course.id} />
-                          <input type="hidden" name="class_date" value={day.class_date} />
-                          <button className="btn primary" type="submit">Completed</button>
-                        </form>
+                    <section className="classPlanDayPane classPlanAnnouncementPane">
+                      <div className="classPlanDayPaneHeader">
+                        <strong>Announcement</strong>
+                      </div>
+                      {announcementText ? (
+                        <pre className="announcementText">{announcementText}</pre>
                       ) : (
-                        <form action={markLessonCompleteAction}>
-                          <input type="hidden" name="course_id" value={course.id} />
-                          <input type="hidden" name="class_date" value={day.class_date} />
-                          <button className="btn" type="submit">Mark Complete</button>
-                        </form>
-                      )
-                    ) : null}
+                        <p className="classPlanEmptyAnnouncement">
+                          No announcement generated for this day yet.
+                        </p>
+                      )}
+                      {announcementText ? (
+                        <div className="ctaRow classPlanPaneActions">
+                          <CopyButton text={announcementText} />
+                        </div>
+                      ) : null}
+                    </section>
+                  </div>
 
+                  <div className="ctaRow compactDayActions classPlanDayControls">
                     <details className="dayModifyDetails">
                       <summary className="btn">Modify This Day</summary>
                       <form

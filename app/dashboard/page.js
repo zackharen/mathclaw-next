@@ -574,15 +574,11 @@ export default async function DashboardPage({ searchParams }) {
             <nav className="teacherDashboardCourseActions" aria-label={`${card.course.title} dashboard shortcuts`}>
               <Link href={`/classes/${card.course.id}/plan`}>
                 <span aria-hidden="true">▤</span>
-                <strong>Open Plan</strong>
+                <strong>Plan &amp; Announcements</strong>
               </Link>
               <Link href={`/classes/${card.course.id}/students`}>
                 <span aria-hidden="true">◎</span>
                 <strong>Students</strong>
-              </Link>
-              <Link href={`/classes/${card.course.id}/announcements`}>
-                <span aria-hidden="true">◈</span>
-                <strong>Announcements</strong>
               </Link>
             </nav>
 
@@ -658,7 +654,7 @@ export default async function DashboardPage({ searchParams }) {
 
                 <div className="ctaRow">
                   <Link className="btn" href={`/classes/${card.course.id}/plan`}>
-                    Open Plan
+                    Plan &amp; Announcements
                   </Link>
                   <Link className="btn" href={`/classes/${card.course.id}/students`}>
                     Student Progress
