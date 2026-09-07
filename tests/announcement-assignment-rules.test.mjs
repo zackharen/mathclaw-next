@@ -4,7 +4,9 @@ import {
   buildOneLessonAssignmentDates,
   buildRuleAssignmentOccurrences,
   buildSchoolDayNumberByDate,
+  formatUpcomingRuleAssignments,
   numberRuleAssignmentOccurrences,
+  selectUpcomingRuleAssignments,
 } from "../lib/announcements/assignment-rules.js";
 
 const calendarDays = [
@@ -100,5 +102,45 @@ test("moving an assessment moves its one-lesson date", () => {
       }]
     )],
     ["2026-09-09"]
+  );
+});
+
+test("upcoming assignments include active work and the next five school days", () => {
+  const days = [
+    { class_date: "2026-09-14", day_type: "instructional" },
+    { class_date: "2026-09-15", day_type: "instructional" },
+    { class_date: "2026-09-16", day_type: "instructional" },
+    { class_date: "2026-09-17", day_type: "instructional" },
+    { class_date: "2026-09-18", day_type: "instructional" },
+    { class_date: "2026-09-21", day_type: "instructional" },
+    { class_date: "2026-09-22", day_type: "instructional" },
+    { class_date: "2026-09-23", day_type: "instructional" },
+    { class_date: "2026-09-24", day_type: "instructional" },
+    { class_date: "2026-09-25", day_type: "instructional" },
+  ];
+  const assignmentsByDate = new Map([
+    ["2026-09-15", [{ rule_id: "ai", label: "AI Word Problem 1.1", assignment_date: "2026-09-15", due_date: "2026-09-22" }]],
+    ["2026-09-18", [{ rule_id: "spiral", label: "Spiral Review 1.2", assignment_date: "2026-09-18", due_date: null }]],
+    ["2026-09-25", [{ rule_id: "later", label: "Later Work 1.1", assignment_date: "2026-09-25", due_date: null }]],
+    ["2026-09-14", [{ rule_id: "expired", label: "Expired Work 1.1", assignment_date: "2026-09-14", due_date: "2026-09-16" }]],
+  ]);
+
+  assert.deepEqual(
+    selectUpcomingRuleAssignments({ assignmentsByDate, classDate: "2026-09-17", calendarDays: days })
+      .map((assignment) => assignment.label),
+    ["AI Word Problem 1.1", "Spiral Review 1.2"]
+  );
+});
+
+test("upcoming assignment lines distinguish active, current, and future work", () => {
+  assert.equal(
+    formatUpcomingRuleAssignments([
+      { label: "AI Word Problem 1.1", assignment_date: "2026-09-15", due_date: "2026-09-22" },
+      { label: "Spiral Review 1.2", assignment_date: "2026-09-17", due_date: "2026-09-18" },
+      { label: "Assessment 1.2", assignment_date: "2026-09-19", due_date: null },
+    ], "2026-09-17"),
+    "AI Word Problem 1.1 | Assigned 9/15 | Due 9/22\n" +
+      "Spiral Review 1.2 | Due 9/18\n" +
+      "Assessment 1.2 | 9/19"
   );
 });

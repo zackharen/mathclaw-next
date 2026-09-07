@@ -8,6 +8,8 @@ import {
   buildRuleAssignmentsByDate,
   buildSchoolDayNumberByDate,
   buildSchoolWideDayNumberByDate,
+  formatUpcomingRuleAssignments,
+  selectUpcomingRuleAssignments,
 } from "@/lib/announcements/assignment-rules";
 import {
   announcementTemplateForCourse,
@@ -477,6 +479,17 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       : "";
     const selectedAssignments = buildAssignmentText(assignmentsByDate.get(classDate) || []);
     const assignments = [selectedAssignments, regularAssignment].filter(Boolean).join("\n");
+    const selectedUpcomingAssignments = formatUpcomingRuleAssignments(
+      selectUpcomingRuleAssignments({
+        assignmentsByDate,
+        classDate,
+        calendarDays: calendarDays || [],
+      }),
+      classDate
+    );
+    const upcomingAssignments = [selectedUpcomingAssignments, regularAssignment]
+      .filter(Boolean)
+      .join("\n");
     const teacherAbsencesText = formatTeacherAbsenceList(teacherAbsences, classDate);
     const curriculumContent = buildAnnouncementCurriculum({
       template,
@@ -497,6 +510,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       day_number: dayNumber,
       day_of_week: dayOfWeek,
       assignments,
+      upcoming_assignments: upcomingAssignments,
       regular_assignment: regularAssignment,
       teacher_absences: teacherAbsencesText,
       do_now: doNow,

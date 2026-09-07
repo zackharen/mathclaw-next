@@ -1121,8 +1121,14 @@ export default async function OnboardingProfilePage({ searchParams }) {
           <code>{"{lesson_title}"}</code>, <code>{"{objective}"}</code>,{" "}
           <code>{"{standards}"}</code>, <code>{"{day_number}"}</code>,{" "}
           <code>{"{day_of_week}"}</code>, <code>{"{assignments}"}</code>,{" "}
-          <code>{"{regular_assignment}"}</code>, <code>{"{teacher_absences}"}</code>,{" "}
+          <code>{"{upcoming_assignments}"}</code>, <code>{"{regular_assignment}"}</code>,{" "}
+          <code>{"{teacher_absences}"}</code>,{" "}
           <code>{"{do_now}"}</code>, <code>{"{quote}"}</code>.
+        </p>
+        <p>
+          <code>{"{assignments}"}</code> shows assignments made that day. Use{" "}
+          <code>{"{upcoming_assignments}"}</code> to also keep not-yet-due assignments visible
+          and preview assignments scheduled within the next five school days.
         </p>
 
         <form
