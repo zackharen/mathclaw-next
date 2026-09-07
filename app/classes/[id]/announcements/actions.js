@@ -8,6 +8,7 @@ import {
   buildRuleAssignmentsByDate,
   buildSchoolDayNumberByDate,
   buildSchoolWideDayNumberByDate,
+  formatAnnouncementAssignmentDate,
   formatUpcomingRuleAssignments,
   selectUpcomingRuleAssignments,
 } from "@/lib/announcements/assignment-rules";
@@ -189,7 +190,9 @@ function formatTeacherAbsenceList(absences, classDate) {
 function formatAnnouncementAssignment(assignment) {
   const label = String(assignment?.label || "").trim();
   if (!label) return "";
-  return assignment?.due_date ? `${label} | Due ${formatShortDate(assignment.due_date)}` : label;
+  return assignment?.due_date
+    ? `${label} | Due ${formatAnnouncementAssignmentDate(assignment.due_date)}`
+    : label;
 }
 
 function buildAssignmentText(assignments) {

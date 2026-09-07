@@ -4,6 +4,7 @@ import {
   buildOneLessonAssignmentDates,
   buildRuleAssignmentOccurrences,
   buildSchoolDayNumberByDate,
+  formatAnnouncementAssignmentDate,
   formatUpcomingRuleAssignments,
   numberRuleAssignmentOccurrences,
   selectUpcomingRuleAssignments,
@@ -137,10 +138,14 @@ test("upcoming assignment lines distinguish active, current, and future work", (
     formatUpcomingRuleAssignments([
       { label: "AI Word Problem 1.1", assignment_date: "2026-09-15", due_date: "2026-09-22" },
       { label: "Spiral Review 1.2", assignment_date: "2026-09-17", due_date: "2026-09-18" },
-      { label: "Assessment 1.2", assignment_date: "2026-09-19", due_date: null },
+      { label: "Assessment 1.2", assignment_date: "2026-09-21", due_date: null },
     ], "2026-09-17"),
-    "AI Word Problem 1.1 | Assigned 9/15 | Due 9/22\n" +
-      "Spiral Review 1.2 | Due 9/18\n" +
-      "Assessment 1.2 | 9/19"
+    "AI Word Problem 1.1 | Assigned Tue 9/15 | Due Tue 9/22\n" +
+      "Spiral Review 1.2 | Due Fri 9/18\n" +
+      "Assessment 1.2 | Mon 9/21"
   );
+});
+
+test("assignment dates include a timezone-safe abbreviated weekday", () => {
+  assert.equal(formatAnnouncementAssignmentDate("2026-09-11"), "Fri 9/11");
 });
