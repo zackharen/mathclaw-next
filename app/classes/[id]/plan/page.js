@@ -20,7 +20,6 @@ import CopyButton from "../announcements/copy-button";
 import { generateAnnouncementsAction } from "../announcements/actions";
 import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
-import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
 import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
@@ -452,22 +451,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
   return (
     <div className="stack">
-      <section className="card">
-        <div className="classPlanTitleRow">
-          <div>
-            <h1>{course.title}: Plan &amp; Announcements</h1>
-            <p>
-              {course.class_name} |{" "}
-              {course.schedule_model === "ab"
-                ? `AB (${course.ab_meeting_day || "Both"})`
-                : "Every Day"}{" "}
-              | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
-            </p>
-          </div>
-          <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
-        </div>
-      </section>
-
       <section className="card">
         <div className="kv">
           <div>

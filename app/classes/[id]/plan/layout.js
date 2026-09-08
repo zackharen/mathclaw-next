@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseAccessForUser } from "@/lib/courses/access";
 import { buildRuleAssignmentOccurrences, numberRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
+import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 
 function shortMonthDate(iso) {
   if (!iso) return "";
@@ -79,7 +81,7 @@ async function loadAssignmentPanelData({ courseId }) {
     supabase,
     user.id,
     courseId,
-    "id, owner_id, school_year_start, school_year_end, schedule_model, ab_meeting_day"
+    "id, owner_id, title, class_name, school_year_start, school_year_end, schedule_model, ab_meeting_day"
   );
   const course = access?.course;
 
@@ -172,12 +174,15 @@ async function loadAssignmentPanelData({ courseId }) {
   ).filter((occurrence) => !occurrence.is_skipped);
   const upcoming = occurrences.filter((occurrence) => occurrence.assignment_date >= todayIso).slice(0, 12);
 
-  return { rules, upcoming };
+  return { course, rules, upcoming };
 }
 
 export default async function ClassPlanLayout({ children, params }) {
   const { id } = await params;
+  const cookieStore = await cookies();
+  const hideSuggestions = cookieStore.get("hide_arcade_suggestions")?.value === "1";
   const panelData = await loadAssignmentPanelData({ courseId: id });
+  const course = panelData?.course;
   const rules = panelData?.rules || [];
   const upcoming = panelData?.upcoming || [];
 
@@ -195,6 +200,25 @@ export default async function ClassPlanLayout({ children, params }) {
           contain-intrinsic-size: auto 18rem;
         }
       `}</style>
+      {course ? (
+        <div className="stack" style={{ marginBottom: "1rem" }}>
+          <section className="card">
+            <div className="classPlanTitleRow">
+              <div>
+                <h1>{course.title}: Plan &amp; Announcements</h1>
+                <p>
+                  {course.class_name} |{" "}
+                  {course.schedule_model === "ab"
+                    ? `AB (${course.ab_meeting_day || "Both"})`
+                    : "Every Day"}{" "}
+                  | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
+                </p>
+              </div>
+              <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+            </div>
+          </section>
+        </div>
+      ) : null}
       {rules.length > 0 ? (
         <div className="stack" style={{ marginBottom: "1rem" }}>
           <section className="card">
