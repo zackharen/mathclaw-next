@@ -149,3 +149,110 @@ test("upcoming assignment lines distinguish active, current, and future work", (
 test("assignment dates include a timezone-safe abbreviated weekday", () => {
   assert.equal(formatAnnouncementAssignmentDate("2026-09-11"), "Fri 9/11");
 });
+
+test("marking-period assignments are spread inside the period and avoid its final week", () => {
+  const fridayDates = [
+    "2026-09-04",
+    "2026-09-11",
+    "2026-09-18",
+    "2026-09-25",
+    "2026-10-02",
+    "2026-10-09",
+    "2026-10-16",
+    "2026-10-23",
+    "2026-10-30",
+  ];
+  const fridayDays = fridayDates.map((classDate) => ({
+    class_date: classDate,
+    day_type: "instructional",
+  }));
+  const dayNumbers = new Map(fridayDates.map((classDate, index) => [classDate, (index + 1) * 5]));
+
+  const occurrences = buildRuleAssignmentOccurrences({
+    rules: [{
+      id: "notebook-check",
+      label: "Notebook Check",
+      cadence: "marking_period",
+      count_per_period: 3,
+      settings: { weekdays: [5], start_date: "2026-09-04" },
+    }],
+    course,
+    calendarDays: fridayDays,
+    markingPeriodRules: [{ name: "Quarter 1", start_day_number: 1, end_day_number: 45 }],
+    schoolDayNumberByDate: dayNumbers,
+    overrides: [],
+  });
+
+  assert.deepEqual(
+    occurrences.map((occurrence) => occurrence.assignment_date),
+    ["2026-09-11", "2026-10-02", "2026-10-16"]
+  );
+  assert.equal(occurrences.some((occurrence) => occurrence.assignment_date === "2026-09-04"), false);
+  assert.equal(occurrences.some((occurrence) => occurrence.assignment_date === "2026-10-30"), false);
+});
+
+test("a marking-period rule start date is an earliest boundary, not its first occurrence", () => {
+  const fridayDates = [
+    "2026-09-04",
+    "2026-09-11",
+    "2026-09-18",
+    "2026-09-25",
+    "2026-10-02",
+    "2026-10-09",
+    "2026-10-16",
+    "2026-10-23",
+    "2026-10-30",
+  ];
+  const occurrences = buildRuleAssignmentOccurrences({
+    rules: [{
+      id: "notebook-check",
+      label: "Notebook Check",
+      cadence: "marking_period",
+      count_per_period: 3,
+      settings: { weekdays: [5], start_date: "2026-09-11" },
+    }],
+    course,
+    calendarDays: fridayDates.map((classDate) => ({ class_date: classDate, day_type: "instructional" })),
+    markingPeriodRules: [{ name: "Quarter 1", start_day_number: 1, end_day_number: 45 }],
+    schoolDayNumberByDate: new Map(fridayDates.map((classDate, index) => [classDate, (index + 1) * 5])),
+    overrides: [],
+  });
+
+  assert.deepEqual(
+    occurrences.map((occurrence) => occurrence.assignment_date),
+    ["2026-09-18", "2026-10-02", "2026-10-16"]
+  );
+});
+
+test("later-due marking-period work leaves room for the due date before the final week", () => {
+  const fridayDates = [
+    "2026-09-04",
+    "2026-09-11",
+    "2026-09-18",
+    "2026-09-25",
+    "2026-10-02",
+    "2026-10-09",
+    "2026-10-16",
+    "2026-10-23",
+    "2026-10-30",
+  ];
+  const occurrences = buildRuleAssignmentOccurrences({
+    rules: [{
+      id: "choice-board",
+      label: "Choice Board",
+      cadence: "marking_period",
+      count_per_period: 3,
+      settings: { weekdays: [5], due_school_days: 5 },
+    }],
+    course,
+    calendarDays: fridayDates.map((classDate) => ({ class_date: classDate, day_type: "instructional" })),
+    markingPeriodRules: [{ name: "Quarter 1", start_day_number: 1, end_day_number: 45 }],
+    schoolDayNumberByDate: new Map(fridayDates.map((classDate, index) => [classDate, (index + 1) * 5])),
+    overrides: [],
+  });
+
+  assert.deepEqual(
+    occurrences.map((occurrence) => occurrence.assignment_date),
+    ["2026-09-11", "2026-09-25", "2026-10-09"]
+  );
+});
