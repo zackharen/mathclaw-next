@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, listEditableCoursesForUser } from "@/lib/courses/access";
 import { buildRuleAssignmentOccurrences, numberRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
+import ClassSwitcher from "../class-switcher";
 
 function shortMonthDate(iso) {
   if (!iso) return "";
@@ -93,6 +94,7 @@ async function loadAssignmentPanelData({ courseId }) {
     calendarDaysRes,
     schoolDaysRes,
     markingPeriodRulesRes,
+    courses,
   ] = await Promise.all([
     supabase
       .from("teacher_announcement_assignment_rules")
@@ -124,6 +126,7 @@ async function loadAssignmentPanelData({ courseId }) {
       .select("id, name, start_day_number, end_day_number")
       .eq("owner_id", user.id)
       .order("start_day_number", { ascending: true }),
+    listEditableCoursesForUser(supabase, user.id, "id, title, class_name, owner_id, created_at"),
   ]);
 
   if (rulesRes.error && !isMissingTable(rulesRes.error, "teacher_announcement_assignment_rules")) {
@@ -174,7 +177,7 @@ async function loadAssignmentPanelData({ courseId }) {
   ).filter((occurrence) => !occurrence.is_skipped);
   const upcoming = occurrences.filter((occurrence) => occurrence.assignment_date >= todayIso).slice(0, 12);
 
-  return { course, rules, upcoming };
+  return { course, rules, upcoming, courses };
 }
 
 export default async function ClassPlanLayout({ children, params }) {
@@ -185,6 +188,7 @@ export default async function ClassPlanLayout({ children, params }) {
   const course = panelData?.course;
   const rules = panelData?.rules || [];
   const upcoming = panelData?.upcoming || [];
+  const courses = panelData?.courses || [];
 
   return (
     <>
@@ -214,7 +218,10 @@ export default async function ClassPlanLayout({ children, params }) {
                   | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
                 </p>
               </div>
-              <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+              <div className="classPlanTitleActions">
+                <ClassSwitcher courses={courses} currentCourseId={course.id} destination="plan" />
+                <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+              </div>
             </div>
           </section>
         </div>

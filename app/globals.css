@@ -3741,9 +3741,47 @@ details[open] > summary.btn:not(.btnNoToggle),
   gap: 1rem;
 }
 
+.classPlanTitleActions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.classSwitcher {
+  display: grid;
+  gap: 0.25rem;
+  min-width: min(19rem, 100%);
+  color: var(--navy);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.classSwitcher .input {
+  min-height: 2.75rem;
+  padding-block: 0.5rem;
+}
+
+@media (max-width: 760px) {
+  .classPlanTitleRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .classPlanTitleActions {
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .classSwitcher {
+    width: 100%;
+  }
+}
+
 .arcadeSuggestionsToggle {
   flex-shrink: 0;
-  margin-top: 0.35rem;
   font-size: 0.9rem;
   white-space: nowrap;
 }

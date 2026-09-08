@@ -2,9 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, listEditableCoursesForUser } from "@/lib/courses/access";
 import { assignStudentAwardAction, regenerateStudentJoinCodeAction } from "@/app/classes/actions";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
+import ClassSwitcher from "../class-switcher";
 
 function formatGameLabel(slug) {
   return {
@@ -228,11 +229,14 @@ export default async function StudentsPage({ params, searchParams }) {
     redirect("/classes");
   }
 
-  const { data: teacherProfile } = await supabase
-    .from("profiles")
-    .select("timezone")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: teacherProfile }, courses] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("timezone")
+      .eq("id", user.id)
+      .maybeSingle(),
+    listEditableCoursesForUser(supabase, user.id, "id, title, class_name, owner_id, created_at"),
+  ]);
 
   const displayTimeZone = teacherProfile?.timezone || "America/New_York";
 
@@ -451,7 +455,10 @@ export default async function StudentsPage({ params, searchParams }) {
   return (
     <div className="stack">
       <section className="card">
-        <h1>{course.title}: Student Progress</h1>
+        <div className="classPlanTitleRow">
+          <h1>{course.title}: Student Progress</h1>
+          <ClassSwitcher courses={courses} currentCourseId={course.id} destination="students" />
+        </div>
         {joinCodeUpdated ? <p style={{ color: "#0a7a32", fontWeight: 700 }}>Join code updated.</p> : null}
         {awardAdded ? (
           <p style={{ color: "#0a7a32", fontWeight: 700 }}>
