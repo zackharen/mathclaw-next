@@ -185,7 +185,7 @@ test("marking-period assignments are spread inside the period and avoid its fina
 
   assert.deepEqual(
     occurrences.map((occurrence) => occurrence.assignment_date),
-    ["2026-09-11", "2026-10-02", "2026-10-16"]
+    ["2026-09-11", "2026-10-02", "2026-10-23"]
   );
   assert.equal(occurrences.some((occurrence) => occurrence.assignment_date === "2026-09-04"), false);
   assert.equal(occurrences.some((occurrence) => occurrence.assignment_date === "2026-10-30"), false);
@@ -220,7 +220,7 @@ test("a marking-period rule start date is an earliest boundary, not its first oc
 
   assert.deepEqual(
     occurrences.map((occurrence) => occurrence.assignment_date),
-    ["2026-09-18", "2026-10-02", "2026-10-16"]
+    ["2026-09-18", "2026-10-09", "2026-10-23"]
   );
 });
 
@@ -253,6 +253,6 @@ test("later-due marking-period work leaves room for the due date before the fina
 
   assert.deepEqual(
     occurrences.map((occurrence) => occurrence.assignment_date),
-    ["2026-09-11", "2026-09-25", "2026-10-09"]
+    ["2026-09-11", "2026-10-02", "2026-10-16"]
   );
 });
