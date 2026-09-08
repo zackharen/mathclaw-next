@@ -3608,6 +3608,11 @@ details[open] > summary.btn:not(.btnNoToggle),
   text-align: right;
 }
 
+.classPlanAddResource > summary {
+  width: fit-content;
+  margin-left: auto;
+}
+
 .classPlanAddResourcePanel {
   width: min(34rem, calc(100vw - 4rem));
   text-align: left;
