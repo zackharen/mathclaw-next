@@ -21,6 +21,7 @@ import { joinClassByCodeAction } from "@/app/play/actions";
 import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
 import {
   buildABMap,
+  buildMarkingPeriodWeekLabels,
   isCalendarWeekStart,
   isGraceDay,
   normalizeCalendarDayType,
@@ -545,6 +546,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const markingPeriods = markingPeriodState.markingPeriods;
   const markingPeriodsMigrationNeeded = markingPeriodState.migrationNeeded;
+  const markingPeriodWeekLabels = buildMarkingPeriodWeekLabels({
+    dates: weekdays,
+    schoolDayByDate,
+    markingPeriods,
+    schoolDayNumberByDate: dateToSchoolDayNumber,
+  });
 
   // Official school-year accounting: the target year length is the highest
   // marking period day number (180 with standard quarters).
@@ -752,9 +759,12 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 {weekdays.map((date) => {
                   const row = schoolDayByDate.get(date);
                   const dayNum = dateToSchoolDayNumber.get(date);
+                  const weekLabel = markingPeriodWeekLabels.get(date);
                   return (
                     <div
-                      className={`schoolCalendarRow${isCalendarWeekStart(date) ? " calendarWeekStart" : ""}`}
+                      className={`schoolCalendarRow${isCalendarWeekStart(date) || weekLabel ? " calendarWeekStart" : ""}`}
+                      data-calendar-week-label={weekLabel?.label}
+                      title={weekLabel ? `${weekLabel.markingPeriod} · ${weekLabel.label}` : undefined}
                       key={date}
                     >
                       <span>{prettyDate(date)}</span>
