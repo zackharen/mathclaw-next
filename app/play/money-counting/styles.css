@@ -103,7 +103,7 @@
   align-items: center;
   justify-content: center;
   color: #133553;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-weight: 800;
   letter-spacing: 0.02em;
   border: 2px solid rgba(0, 0, 0, 0.5);
@@ -177,7 +177,7 @@
   border: 2px solid var(--line);
   border-radius: 999px;
   background: #fff;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -186,7 +186,7 @@
   position: absolute;
   left: 0;
   bottom: -0.05rem;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.8rem;
   font-weight: 700;
   color: #49657c;
@@ -209,7 +209,7 @@
 
 .moneyAnswerDollar,
 .moneyAnswerDot {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 1.8rem;
   font-weight: 900;
   line-height: 1;

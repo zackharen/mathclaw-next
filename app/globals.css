@@ -11,6 +11,7 @@
   --soft-line: #d7e2ea;
   --shadow-sm: 0 8px 22px rgba(0, 50, 90, 0.08);
   --shadow-md: 0 20px 54px rgba(0, 50, 90, 0.13);
+  --font-site: "Book Antiqua", "Palatino Linotype", Palatino, Georgia, serif;
 
   --ink: var(--navy);
   --paper: var(--white);
@@ -35,8 +36,15 @@ body {
     radial-gradient(circle at 8% 0%, rgba(77, 158, 216, 0.2), transparent 30rem),
     radial-gradient(circle at 94% 10%, rgba(205, 59, 59, 0.09), transparent 28rem),
     linear-gradient(180deg, #edf5fa 0%, #dce8f0 100%);
-  font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--font-site);
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 a {
@@ -333,7 +341,7 @@ main {
 h1,
 h2,
 h3 {
-  font-family: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--font-site);
   letter-spacing: -0.025em;
   color: var(--navy);
 }
@@ -369,7 +377,7 @@ p {
 }
 
 .classCoTeacherHeading {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-weight: 700;
 }
 
@@ -1397,7 +1405,7 @@ p {
 }
 
 .classCourseMetaGrid strong {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   color: var(--navy);
 }
 
@@ -1466,7 +1474,7 @@ p {
   cursor: pointer;
   border-top: 1px solid var(--line);
   padding: 1rem 0.75rem 0 0.7rem;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 1.5em;
   line-height: 1.2;
   font-weight: 700;
@@ -1700,7 +1708,7 @@ p {
 }
 
 .authEyebrow {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1740,7 +1748,7 @@ p {
   padding: 0 0.8rem;
   background: #f9fbfc;
   color: #49657c;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -1811,7 +1819,7 @@ p {
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   background: #f4f8fb;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-weight: 700;
   color: var(--navy);
   flex-shrink: 0;
@@ -2431,7 +2439,7 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
   margin-top: 0.9rem;
   padding: 0.35rem 0.4rem;
   border-bottom: 2px solid #6b7c8a;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -2467,7 +2475,7 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
   padding: 0 0.65rem;
   background: var(--white);
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.85rem;
   font-weight: 800;
   line-height: 1.2;
@@ -2500,7 +2508,7 @@ details[open] > summary.arcadeSectionSummary .hideLabel {
 .calendarGridHeaderNoAction {
   padding: 0.35rem 0.4rem;
   border-bottom: 2px solid #6b7c8a;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -2604,7 +2612,7 @@ details[open] > summary.editorSummary .hideLabel {
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   background: #f4f8fb;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-weight: 700;
   color: var(--navy);
   flex-shrink: 0;
@@ -2635,7 +2643,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
   background: var(--white);
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-weight: 700;
 }
 
@@ -3239,7 +3247,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
 .schoolCalendarHeader {
   padding: 0.35rem 0.4rem;
   border-bottom: 2px solid #6b7c8a;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -3370,7 +3378,7 @@ details[open] > summary.btn:not(.btnNoToggle),
   display: inline-flex;
   align-items: center;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.95rem;
   font-weight: 700;
   min-height: 1.45rem;
@@ -3383,7 +3391,7 @@ details[open] > summary.btn:not(.btnNoToggle),
   gap: 1rem;
   margin-top: 0.5rem;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.95rem;
   font-weight: 700;
 }
@@ -3489,7 +3497,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 .classPlanDayPaneHeader {
   margin-bottom: 0.7rem;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   text-transform: uppercase;
   letter-spacing: 0.045em;
   font-size: 0.8rem;
@@ -3799,7 +3807,7 @@ details[open] > summary.btn:not(.btnNoToggle),
   min-height: 1.45rem;
   margin-top: 0.75rem;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.95rem;
   font-weight: 700;
 }
@@ -3845,7 +3853,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 .pacingModifierHeader {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.82rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -3985,7 +3993,7 @@ details[open] > summary.btn:not(.btnNoToggle),
   display: inline-flex;
   align-items: center;
   color: var(--navy);
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.95rem;
   font-weight: 700;
 }
@@ -4058,7 +4066,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 .accountChoiceEyebrow {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -4067,7 +4075,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 .accountChoiceCard strong {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 1.9rem;
   line-height: 1.05;
 }
@@ -4133,7 +4141,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 
 .authBackLabel {
   color: #49657c;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -4317,7 +4325,7 @@ details[open] > summary.btn:not(.btnNoToggle),
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   background: #f4f8fb;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 1rem;
   font-weight: 700;
   color: var(--navy);
@@ -5152,7 +5160,7 @@ details[open] > summary.adminSectionSummary .hideLabel {
 }
 
 .skillBuilderPromptLabel {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.08em;

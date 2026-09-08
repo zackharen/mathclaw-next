@@ -519,7 +519,7 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-site);
   font-weight: 900;
   line-height: 1.08;
 }
@@ -541,7 +541,7 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-site);
   font-weight: 900;
 }
 
@@ -572,7 +572,7 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-site);
   font-size: clamp(1.05rem, 2vw, 2rem);
   font-weight: 900;
   line-height: 1.12;
@@ -2184,7 +2184,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-site);
   font-size: clamp(20px, 2.6vw, 40px);
   font-weight: 900;
   line-height: 1.04;
@@ -2241,7 +2241,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-site);
   font-size: clamp(32px, 6vw, 86px);
   font-weight: 900;
   line-height: 1.12;
@@ -2304,7 +2304,7 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   text-align: center;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-site);
   font-size: clamp(2.2rem, 5vw, 6.8rem);
   font-weight: 900;
   line-height: 1.05;

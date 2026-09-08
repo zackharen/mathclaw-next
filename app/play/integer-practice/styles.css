@@ -252,7 +252,7 @@
 }
 
 .integerSupportLabel {
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -381,7 +381,7 @@
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   background: #fff7e8;
-  font-family: "Gill Sans", "Segoe UI", sans-serif;
+  font-family: var(--font-site);
   font-weight: 700;
 }
 
