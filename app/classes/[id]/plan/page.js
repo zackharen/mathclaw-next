@@ -800,7 +800,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 borderRadius: "8px",
                 background: "#f8fbfd",
                 color: "var(--navy)",
-                fontFamily: "\"Gill Sans\", \"Segoe UI\", sans-serif",
                 fontWeight: 700,
               }}>
                 <span>
@@ -823,7 +822,6 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 borderRadius: "8px",
                 background: "#f8fbfd",
                 color: "var(--navy)",
-                fontFamily: "\"Gill Sans\", \"Segoe UI\", sans-serif",
                 fontWeight: 700,
               }}>
                 <span>Showing the full lesson year.</span>

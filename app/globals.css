@@ -3603,11 +3603,13 @@ details[open] > summary.btn:not(.btnNoToggle),
 
 .classPlanAddResource {
   flex: 0 0 auto;
-  width: min(34rem, 100%);
+  width: fit-content;
+  max-width: 100%;
   text-align: right;
 }
 
 .classPlanAddResourcePanel {
+  width: min(34rem, calc(100vw - 4rem));
   text-align: left;
 }
 
