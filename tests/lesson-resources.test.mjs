@@ -4,6 +4,7 @@ import {
   LESSON_RESOURCE_MAX_BYTES,
   getLessonResourceSiteSuggestion,
   lessonResourceMimeType,
+  normalizeLessonResourceEdit,
   normalizeLessonResourceUrl,
   normalizeLessonResourceHostname,
   normalizeLessonResourceSiteName,
@@ -70,4 +71,26 @@ test("lesson resource uploads enforce supported types and the 25 MB limit", () =
 
 test("storage file names cannot inject folders or unsafe punctuation", () => {
   assert.equal(sanitizeLessonResourceFileName("Unit 1 / Answer Key?.pdf"), "Unit-1-Answer-Key-.pdf");
+});
+
+test("link edits normalize display names and require safe URLs", () => {
+  assert.deepEqual(
+    normalizeLessonResourceEdit({
+      resourceType: "link",
+      title: "  Updated   practice  ",
+      url: "https://example.com/new lesson",
+    }),
+    { values: { title: "Updated practice", url: "https://example.com/new%20lesson" } }
+  );
+  assert.match(
+    normalizeLessonResourceEdit({ resourceType: "link", title: "Practice", url: "javascript:alert(1)" }).error,
+    /valid http or https/
+  );
+});
+
+test("file edits change only the display name", () => {
+  assert.deepEqual(
+    normalizeLessonResourceEdit({ resourceType: "file", title: "  Unit 1 Notes  ", url: "https://ignored.test" }),
+    { values: { title: "Unit 1 Notes" } }
+  );
 });

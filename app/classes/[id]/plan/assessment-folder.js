@@ -12,6 +12,7 @@ import {
 } from "@/lib/lesson-resources/constants";
 import { createClient } from "@/lib/supabase/client";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
+import ResourceEditForm from "./resource-edit-form";
 
 function occurrenceKey(item) {
   return `${item.rule_id}|${item.original_date}`;
@@ -33,7 +34,7 @@ async function postAssessmentResource(body) {
   return data;
 }
 
-export function AssessmentResourceList({ resources, lessonLabelById, compact = false, onRemove, disabled = false }) {
+export function AssessmentResourceList({ resources, lessonLabelById, compact = false, onEdit, onRemove, disabled = false }) {
   if (!resources?.length) return compact ? null : <p className="classPlanResourcesEmpty">No assessment links or files yet.</p>;
   return (
     <div className="classPlanResourceList">
@@ -62,6 +63,9 @@ export function AssessmentResourceList({ resources, lessonLabelById, compact = f
           </div>
           <div className="classPlanResourceActions">
             <a className="btn" href={`/api/assessment-resources/${resource.id}/open`} target="_blank" rel="noreferrer">Open</a>
+            {onEdit && resource.canDelete ? (
+              <ResourceEditForm resource={resource} onSave={onEdit} disabled={disabled} />
+            ) : null}
             {onRemove && resource.canDelete ? (
               <button className="btn" type="button" onClick={() => onRemove(resource)} disabled={disabled}>Remove</button>
             ) : null}
@@ -205,6 +209,33 @@ export default function AssessmentFolder({
     }
   }
 
+  async function update(resource, changes) {
+    setSaving(true);
+    setStatus("");
+    try {
+      const data = await postAssessmentResource({
+        action: "update",
+        courseId,
+        resourceId: resource.id,
+        title: changes.title,
+        url: changes.url,
+      });
+      setResources((current) =>
+        current.map((entry) =>
+          entry.id === resource.id ? { ...entry, ...data.resource } : entry
+        )
+      );
+      setStatus("Assessment resource updated.");
+      router.refresh();
+      return true;
+    } catch (error) {
+      setStatus(error.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <section className="card assessmentFolder" id="assessment-folder">
       <div className="classPlanWorkspaceHeader">
@@ -262,7 +293,13 @@ export default function AssessmentFolder({
         ) : null}
       </div>
       {!activeOccurrences.length ? <p>Create an announcement assignment rule first so MathClaw has assessment dates to number.</p> : null}
-      <AssessmentResourceList resources={resources} lessonLabelById={lessonLabelById} onRemove={remove} disabled={saving} />
+      <AssessmentResourceList
+        resources={resources}
+        lessonLabelById={lessonLabelById}
+        onEdit={update}
+        onRemove={remove}
+        disabled={saving}
+      />
       {status ? <p className="formStatus" aria-live="polite">{status}</p> : null}
     </section>
   );

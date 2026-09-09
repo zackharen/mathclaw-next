@@ -6,6 +6,7 @@ import {
   LESSON_RESOURCE_BUCKET,
   getLessonResourceSiteSuggestion,
   normalizeLessonResourceSiteName,
+  normalizeLessonResourceEdit,
   normalizeLessonResourceTitle,
   normalizeLessonResourceUrl,
   validateLessonResourceFile,
@@ -308,6 +309,37 @@ export async function POST(request) {
         .eq("owner_id", user.id);
       if (deleteError) throw new Error(deleteError.message);
       return NextResponse.json({ deleted: resource.id });
+    }
+
+    if (body.action === "update") {
+      if (!isUuid(body.resourceId)) return jsonError("Resource not found.");
+      const { data: resource, error } = await admin
+        .from("lesson_resources")
+        .select("id, resource_type, title, url")
+        .eq("id", body.resourceId)
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!resource) return jsonError("Resource not found.", 404);
+
+      const normalized = normalizeLessonResourceEdit({
+        resourceType: resource.resource_type,
+        title: body.title,
+        url: body.url,
+      });
+      if (normalized.error) return jsonError(normalized.error);
+      const updates = { ...normalized.values, updated_at: new Date().toISOString() };
+
+      const { data: updated, error: updateError } = await admin
+        .from("lesson_resources")
+        .update(updates)
+        .eq("id", resource.id)
+        .eq("owner_id", user.id)
+        .select("id, resource_type, title, url")
+        .single();
+      if (updateError) throw new Error(updateError.message);
+      if (isUuid(body.courseId)) revalidatePath(`/classes/${body.courseId}/plan`);
+      return NextResponse.json({ resource: updated });
     }
 
     if (body.action === "update-resource-shares") {

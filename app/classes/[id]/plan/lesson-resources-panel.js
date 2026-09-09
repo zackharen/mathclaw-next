@@ -11,6 +11,7 @@ import {
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
 import { createClient } from "@/lib/supabase/client";
+import ResourceEditForm from "./resource-edit-form";
 
 async function postLessonResource(body) {
   const response = await fetch("/api/lesson-resources", {
@@ -226,6 +227,33 @@ export default function LessonResourcesPanel({
     }
   }
 
+  async function updateResource(resource, changes) {
+    setSaving(true);
+    setStatus("");
+    try {
+      const data = await postLessonResource({
+        action: "update",
+        resourceId: resource.id,
+        courseId,
+        title: changes.title,
+        url: changes.url,
+      });
+      setOwnResources((current) =>
+        current.map((entry) =>
+          entry.id === resource.id ? { ...entry, ...data.resource } : entry
+        )
+      );
+      setStatus("Resource updated.");
+      router.refresh();
+      return true;
+    } catch (error) {
+      setStatus(error.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function toggleResourceShare(resourceId, teacherId) {
     setShareSelections((current) => {
       const selected = current[resourceId] || [];
@@ -376,6 +404,7 @@ export default function LessonResourcesPanel({
                 <a className="btn" href={`/api/lesson-resources/${resource.id}/open`} target="_blank" rel="noreferrer">
                   Open
                 </a>
+                <ResourceEditForm resource={resource} onSave={updateResource} disabled={saving} />
                 {connectedTeachers.length > 0 ? (
                   <details>
                     <summary className="btn">Share</summary>
