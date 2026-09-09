@@ -5,6 +5,7 @@ import { getCourseAccessForUser } from "@/lib/courses/access";
 import {
   LESSON_RESOURCE_BUCKET,
   getLessonResourceSiteSuggestion,
+  getLessonResourceTitleSuggestion,
   normalizeLessonResourceSiteName,
   normalizeLessonResourceEdit,
   normalizeLessonResourceTitle,
@@ -234,7 +235,10 @@ export async function POST(request) {
           lessonIds,
           resource: {
             resource_type: "link",
-            title: normalizeLessonResourceTitle(body.title, siteSuggestion.name),
+            title: normalizeLessonResourceTitle(
+              body.title,
+              getLessonResourceTitleSuggestion(url) || siteSuggestion.name
+            ),
             url,
           },
         });

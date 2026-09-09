@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   LESSON_RESOURCE_MAX_BYTES,
   getLessonResourceSiteSuggestion,
+  getLessonResourceTitleSuggestion,
   lessonResourceMimeType,
   normalizeLessonResourceEdit,
   normalizeLessonResourceUrl,
@@ -45,6 +46,20 @@ test("lesson resource links prefer a teacher's saved site name and flag new site
     source: "unknown",
   });
   assert.equal(normalizeLessonResourceSiteName("  My   Resource Site  "), "My Resource Site");
+});
+
+test("IXL links suggest a readable site and skill title", () => {
+  const url = "https://www.ixl.com/math/algebra-1/write-variable-equations";
+  assert.deepEqual(getLessonResourceSiteSuggestion(url), {
+    hostname: "ixl.com",
+    name: "IXL",
+    source: "known",
+  });
+  assert.equal(getLessonResourceTitleSuggestion(url), "IXL | Write Variable Equations");
+  assert.equal(
+    getLessonResourceTitleSuggestion("https://www.ixl.com/math/algebra-1/solve-for-a-variable"),
+    "IXL | Solve for a Variable"
+  );
 });
 
 test("lesson resource uploads infer common Office MIME types from file names", () => {

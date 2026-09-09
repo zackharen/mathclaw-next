@@ -7,6 +7,7 @@ import {
   LESSON_RESOURCE_FILE_ACCEPT,
   formatLessonResourceSize,
   getLessonResourceSiteSuggestion,
+  getLessonResourceTitleSuggestion,
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
@@ -81,14 +82,20 @@ export default function LessonResourcesPanel({
     () => getLessonResourceSiteSuggestion(url, siteNames),
     [url, siteNames]
   );
+  const titleSuggestion = useMemo(
+    () => getLessonResourceTitleSuggestion(url, siteNames),
+    [url, siteNames]
+  );
 
   function changeUrl(value) {
     const previousSuggestion = getLessonResourceSiteSuggestion(url, siteNames);
     const nextSuggestion = getLessonResourceSiteSuggestion(value, siteNames);
+    const previousTitleSuggestion = getLessonResourceTitleSuggestion(url, siteNames);
+    const nextTitleSuggestion = getLessonResourceTitleSuggestion(value, siteNames);
     setUrl(value);
     if (previousSuggestion.hostname !== nextSuggestion.hostname) setSiteName("");
     setTitle((current) =>
-      !current || current === previousSuggestion.name ? nextSuggestion.name : current
+      !current || current === previousTitleSuggestion ? nextTitleSuggestion : current
     );
   }
 
@@ -336,8 +343,8 @@ export default function LessonResourcesPanel({
                 maxLength={160}
                 placeholder={
                   resourceType === "link"
-                    ? siteSuggestion.name
-                      ? `Defaults to ${siteSuggestion.name}`
+                    ? titleSuggestion
+                      ? `Defaults to ${titleSuggestion}`
                       : "Example: Lesson slides"
                     : "Defaults to the file name"
                 }

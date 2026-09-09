@@ -7,6 +7,7 @@ import {
   LESSON_RESOURCE_FILE_ACCEPT,
   formatLessonResourceSize,
   getLessonResourceSiteSuggestion,
+  getLessonResourceTitleSuggestion,
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
@@ -112,6 +113,7 @@ export default function AssessmentFolder({
   );
   const selectedOccurrence = activeOccurrences.find((item) => occurrenceKey(item) === selectedOccurrenceKey);
   const siteSuggestion = useMemo(() => getLessonResourceSiteSuggestion(url, siteNames), [url, siteNames]);
+  const titleSuggestion = useMemo(() => getLessonResourceTitleSuggestion(url, siteNames), [url, siteNames]);
 
   function chooseNextLessons(resource) {
     const selected = new Set(resource.lessonIds || []);
@@ -127,9 +129,11 @@ export default function AssessmentFolder({
   function changeUrl(value) {
     const before = getLessonResourceSiteSuggestion(url, siteNames);
     const after = getLessonResourceSiteSuggestion(value, siteNames);
+    const previousTitleSuggestion = getLessonResourceTitleSuggestion(url, siteNames);
+    const nextTitleSuggestion = getLessonResourceTitleSuggestion(value, siteNames);
     setUrl(value);
     if (before.hostname !== after.hostname) setSiteName("");
-    setTitle((current) => !current || current === before.name ? after.name : current);
+    setTitle((current) => !current || current === previousTitleSuggestion ? nextTitleSuggestion : current);
   }
 
   async function createLink(event) {
@@ -273,7 +277,7 @@ export default function AssessmentFolder({
                 <button className={`btn ${resourceType === "link" ? "primary" : ""}`} type="button" onClick={() => setResourceType("link")}>Add Link</button>
                 <button className={`btn ${resourceType === "file" ? "primary" : ""}`} type="button" onClick={() => setResourceType("file")}>Upload File</button>
               </div>
-              <label><span>Title <small>(optional)</small></span><input className="input" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} /></label>
+              <label><span>Title <small>(optional)</small></span><input className="input" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} placeholder={titleSuggestion ? `Defaults to ${titleSuggestion}` : "Example: Assessment review"} /></label>
               {resourceType === "link" ? (
                 <form onSubmit={createLink}>
                   <label><span>Link</span><input className="input" type="url" value={url} onChange={(event) => changeUrl(event.target.value)} placeholder="https://…" required /></label>

@@ -6,6 +6,7 @@ import { getCourseAccessForUser } from "@/lib/courses/access";
 import {
   LESSON_RESOURCE_BUCKET,
   getLessonResourceSiteSuggestion,
+  getLessonResourceTitleSuggestion,
   normalizeLessonResourceEdit,
   normalizeLessonResourceSiteName,
   normalizeLessonResourceTitle,
@@ -130,7 +131,14 @@ export async function POST(request) {
         }
         created = await createResource({
           admin, userId: user.id, course, occurrence, lessonIds,
-          resource: { resource_type: "link", title: normalizeLessonResourceTitle(body.title, siteSuggestion.name), url },
+          resource: {
+            resource_type: "link",
+            title: normalizeLessonResourceTitle(
+              body.title,
+              getLessonResourceTitleSuggestion(url) || siteSuggestion.name
+            ),
+            url,
+          },
         });
         created.siteNamePreference = { hostname: siteSuggestion.hostname, displayName: siteSuggestion.name };
       } else {
