@@ -23,10 +23,12 @@ import ApplyCalendarSubmit from "./apply-calendar-submit";
 import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
 import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
+import AssessmentSupportsPanel from "./assessment-supports-panel";
 import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
 import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
+import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -343,13 +345,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
   const schoolDays = schoolDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];
-  const lessonResourceData = await loadLessonResourcePlanningData({
-    userId: user.id,
-    lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
-  });
-  const assessmentFolderData = curriculumEnabled
-    ? await loadAssessmentFolderData({ userId: user.id, course })
-    : null;
+  const [lessonResourceData, assessmentFolderData, assessmentSupportsData] = await Promise.all([
+    loadLessonResourcePlanningData({
+      userId: user.id,
+      lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
+    }),
+    curriculumEnabled
+      ? loadAssessmentFolderData({ userId: user.id, course })
+      : Promise.resolve(null),
+    loadTeacherAssessmentSupportsData({ supabase, course }),
+  ]);
 
   // Build school-day# map by walking all weekdays in the school year,
   // using school_calendar_days only to identify off days (same logic as profile page).
@@ -734,6 +739,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
           defaultLessonCount={assessmentFolderData.defaultLessonCount}
           initialSiteNames={lessonResourceData.siteNames}
         />
+      ) : null}
+
+      {assessmentSupportsData?.available ? (
+        <AssessmentSupportsPanel courseId={course.id} initialData={assessmentSupportsData} />
       ) : null}
 
       <section className="card" id="lesson-by-day">

@@ -3683,6 +3683,270 @@ details[open] > summary.btn:not(.btnNoToggle),
   padding-top: 0.1rem;
 }
 
+.assessmentSupportsCard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.assessmentSupportsSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.assessmentSupportsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.assessmentSupportsSummary p,
+.assessmentSupportsCatalogHeader p,
+.assessmentSupportsLedgerHeader p {
+  margin-top: 0.3rem;
+  color: var(--muted);
+}
+
+.assessmentSupportsToggle .hideLabel,
+.assessmentSupportsDetails[open] .assessmentSupportsToggle .showLabel {
+  display: none;
+}
+
+.assessmentSupportsDetails[open] .assessmentSupportsToggle .hideLabel {
+  display: inline;
+}
+
+.assessmentSupportsToggle {
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.assessmentSupportsBody {
+  display: grid;
+  gap: 1rem;
+  padding: 0 1.25rem 1.25rem;
+  border-top: 2px solid var(--line);
+}
+
+.assessmentSupportsAccommodationNotice {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid #2f6f4e;
+  border-radius: 10px;
+  background: #eef8f1;
+}
+
+.assessmentSupportsAccommodationNotice p {
+  margin-top: 0.3rem;
+}
+
+.assessmentSupportsSettings,
+.assessmentSupportsRecordForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  align-items: end;
+}
+
+.assessmentSupportsSettings label,
+.assessmentSupportsRecordForm label,
+.assessmentSupportEditor label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.assessmentSupportsPublishToggle,
+.assessmentSupportsRequiredToggle,
+.assessmentSupportEnabled {
+  display: flex !important;
+  align-items: center;
+  align-self: center;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 0.55rem !important;
+}
+
+.assessmentSupportsCatalogHeader,
+.assessmentSupportsLedgerHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.8rem;
+  border-top: 2px solid var(--line);
+}
+
+.assessmentSupportsLedgerHeader select {
+  max-width: 28rem;
+}
+
+.assessmentSupportsCatalog,
+.assessmentSupportsPrices,
+.assessmentSupportsRosterList {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.assessmentSupportEditor {
+  display: grid;
+  grid-template-columns: auto auto minmax(12rem, 0.8fr) minmax(16rem, 1.6fr) auto;
+  gap: 0.7rem;
+  align-items: end;
+  padding: 0.8rem;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #f9fbfc;
+}
+
+.assessmentSupportOrderButtons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.assessmentSupportOrderButtons .btn {
+  min-width: 2.35rem;
+  padding-inline: 0.65rem;
+}
+
+.assessmentSupportPriceRow {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) 8rem auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.assessmentSupportPriceRow > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.assessmentSupportPriceRow > div span {
+  color: var(--muted);
+}
+
+.assessmentSupportsRosterDetails > summary {
+  width: fit-content;
+  list-style: none;
+}
+
+.assessmentSupportsRosterDetails > summary::-webkit-details-marker {
+  display: none;
+}
+
+.assessmentSupportsRosterBody {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.assessmentSupportsRequiredToggle {
+  grid-column: 1 / -1;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #eef8f1;
+  color: #184f35;
+}
+
+.assessmentSupportsStudentLedger {
+  padding: 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.assessmentSupportsStudentLedger > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.assessmentSupportsStudentLedger > header span,
+.assessmentSupportsStudentTotal {
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.assessmentSupportUsage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fbfc;
+}
+
+.assessmentSupportUsage.isVoided {
+  opacity: 0.65;
+  text-decoration: line-through;
+}
+
+.studentAssessmentSupportGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.studentAssessmentSupportChoice {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #f9fbfc;
+}
+
+.studentAssessmentSupportChoice strong {
+  color: var(--navy);
+}
+
+@media (max-width: 920px) {
+  .assessmentSupportEditor {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .assessmentSupportDescription {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .assessmentSupportsSummary,
+  .assessmentSupportsCatalogHeader,
+  .assessmentSupportsLedgerHeader,
+  .assessmentSupportsStudentLedger > header,
+  .assessmentSupportUsage {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assessmentSupportsSettings,
+  .assessmentSupportsRecordForm,
+  .assessmentSupportEditor,
+  .assessmentSupportPriceRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assessmentSupportDescription,
+  .assessmentSupportsRequiredToggle {
+    grid-column: auto;
+  }
+
+  .assessmentSupportsLedgerHeader select {
+    max-width: none;
+  }
+}
+
 .classPlanAddResourcePanel legend {
   padding: 0 0.3rem;
   color: var(--navy);

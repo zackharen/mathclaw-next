@@ -344,6 +344,20 @@ export default async function PlayPage({ searchParams }) {
             </div>
       </ArcadeDisclosure>
 
+      {isStudent && activeCourse?.relationship === "student" ? (
+        <ArcadeDisclosure
+          title="Assessment Supports"
+          description="See your teacher&apos;s published support choices, current deductions, and only your own records."
+        >
+          <p>Students can review this information here; only teachers can record or change support use.</p>
+          <div className="ctaRow" style={{ marginTop: "0.75rem" }}>
+            <Link className="btn primary" href={`/play/assessment-supports?course=${activeCourse.id}`}>
+              View Assessment Supports
+            </Link>
+          </div>
+        </ArcadeDisclosure>
+      ) : null}
+
       <ArcadeLibrary
         games={libraryGames}
         tournamentHref={tournamentHref(activeCourse?.id || "")}
