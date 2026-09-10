@@ -4127,6 +4127,14 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 @media (max-width: 760px) {
+  /* Below this breakpoint .classPlanTitleRow stacks, which takes the title card
+     from ~138px to ~291px — 36% of a 375x812 phone screen. Not worth pinning, so
+     the card scrolls away normally on phones. Tablets stay above 760px (a 768px
+     iPad measures 129px, 13%) and keep the sticky behavior. */
+  .classPlanStickyTitle {
+    position: static;
+  }
+
   .classPlanTitleRow {
     align-items: stretch;
     flex-direction: column;
