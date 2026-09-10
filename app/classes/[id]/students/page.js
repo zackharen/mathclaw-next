@@ -454,11 +454,15 @@ export default async function StudentsPage({ params, searchParams }) {
 
   return (
     <div className="stack">
+      <div className="stack classPlanStickyTitle">
+        <section className="card">
+          <div className="classPlanTitleRow">
+            <h1>{course.title}: Student Progress</h1>
+            <ClassSwitcher courses={courses} currentCourseId={course.id} destination="students" />
+          </div>
+        </section>
+      </div>
       <section className="card">
-        <div className="classPlanTitleRow">
-          <h1>{course.title}: Student Progress</h1>
-          <ClassSwitcher courses={courses} currentCourseId={course.id} destination="students" />
-        </div>
         {joinCodeUpdated ? <p style={{ color: "#0a7a32", fontWeight: 700 }}>Join code updated.</p> : null}
         {awardAdded ? (
           <p style={{ color: "#0a7a32", fontWeight: 700 }}>

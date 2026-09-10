@@ -4090,9 +4090,9 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 /* Keeps the class title and Switch class control reachable while scrolling the
-   long Plan & Announcements page, so switching classes never needs a scroll back
-   to the top. Opaque background because .card is translucent and page content
-   scrolls underneath it. */
+   long Plan & Announcements and Student Progress pages, so switching classes
+   never needs a scroll back to the top. Opaque background because .card is
+   translucent and page content scrolls underneath it. */
 .classPlanStickyTitle {
   position: sticky;
   top: 0.75rem;
