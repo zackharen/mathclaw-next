@@ -83,7 +83,11 @@ main {
   background: var(--surface);
   border-radius: 24px;
   box-shadow: var(--shadow-md);
-  overflow: hidden;
+  /* clip, not hidden: both clip to the border-radius, but `hidden` makes this a
+     scroll container, which silently kills `position: sticky` on every descendant
+     (the Plan title card and .adminSectionSwitcher). `clip` is not a scroll
+     container, so sticky descendants work. */
+  overflow: clip;
 }
 
 .topbar {
@@ -4083,6 +4087,21 @@ details[open] > summary.btn:not(.btnNoToggle),
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+/* Keeps the class title and Switch class control reachable while scrolling the
+   long Plan & Announcements page, so switching classes never needs a scroll back
+   to the top. Opaque background because .card is translucent and page content
+   scrolls underneath it. */
+.classPlanStickyTitle {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 30;
+}
+
+.classPlanStickyTitle > .card {
+  background: #ffffff;
+  box-shadow: var(--shadow-md);
 }
 
 .classPlanTitleActions {

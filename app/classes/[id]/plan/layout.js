@@ -205,7 +205,7 @@ export default async function ClassPlanLayout({ children, params }) {
         }
       `}</style>
       {course ? (
-        <div className="stack" style={{ marginBottom: "1rem" }}>
+        <div className="stack classPlanStickyTitle" style={{ marginBottom: "1rem" }}>
           <section className="card">
             <div className="classPlanTitleRow">
               <div>
