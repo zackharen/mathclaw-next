@@ -3615,6 +3615,12 @@ details[open] > summary.btn:not(.btnNoToggle),
   margin-left: auto;
 }
 
+.classPlanAddResourceBottom {
+  order: 10;
+  justify-self: end;
+  margin-top: 0.15rem;
+}
+
 .classPlanAddResourcePanel {
   width: min(34rem, calc(100vw - 4rem));
   text-align: left;
@@ -3626,6 +3632,55 @@ details[open] > summary.btn:not(.btnNoToggle),
   padding: 0.7rem;
   border: 1px solid #d8e2e9;
   border-radius: 8px;
+}
+
+.classPlanAssignmentsSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.classPlanAssignmentsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.classPlanAssignmentsSummary h2 {
+  margin: 0;
+}
+
+.classPlanAssignmentsToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  background: #f4f8fb;
+  color: var(--navy);
+  font-family: var(--font-site);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.classPlanAssignmentsSummary .hideLabel {
+  display: none;
+}
+
+.classPlanAssignmentsDetails[open] > .classPlanAssignmentsSummary .showLabel {
+  display: none;
+}
+
+.classPlanAssignmentsDetails[open] > .classPlanAssignmentsSummary .hideLabel {
+  display: inline;
+}
+
+.classPlanAssignmentsBody {
+  margin-top: 0.75rem;
+  padding-top: 0.1rem;
 }
 
 .classPlanAddResourcePanel legend {

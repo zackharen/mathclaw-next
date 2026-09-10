@@ -54,6 +54,7 @@ export default function LessonResourcesPanel({
 }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
+  const addResourceDetailsRef = useRef(null);
   const [ownResources, setOwnResources] = useState(initialOwnResources || []);
   const [selectedLessonIds, setSelectedLessonIds] = useState(
     lessonOptions.map((lesson) => lesson.id)
@@ -152,6 +153,7 @@ export default function LessonResourcesPanel({
         }));
       }
       setStatus("Link added to the lesson.");
+      if (addResourceDetailsRef.current) addResourceDetailsRef.current.open = false;
       router.refresh();
     } catch (error) {
       setStatus(error.message);
@@ -210,6 +212,7 @@ export default function LessonResourcesPanel({
       setTitle("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       setStatus("File added to the lesson.");
+      if (addResourceDetailsRef.current) addResourceDetailsRef.current.open = false;
       router.refresh();
     } catch (error) {
       setStatus(error.message);
@@ -297,61 +300,62 @@ export default function LessonResourcesPanel({
           <strong>Lesson Resources</strong>
           <p>Add links or files once; they follow the lesson whenever it appears on your schedule.</p>
         </div>
-        <details className="classPlanAddResource">
-          <summary className="btn">＋ Add Resource</summary>
-          <div className="classPlanAddResourcePanel">
-            <fieldset>
-              <legend>Attach to</legend>
-              <div className="classPlanLessonChoices">
-                {lessonOptions.map((lesson) => (
-                  <label key={lesson.id}>
-                    <input
-                      type="checkbox"
-                      checked={selectedLessonIds.includes(lesson.id)}
-                      onChange={() => toggleLesson(lesson.id)}
-                    />
-                    <span>{lesson.label}</span>
-                  </label>
-                ))}
-              </div>
-              {lessonOptions.length > 1 ? <small>Select one lesson or leave both selected.</small> : null}
-            </fieldset>
-
-            <div className="classPlanResourceTypeTabs" role="group" aria-label="Resource type">
-              <button
-                className={`btn ${resourceType === "link" ? "primary" : ""}`}
-                type="button"
-                onClick={() => setResourceType("link")}
-              >
-                Add Link
-              </button>
-              <button
-                className={`btn ${resourceType === "file" ? "primary" : ""}`}
-                type="button"
-                onClick={() => setResourceType("file")}
-              >
-                Upload File
-              </button>
+      </div>
+      <details ref={addResourceDetailsRef} className="classPlanAddResource classPlanAddResourceBottom">
+        <summary className="btn">＋ Add Resource</summary>
+        <div className="classPlanAddResourcePanel">
+          <fieldset>
+            <legend>Attach to</legend>
+            <div className="classPlanLessonChoices">
+              {lessonOptions.map((lesson) => (
+                <label key={lesson.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedLessonIds.includes(lesson.id)}
+                    onChange={() => toggleLesson(lesson.id)}
+                  />
+                  <span>{lesson.label}</span>
+                </label>
+              ))}
             </div>
+            {lessonOptions.length > 1 ? <small>Select one lesson or leave both selected.</small> : null}
+          </fieldset>
 
-            <label>
-              <span>Title <small>(optional)</small></span>
-              <input
-                className="input"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                maxLength={160}
-                placeholder={
-                  resourceType === "link"
-                    ? titleSuggestion
-                      ? `Defaults to ${titleSuggestion}`
-                      : "Example: Lesson slides"
-                    : "Defaults to the file name"
-                }
-              />
-            </label>
+          <div className="classPlanResourceTypeTabs" role="group" aria-label="Resource type">
+            <button
+              className={`btn ${resourceType === "link" ? "primary" : ""}`}
+              type="button"
+              onClick={() => setResourceType("link")}
+            >
+              Add Link
+            </button>
+            <button
+              className={`btn ${resourceType === "file" ? "primary" : ""}`}
+              type="button"
+              onClick={() => setResourceType("file")}
+            >
+              Upload File
+            </button>
+          </div>
 
-            {resourceType === "link" ? (
+          <label>
+            <span>Title <small>(optional)</small></span>
+            <input
+              className="input"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={160}
+              placeholder={
+                resourceType === "link"
+                  ? titleSuggestion
+                    ? `Defaults to ${titleSuggestion}`
+                    : "Example: Lesson slides"
+                  : "Defaults to the file name"
+              }
+            />
+          </label>
+
+          {resourceType === "link" ? (
               <form onSubmit={addLink}>
                 <label>
                   <span>Link</span>
@@ -394,10 +398,9 @@ export default function LessonResourcesPanel({
                   {saving ? "Uploading…" : "Upload File to Lesson"}
                 </button>
               </form>
-            )}
-          </div>
-        </details>
-      </div>
+          )}
+        </div>
+      </details>
 
       {ownResources.length > 0 ? (
         <div className="classPlanResourceList">
@@ -470,7 +473,7 @@ export default function LessonResourcesPanel({
         </details>
       ) : null}
 
-      <span className="statusNote" aria-live="polite">{status}</span>
+      {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
     </section>
   );
 }

@@ -228,39 +228,47 @@ export default async function ClassPlanLayout({ children, params }) {
       ) : null}
       {rules.length > 0 ? (
         <div className="stack" style={{ marginBottom: "1rem" }}>
-          <section className="card">
-            <h2>Announcement Assignments</h2>
-            <div className="list" style={{ gap: "0.65rem", marginTop: "0.75rem" }}>
-              {rules.map((rule) => (
-                <div key={rule.id} className="card" style={{ background: "#fff" }}>
-                  <h3>{rule.label}</h3>
-                  <p>{rule.course_id ? "This class only" : "All classes"}</p>
-                  <p>{formatAssignmentRuleSummary(rule)}</p>
-                </div>
-              ))}
-            </div>
-            {upcoming.length > 0 ? (
-              <details className="inlineDetails" style={{ marginTop: "0.75rem" }}>
-                <summary className="btn">Upcoming Assignment Dates</summary>
-                <div className="controlExpandedPanel">
-                  <div className="list" style={{ gap: "0.35rem" }}>
-                    {upcoming.map((occurrence) => (
-                      <p key={`${occurrence.rule_id}-${occurrence.original_date}`}>
-                        {formatAssignmentOccurrence(occurrence)}
-                      </p>
-                    ))}
+          <details className="card classPlanAssignmentsDetails" open>
+            <summary className="classPlanAssignmentsSummary">
+              <h2>Announcement Assignments</h2>
+              <span className="classPlanAssignmentsToggle" aria-hidden="true">
+                <span className="showLabel">Show</span>
+                <span className="hideLabel">Hide</span>
+              </span>
+            </summary>
+            <div className="classPlanAssignmentsBody">
+              <div className="list" style={{ gap: "0.65rem", marginTop: "0.75rem" }}>
+                {rules.map((rule) => (
+                  <div key={rule.id} className="card" style={{ background: "#fff" }}>
+                    <h3>{rule.label}</h3>
+                    <p>{rule.course_id ? "This class only" : "All classes"}</p>
+                    <p>{formatAssignmentRuleSummary(rule)}</p>
                   </div>
-                </div>
-              </details>
-            ) : (
-              <p style={{ marginTop: "0.75rem" }}>No upcoming assignment dates generated for this class.</p>
-            )}
-            <div className="ctaRow">
-              <Link className="btn" href="/onboarding/profile#announcement-assignments">
-                Edit Assignments
-              </Link>
+                ))}
+              </div>
+              {upcoming.length > 0 ? (
+                <details className="inlineDetails" style={{ marginTop: "0.75rem" }}>
+                  <summary className="btn">Upcoming Assignment Dates</summary>
+                  <div className="controlExpandedPanel">
+                    <div className="list" style={{ gap: "0.35rem" }}>
+                      {upcoming.map((occurrence) => (
+                        <p key={`${occurrence.rule_id}-${occurrence.original_date}`}>
+                          {formatAssignmentOccurrence(occurrence)}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+              ) : (
+                <p style={{ marginTop: "0.75rem" }}>No upcoming assignment dates generated for this class.</p>
+              )}
+              <div className="ctaRow">
+                <Link className="btn" href="/onboarding/profile#announcement-assignments">
+                  Edit Assignments
+                </Link>
+              </div>
             </div>
-          </section>
+          </details>
         </div>
       ) : null}
       {children}
