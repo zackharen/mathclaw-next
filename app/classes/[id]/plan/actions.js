@@ -457,7 +457,7 @@ export async function markLessonCompleteAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}`);
+  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
 }
 
 export async function markLessonPlannedAction(formData) {
@@ -499,5 +499,5 @@ export async function markLessonPlannedAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}`);
+  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
 }

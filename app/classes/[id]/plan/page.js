@@ -28,6 +28,7 @@ import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
 import { buildCourseLessonOptions } from "@/lib/lesson-resources/constants";
+import { splitLessonDaysForFold } from "@/lib/planning/completed-days";
 import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 
@@ -833,7 +834,13 @@ export default async function ClassPlanPage({ params, searchParams }) {
               </div>
             ) : null}
             <div className="list">
-            {visibleLessonDays.map((day) => {
+            {(() => {
+              const { foldedDays, openDays, nextClassDate } = splitLessonDaysForFold({
+                days: visibleLessonDays,
+                rowsByDate: planRowsByDate,
+                todayIso,
+              });
+              const renderLessonDay = (day) => {
               const dayPlanRows = planRowsByDate.get(day.class_date) || [];
               const firstLesson = dayPlanRows[0]?.curriculum_lessons;
               const lessonOptions = dayPlanRows.reduce((options, row) => {
@@ -948,6 +955,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
               return (
                 <article
                   key={day.class_date}
+                  id={day.class_date === nextClassDate ? "next-class-day" : undefined}
                   className={`card${isCalendarWeekStart(day.class_date) ? " calendarWeekStart" : ""}`}
                   style={{ background: "#fff" }}
                 >
@@ -1104,7 +1112,28 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   </div>
                 </article>
               );
-            })}
+              };
+
+              return (
+                <>
+                  {foldedDays.length > 0 ? (
+                    <details className="card classPlanAssignmentsDetails classPlanCompletedDays">
+                      <summary className="classPlanAssignmentsSummary">
+                        <h2>
+                          Completed Lessons · {foldedDays.length} day{foldedDays.length === 1 ? "" : "s"}
+                        </h2>
+                        <span className="classPlanAssignmentsToggle" aria-hidden="true">
+                          <span className="showLabel">Show</span>
+                          <span className="hideLabel">Hide</span>
+                        </span>
+                      </summary>
+                      <div className="list classPlanAssignmentsBody">{foldedDays.map(renderLessonDay)}</div>
+                    </details>
+                  ) : null}
+                  {openDays.map(renderLessonDay)}
+                </>
+              );
+            })()}
             </div>
           </>
         ) : null}

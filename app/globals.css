@@ -4104,6 +4104,12 @@ details[open] > summary.btn:not(.btnNoToggle),
   box-shadow: var(--shadow-md);
 }
 
+/* Mark Complete redirects to #next-class-day. Without this offset the pinned
+   title card above would cover that day's heading. */
+#next-class-day {
+  scroll-margin-top: 11rem;
+}
+
 .classPlanTitleActions {
   display: flex;
   align-items: flex-end;
@@ -4133,6 +4139,10 @@ details[open] > summary.btn:not(.btnNoToggle),
      iPad measures 129px, 13%) and keep the sticky behavior. */
   .classPlanStickyTitle {
     position: static;
+  }
+
+  #next-class-day {
+    scroll-margin-top: 1rem;
   }
 
   .classPlanTitleRow {
