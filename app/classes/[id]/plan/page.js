@@ -27,6 +27,7 @@ import AssessmentSupportsPanel from "./assessment-supports-panel";
 import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
+import { buildCourseLessonOptions } from "@/lib/lesson-resources/constants";
 import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 
@@ -345,7 +346,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
   const schoolDays = schoolDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];
-  const [lessonResourceData, assessmentFolderData, assessmentSupportsData] = await Promise.all([
+  const [lessonResourceData, assessmentFolderData, assessmentSupportsData, courseLessonsRes] = await Promise.all([
     loadLessonResourcePlanningData({
       userId: user.id,
       lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
@@ -354,7 +355,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
       ? loadAssessmentFolderData({ userId: user.id, course })
       : Promise.resolve(null),
     loadTeacherAssessmentSupportsData({ supabase, course }),
+    // Full school year, not the visible lesson window: the resource editor's
+    // Lesson picker has to reach lessons outside the days on screen.
+    courseDataClient
+      .from("course_lesson_plan")
+      .select("class_date, lesson_slot, curriculum_lessons(id, source_lesson_code, title)")
+      .eq("course_id", course.id)
+      .order("class_date", { ascending: true })
+      .order("lesson_slot", { ascending: true }),
   ]);
+  const courseLessonOptions = buildCourseLessonOptions(courseLessonsRes.data || []);
 
   // Build school-day# map by walking all weekdays in the school year,
   // using school_calendar_days only to identify off days (same logic as profile page).
@@ -1037,6 +1047,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       classDate={day.class_date}
                       ownerId={user.id}
                       lessonOptions={lessonOptions}
+                      courseLessonOptions={courseLessonOptions}
                       initialOwnResources={ownResourcesForDay}
                       sharedResources={sharedResourcesForDay}
                       connectedTeachers={lessonResourceData.connectedTeachers}

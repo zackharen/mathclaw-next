@@ -47,6 +47,7 @@ export default function LessonResourcesPanel({
   classDate,
   ownerId,
   lessonOptions,
+  courseLessonOptions = [],
   initialOwnResources,
   sharedResources,
   connectedTeachers,
@@ -241,19 +242,33 @@ export default function LessonResourcesPanel({
     setSaving(true);
     setStatus("");
     try {
+      const movedLessonId =
+        changes.lessonId && changes.lessonId !== resource.lessonIds?.[0] ? changes.lessonId : undefined;
       const data = await postLessonResource({
         action: "update",
         resourceId: resource.id,
         courseId,
         title: changes.title,
         url: changes.url,
+        lessonId: movedLessonId,
       });
+      // A resource moved to a lesson that is not taught on this day no longer
+      // belongs in this day's list.
+      const leftThisDay = movedLessonId && !lessonLabelById.has(movedLessonId);
       setOwnResources((current) =>
-        current.map((entry) =>
-          entry.id === resource.id ? { ...entry, ...data.resource } : entry
-        )
+        leftThisDay
+          ? current.filter((entry) => entry.id !== resource.id)
+          : current.map((entry) =>
+              entry.id === resource.id ? { ...entry, ...data.resource } : entry
+            )
       );
-      setStatus("Resource updated.");
+      setStatus(
+        movedLessonId
+          ? `Moved to ${
+              courseLessonOptions.find((lesson) => lesson.id === movedLessonId)?.label || "the selected lesson"
+            }.`
+          : "Resource updated."
+      );
       router.refresh();
       return true;
     } catch (error) {
@@ -414,7 +429,12 @@ export default function LessonResourcesPanel({
                 <a className="btn" href={`/api/lesson-resources/${resource.id}/open`} target="_blank" rel="noreferrer">
                   Open
                 </a>
-                <ResourceEditForm resource={resource} onSave={updateResource} disabled={saving} />
+                <ResourceEditForm
+                  resource={resource}
+                  onSave={updateResource}
+                  disabled={saving}
+                  lessonChoices={courseLessonOptions}
+                />
                 {connectedTeachers.length > 0 ? (
                   <details>
                     <summary className="btn">Share</summary>

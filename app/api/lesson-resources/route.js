@@ -72,6 +72,42 @@ async function validateLessonSelection({ supabase, admin, userId, courseId, clas
   return { course: access.course };
 }
 
+async function validateCourseLesson({ supabase, admin, userId, courseId, lessonId }) {
+  if (!isUuid(courseId) || !isUuid(lessonId)) return { error: "Choose a lesson from this class." };
+  const access = await getCourseAccessForUser(supabase, userId, courseId, "id, owner_id");
+  if (!access?.course) return { error: "You cannot edit this class plan." };
+
+  const { data: rows, error } = await admin
+    .from("course_lesson_plan")
+    .select("lesson_id")
+    .eq("course_id", courseId)
+    .eq("lesson_id", lessonId)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (!rows?.length) return { error: "That lesson is not scheduled in this class. Refresh and try again." };
+  return {};
+}
+
+// Links the new lesson before unlinking the old ones, so a failure part-way never
+// leaves the resource attached to no lesson -- it would vanish from every plan day
+// with no way back to it in the UI.
+async function moveResourceToLesson({ admin, resourceId, lessonId }) {
+  const { error: linkError } = await admin
+    .from("lesson_resource_lessons")
+    .upsert(
+      { resource_id: resourceId, lesson_id: lessonId },
+      { onConflict: "resource_id,lesson_id", ignoreDuplicates: true }
+    );
+  if (linkError) throw new Error(linkError.message);
+
+  const { error: unlinkError } = await admin
+    .from("lesson_resource_lessons")
+    .delete()
+    .eq("resource_id", resourceId)
+    .neq("lesson_id", lessonId);
+  if (unlinkError) throw new Error(unlinkError.message);
+}
+
 async function createResource({ admin, userId, resource, lessonIds }) {
   const { data: created, error } = await admin
     .from("lesson_resources")
@@ -332,6 +368,18 @@ export async function POST(request) {
         url: body.url,
       });
       if (normalized.error) return jsonError(normalized.error);
+
+      const lessonId = body.lessonId ? String(body.lessonId) : "";
+      if (lessonId) {
+        const lessonCheck = await validateCourseLesson({
+          supabase,
+          admin,
+          userId: user.id,
+          courseId: body.courseId,
+          lessonId,
+        });
+        if (lessonCheck.error) return jsonError(lessonCheck.error);
+      }
       const updates = { ...normalized.values, updated_at: new Date().toISOString() };
 
       const { data: updated, error: updateError } = await admin
@@ -342,8 +390,11 @@ export async function POST(request) {
         .select("id, resource_type, title, url")
         .single();
       if (updateError) throw new Error(updateError.message);
+      if (lessonId) await moveResourceToLesson({ admin, resourceId: resource.id, lessonId });
       if (isUuid(body.courseId)) revalidatePath(`/classes/${body.courseId}/plan`);
-      return NextResponse.json({ resource: updated });
+      return NextResponse.json({
+        resource: lessonId ? { ...updated, lessonIds: [lessonId] } : updated,
+      });
     }
 
     if (body.action === "update-resource-shares") {

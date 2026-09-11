@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   LESSON_RESOURCE_MAX_BYTES,
+  buildCourseLessonOptions,
   getLessonResourceSiteSuggestion,
   getLessonResourceTitleSuggestion,
   lessonResourceMimeType,
@@ -108,4 +109,19 @@ test("file edits change only the display name", () => {
     normalizeLessonResourceEdit({ resourceType: "file", title: "  Unit 1 Notes  ", url: "https://ignored.test" }),
     { values: { title: "Unit 1 Notes" } }
   );
+});
+
+test("course lesson options list each scheduled lesson once, in teaching order", () => {
+  const rows = [
+    { curriculum_lessons: { id: "b", source_lesson_code: "1.02", title: "Defining Limits" } },
+    { curriculum_lessons: { id: "a", source_lesson_code: "1.01", title: "1.01: Change at an Instant" } },
+    { curriculum_lessons: { id: "b", source_lesson_code: "1.02", title: "Defining Limits" } },
+    { curriculum_lessons: null },
+    {},
+  ];
+  assert.deepEqual(buildCourseLessonOptions(rows), [
+    { id: "b", label: "1.02: Defining Limits" },
+    { id: "a", label: "1.01: Change at an Instant" },
+  ]);
+  assert.deepEqual(buildCourseLessonOptions(null), []);
 });
