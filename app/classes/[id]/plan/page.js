@@ -24,6 +24,7 @@ import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
 import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
 import AssessmentSupportsPanel from "./assessment-supports-panel";
+import PlanScrollMemory from "./scroll-memory";
 import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
@@ -1138,6 +1139,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
           </>
         ) : null}
       </section>
+      <PlanScrollMemory />
     </div>
   );
 }
