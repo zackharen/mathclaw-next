@@ -43,7 +43,7 @@ export default function AssessmentSupportsPanel({ courseId, initialData }) {
   );
   const [selectedStudentId, setSelectedStudentId] = useState(initialData.students?.[0]?.id || "");
   const [selectedSupportId, setSelectedSupportId] = useState(
-    initialData.supports?.find((support) => support.enabled)?.id || ""
+    initialData.supports?.find((support) => support.enabled && !support.archived_at)?.id || ""
   );
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState("");
@@ -52,7 +52,9 @@ export default function AssessmentSupportsPanel({ courseId, initialData }) {
   const selectedOccurrence = occurrences.find(
     (item) => assessmentOccurrenceKey(item.rule_id, item.original_date) === selectedKey
   ) || defaultOccurrence;
-  const activeSupports = (initialData.supports || []).filter((support) => support.enabled);
+  const catalogSupports = (initialData.supports || []).filter((support) => !support.archived_at);
+  const archivedSupports = (initialData.supports || []).filter((support) => support.archived_at);
+  const activeSupports = catalogSupports.filter((support) => support.enabled);
   const selectedUsages = selectedOccurrence
     ? (initialData.usages || []).filter(
         (usage) =>
@@ -156,11 +158,11 @@ export default function AssessmentSupportsPanel({ courseId, initialData }) {
           <div className="assessmentSupportsCatalogHeader">
             <div>
               <h3>Support Catalog</h3>
-              <p>Rename, describe, enable, disable, or reorder the choices for this class.</p>
+              <p>Rename, describe, enable, disable, reorder, or archive the choices for this class.</p>
             </div>
           </div>
           <div className="assessmentSupportsCatalog">
-            {(initialData.supports || []).map((support, index) => (
+            {catalogSupports.map((support, index) => (
               <form
                 key={`${support.id}-${support.updated_at}`}
                 className="assessmentSupportEditor"
@@ -178,7 +180,7 @@ export default function AssessmentSupportsPanel({ courseId, initialData }) {
               >
                 <div className="assessmentSupportOrderButtons" aria-label={`Reorder ${support.name}`}>
                   <button className="btn" type="button" disabled={pending || index === 0} onClick={() => mutate({ action: "move_support", supportId: support.id, direction: "up" }, `${support.name} moved up.`)} aria-label={`Move ${support.name} up`}>↑</button>
-                  <button className="btn" type="button" disabled={pending || index === initialData.supports.length - 1} onClick={() => mutate({ action: "move_support", supportId: support.id, direction: "down" }, `${support.name} moved down.`)} aria-label={`Move ${support.name} down`}>↓</button>
+                  <button className="btn" type="button" disabled={pending || index === catalogSupports.length - 1} onClick={() => mutate({ action: "move_support", supportId: support.id, direction: "down" }, `${support.name} moved down.`)} aria-label={`Move ${support.name} down`}>↓</button>
                 </div>
                 <label className="assessmentSupportEnabled">
                   <input type="checkbox" name="enabled" defaultChecked={support.enabled} />
@@ -192,10 +194,54 @@ export default function AssessmentSupportsPanel({ courseId, initialData }) {
                   <span>Description</span>
                   <input className="input" name="description" maxLength={400} defaultValue={support.description} />
                 </label>
-                <button className="btn" type="submit" disabled={pending}>Save</button>
+                <div className="ctaRow">
+                  <button className="btn" type="submit" disabled={pending}>Save</button>
+                  <button
+                    className="btn danger"
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!window.confirm(`Archive ${support.name}? It will leave current choices but remain in past records.`)) return;
+                      mutate(
+                        { action: "set_support_archived", supportId: support.id, isArchived: true },
+                        `${support.name} archived.`
+                      );
+                    }}
+                  >
+                    Archive
+                  </button>
+                </div>
               </form>
             ))}
           </div>
+
+          {archivedSupports.length > 0 ? (
+            <details className="assessmentSupportsRosterDetails">
+              <summary className="btn">Archived Supports ({archivedSupports.length})</summary>
+              <div className="assessmentSupportsRosterBody">
+                {archivedSupports.map((support) => (
+                  <div className="assessmentSupportUsage" key={support.id}>
+                    <div>
+                      <strong>{support.name}</strong>
+                      {support.description ? <p>{support.description}</p> : null}
+                      <p className="statusNote">Past assessment records and charged costs are preserved.</p>
+                    </div>
+                    <button
+                      className="btn"
+                      type="button"
+                      disabled={pending}
+                      onClick={() => mutate(
+                        { action: "set_support_archived", supportId: support.id, isArchived: false },
+                        `${support.name} restored and enabled.`
+                      )}
+                    >
+                      Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
 
           <div className="assessmentSupportsLedgerHeader">
             <div>

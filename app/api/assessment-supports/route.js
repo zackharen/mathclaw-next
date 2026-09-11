@@ -96,6 +96,25 @@ export async function POST(request) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", supportId)
+        .eq("course_id", course.id)
+        .is("archived_at", null);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === "set_support_archived") {
+      const supportId = String(body.supportId || "").trim();
+      if (!supportId) return jsonError("Choose a support.");
+      const isArchived = body.isArchived === true;
+      const { error } = await supabase
+        .from("course_assessment_supports")
+        .update({
+          archived_at: isArchived ? new Date().toISOString() : null,
+          archived_by: isArchived ? user.id : null,
+          enabled: !isArchived,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", supportId)
         .eq("course_id", course.id);
       if (error) throw error;
       return NextResponse.json({ ok: true });
@@ -109,6 +128,7 @@ export async function POST(request) {
         .from("course_assessment_supports")
         .select("id, sort_order")
         .eq("course_id", course.id)
+        .is("archived_at", null)
         .order("sort_order", { ascending: true });
       if (supportsError) throw supportsError;
       const index = (supports || []).findIndex((item) => item.id === supportId);
@@ -123,12 +143,14 @@ export async function POST(request) {
           .from("course_assessment_supports")
           .update({ sort_order: adjacent.sort_order, updated_at: new Date().toISOString() })
           .eq("id", current.id)
-          .eq("course_id", course.id),
+          .eq("course_id", course.id)
+          .is("archived_at", null),
         supabase
           .from("course_assessment_supports")
           .update({ sort_order: current.sort_order, updated_at: new Date().toISOString() })
           .eq("id", adjacent.id)
-          .eq("course_id", course.id),
+          .eq("course_id", course.id)
+          .is("archived_at", null),
       ]);
       if (currentError) throw currentError;
       if (adjacentError) throw adjacentError;

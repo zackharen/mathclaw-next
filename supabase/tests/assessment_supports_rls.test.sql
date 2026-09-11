@@ -77,6 +77,22 @@ select pg_temp.assert_true(
   'the class teacher reads the full roster ledger'
 );
 
+update public.course_assessment_supports
+set
+  enabled = false,
+  archived_at = now(),
+  archived_by = '10000000-0000-0000-0000-000000000001'
+where course_id = '20000000-0000-0000-0000-000000000001'
+  and source_key = 'calculator_privilege';
+
+select pg_temp.assert_true(
+  (select count(*) = 1 from public.course_assessment_supports
+   where course_id = '20000000-0000-0000-0000-000000000001'
+     and source_key = 'calculator_privilege'
+     and archived_at is not null),
+  'the class teacher can archive a support without deleting it'
+);
+
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000002', true);
@@ -86,8 +102,8 @@ select pg_temp.assert_true(
   'an enrolled student reads published settings'
 );
 select pg_temp.assert_true(
-  (select count(*) = 10 from public.course_assessment_supports where course_id = '20000000-0000-0000-0000-000000000001'),
-  'an enrolled student reads the enabled published catalog'
+  (select count(*) = 9 from public.course_assessment_supports where course_id = '20000000-0000-0000-0000-000000000001'),
+  'an enrolled student cannot read an archived support in the published catalog'
 );
 select pg_temp.assert_true(
   (select count(*) = 1 and max(student_id::text) = '10000000-0000-0000-0000-000000000002'
@@ -153,6 +169,26 @@ select pg_temp.assert_true(
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
+
+do $$
+begin
+  begin
+    perform public.record_assessment_support_usage(
+      '20000000-0000-0000-0000-000000000001',
+      (select id from public.course_assessment_supports where course_id = '20000000-0000-0000-0000-000000000001' and source_key = 'calculator_privilege'),
+      '10000000-0000-0000-0000-000000000002',
+      '30000000-0000-0000-0000-000000000001',
+      '2026-09-08', '2026-09-08', 'Assessment', '1.8', 'Quarter 1', 1, false
+    );
+    raise exception 'Assessment supports RLS test failed: archived supports cannot be recorded';
+  exception
+    when raise_exception then
+      if sqlerrm = 'Assessment supports RLS test failed: archived supports cannot be recorded' then
+        raise;
+      end if;
+  end;
+end;
+$$;
 
 select public.record_assessment_support_usage(
   '20000000-0000-0000-0000-000000000001',
