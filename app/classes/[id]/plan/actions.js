@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
+import { safeClassReturnPath } from "@/lib/planning/return-path";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -457,7 +458,10 @@ export async function markLessonCompleteAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
+  // The all-classes grid sends the teacher back to the same week and row.
+  const returnTo = safeClassReturnPath(formData.get("return_to"));
+  if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  redirect(returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
 }
 
 export async function markLessonPlannedAction(formData) {
@@ -499,5 +503,8 @@ export async function markLessonPlannedAction(formData) {
   revalidatePath(`/classes/${course.id}/plan`);
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath("/classes");
-  redirect(`/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
+  // The all-classes grid sends the teacher back to the same week and row.
+  const returnTo = safeClassReturnPath(formData.get("return_to"));
+  if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  redirect(returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
 }

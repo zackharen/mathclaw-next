@@ -25,11 +25,13 @@ import LessonResourcesPanel from "./lesson-resources-panel";
 import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
 import AssessmentSupportsPanel from "./assessment-supports-panel";
 import PlanScrollMemory from "./scroll-memory";
+import AllClassesGrid from "./all-classes-grid";
 import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
 import { buildCourseLessonOptions } from "@/lib/lesson-resources/constants";
 import { splitLessonDaysForFold } from "@/lib/planning/completed-days";
+import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 
@@ -165,12 +167,6 @@ function clampIsoDate(value, min, max) {
   return value;
 }
 
-function isWeekendISODate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  const weekday = date.getDay();
-  return weekday === 0 || weekday === 6;
-}
 
 function gameHref(slug, courseId) {
   const query = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
@@ -249,6 +245,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
   if (!course) {
     redirect("/classes");
+  }
+  // All Classes view (toggle in the pinned title bar): skip this class's heavy
+  // plan loading entirely and render the cross-class grid instead.
+  if (cookieStore.get("class_plan_view")?.value === "grid") {
+    return <AllClassesGrid currentCourseId={course.id} userId={user.id} gridStartParam={qs.grid_start} />;
   }
   const courseDataClient = getCourseWriteClient(access, supabase);
   const curriculumEnabled = hasCurriculum(course);
@@ -444,14 +445,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const meetsA = course.ab_meeting_day !== "B";
   const meetsB = course.ab_meeting_day !== "A";
 
-  const visibleCalendarDays = calendarDays.filter((day) => {
-    if (course.schedule_model !== "ab") return !isWeekendISODate(day.class_date);
-    if (day.day_type === "off") return !isWeekendISODate(day.class_date);
-    if (day.ab_day !== "A" && day.ab_day !== "B") return false;
-    if (course.ab_meeting_day === "A") return day.ab_day === "A";
-    if (course.ab_meeting_day === "B") return day.ab_day === "B";
-    return true;
-  });
+  const visibleCalendarDays = calendarDays.filter((day) => courseShowsCalendarDay(course, day));
   const visibleLessonDays = visibleCalendarDays.filter(
     (day) => day.class_date >= lessonWindowStart && day.class_date <= lessonWindowEnd
   );

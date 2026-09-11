@@ -3,27 +3,14 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LESSON_RESOURCE_BUCKET,
   LESSON_RESOURCE_FILE_ACCEPT,
   formatLessonResourceSize,
   getLessonResourceSiteSuggestion,
   getLessonResourceTitleSuggestion,
-  sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
-import { createClient } from "@/lib/supabase/client";
+import { postLessonResource, uploadLessonResourceFile } from "@/lib/lesson-resources/client";
 import ResourceEditForm from "./resource-edit-form";
-
-async function postLessonResource(body) {
-  const response = await fetch("/api/lesson-resources", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Lesson resources could not be updated.");
-  return data;
-}
 
 function ResourceLink({ resource, ownerName = "" }) {
   return (
@@ -182,31 +169,15 @@ export default function LessonResourcesPanel({
 
     setSaving(true);
     setStatus("Uploading file…");
-    const storagePath = `${ownerId}/${crypto.randomUUID()}/${sanitizeLessonResourceFileName(file.name)}`;
-    const supabase = createClient();
     try {
-      const { error: uploadError } = await supabase.storage
-        .from(LESSON_RESOURCE_BUCKET)
-        .upload(storagePath, file, { contentType: validation.mimeType, upsert: false });
-      if (uploadError) throw new Error(uploadError.message);
-
-      let data;
-      try {
-        data = await postLessonResource({
-          action: "register-file",
-          courseId,
-          classDate,
-          lessonIds: selectedLessonIds,
-          title,
-          storagePath,
-          fileName: file.name,
-          mimeType: validation.mimeType,
-          sizeBytes: file.size,
-        });
-      } catch (error) {
-        await supabase.storage.from(LESSON_RESOURCE_BUCKET).remove([storagePath]);
-        throw error;
-      }
+      const data = await uploadLessonResourceFile({
+        ownerId,
+        courseId,
+        classDate,
+        lessonIds: selectedLessonIds,
+        title,
+        file,
+      });
 
       setOwnResources((current) => [...current, data.resource]);
       setShareSelections((current) => ({ ...current, [data.resource.id]: [] }));

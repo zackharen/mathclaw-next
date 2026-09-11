@@ -5,6 +5,7 @@ import { getCourseAccessForUser, listEditableCoursesForUser } from "@/lib/course
 import { buildRuleAssignmentOccurrences, numberRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import ClassSwitcher from "../class-switcher";
+import PlanViewToggle from "./plan-view-toggle";
 
 function shortMonthDate(iso) {
   if (!iso) return "";
@@ -184,6 +185,7 @@ export default async function ClassPlanLayout({ children, params }) {
   const { id } = await params;
   const cookieStore = await cookies();
   const hideSuggestions = cookieStore.get("hide_arcade_suggestions")?.value === "1";
+  const gridView = cookieStore.get("class_plan_view")?.value === "grid";
   const panelData = await loadAssignmentPanelData({ courseId: id });
   const course = panelData?.course;
   const rules = panelData?.rules || [];
@@ -209,24 +211,34 @@ export default async function ClassPlanLayout({ children, params }) {
           <section className="card">
             <div className="classPlanTitleRow">
               <div>
-                <h1>{course.title}: Plan &amp; Announcements</h1>
-                <p>
-                  {course.class_name} |{" "}
-                  {course.schedule_model === "ab"
-                    ? `AB (${course.ab_meeting_day || "Both"})`
-                    : "Every Day"}{" "}
-                  | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
-                </p>
+                {gridView ? (
+                  <>
+                    <h1>All Classes</h1>
+                    <p>Every class, two weeks at a time</p>
+                  </>
+                ) : (
+                  <>
+                    <h1>{course.title}: Plan &amp; Announcements</h1>
+                    <p>
+                      {course.class_name} |{" "}
+                      {course.schedule_model === "ab"
+                        ? `AB (${course.ab_meeting_day || "Both"})`
+                        : "Every Day"}{" "}
+                      | {shortDate(course.school_year_start)} to {shortDate(course.school_year_end)}
+                    </p>
+                  </>
+                )}
               </div>
               <div className="classPlanTitleActions">
+                <PlanViewToggle initialView={gridView ? "grid" : "class"} />
                 <ClassSwitcher courses={courses} currentCourseId={course.id} destination="plan" />
-                <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />
+                {gridView ? null : <ArcadeSuggestionsToggle initialHidden={hideSuggestions} />}
               </div>
             </div>
           </section>
         </div>
       ) : null}
-      {rules.length > 0 ? (
+      {rules.length > 0 && !gridView ? (
         <div className="stack" style={{ marginBottom: "1rem" }}>
           <details className="card classPlanAssignmentsDetails" open>
             <summary className="classPlanAssignmentsSummary">
