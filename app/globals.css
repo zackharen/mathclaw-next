@@ -4119,6 +4119,14 @@ details[open] > summary.btn:not(.btnNoToggle),
   min-height: 2.75rem;
 }
 
+/* The card is a grid item of .stack, and grid items default to min-width: auto,
+   so the table's min-width would widen the card and make the whole page scroll
+   sideways on narrow screens. min-width: 0 lets .allClassesGridScroll do the
+   horizontal scrolling instead. */
+.allClassesGridCard {
+  min-width: 0;
+}
+
 .allClassesGridHeader {
   display: flex;
   flex-wrap: wrap;
