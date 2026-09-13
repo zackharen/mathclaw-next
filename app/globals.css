@@ -4179,6 +4179,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 
 .planViewToggle .btn {
   min-height: 2.75rem;
+  white-space: nowrap;
 }
 
 /* The card is a grid item of .stack, and grid items default to min-width: auto,
