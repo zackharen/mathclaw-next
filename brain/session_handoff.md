@@ -8,7 +8,15 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-07-10 America/New_York (default new/unknown accounts to student)
+2026-09-13 America/New_York (per-day lesson pacing controls)
+
+## What Changed (2026-09-13 Session - Per-Day Lesson Counts)
+
+- The All Classes grid and individual class plan now show a compact `0 | 1 | 2` lesson selector on each schedulable date. Dates containing any completed lesson are visibly locked, and off/grace/no-meeting dates remain non-editable.
+- A date-specific `course_calendar_days.lesson_count_override` takes precedence over class pacing mode, weekday modifiers, half-day defaults, and same-day assessment reductions. Rebuilding immediately reflows later lessons in curriculum order; manual-completion pacing repeats the current one- or two-lesson set until completed.
+- Added `supabase/migrations_20260913_pacing_day_lesson_count_overrides.sql`. Applied to production `mathclaw-prod` as `pacing_day_lesson_count_overrides`; verified the nullable integer column and `0..2` check constraint.
+- Verification: all 122 Node tests passed, repo-wide ESLint passed, `npm run build` passed, production Vercel status succeeded, and authenticated live browser QA confirmed both grid and individual-class layouts without mutating real pacing data.
+- Feature commit: `0c69c0f` (`Add per-day lesson pacing controls`). Vercel deployment `3EGUdMMWdoZHBUU5QxAfKETqGsUs`; live route verified at `https://www.mathclaw.com/classes/<course-id>/plan`.
 
 ## What Changed (2026-07-10 Session - Account Type Defaults)
 
