@@ -18,6 +18,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Verification: all 122 Node tests passed, repo-wide ESLint passed, `npm run build` passed, production Vercel status succeeded, and authenticated live browser QA confirmed both grid and individual-class layouts without mutating real pacing data.
 - Feature commit: `0c69c0f` (`Add per-day lesson pacing controls`). Vercel deployment `3EGUdMMWdoZHBUU5QxAfKETqGsUs`; live route verified at `https://www.mathclaw.com/classes/<course-id>/plan`.
 - Follow-up: centered the labels on all full-width All Classes grid actions, including resource summaries such as “Add File” and “Files (1)”.
+- Follow-up: kept the All Classes view toggle and class switcher on one desktop row to reduce the sticky title bar height; the controls can still wrap on mobile.
 
 ## What Changed (2026-07-10 Session - Account Type Defaults)
 

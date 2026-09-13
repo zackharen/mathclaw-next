@@ -209,7 +209,7 @@ export default async function ClassPlanLayout({ children, params }) {
       {course ? (
         <div className="stack classPlanStickyTitle" style={{ marginBottom: "1rem" }}>
           <section className="card">
-            <div className="classPlanTitleRow">
+            <div className={`classPlanTitleRow${gridView ? " isGridView" : ""}`}>
               <div>
                 {gridView ? (
                   <>
