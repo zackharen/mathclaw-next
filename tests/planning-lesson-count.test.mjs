@@ -42,3 +42,24 @@ test("the assessment option does not change one-lesson pacing modes", () => {
     1
   );
 });
+
+test("a date-specific override wins over the pacing mode and weekday rules", () => {
+  assert.equal(
+    lessonsForPlanningDay({
+      day: { ...instructionalTuesday, lesson_count_override: 0 },
+      pacingMode: "two_lessons_per_day",
+      weekdayModifiers: { 2: "one_less" },
+      oneLessonAssignmentDates: new Set(["2026-09-08"]),
+    }),
+    0
+  );
+  assert.equal(
+    lessonsForPlanningDay({
+      day: { ...instructionalTuesday, lesson_count_override: 2 },
+      pacingMode: "one_lesson_per_day",
+      weekdayModifiers: {},
+      oneLessonAssignmentDates: new Set(),
+    }),
+    2
+  );
+});

@@ -26,6 +26,7 @@ import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
 import AssessmentSupportsPanel from "./assessment-supports-panel";
 import PlanScrollMemory from "./scroll-memory";
 import AllClassesGrid from "./all-classes-grid";
+import LessonCountToggle from "./lesson-count-toggle";
 import { isCalendarWeekStart, isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
@@ -288,7 +289,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
       : Promise.resolve({ count: 0 }),
     courseDataClient
       .from("course_calendar_days")
-      .select("class_date, day_type, is_grace_day, ab_day, reason_id, note")
+      .select("class_date, day_type, is_grace_day, ab_day, reason_id, note, lesson_count_override")
       .eq("course_id", course.id)
       .order("class_date", { ascending: true }),
     supabase
@@ -874,6 +875,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
               const mpName = getMarkingPeriodName(day.class_date);
               const schoolDayNum = schoolDayNumberByDate.get(day.class_date);
               const assessmentResourcesForDay = assessmentResourcesByDate.get(day.class_date) || [];
+              const hasCompletedLesson = dayPlanRows.some((row) => row.status === "completed");
+              const lessonCountReturnTo = `/classes/${course.id}/plan#plan-day-${day.class_date}`;
 
               if (dayPlanRows.length === 0) {
                 return (
@@ -882,7 +885,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     className={`card${isCalendarWeekStart(day.class_date) ? " calendarWeekStart" : ""}`}
                     style={{ background: "#fff" }}
                   >
-                    <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
+                    <h3 id={`plan-day-${day.class_date}`}>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
                     <p>
                       {noLessonLabel}{reasonLabel ? ` | ${reasonLabel}` : ""}
                     </p>
@@ -890,6 +893,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
                       Day Type: {normalizeCalendarDayType(day.day_type)}{isGraceDay(day) ? " · Grace Day" : ""}
                     </p>
+
+                    {day.day_type !== "off" && !isGraceDay(day) ? (
+                      <LessonCountToggle
+                        courseId={course.id}
+                        classDate={day.class_date}
+                        currentCount={day.lesson_count_override ?? 0}
+                        returnTo={lessonCountReturnTo}
+                      />
+                    ) : null}
 
                     {announcementText ? (
                       <pre className="announcementText">{announcementText}</pre>
@@ -954,14 +966,23 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   className={`card${isCalendarWeekStart(day.class_date) ? " calendarWeekStart" : ""}`}
                   style={{ background: "#fff" }}
                 >
-                  <h3>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
+                  <h3 id={`plan-day-${day.class_date}`}>{prettyDate(day.class_date)}{mpName ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>{mpName}{schoolDayNum ? ` · Day #${schoolDayNum}` : ""}</span> : schoolDayNum ? <span style={{ fontSize: "0.75rem", fontWeight: "normal", opacity: 0.6, marginLeft: "0.5rem" }}>Day #{schoolDayNum}</span> : null}</h3>
                   <div className="classPlanDayWorkspace">
                     <section className="classPlanDayPane classPlanLessonPane">
                       <div className="classPlanDayPaneHeader">
                         <strong>Lesson Plan</strong>
-                        <span className={`classPlanStatus classPlanStatus-${dayStatus.replaceAll(" ", "-")}`}>
-                          {dayStatus}
-                        </span>
+                        <div className="classPlanLessonHeaderControls">
+                          <LessonCountToggle
+                            courseId={course.id}
+                            classDate={day.class_date}
+                            currentCount={day.lesson_count_override ?? dayPlanRows.length}
+                            returnTo={lessonCountReturnTo}
+                            disabled={hasCompletedLesson}
+                          />
+                          <span className={`classPlanStatus classPlanStatus-${dayStatus.replaceAll(" ", "-")}`}>
+                            {dayStatus}
+                          </span>
+                        </div>
                       </div>
                       <div className="lessonPlanList">
                         {dayPlanRows.map((row, index) => {

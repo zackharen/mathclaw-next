@@ -3417,6 +3417,68 @@ details[open] > summary.btn:not(.btnNoToggle),
   gap: 1rem;
 }
 
+.classPlanLessonHeaderControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.lessonCountControl {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--navy);
+  font-family: var(--font-site);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.lessonCountToggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #9fb4c3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.lessonCountToggle form + form {
+  border-left: 1px solid #9fb4c3;
+}
+
+.lessonCountOption {
+  min-width: 2rem;
+  min-height: 1.9rem;
+  padding: 0.2rem 0.45rem;
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  cursor: pointer;
+  font: inherit;
+}
+
+.lessonCountOption:hover:not(:disabled) {
+  background: #eaf2f7;
+}
+
+.lessonCountOption.isSelected {
+  background: var(--navy);
+  color: #ffffff;
+}
+
+.lessonCountOption:disabled {
+  cursor: default;
+}
+
+.lessonCountLocked {
+  color: #647887;
+  font-size: 0.65rem;
+}
+
 .classPlanWorkspaceHeader > div > p {
   margin-top: 0.35rem;
   color: var(--muted);
@@ -4210,6 +4272,21 @@ details[open] > summary.btn:not(.btnNoToggle),
   color: var(--navy);
   font-weight: 700;
   line-height: 1.25;
+}
+
+.allClassesGridEmptyLabel {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+}
+
+.allClassesGrid .lessonCountControl {
+  margin-bottom: 0.5rem;
+}
+
+.allClassesGrid .lessonCountLabel,
+.allClassesGrid .lessonCountLocked {
+  flex-basis: 100%;
 }
 
 .allClassesGridTag {

@@ -12,6 +12,7 @@ import {
 import { markLessonCompleteAction, markLessonPlannedAction } from "./actions";
 import SubmitButton from "../../../components/SubmitButton";
 import GridCellResources from "./grid-cell-resources";
+import LessonCountToggle from "./lesson-count-toggle";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -58,7 +59,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
         ),
         supabase
           .from("course_calendar_days")
-          .select("course_id, class_date, day_type, ab_day, is_grace_day")
+          .select("course_id, class_date, day_type, ab_day, is_grace_day, lesson_count_override")
           .in("course_id", courseIds)
           .gte("class_date", firstDate)
           .lte("class_date", lastDate)
@@ -182,8 +183,18 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                         }
                         if (cell.kind === "empty") {
                           return (
-                            <td key={course.id} className="allClassesGridMuted">
-                              {cell.grace ? "Grace Day" : "No lesson"}
+                            <td key={course.id} className={cell.grace ? "allClassesGridMuted" : undefined}>
+                              <span className={cell.grace ? undefined : "allClassesGridEmptyLabel"}>
+                                {cell.grace ? "Grace Day" : "No lesson"}
+                              </span>
+                              {!cell.grace ? (
+                                <LessonCountToggle
+                                  courseId={course.id}
+                                  classDate={row.date}
+                                  currentCount={cell.lessonCountOverride ?? 0}
+                                  returnTo={returnTo}
+                                />
+                              ) : null}
                             </td>
                           );
                         }
@@ -192,6 +203,13 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                         return (
                           <td key={course.id} className={cell.complete ? "isComplete" : undefined}>
                             {cell.dayType === "half" ? <span className="allClassesGridTag">Half Day</span> : null}
+                            <LessonCountToggle
+                              courseId={course.id}
+                              classDate={row.date}
+                              currentCount={cell.lessonCountOverride ?? cell.lessons.length}
+                              returnTo={returnTo}
+                              disabled={cell.hasCompleted}
+                            />
                             {cell.lessons.map((lesson, lessonIndex) => (
                               <span key={lesson.id} className="allClassesGridLesson" title={labels[lessonIndex]}>
                                 {labels[lessonIndex]}

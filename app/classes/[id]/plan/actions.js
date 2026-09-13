@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { safeClassReturnPath } from "@/lib/planning/return-path";
+import { isGraceDay } from "@/lib/school-calendar";
+import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -416,6 +418,95 @@ export async function updatePacingModeAction(formData) {
   revalidatePath(`/classes/${course.id}/calendar`);
   revalidatePath("/classes");
   redirect(`/classes/${course.id}/plan?pacing_updated=1&t=${Date.now()}`);
+}
+
+export async function updateDailyLessonCountAction(formData) {
+  const actionStart = Date.now();
+  const courseId = formData.get("course_id");
+  const classDate = formData.get("class_date");
+  const lessonCount = Number(formData.get("lesson_count"));
+
+  if (
+    typeof courseId !== "string" ||
+    !courseId ||
+    typeof classDate !== "string" ||
+    !isValidISODate(classDate) ||
+    !Number.isInteger(lessonCount) ||
+    lessonCount < 0 ||
+    lessonCount > 2
+  ) {
+    return;
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const access = await getCourseAccessForUser(
+    supabase,
+    user.id,
+    courseId,
+    "id, owner_id, schedule_model, ab_meeting_day"
+  );
+  const course = access?.course;
+  if (!course) return;
+  const writeClient = getCourseWriteClient(access, supabase);
+
+  const [dayRes, planRes] = await Promise.all([
+    writeClient
+      .from("course_calendar_days")
+      .select("class_date, day_type, is_grace_day, ab_day")
+      .eq("course_id", course.id)
+      .eq("class_date", classDate)
+      .maybeSingle(),
+    writeClient
+      .from("course_lesson_plan")
+      .select("status")
+      .eq("course_id", course.id)
+      .eq("class_date", classDate),
+  ]);
+
+  if (dayRes.error) throw new Error(dayRes.error.message);
+  if (planRes.error) throw new Error(planRes.error.message);
+
+  const day = dayRes.data;
+  const protectedDate = (planRes.data || []).some((row) => row.status === "completed");
+  if (
+    !day ||
+    day.day_type === "off" ||
+    isGraceDay(day) ||
+    !courseShowsCalendarDay(course, day) ||
+    protectedDate
+  ) {
+    return;
+  }
+
+  const { error: updateError } = await writeClient
+    .from("course_calendar_days")
+    .update({ lesson_count_override: lessonCount, updated_at: new Date().toISOString() })
+    .eq("course_id", course.id)
+    .eq("class_date", classDate);
+
+  if (updateError) throw new Error(updateError.message);
+
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+
+  perfLog("updateDailyLessonCountAction", {
+    course: course.id,
+    classDate,
+    lessonCount,
+    ms: Date.now() - actionStart,
+  });
+
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  const returnTo = safeClassReturnPath(formData.get("return_to"));
+  if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  redirect(returnTo || `/classes/${course.id}/plan#plan-day-${classDate}`);
 }
 
 

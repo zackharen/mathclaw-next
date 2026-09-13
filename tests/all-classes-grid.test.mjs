@@ -58,7 +58,12 @@ test("cells distinguish lessons, off-letter days, days off, and empty days", () 
   assert.equal(tue.cells[0].dayType, "half");
   assert.equal(tue.cells[0].lessons.length, 1, "rows without a lesson are dropped");
   assert.equal(tue.cells[1].kind, "no-meeting", "a B-day class shows nothing on an A day");
-  assert.deepEqual(wed.cells[0], { kind: "empty", grace: true });
+  assert.deepEqual(wed.cells[0], {
+    kind: "empty",
+    grace: true,
+    dayType: "instructional",
+    lessonCountOverride: undefined,
+  });
   assert.equal(wed.cells[1].kind, "off");
   assert.equal(wed.schoolClosed, false);
 });
@@ -83,5 +88,26 @@ test("a grace day is recognised by either flag, matching isGraceDay", () => {
     calendarDays: [{ course_id: "a", class_date: "2026-09-17", day_type: "grace_day" }],
     planRows: [],
   });
-  assert.deepEqual(rows[0].cells[0], { kind: "empty", grace: true });
+  assert.deepEqual(rows[0].cells[0], {
+    kind: "empty",
+    grace: true,
+    dayType: "grace_day",
+    lessonCountOverride: undefined,
+  });
+});
+
+test("grid cells carry date-specific lesson counts and completion locks", () => {
+  const { rows } = buildAllClassesGrid({
+    courses: [{ id: "a", schedule_model: "every_day" }],
+    dates: ["2026-09-17", "2026-09-18"],
+    calendarDays: [
+      { course_id: "a", class_date: "2026-09-17", day_type: "instructional", lesson_count_override: 0 },
+      { course_id: "a", class_date: "2026-09-18", day_type: "instructional", lesson_count_override: 2 },
+    ],
+    planRows: [lesson("a", "2026-09-18", "2.01", "completed"), lesson("a", "2026-09-18", "2.02")],
+  });
+
+  assert.equal(rows[0].cells[0].lessonCountOverride, 0);
+  assert.equal(rows[1].cells[0].lessonCountOverride, 2);
+  assert.equal(rows[1].cells[0].hasCompleted, true);
 });
