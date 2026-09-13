@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 
 const TOP_REVEAL_DISTANCE = 24;
-const DIRECTION_THRESHOLD = 3;
 
 export default function AutoHidingStickyTitle({ children }) {
   const [isHidden, setIsHidden] = useState(false);
@@ -19,9 +18,9 @@ export default function AutoHidingStickyTitle({ children }) {
 
       if (currentScrollY <= TOP_REVEAL_DISTANCE) {
         setIsHidden(false);
-      } else if (change >= DIRECTION_THRESHOLD) {
+      } else if (change > 0) {
         setIsHidden(true);
-      } else if (change <= -DIRECTION_THRESHOLD) {
+      } else if (change < 0) {
         setIsHidden(false);
       }
 
