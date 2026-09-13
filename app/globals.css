@@ -4311,6 +4311,7 @@ details[open] > summary.btn:not(.btnNoToggle),
   min-height: 2.2rem;
   padding: 0.35rem 0.55rem;
   font-size: 0.85rem;
+  text-align: center;
 }
 
 .allClassesGridComplete.isComplete {
