@@ -20,6 +20,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Follow-up: centered the labels on all full-width All Classes grid actions, including resource summaries such as “Add File” and “Files (1)”.
 - Follow-up: kept the All Classes view toggle and class switcher on one desktop row to reduce the sticky title bar height; the controls can still wrap on mobile.
 - Follow-up: sized the “This Class” and “All Classes” toggle buttons so each label remains on one line.
+- Follow-up: the Plan title bar now slides away while scrolling down and immediately returns when scrolling up; it remains visible near the top and stays non-sticky on phones.
 
 ## What Changed (2026-07-10 Session - Account Type Defaults)
 

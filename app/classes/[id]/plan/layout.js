@@ -6,6 +6,7 @@ import { buildRuleAssignmentOccurrences, numberRuleAssignmentOccurrences } from 
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import ClassSwitcher from "../class-switcher";
 import PlanViewToggle from "./plan-view-toggle";
+import AutoHidingStickyTitle from "./auto-hiding-sticky-title";
 
 function shortMonthDate(iso) {
   if (!iso) return "";
@@ -207,7 +208,7 @@ export default async function ClassPlanLayout({ children, params }) {
         }
       `}</style>
       {course ? (
-        <div className="stack classPlanStickyTitle" style={{ marginBottom: "1rem" }}>
+        <AutoHidingStickyTitle>
           <section className="card">
             <div className={`classPlanTitleRow${gridView ? " isGridView" : ""}`}>
               <div>
@@ -236,7 +237,7 @@ export default async function ClassPlanLayout({ children, params }) {
               </div>
             </div>
           </section>
-        </div>
+        </AutoHidingStickyTitle>
       ) : null}
       {rules.length > 0 && !gridView ? (
         <div className="stack" style={{ marginBottom: "1rem" }}>

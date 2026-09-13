@@ -4159,6 +4159,12 @@ details[open] > summary.btn:not(.btnNoToggle),
   position: sticky;
   top: 0.75rem;
   z-index: 30;
+  transition: transform 180ms ease;
+  will-change: transform;
+}
+
+.classPlanStickyTitle.isScrollHidden {
+  transform: translateY(calc(-100% - 1rem));
 }
 
 .classPlanStickyTitle > .card {
@@ -4410,6 +4416,7 @@ details[open] > summary.btn:not(.btnNoToggle),
      iPad measures 129px, 13%) and keep the sticky behavior. */
   .classPlanStickyTitle {
     position: static;
+    transform: none;
   }
 
   #next-class-day {
