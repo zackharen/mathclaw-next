@@ -1,4 +1,5 @@
 -- Refresh Zack's 57AB Algebra I plan from the 2026-09-14 CSV.
+-- Production migration version: 20260914115153.
 -- Completed 2.01, 2.02, 2.04, and 2.05 stay intact; Zack chose to skip 2.03.
 -- The remaining lessons follow CSV order. This library currently has one course.
 begin;

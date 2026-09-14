@@ -8,7 +8,13 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-13 America/New_York (All Classes planning tools)
+2026-09-14 America/New_York (Algebra I curriculum refresh)
+
+## What Changed (2026-09-14 Session - Algebra I Curriculum)
+
+- Updated Zack's `57AB | Algebra I` Illustrative Mathematics library from the 104-row CSV supplied on 2026-09-14. Zack chose to skip `2.03`; the four completed lessons (`2.01`, `2.02`, `2.04`, `2.05`) and their plan rows, dates, titles/objectives, IDs, and 11 lesson-resource associations were preserved. The library and plan now contain 103 ordered lessons, with `2.06` next on 2026-09-14 and the newly split lessons following the supplied sequence.
+- Applied the guarded production data migration as Supabase version `20260914115153` (`algebra_i_curriculum_refresh_20260914`), then refreshed all 180 Algebra I announcements through the live class-plan action. Verified 99 future announcements match their newly scheduled lesson codes/titles, all 103 plan rows match curriculum order, and all original 87 lesson IDs remain stable. A before-state snapshot of affected curriculum/plan rows is at `/Users/zackarenstein/Documents/Codex/2026-09-13/b/algebra-i-pre-refresh-backup.json` (outside the repo).
+- Migration shipped on `main` in commit `2bc5ea5`; Vercel deployment `CL6VLPZ3MmsVTR3m3WD5cR3ZJ6Gu` succeeded. Authenticated live route: `https://www.mathclaw.com/classes/c2512d97-7a35-4f11-9c15-053e49026c74/plan`. Local dev preview could not bind port 3000 (`EPERM`), so the live route and Supabase data were used for verification.
 
 ## What Changed (2026-09-13 Session - All Classes Planning)
 
