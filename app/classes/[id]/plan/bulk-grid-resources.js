@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   LESSON_RESOURCE_FILE_ACCEPT,
   getLessonResourceSiteSuggestion,
+  getLessonResourceTitleSuggestion,
   normalizeLessonResourceUrl,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
@@ -31,6 +32,8 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
   const [rows, setRows] = useState(() => [blankRow(1, courses)]);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [oneEachCourseId, setOneEachCourseId] = useState(courses[0]?.id || "");
+  const [oneEachType, setOneEachType] = useState("link");
   const courseById = useMemo(
     () => new Map(courses.map((course) => [course.id, course])),
     [courses]
@@ -52,6 +55,56 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
     nextId.current += 1;
     setRows((current) => [...current, blankRow(id, courses)]);
     setStatus("");
+  }
+
+  function addOneOfEachLesson() {
+    const course = courseById.get(oneEachCourseId);
+    if (!course) return;
+    const currentRows = rows.length === 1 && !rows[0].title.trim() &&
+      !rows[0].url && !rows[0].file && !rows[0].siteName
+      ? []
+      : rows;
+    const existingLessonIds = new Set(
+      currentRows.filter((row) => row.courseId === course.id).map((row) => row.lessonId)
+    );
+    const added = course.lessons
+      .filter((lesson) => !existingLessonIds.has(lesson.id))
+      .map((lesson) => ({
+        ...blankRow(nextId.current++, courses),
+        courseId: course.id,
+        lessonId: lesson.id,
+        resourceType: oneEachType,
+      }));
+    setRows([...currentRows, ...added]);
+    setStatus(added.length
+      ? `Added ${added.length} blank ${oneEachType === "file" ? "file" : "link"} row${added.length === 1 ? "" : "s"} for ${course.title}.`
+      : `Every lesson in ${course.title} already has a row.`);
+  }
+
+  function changeUrl(row, value) {
+    const previousSite = getLessonResourceSiteSuggestion(row.url, siteNames);
+    const nextSite = getLessonResourceSiteSuggestion(value, siteNames);
+    const previousTitle = getLessonResourceTitleSuggestion(row.url, siteNames);
+    const nextTitle = getLessonResourceTitleSuggestion(value, siteNames);
+    updateRow(row.id, {
+      url: value,
+      siteName: previousSite.hostname === nextSite.hostname ? row.siteName : "",
+      title: !row.title || row.title === previousTitle ? nextTitle : row.title,
+    });
+  }
+
+  function changeSiteName(row, value) {
+    const hostname = getLessonResourceSiteSuggestion(row.url, siteNames).hostname;
+    setRows((current) => current.map((item) => {
+      if (getLessonResourceSiteSuggestion(item.url, siteNames).hostname !== hostname ||
+        (item.siteName && item.siteName !== row.siteName)) return item;
+      return {
+        ...item,
+        siteName: value,
+        title: !item.title || item.title === item.siteName ? value : item.title,
+        error: "",
+      };
+    }));
   }
 
   function removeRow(id) {
@@ -149,6 +202,33 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
       <summary>Bulk Attach Items</summary>
       <form onSubmit={saveAll}>
         <p>Add links or files to lessons scheduled in this two-week view.</p>
+        <div className="allClassesBulkOneEach">
+          <span>One of each lesson</span>
+          <select
+            className="input"
+            value={oneEachCourseId}
+            onChange={(event) => setOneEachCourseId(event.target.value)}
+            aria-label="Class for one of each lesson"
+            disabled={saving}
+          >
+            {courses.map((course) => (
+              <option key={course.id} value={course.id}>{course.title}</option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={oneEachType}
+            onChange={(event) => setOneEachType(event.target.value)}
+            aria-label="Type for one of each lesson"
+            disabled={saving}
+          >
+            <option value="link">Links</option>
+            <option value="file">Files</option>
+          </select>
+          <button className="btn" type="button" onClick={addOneOfEachLesson} disabled={saving}>
+            Add One of Each
+          </button>
+        </div>
         <div className="allClassesBulkResourcesScroll">
           <table>
             <thead>
@@ -200,7 +280,10 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                             type="file"
                             accept={LESSON_RESOURCE_FILE_ACCEPT}
                             onChange={(event) =>
-                              updateRow(row.id, { file: event.target.files?.[0] || null })
+                              updateRow(row.id, {
+                                file: event.target.files?.[0] || null,
+                                title: row.title || event.target.files?.[0]?.name || "",
+                              })
                             }
                             aria-label={`File for ${row.title || "item"}`}
                             required
@@ -211,9 +294,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                               className="input"
                               type="url"
                               value={row.url}
-                              onChange={(event) =>
-                                updateRow(row.id, { url: event.target.value, siteName: "" })
-                              }
+                              onChange={(event) => changeUrl(row, event.target.value)}
                               placeholder="https://…"
                               aria-label={`Link for ${row.title || "item"}`}
                               required
@@ -222,9 +303,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                               <input
                                 className="input"
                                 value={row.siteName}
-                                onChange={(event) =>
-                                  updateRow(row.id, { siteName: event.target.value })
-                                }
+                                onChange={(event) => changeSiteName(row, event.target.value)}
                                 maxLength={80}
                                 placeholder={`Name for ${site.hostname}`}
                                 aria-label={`Site name for ${site.hostname}`}

@@ -4236,6 +4236,31 @@ details[open] > summary.btn:not(.btnNoToggle),
   color: var(--muted);
 }
 
+.allClassesBulkOneEach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.allClassesBulkOneEach > span {
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.allClassesBulkOneEach > select:first-of-type {
+  width: min(18rem, 100%);
+}
+
+.allClassesBulkOneEach > select:nth-of-type(2) {
+  width: 7rem;
+}
+
+.allClassesBulkOneEach > button {
+  white-space: nowrap;
+}
+
 .allClassesBulkResourcesScroll {
   overflow-x: auto;
 }
