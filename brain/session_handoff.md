@@ -8,10 +8,11 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-13 America/New_York (per-day lesson pacing controls)
+2026-09-13 America/New_York (All Classes planning tools)
 
-## What Changed (2026-09-13 Session - Per-Day Lesson Counts)
+## What Changed (2026-09-13 Session - All Classes Planning)
 
+- The All Classes grid now has a collapsible Bulk Attach Items editor above the schedule. Each row creates one named link or file for one class/lesson; class and lesson menus are limited to the visible two-week window, rows can be added/removed, and Save All preserves failed rows with specific errors while refreshing successful attachments into the grid.
 - The All Classes grid and individual class plan now show a compact `0 | 1 | 2` lesson selector on each schedulable date. Dates containing any completed lesson are visibly locked, and off/grace/no-meeting dates remain non-editable.
 - A date-specific `course_calendar_days.lesson_count_override` takes precedence over class pacing mode, weekday modifiers, half-day defaults, and same-day assessment reductions. Rebuilding immediately reflows later lessons in curriculum order; manual-completion pacing repeats the current one- or two-lesson set until completed.
 - Added `supabase/migrations_20260913_pacing_day_lesson_count_overrides.sql`. Applied to production `mathclaw-prod` as `pacing_day_lesson_count_overrides`; verified the nullable integer column and `0..2` check constraint.

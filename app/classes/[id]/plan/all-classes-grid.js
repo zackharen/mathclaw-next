@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
+import { buildGridLessonCourseOptions } from "@/lib/lesson-resources/constants";
 import { loadLessonResourcePlanningData } from "@/lib/lesson-resources/server";
 import {
   addDaysIso,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/planning/all-classes-grid";
 import { markLessonCompleteAction, markLessonPlannedAction } from "./actions";
 import SubmitButton from "../../../components/SubmitButton";
+import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 
@@ -84,6 +86,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
 
   const lessonIds = [...new Set(planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean))];
   const resourceData = await loadLessonResourcePlanningData({ userId, lessonIds });
+  const bulkResourceCourses = buildGridLessonCourseOptions(columns, planRows);
   const resourcesFor = (ids) =>
     resourceData.ownResources
       .filter((resource) => resource.lessonIds.some((id) => ids.includes(id)))
@@ -114,6 +117,14 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
             </Link>
           </div>
         </div>
+
+        {resourceData.available && bulkResourceCourses.length > 0 ? (
+          <BulkGridResources
+            ownerId={userId}
+            courses={bulkResourceCourses}
+            siteNames={resourceData.siteNames}
+          />
+        ) : null}
 
         {columns.length === 0 ? (
           <p>None of your classes have scheduled lessons yet.</p>

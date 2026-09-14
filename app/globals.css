@@ -4209,6 +4209,117 @@ details[open] > summary.btn:not(.btnNoToggle),
   margin: 0;
 }
 
+.allClassesBulkResources {
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 12px;
+  background: #f8fbfd;
+}
+
+.allClassesBulkResources > summary {
+  padding: 0.75rem 0.9rem;
+  color: var(--navy);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.allClassesBulkResources[open] > summary {
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.allClassesBulkResources > form {
+  padding: 0.85rem;
+}
+
+.allClassesBulkResources > form > p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.allClassesBulkResourcesScroll {
+  overflow-x: auto;
+}
+
+.allClassesBulkResources table {
+  width: 100%;
+  min-width: 64rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.allClassesBulkResources th,
+.allClassesBulkResources td {
+  padding: 0.45rem;
+  border-bottom: 1px solid var(--soft-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.allClassesBulkResources th {
+  color: var(--navy);
+  font-size: 0.75rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.allClassesBulkResources th:nth-child(1) {
+  width: 19%;
+}
+
+.allClassesBulkResources th:nth-child(2) {
+  width: 29%;
+}
+
+.allClassesBulkResources th:nth-child(3) {
+  width: 18%;
+}
+
+.allClassesBulkResources th:nth-child(4) {
+  width: 27%;
+}
+
+.allClassesBulkResources th:nth-child(5) {
+  width: 7%;
+}
+
+.allClassesBulkResources .input,
+.allClassesBulkResources td .btn {
+  width: 100%;
+  min-width: 0;
+}
+
+.allClassesBulkResources td .btn {
+  min-height: 2.75rem;
+  padding-inline: 0.55rem;
+}
+
+.allClassesBulkResourceSource {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 0.4rem;
+}
+
+.allClassesBulkResourceSource > :nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.allClassesBulkResources .errorText {
+  display: block;
+  margin-top: 0.3rem;
+}
+
+.allClassesBulkAdd {
+  width: 100%;
+  margin-top: 0.65rem;
+  border-style: dashed;
+  text-align: center;
+}
+
+.allClassesBulkSave {
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
 .allClassesGridScroll {
   overflow-x: auto;
   border: 1px solid var(--soft-line);

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   LESSON_RESOURCE_MAX_BYTES,
   buildCourseLessonOptions,
+  buildGridLessonCourseOptions,
   getLessonResourceSiteSuggestion,
   getLessonResourceTitleSuggestion,
   lessonResourceMimeType,
@@ -124,4 +125,42 @@ test("course lesson options list each scheduled lesson once, in teaching order",
     { id: "a", label: "1.01: Change at an Instant" },
   ]);
   assert.deepEqual(buildCourseLessonOptions(null), []);
+});
+
+test("grid bulk resource options stay scoped to visible classes and lessons", () => {
+  const courses = [
+    { id: "course-b", title: "Class B" },
+    { id: "course-a", title: "Class A" },
+    { id: "course-empty", title: "Empty" },
+  ];
+  const planRows = [
+    {
+      course_id: "course-a",
+      class_date: "2026-09-14",
+      curriculum_lessons: { id: "lesson-1", source_lesson_code: "1.01", title: "First" },
+    },
+    {
+      course_id: "course-b",
+      class_date: "2026-09-15",
+      curriculum_lessons: { id: "lesson-2", source_lesson_code: "2.01", title: "Second" },
+    },
+    {
+      course_id: "course-b",
+      class_date: "2026-09-16",
+      curriculum_lessons: { id: "lesson-2", source_lesson_code: "2.01", title: "Second" },
+    },
+  ];
+
+  assert.deepEqual(buildGridLessonCourseOptions(courses, planRows), [
+    {
+      id: "course-b",
+      title: "Class B",
+      lessons: [{ id: "lesson-2", classDate: "2026-09-15", label: "2.01: Second" }],
+    },
+    {
+      id: "course-a",
+      title: "Class A",
+      lessons: [{ id: "lesson-1", classDate: "2026-09-14", label: "1.01: First" }],
+    },
+  ]);
 });
