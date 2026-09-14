@@ -14,6 +14,7 @@ import { markLessonCompleteAction, markLessonPlannedAction } from "./actions";
 import SubmitButton from "../../../components/SubmitButton";
 import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
+import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -125,6 +126,8 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
             siteNames={resourceData.siteNames}
           />
         ) : null}
+
+        {resourceData.available ? <ManageGridResources /> : null}
 
         {columns.length === 0 ? (
           <p>None of your classes have scheduled lessons yet.</p>

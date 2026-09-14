@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
-import { getCourseAccessForUser } from "@/lib/courses/access";
+import { getCourseAccessForUser, listEditableCoursesForUser } from "@/lib/courses/access";
 import {
   LESSON_RESOURCE_BUCKET,
   getLessonResourceSiteSuggestion,
@@ -15,6 +15,7 @@ import {
 import { listConnectedTeachers } from "@/lib/lesson-resources/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,6 +47,99 @@ async function getTeacherContext() {
     return { error: jsonError("Only teacher accounts can manage lesson resources.", 403) };
   }
   return { supabase, user, admin: createAdminClient() };
+}
+
+async function allRows(query, pageSize = 500) {
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await query(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data || []));
+    if ((data || []).length < pageSize) return rows;
+  }
+}
+
+export async function GET() {
+  const context = await getTeacherContext();
+  if (context.error) return context.error;
+  const { supabase, user, admin } = context;
+
+  try {
+    const [resources, courses] = await Promise.all([
+      allRows((from, to) =>
+        admin
+          .from("lesson_resources")
+          .select("id, resource_type, title, url, file_name, created_at")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to)
+      ),
+      listEditableCoursesForUser(supabase, user.id, "id, title"),
+    ]);
+
+    const associations = [];
+    for (let offset = 0; offset < resources.length; offset += 100) {
+      const resourceIds = resources.slice(offset, offset + 100).map((resource) => resource.id);
+      const { data, error } = await admin
+        .from("lesson_resource_lessons")
+        .select("resource_id, lesson_id, curriculum_lessons(source_lesson_code, title)")
+        .in("resource_id", resourceIds);
+      if (error) throw new Error(error.message);
+      associations.push(...(data || []));
+    }
+
+    const lessonIdsByResource = new Map();
+    for (const row of associations) {
+      const lessons = lessonIdsByResource.get(row.resource_id) || [];
+      lessons.push({
+        id: row.lesson_id,
+        label: formatLessonLabel(
+          row.curriculum_lessons?.source_lesson_code,
+          row.curriculum_lessons?.title || "Lesson"
+        ),
+      });
+      lessonIdsByResource.set(row.resource_id, lessons);
+    }
+
+    const courseOptions = await Promise.all(
+      courses.map(async (course) => {
+        const rows = await allRows((from, to) =>
+          admin
+            .from("course_lesson_plan")
+            .select("lesson_id, class_date, curriculum_lessons(source_lesson_code, title)")
+            .eq("course_id", course.id)
+            .order("class_date", { ascending: true })
+            .order("lesson_slot", { ascending: true })
+            .range(from, to)
+        );
+        const seen = new Set();
+        const lessons = [];
+        for (const row of rows) {
+          if (!row.lesson_id || seen.has(row.lesson_id)) continue;
+          seen.add(row.lesson_id);
+          lessons.push({
+            id: row.lesson_id,
+            label: formatLessonLabel(
+              row.curriculum_lessons?.source_lesson_code,
+              row.curriculum_lessons?.title || "Lesson"
+            ),
+          });
+        }
+        return { id: course.id, title: course.title, lessons };
+      })
+    );
+
+    return NextResponse.json({
+      resources: resources.map((resource) => ({
+        ...resource,
+        lessons: lessonIdsByResource.get(resource.id) || [],
+      })),
+      courses: courseOptions.filter((course) => course.lessons.length > 0),
+    });
+  } catch (error) {
+    return jsonError(error.message || "Uploaded items could not be loaded.", 500);
+  }
 }
 
 async function validateLessonSelection({ supabase, admin, userId, courseId, classDate, lessonIds }) {

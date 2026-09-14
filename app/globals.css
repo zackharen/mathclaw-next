@@ -4320,6 +4320,57 @@ details[open] > summary.btn:not(.btnNoToggle),
   margin-top: 0.75rem;
 }
 
+.allClassesManageResourcesBody {
+  padding: 0.85rem;
+}
+
+.allClassesManageResourcesBody > p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.allClassesManageResourcesToolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.allClassesManageResourcesToolbar .input {
+  width: min(20rem, 100%);
+}
+
+.allClassesManageResources table {
+  min-width: 56rem;
+}
+
+.allClassesManageResources th:nth-child(1) {
+  width: 23%;
+}
+
+.allClassesManageResources th:nth-child(2) {
+  width: 31%;
+}
+
+.allClassesManageResources th:nth-child(3) {
+  width: 18%;
+}
+
+.allClassesManageResources th:nth-child(4) {
+  width: 28%;
+}
+
+.allClassesManageResources td small,
+.allClassesManageResources td a {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.allClassesManageResources td .allClassesManageFileName {
+  overflow-wrap: anywhere;
+}
+
 .allClassesGridScroll {
   overflow-x: auto;
   border: 1px solid var(--soft-line);
