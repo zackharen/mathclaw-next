@@ -17,6 +17,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
   const fileRef = useRef(null);
   const [lessonIds, setLessonIds] = useState(() => lessons.map((lesson) => lesson.id));
   const [mode, setMode] = useState("file");
+  const [fileTitle, setFileTitle] = useState("");
   const [url, setUrl] = useState("");
   const [siteName, setSiteName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -62,7 +63,8 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
     }
     save(
       async () => {
-        await uploadLessonResourceFile({ ownerId, courseId, classDate, lessonIds, title: "", file });
+        await uploadLessonResourceFile({ ownerId, courseId, classDate, lessonIds, title: fileTitle, file });
+        setFileTitle("");
         if (fileRef.current) fileRef.current.value = "";
       },
       "Uploading…",
@@ -123,6 +125,16 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
         </div>
         {mode === "file" ? (
           <form onSubmit={uploadFile}>
+            <label>
+              <span>Display name</span>
+              <input
+                className="input"
+                value={fileTitle}
+                onChange={(event) => setFileTitle(event.target.value)}
+                maxLength={160}
+                placeholder="Defaults to the file name"
+              />
+            </label>
             <input className="input" type="file" ref={fileRef} accept={LESSON_RESOURCE_FILE_ACCEPT} required />
             <button className="btn primary" type="submit" disabled={saving}>
               {saving ? "Uploading…" : "Upload"}
