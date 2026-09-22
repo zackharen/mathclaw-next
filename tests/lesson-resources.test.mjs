@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildVocabularyLessonIdsByNumber,
   LESSON_RESOURCE_MAX_BYTES,
   buildCourseLessonOptions,
   buildGridLessonCourseOptions,
@@ -12,6 +13,8 @@ import {
   normalizeLessonResourceHostname,
   normalizeLessonResourceSiteName,
   normalizeLessonVocabularyInput,
+  normalizeVocabularyLessonNumber,
+  parseLessonVocabularyCsv,
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "../lib/lesson-resources/constants.js";
@@ -171,6 +174,58 @@ test("lesson vocabulary validates optional links and files", () => {
       url: "javascript:alert(1)",
     }).error,
     /valid http or https/
+  );
+});
+
+test("vocabulary CSV accepts an optional header and quoted definitions", () => {
+  assert.deepEqual(
+    parseLessonVocabularyCsv(
+      'word,definition,lesson number\nCoefficient,"A number, usually before a variable.",2.03\nSlope,"Rise over\nrun",2.04\n'
+    ),
+    {
+      rows: [
+        {
+          word: "Coefficient",
+          definition: "A number, usually before a variable.",
+          lessonNumber: "2.03",
+          rowNumber: 2,
+        },
+        {
+          word: "Slope",
+          definition: "Rise over\nrun",
+          lessonNumber: "2.04",
+          rowNumber: 3,
+        },
+      ],
+      errors: [],
+    }
+  );
+});
+
+test("vocabulary CSV reports malformed and incomplete rows", () => {
+  const parsed = parseLessonVocabularyCsv("Term without definition,1.01\n,Definition,1.02\nWord,Definition,\n");
+  assert.equal(parsed.rows.length, 0);
+  assert.deepEqual(parsed.errors, [
+    "Row 1 must have exactly 3 columns.",
+    "Row 2 is missing a vocabulary word.",
+    "Row 3 is missing a lesson number.",
+  ]);
+});
+
+test("lesson numbers normalize teacher-friendly prefixes without changing the code", () => {
+  assert.equal(normalizeVocabularyLessonNumber(" Lesson # 2.03 "), "2.03");
+  assert.equal(normalizeVocabularyLessonNumber("Review 2.03-2.04"), "review 2.03-2.04");
+});
+
+test("one CSV lesson number associates vocabulary with every scheduled lesson part", () => {
+  assert.deepEqual(
+    buildVocabularyLessonIdsByNumber([
+      { curriculum_lessons: { id: "part-1", source_lesson_code: "1.02" } },
+      { curriculum_lessons: { id: "part-2", source_lesson_code: "1.02" } },
+      { curriculum_lessons: { id: "part-1", source_lesson_code: "1.02" } },
+      { curriculum_lessons: { id: "next", source_lesson_code: "1.03" } },
+    ]).get("1.02"),
+    ["part-1", "part-2"]
   );
 });
 

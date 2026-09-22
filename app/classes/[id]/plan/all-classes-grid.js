@@ -15,6 +15,7 @@ import SubmitButton from "../../../components/SubmitButton";
 import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
 import GridCellVocabulary from "./grid-cell-vocabulary";
+import VocabularyCsvImport from "./vocabulary-csv-import";
 import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 
@@ -136,6 +137,10 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
             </Link>
           </div>
         </div>
+
+        {resourceData.vocabularyAvailable && columns.length > 0 ? (
+          <VocabularyCsvImport courses={columns.map((course) => ({ id: course.id, title: course.title }))} />
+        ) : null}
 
         {resourceData.available && bulkResourceCourses.length > 0 ? (
           <BulkGridResources

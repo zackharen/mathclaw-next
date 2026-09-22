@@ -4234,6 +4234,83 @@ details[open] > summary.btn:not(.btnNoToggle),
   background: #f8fbfd;
 }
 
+.vocabularyCsvImport {
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 12px;
+  background: #f8fbfd;
+}
+
+.vocabularyCsvImport > summary {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.vocabularyCsvImport[open] > summary {
+  border-bottom: 1px solid var(--soft-line);
+  border-radius: 12px 12px 0 0;
+}
+
+.vocabularyCsvImport > form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.vocabularyCsvImport > form > p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.vocabularyCsvImport label {
+  display: grid;
+  gap: 0.3rem;
+  max-width: 32rem;
+}
+
+.vocabularyCsvImport label > span,
+.vocabularyCsvPreview > strong {
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.vocabularyCsvPreview {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.vocabularyCsvPreview > div {
+  overflow-x: auto;
+}
+
+.vocabularyCsvPreview table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.vocabularyCsvPreview th,
+.vocabularyCsvPreview td {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--soft-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.vocabularyCsvPreview th {
+  color: var(--navy);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.vocabularyCsvImport .errorText ul {
+  margin: 0.35rem 0 0;
+}
+
 .allClassesBulkResources > summary {
   padding: 0.75rem 0.9rem;
   color: var(--navy);

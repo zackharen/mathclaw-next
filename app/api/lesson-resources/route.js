@@ -4,6 +4,7 @@ import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-
 import { getCourseAccessForUser, listEditableCoursesForUser } from "@/lib/courses/access";
 import {
   LESSON_RESOURCE_BUCKET,
+  buildVocabularyLessonIdsByNumber,
   getLessonResourceSiteSuggestion,
   getLessonResourceTitleSuggestion,
   normalizeLessonResourceSiteName,
@@ -11,6 +12,8 @@ import {
   normalizeLessonResourceTitle,
   normalizeLessonResourceUrl,
   normalizeLessonVocabularyInput,
+  normalizeVocabularyLessonNumber,
+  LESSON_VOCABULARY_CSV_MAX_ROWS,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
 import { listConnectedTeachers } from "@/lib/lesson-resources/server";
@@ -475,6 +478,87 @@ export async function POST(request) {
       });
       revalidatePath(`/classes/${body.courseId}/plan`);
       return NextResponse.json({ vocabulary });
+    }
+
+    if (body.action === "import-vocabulary-csv") {
+      if (!isUuid(body.courseId)) return jsonError("Choose a valid class.");
+      const access = await getCourseAccessForUser(supabase, user.id, body.courseId, "id, owner_id");
+      if (!access?.course) return jsonError("You cannot edit this class plan.", 403);
+      if (!Array.isArray(body.rows) || body.rows.length === 0) {
+        return jsonError("The CSV does not contain any vocabulary rows.");
+      }
+      if (body.rows.length > LESSON_VOCABULARY_CSV_MAX_ROWS) {
+        return jsonError(`A CSV can contain at most ${LESSON_VOCABULARY_CSV_MAX_ROWS} vocabulary rows.`);
+      }
+
+      const planRows = await allRows((from, to) =>
+        admin
+          .from("course_lesson_plan")
+          .select("lesson_id, curriculum_lessons(id, source_lesson_code, title)")
+          .eq("course_id", body.courseId)
+          .order("class_date", { ascending: true })
+          .order("lesson_slot", { ascending: true })
+          .range(from, to)
+      );
+      const lessonsByNumber = buildVocabularyLessonIdsByNumber(planRows);
+
+      const prepared = [];
+      const importErrors = [];
+      body.rows.forEach((row, index) => {
+        const csvRow = Number.isInteger(row?.rowNumber) ? row.rowNumber : index + 1;
+        const lessonNumber = normalizeVocabularyLessonNumber(row?.lessonNumber);
+        const lessonMatches = lessonsByNumber.get(lessonNumber);
+        if (!lessonNumber || !lessonMatches || lessonMatches.length === 0) {
+          importErrors.push(`Row ${csvRow}: lesson “${String(row?.lessonNumber || "").trim()}” is not scheduled in this class.`);
+          return;
+        }
+        const normalized = normalizeLessonVocabularyInput({
+          word: row?.word,
+          definition: row?.definition,
+          attachmentType: "none",
+          url: "",
+        });
+        if (normalized.error) {
+          importErrors.push(`Row ${csvRow}: ${normalized.error}`);
+          return;
+        }
+        prepared.push({
+          id: crypto.randomUUID(),
+          lessonIds: lessonMatches,
+          values: normalized.values,
+        });
+      });
+
+      if (importErrors.length > 0) {
+        return NextResponse.json(
+          { error: "Fix the CSV rows listed below before importing.", errors: importErrors.slice(0, 50) },
+          { status: 400 }
+        );
+      }
+
+      const resourceIds = prepared.map((entry) => entry.id);
+      const { error: insertError } = await admin.from("lesson_resources").insert(
+        prepared.map((entry) => ({
+          id: entry.id,
+          owner_id: user.id,
+          item_kind: "vocabulary",
+          ...entry.values,
+        }))
+      );
+      if (insertError) throw new Error(insertError.message);
+
+      const { error: associationError } = await admin.from("lesson_resource_lessons").insert(
+        prepared.flatMap((entry) =>
+          entry.lessonIds.map((lessonId) => ({ resource_id: entry.id, lesson_id: lessonId }))
+        )
+      );
+      if (associationError) {
+        await admin.from("lesson_resources").delete().in("id", resourceIds).eq("owner_id", user.id);
+        throw new Error(associationError.message);
+      }
+
+      revalidatePath(`/classes/${body.courseId}/plan`);
+      return NextResponse.json({ imported: prepared.length });
     }
 
     if (body.action === "delete") {

@@ -23,6 +23,7 @@ import ApplyCalendarSubmit from "./apply-calendar-submit";
 import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
 import LessonVocabularyPanel from "./lesson-vocabulary-panel";
+import VocabularyCsvImport from "./vocabulary-csv-import";
 import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
 import AssessmentSupportsPanel from "./assessment-supports-panel";
 import PlanScrollMemory from "./scroll-memory";
@@ -776,6 +777,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
             ) : null}
           </div>
         </div>
+        {lessonResourceData.vocabularyAvailable && curriculumEnabled ? (
+          <VocabularyCsvImport courses={[{ id: course.id, title: course.title }]} />
+        ) : null}
         {!curriculumEnabled ? (
           <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
         ) : null}
