@@ -8,7 +8,13 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-14 America/New_York (Algebra I curriculum refresh)
+2026-09-22 America/New_York (dashboard All Classes grid shortcut)
+
+## What Changed (2026-09-22 Session - Dashboard Grid Shortcut)
+
+- Added an `All Classes Grid` button to the dashboard hero for teachers with at least one active class. The button sets the existing `class_plan_view=grid` preference and opens the first active class plan, landing directly in the existing cross-class two-week grid.
+- Added the small client component `app/dashboard/all-classes-grid-link.js`; no route, schema, or styling changes were needed.
+- Verification: targeted ESLint, `git diff --check`, and `npm run build` passed. Local authenticated browser rendering remains blocked by missing Supabase environment variables; production deployment `4Ah1uxmHbXXTuZXh1hPxBFQFaYYb` completed successfully for code commit `ff0ba9b`, while signed-out live navigation correctly redirected `/dashboard` to sign-in.
 
 ## What Changed (2026-09-14 Session - Algebra I Curriculum)
 
