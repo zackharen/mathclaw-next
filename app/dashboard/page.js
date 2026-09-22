@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import AllClassesGridLink from "./all-classes-grid-link";
 import SubmitButton from "@/app/components/SubmitButton";
 import DeleteClassButton from "@/app/admin/delete-class-button";
 import CoTeacherPanel, { CoTeacherPanelFallback } from "@/app/components/CoTeacherPanel";
@@ -440,6 +441,7 @@ export default async function DashboardPage({ searchParams }) {
             <Link className="btn primary" href="/projector">
               Launch Projector
             </Link>
+            {cards[0] ? <AllClassesGridLink courseId={cards[0].course.id} /> : null}
             <Link className="btn secondary" href="/classes/new">
               ＋ Add Class
             </Link>
