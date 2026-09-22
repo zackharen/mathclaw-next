@@ -11,17 +11,21 @@ import {
 } from "@/lib/lesson-resources/constants";
 import { postLessonResource, uploadLessonResourceFile } from "@/lib/lesson-resources/client";
 
-function blankRow(id, courses) {
-  const course = courses[0];
+function blankRow(id, courses, previousRow = null) {
+  const course =
+    courses.find((option) => option.id === previousRow?.courseId) || courses[0];
+  const lessonId = course?.lessons.some((lesson) => lesson.id === previousRow?.lessonId)
+    ? previousRow.lessonId
+    : course?.lessons[0]?.id || "";
   return {
     id,
     title: "",
-    resourceType: "link",
+    resourceType: previousRow?.resourceType || "link",
     url: "",
     file: null,
     siteName: "",
     courseId: course?.id || "",
-    lessonId: course?.lessons[0]?.id || "",
+    lessonId,
     error: "",
   };
 }
@@ -53,7 +57,10 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
   function addRow() {
     const id = nextId.current;
     nextId.current += 1;
-    setRows((current) => [...current, blankRow(id, courses)]);
+    setRows((current) => [
+      ...current,
+      blankRow(id, courses, current[current.length - 1]),
+    ]);
     setStatus("");
   }
 

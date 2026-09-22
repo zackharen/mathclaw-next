@@ -8,7 +8,12 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-22 America/New_York (dashboard All Classes grid shortcut)
+2026-09-22 America/New_York (bulk item row defaults)
+
+## What Changed (2026-09-22 Session - Bulk Item Row Defaults)
+
+- In the All Classes grid's Bulk Attach Items editor, `＋ Add New Item` now carries forward the preceding row's item type, class, and lesson. Item-specific fields (name, link/file, site name, and validation error) remain blank so each new attachment still starts clean.
+- Verification: targeted ESLint, `git diff --check`, all 123 Node tests, and `npm run build` passed.
 
 ## What Changed (2026-09-22 Session - Dashboard Grid Shortcut)
 
