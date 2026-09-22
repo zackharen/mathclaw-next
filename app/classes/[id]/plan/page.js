@@ -22,6 +22,7 @@ import ABScheduleForm from "./ab-schedule-form";
 import ApplyCalendarSubmit from "./apply-calendar-submit";
 import LessonResourceLibrarySharing from "./lesson-resource-library-sharing";
 import LessonResourcesPanel from "./lesson-resources-panel";
+import LessonVocabularyPanel from "./lesson-vocabulary-panel";
 import AssessmentFolder, { AssessmentResourceList } from "./assessment-folder";
 import AssessmentSupportsPanel from "./assessment-supports-panel";
 import PlanScrollMemory from "./scroll-memory";
@@ -850,9 +851,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
               }, []);
               const lessonIdsForDay = new Set(lessonOptions.map((lesson) => lesson.id));
               const ownResourcesForDay = lessonResourceData.ownResources.filter((resource) =>
+                resource.item_kind !== "vocabulary" &&
                 resource.lessonIds.some((lessonId) => lessonIdsForDay.has(lessonId))
               );
               const sharedResourcesForDay = lessonResourceData.sharedResources.filter((resource) =>
+                resource.item_kind !== "vocabulary" &&
+                resource.lessonIds.some((lessonId) => lessonIdsForDay.has(lessonId))
+              );
+              const vocabularyForDay = lessonResourceData.ownResources.filter((resource) =>
+                resource.item_kind === "vocabulary" &&
                 resource.lessonIds.some((lessonId) => lessonIdsForDay.has(lessonId))
               );
               const suggestedSkills = findSuggestedSkills({ lesson: firstLesson, enabledGames });
@@ -1076,6 +1083,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       sharedResources={sharedResourcesForDay}
                       connectedTeachers={lessonResourceData.connectedTeachers}
                       initialSiteNames={lessonResourceData.siteNames}
+                    />
+                  ) : null}
+
+                  {lessonResourceData.vocabularyAvailable && lessonOptions.length > 0 ? (
+                    <LessonVocabularyPanel
+                      courseId={course.id}
+                      classDate={day.class_date}
+                      ownerId={user.id}
+                      lessonOptions={lessonOptions}
+                      initialVocabulary={vocabularyForDay}
                     />
                   ) : null}
 

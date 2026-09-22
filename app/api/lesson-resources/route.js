@@ -10,6 +10,7 @@ import {
   normalizeLessonResourceEdit,
   normalizeLessonResourceTitle,
   normalizeLessonResourceUrl,
+  normalizeLessonVocabularyInput,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
 import { listConnectedTeachers } from "@/lib/lesson-resources/server";
@@ -69,8 +70,9 @@ export async function GET() {
       allRows((from, to) =>
         admin
           .from("lesson_resources")
-          .select("id, resource_type, title, url, file_name, created_at")
+          .select("id, item_kind, resource_type, title, url, file_name, created_at")
           .eq("owner_id", user.id)
+          .eq("item_kind", "resource")
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .range(from, to)
@@ -206,7 +208,7 @@ async function createResource({ admin, userId, resource, lessonIds }) {
   const { data: created, error } = await admin
     .from("lesson_resources")
     .insert({ ...resource, owner_id: userId })
-    .select("id, owner_id, resource_type, title, url, storage_bucket, storage_path, file_name, mime_type, size_bytes, created_at")
+    .select("id, owner_id, item_kind, resource_type, title, definition, url, storage_bucket, storage_path, file_name, mime_type, size_bytes, created_at")
     .single();
 
   if (error) throw new Error(error.message);
@@ -220,6 +222,40 @@ async function createResource({ admin, userId, resource, lessonIds }) {
   }
 
   return { ...created, lessonIds, sharedWith: [] };
+}
+
+async function validateStoredFile({ admin, userId, body }) {
+  const storagePath = String(body.storagePath || "");
+  if (!storagePath.startsWith(`${userId}/`) || storagePath.includes("..")) {
+    return { error: "Invalid uploaded file path." };
+  }
+  const validation = validateLessonResourceFile({
+    name: body.fileName,
+    size: body.sizeBytes,
+    type: body.mimeType,
+  });
+  if (validation.error) return { error: validation.error };
+
+  const pathParts = storagePath.split("/");
+  const storedName = pathParts.pop();
+  const folder = pathParts.join("/");
+  const { data: storedFiles, error: storageError } = await admin.storage
+    .from(LESSON_RESOURCE_BUCKET)
+    .list(folder, { limit: 10, search: storedName });
+  if (storageError) throw new Error(storageError.message);
+  if (!(storedFiles || []).some((file) => file.name === storedName)) {
+    return { error: "The uploaded file could not be verified." };
+  }
+
+  return {
+    values: {
+      storage_bucket: LESSON_RESOURCE_BUCKET,
+      storage_path: storagePath,
+      file_name: normalizeLessonResourceTitle(body.fileName, "File"),
+      mime_type: validation.mimeType,
+      size_bytes: Number(body.sizeBytes),
+    },
+  };
 }
 
 async function updateDirectShares({ admin, userId, resourceId, teacherIds }) {
@@ -364,6 +400,7 @@ export async function POST(request) {
           userId: user.id,
           lessonIds,
           resource: {
+            item_kind: "resource",
             resource_type: "link",
             title: normalizeLessonResourceTitle(
               body.title,
@@ -377,46 +414,67 @@ export async function POST(request) {
           displayName: siteSuggestion.name,
         };
       } else {
-        const storagePath = String(body.storagePath || "");
-        if (!storagePath.startsWith(`${user.id}/`) || storagePath.includes("..")) {
-          return jsonError("Invalid uploaded file path.");
-        }
-        const validation = validateLessonResourceFile({
-          name: body.fileName,
-          size: body.sizeBytes,
-          type: body.mimeType,
-        });
-        if (validation.error) return jsonError(validation.error);
-
-        const pathParts = storagePath.split("/");
-        const storedName = pathParts.pop();
-        const folder = pathParts.join("/");
-        const { data: storedFiles, error: storageError } = await admin.storage
-          .from(LESSON_RESOURCE_BUCKET)
-          .list(folder, { limit: 10, search: storedName });
-        if (storageError) return jsonError(storageError.message, 500);
-        if (!(storedFiles || []).some((file) => file.name === storedName)) {
-          return jsonError("The uploaded file could not be verified.");
-        }
+        const storedFile = await validateStoredFile({ admin, userId: user.id, body });
+        if (storedFile.error) return jsonError(storedFile.error);
 
         created = await createResource({
           admin,
           userId: user.id,
           lessonIds,
           resource: {
+            item_kind: "resource",
             resource_type: "file",
             title: normalizeLessonResourceTitle(body.title, body.fileName),
-            storage_bucket: LESSON_RESOURCE_BUCKET,
-            storage_path: storagePath,
-            file_name: normalizeLessonResourceTitle(body.fileName, "File"),
-            mime_type: validation.mimeType,
-            size_bytes: Number(body.sizeBytes),
+            ...storedFile.values,
           },
         });
       }
 
       revalidatePath(`/classes/${body.courseId}/plan`);
       return NextResponse.json({ resource: created });
+    }
+
+    if (body.action === "create-vocabulary" || body.action === "register-vocabulary-file") {
+      const lessonIds = normalizeUuidList(body.lessonIds);
+      const selection = await validateLessonSelection({
+        supabase,
+        admin,
+        userId: user.id,
+        courseId: body.courseId,
+        classDate: body.classDate,
+        lessonIds,
+      });
+      if (selection.error) return jsonError(selection.error);
+
+      const attachmentType =
+        body.action === "register-vocabulary-file" ? "file" : String(body.attachmentType || "none");
+      const normalized = normalizeLessonVocabularyInput({
+        word: body.word,
+        definition: body.definition,
+        attachmentType,
+        url: body.url,
+      });
+      if (normalized.error) return jsonError(normalized.error);
+
+      let fileValues = {};
+      if (attachmentType === "file") {
+        const storedFile = await validateStoredFile({ admin, userId: user.id, body });
+        if (storedFile.error) return jsonError(storedFile.error);
+        fileValues = storedFile.values;
+      }
+
+      const vocabulary = await createResource({
+        admin,
+        userId: user.id,
+        lessonIds,
+        resource: {
+          item_kind: "vocabulary",
+          ...normalized.values,
+          ...fileValues,
+        },
+      });
+      revalidatePath(`/classes/${body.courseId}/plan`);
+      return NextResponse.json({ vocabulary });
     }
 
     if (body.action === "delete") {
@@ -449,12 +507,15 @@ export async function POST(request) {
       if (!isUuid(body.resourceId)) return jsonError("Resource not found.");
       const { data: resource, error } = await admin
         .from("lesson_resources")
-        .select("id, resource_type, title, url")
+        .select("id, item_kind, resource_type, title, url")
         .eq("id", body.resourceId)
         .eq("owner_id", user.id)
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!resource) return jsonError("Resource not found.", 404);
+      if (resource.item_kind === "vocabulary") {
+        return jsonError("Vocabulary entries are edited from their lesson card.");
+      }
 
       const normalized = normalizeLessonResourceEdit({
         resourceType: resource.resource_type,

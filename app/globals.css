@@ -4088,6 +4088,24 @@ details[open] > summary.btn:not(.btnNoToggle),
   color: var(--muted);
 }
 
+.classPlanVocabularyIdentity {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.classPlanVocabularyIdentity p {
+  margin: 0;
+}
+
+.classPlanVocabularyIdentity small {
+  color: var(--muted);
+}
+
+.classPlanVocabularyIdentity .classPlanResourceLessonChips {
+  margin-left: 0;
+}
+
 .classPlanResourceLessonChips {
   display: flex;
   flex-wrap: wrap;
@@ -4537,6 +4555,11 @@ details[open] > summary.btn:not(.btnNoToggle),
 .allClassesGridFilesPanel ul {
   margin: 0;
   padding-left: 1rem;
+}
+
+.allClassesGridVocabulary li small {
+  display: block;
+  color: var(--muted);
 }
 
 .allClassesGridFilesPanel form {

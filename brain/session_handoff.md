@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-22 America/New_York (bulk item row defaults)
+2026-09-22 America/New_York (lesson vocabulary)
+
+## What Changed (2026-09-22 Session - Lesson Vocabulary)
+
+- Teachers can now associate vocabulary with one or both lessons on a planning day from both the individual class plan and the All Classes grid. Each entry has a required word, optional definition, and an optional link or uploaded file; lesson chips keep multi-lesson associations visible, and the individual class view supports removal.
+- Vocabulary reuses the existing lesson-resource storage, ownership, and lesson-association model with `lesson_resources.item_kind = 'vocabulary'`. This makes future Projector retrieval deterministic: start with a class's completed lesson IDs, then resolve the owner's vocabulary through `lesson_resource_lessons`. Ordinary uploaded items remain isolated as `item_kind = 'resource'` and the Manage Uploaded Items panel excludes vocabulary.
+- Added `supabase/migrations/20260922164020_lesson_vocabulary_items.sql`; applied to production `mathclaw-prod` as `lesson_vocabulary_items` (version `20260922164948`). Verification confirmed the new columns/constraints/index, existing RLS, authenticated CRUD grants, and a rolled-back vocabulary insert.
+- Verification: targeted ESLint, `git diff --check`, all 125 Node tests, and `npm run build` passed. Supabase security/performance advisors surfaced only existing project-wide notices; the freshly created lookup index is naturally still reported as unused before live feature data exists.
 
 ## What Changed (2026-09-22 Session - Bulk Item Row Defaults)
 

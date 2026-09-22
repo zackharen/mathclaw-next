@@ -11,6 +11,7 @@ import {
   normalizeLessonResourceUrl,
   normalizeLessonResourceHostname,
   normalizeLessonResourceSiteName,
+  normalizeLessonVocabularyInput,
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "../lib/lesson-resources/constants.js";
@@ -109,6 +110,67 @@ test("file edits change only the display name", () => {
   assert.deepEqual(
     normalizeLessonResourceEdit({ resourceType: "file", title: "  Unit 1 Notes  ", url: "https://ignored.test" }),
     { values: { title: "Unit 1 Notes" } }
+  );
+});
+
+test("lesson vocabulary accepts a word with no attachment", () => {
+  assert.deepEqual(
+    normalizeLessonVocabularyInput({
+      word: "  slope   intercept  ",
+      definition: "  Where a line crosses the y-axis.  ",
+      attachmentType: "none",
+      url: "",
+    }),
+    {
+      values: {
+        title: "slope intercept",
+        definition: "Where a line crosses the y-axis.",
+        resource_type: "none",
+        url: null,
+      },
+    }
+  );
+});
+
+test("lesson vocabulary validates optional links and files", () => {
+  assert.deepEqual(
+    normalizeLessonVocabularyInput({
+      word: "Quadratic",
+      definition: "",
+      attachmentType: "link",
+      url: "https://example.com/vocabulary card",
+    }),
+    {
+      values: {
+        title: "Quadratic",
+        definition: null,
+        resource_type: "link",
+        url: "https://example.com/vocabulary%20card",
+      },
+    }
+  );
+  assert.deepEqual(
+    normalizeLessonVocabularyInput({
+      word: "Coefficient",
+      definition: "A number multiplying a variable.",
+      attachmentType: "file",
+      url: "",
+    }).values,
+    {
+      title: "Coefficient",
+      definition: "A number multiplying a variable.",
+      resource_type: "file",
+      url: null,
+    }
+  );
+  assert.match(
+    normalizeLessonVocabularyInput({
+      word: "Function",
+      definition: "",
+      attachmentType: "link",
+      url: "javascript:alert(1)",
+    }).error,
+    /valid http or https/
   );
 });
 

@@ -14,6 +14,7 @@ import { markLessonCompleteAction, markLessonPlannedAction } from "./actions";
 import SubmitButton from "../../../components/SubmitButton";
 import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
+import GridCellVocabulary from "./grid-cell-vocabulary";
 import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 
@@ -90,8 +91,25 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
   const bulkResourceCourses = buildGridLessonCourseOptions(columns, planRows);
   const resourcesFor = (ids) =>
     resourceData.ownResources
-      .filter((resource) => resource.lessonIds.some((id) => ids.includes(id)))
+      .filter(
+        (resource) =>
+          resource.item_kind !== "vocabulary" &&
+          resource.lessonIds.some((id) => ids.includes(id))
+      )
       .map((resource) => ({ id: resource.id, title: resource.title }));
+  const vocabularyFor = (ids) =>
+    resourceData.ownResources
+      .filter(
+        (resource) =>
+          resource.item_kind === "vocabulary" &&
+          resource.lessonIds.some((id) => ids.includes(id))
+      )
+      .map((resource) => ({
+        id: resource.id,
+        title: resource.title,
+        definition: resource.definition,
+        resource_type: resource.resource_type,
+      }));
 
   const basePath = `/classes/${currentCourseId}/plan`;
   const weekHref = (start) => `${basePath}?grid_start=${start}`;
@@ -104,7 +122,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
             <h2>
               {dayParts(firstDate).short} – {dayParts(lastDate).short}
             </h2>
-            <p>Mark lessons complete and add files without leaving the grid.</p>
+            <p>Mark lessons complete and add files or vocabulary without leaving the grid.</p>
           </div>
           <div className="ctaRow allClassesGridNav">
             <Link className="btn" href={weekHref(addDaysIso(weekStart, -7))}>
@@ -252,6 +270,18 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                                   }))}
                                   resources={resourcesFor(cell.lessons.map((lesson) => lesson.id))}
                                   siteNames={resourceData.siteNames}
+                                />
+                              ) : null}
+                              {resourceData.vocabularyAvailable ? (
+                                <GridCellVocabulary
+                                  ownerId={userId}
+                                  courseId={course.id}
+                                  classDate={row.date}
+                                  lessons={cell.lessons.map((lesson, lessonIndex) => ({
+                                    id: lesson.id,
+                                    label: labels[lessonIndex],
+                                  }))}
+                                  vocabulary={vocabularyFor(cell.lessons.map((lesson) => lesson.id))}
                                 />
                               ) : null}
                             </div>
