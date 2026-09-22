@@ -2116,6 +2116,9 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 .projectorScreenInactiveState h1 {
+  /* globals.css sets `h1, h2, h3 { color: var(--navy) }`, which outranks the
+     white inherited from the stage and would leave this heading near-invisible. */
+  color: inherit;
   font-size: clamp(2.4rem, 7vw, 6rem);
   line-height: 0.95;
 }
@@ -4329,6 +4332,9 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 }
 
 .projectorVocabularyCopy h1 {
+  /* globals.css sets `h1, h2, h3 { color: var(--navy) }`, which outranks the
+     white inherited from the stage and would leave the word near-invisible. */
+  color: inherit;
   margin: 0.2em 0;
   overflow-wrap: anywhere;
   font-size: clamp(2.5rem, 7vw, 7rem);

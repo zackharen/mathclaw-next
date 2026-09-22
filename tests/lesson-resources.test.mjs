@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildClipboardImageFileName,
   buildVocabularyLessonIdsByNumber,
   LESSON_RESOURCE_MAX_BYTES,
   buildCourseLessonOptions,
@@ -186,6 +187,20 @@ test("vocabulary images accept classroom image formats and reject documents", ()
   assert.match(
     validateLessonVocabularyImage({ name: "notes.pdf", size: 4096, type: "application/pdf" }).error,
     /JPG, PNG, WebP, or GIF/
+  );
+});
+
+test("clipboard image filenames are unique and match the pasted MIME type", () => {
+  assert.match(buildClipboardImageFileName("image/png"), /^pasted-image-\d+\.png$/);
+  assert.match(buildClipboardImageFileName("image/jpeg"), /^pasted-image-\d+\.jpeg$/);
+  assert.match(buildClipboardImageFileName(""), /^pasted-image-\d+\.png$/);
+});
+
+test("a generated clipboard image filename passes vocabulary image validation", () => {
+  const fileName = buildClipboardImageFileName("image/webp");
+  assert.deepEqual(
+    validateLessonVocabularyImage({ name: fileName, size: 4096, type: "image/webp" }),
+    { mimeType: "image/webp" }
   );
 });
 

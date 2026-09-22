@@ -25,9 +25,9 @@ async function teacherContext(admin) {
 }
 
 async function assertCourse(context, courseId) {
-  if (!isUuid(courseId)) return false;
-  const access = await getCourseAccessForUser(context.supabase, context.user.id, courseId, "id, owner_id");
-  return Boolean(access?.course);
+  if (!isUuid(courseId)) return null;
+  const access = await getCourseAccessForUser(context.supabase, context.user.id, courseId, "id, owner_id, title");
+  return access?.course || null;
 }
 
 async function currentSession(admin, teacherId) {
@@ -168,9 +168,13 @@ export async function GET(request) {
     const runningScreenIds = SCREEN_IDS.filter((id) =>
       carouselFromState(session?.screen_states?.[id])?.courseId === courseId
     );
+    const runningStartedAt = runningScreenIds.length
+      ? carouselFromState(session.screen_states[runningScreenIds[0]])?.startedAt || null
+      : null;
     return NextResponse.json({
       screens,
       runningScreenIds,
+      runningStartedAt,
       allCount: eligibleVocabulary(vocabulary.resources, vocabulary.associations, [], false).length,
       completedCount: eligibleVocabulary(vocabulary.resources, vocabulary.associations, vocabulary.completedLessonIds, true).length,
     });
@@ -184,7 +188,8 @@ export async function POST(request) {
   const context = await teacherContext(admin);
   if (context.error) return context.error;
   const body = await request.json().catch(() => ({}));
-  if (!(await assertCourse(context, body.courseId))) return errorResponse("You cannot use this class.", 403);
+  const course = await assertCourse(context, body.courseId);
+  if (!course) return errorResponse("You cannot use this class.", 403);
   try {
     const session = await ensureSession(admin, context.user.id);
     const screens = await availableScreens(admin, context.user.id);
@@ -216,7 +221,12 @@ export async function POST(request) {
       vocabulary.resources, vocabulary.associations, vocabulary.completedLessonIds, body.completedOnly === true
     );
     if (!eligible.length) return errorResponse("This class has no vocabulary words for that selection.");
-    const startedAt = new Date().toISOString();
+    let startedAt = new Date().toISOString();
+    if (body.startAt) {
+      const scheduled = new Date(body.startAt);
+      if (Number.isNaN(scheduled.getTime())) return errorResponse("Choose a valid start time.");
+      startedAt = scheduled.toISOString();
+    }
     const previouslyRunning = SCREEN_IDS.filter((id) => carouselFromState(states[id])?.courseId === body.courseId);
     previouslyRunning.filter((id) => !selected.includes(id)).forEach((id) => { states[id] = null; });
     for (const screenId of selected) {
@@ -232,14 +242,14 @@ export async function POST(request) {
       }));
       states[screenId] = {
         type: VOCABULARY_CAROUSEL_TYPE,
-        content: JSON.stringify({ courseId: body.courseId, words, intervalSeconds, startedAt }),
+        content: JSON.stringify({ courseId: body.courseId, courseTitle: course.title || "", words, intervalSeconds, startedAt }),
       };
     }
     const { error } = await admin.from("projector_sessions").update({ screen_states: states, updated_at: startedAt })
       .eq("id", session.id).eq("teacher_id", context.user.id);
     if (error) throw error;
     await broadcast(admin, session.id, [...new Set([...previouslyRunning, ...selected])]);
-    return NextResponse.json({ ok: true, wordCount: eligible.length, runningScreenIds: selected });
+    return NextResponse.json({ ok: true, wordCount: eligible.length, runningScreenIds: selected, startedAt });
   } catch (error) {
     return errorResponse(error.message || "The vocabulary carousel could not start.", 500);
   }

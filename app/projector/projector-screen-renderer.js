@@ -73,24 +73,40 @@ function VocabularyCarouselWidget({ content }) {
   const carousel = useMemo(() => parseWidgetContent(content), [content]);
   const words = Array.isArray(carousel.words) ? carousel.words : [];
   const intervalSeconds = Number(carousel.intervalSeconds) || 30;
-  const [index, setIndex] = useState(() =>
-    vocabularyCarouselIndex(carousel.startedAt, intervalSeconds, Date.now(), words.length)
-  );
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
+  // Ticks every second regardless of word count so a scheduled (future-started)
+  // carousel flips from "starting soon" to its first word on its own.
   useEffect(() => {
-    if (words.length < 2) return undefined;
-    const timer = window.setInterval(() => {
-      setIndex(vocabularyCarouselIndex(carousel.startedAt, intervalSeconds, Date.now(), words.length));
-    }, 1000);
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [carousel.startedAt, intervalSeconds, words.length]);
+  }, []);
 
+  const startedAtMs = Date.parse(carousel.startedAt);
+  const notStartedYet = Number.isFinite(startedAtMs) && nowMs < startedAtMs;
+  const eyebrow = carousel.courseTitle ? `${carousel.courseTitle} Vocabulary` : "Vocabulary";
+
+  if (notStartedYet) {
+    return (
+      <div className="projectorVocabularyCarousel">
+        <div className="projectorVocabularyCopy">
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>Starting soon</h1>
+          <p className="projectorVocabularyDefinition">
+            Starts at {new Date(startedAtMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const index = vocabularyCarouselIndex(carousel.startedAt, intervalSeconds, nowMs, words.length);
   const current = words[index % words.length];
   if (!current) return <div className="projectorWaiting">No vocabulary words</div>;
   return (
     <div className="projectorVocabularyCarousel">
       <div className="projectorVocabularyCopy">
-        <p className="eyebrow">Vocabulary</p>
+        <p className="eyebrow">{eyebrow}</p>
         <h1>{current.word}</h1>
         {current.definition ? <p className="projectorVocabularyDefinition">{current.definition}</p> : null}
       </div>

@@ -4,12 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   LESSON_VOCABULARY_IMAGE_ACCEPT,
+  buildClipboardImageFileName,
   validateLessonVocabularyImage,
 } from "@/lib/lesson-resources/constants";
 import {
   postLessonResource,
   uploadLessonVocabularyImage,
 } from "@/lib/lesson-resources/client";
+import { resolveScheduledStartIso } from "@/lib/projector/vocabulary-carousel.mjs";
 
 function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   const fileRef = useRef(null);
@@ -19,11 +21,22 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
     entry.lessonIds.filter((lessonId) => lessons.some((lesson) => lesson.id === lessonId))
   );
   const [image, setImage] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [removeAttachment, setRemoveAttachment] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const hasAttachment = entry.resource_type !== "none";
   const hasImage = entry.resource_type === "file" && entry.mime_type?.startsWith("image/");
+
+  useEffect(() => {
+    if (!image) {
+      setImagePreviewUrl(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(image);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [image]);
 
   function toggleLesson(lessonId) {
     setLessonIds((current) =>
@@ -33,20 +46,49 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
     );
   }
 
+  // Shared by the file picker and clipboard paste so both go through
+  // identical validation and produce identical Save Changes behavior.
+  function applyImageFile(file) {
+    const validation = validateLessonVocabularyImage(file);
+    if (validation.error) {
+      setStatus(validation.error);
+      setImage(null);
+      return false;
+    }
+    setRemoveAttachment(false);
+    setImage(file);
+    setStatus("");
+    return true;
+  }
+
   function chooseImage(event) {
     const nextImage = event.target.files?.[0] || null;
-    if (nextImage) {
-      const validation = validateLessonVocabularyImage(nextImage);
-      if (validation.error) {
-        setStatus(validation.error);
-        event.target.value = "";
-        setImage(null);
-        return;
-      }
-      setRemoveAttachment(false);
+    if (!nextImage) {
+      setImage(null);
+      setStatus("");
+      return;
     }
-    setImage(nextImage);
-    setStatus("");
+    if (!applyImageFile(nextImage)) {
+      event.target.value = "";
+    }
+  }
+
+  function handlePaste(event) {
+    if (saving) return;
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const imageItem = Array.from(items).find(
+      (item) => item.kind === "file" && item.type.startsWith("image/")
+    );
+    if (!imageItem) return;
+    event.preventDefault();
+    const pastedFile = imageItem.getAsFile();
+    if (!pastedFile) return;
+    const namedFile = pastedFile.name
+      ? pastedFile
+      : new File([pastedFile], buildClipboardImageFileName(pastedFile.type), { type: pastedFile.type });
+    applyImageFile(namedFile);
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   async function save(event) {
@@ -106,9 +148,15 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   }
 
   return (
-    <article className="manageVocabularyCard">
+    <article className="manageVocabularyCard" onPaste={handlePaste}>
       <div className="manageVocabularyMedia">
-        {hasImage && !removeAttachment ? (
+        {imagePreviewUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imagePreviewUrl} alt={`New image for ${entry.title}`} />
+            <small>New image selected — Save Changes will upload it.</small>
+          </>
+        ) : hasImage && !removeAttachment ? (
           // The protected image route needs the browser's auth cookie, so it cannot use the Next image optimizer.
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -116,9 +164,9 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
             alt={`Vocabulary illustration for ${entry.title}`}
           />
         ) : (
-          <span>{image ? image.name : hasAttachment && !removeAttachment ? "Attached item" : "No image"}</span>
+          <span>{hasAttachment && !removeAttachment ? "Attached item" : "No image"}</span>
         )}
-        {hasAttachment && !removeAttachment ? (
+        {hasAttachment && !removeAttachment && !imagePreviewUrl ? (
           <a href={`/api/lesson-resources/${entry.id}/open`} target="_blank" rel="noreferrer">
             Open current attachment
           </a>
@@ -148,7 +196,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
         </details>
 
         <label>
-          <span>{hasAttachment ? "Replace attachment with image" : "Add image"} <small>JPG, PNG, WebP, or GIF</small></span>
+          <span>{hasAttachment ? "Replace attachment with image" : "Add image"} <small>JPG, PNG, WebP, or GIF — or paste an image (Ctrl/Cmd+V)</small></span>
           <input
             className="input"
             type="file"
@@ -202,6 +250,8 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   const [projectorScreens, setProjectorScreens] = useState([]);
   const [projectorInterval, setProjectorInterval] = useState(30);
   const [completedOnly, setCompletedOnly] = useState(false);
+  const [scheduleStart, setScheduleStart] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState("");
   const [projectorMessage, setProjectorMessage] = useState("");
   const visibleVocabulary = useMemo(() => {
     const query = filter.trim().toLowerCase();
@@ -258,6 +308,15 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
       const availableIds = data.screens.filter((screen) => screen.enabled).map((screen) => screen.id);
       const runningAvailable = data.runningScreenIds.filter((id) => availableIds.includes(id));
       setProjectorScreens(runningAvailable.length ? runningAvailable : availableIds);
+      const scheduledMs = data.runningStartedAt ? Date.parse(data.runningStartedAt) : NaN;
+      if (Number.isFinite(scheduledMs) && scheduledMs > Date.now()) {
+        const scheduled = new Date(scheduledMs);
+        setScheduleStart(true);
+        setScheduleTime(`${String(scheduled.getHours()).padStart(2, "0")}:${String(scheduled.getMinutes()).padStart(2, "0")}`);
+      } else {
+        setScheduleStart(false);
+        setScheduleTime("");
+      }
     } catch (error) {
       setProjectorMessage(error.message);
     } finally {
@@ -266,19 +325,31 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   }
 
   async function updateProjector(action) {
+    let startAt = null;
+    if (action === "start" && scheduleStart) {
+      const resolved = resolveScheduledStartIso(scheduleTime);
+      if (resolved.error) {
+        setProjectorMessage(resolved.error);
+        return;
+      }
+      startAt = resolved.iso;
+    }
     setProjectorSaving(true);
-    setProjectorMessage(action === "start" ? "Starting carousel…" : "Stopping carousel…");
+    setProjectorMessage(action === "start" ? (startAt ? "Scheduling carousel…" : "Starting carousel…") : "Stopping carousel…");
     try {
       const response = await fetch("/api/projector/vocabulary-carousel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, courseId, screenIds: projectorScreens, intervalSeconds: projectorInterval, completedOnly }),
+        body: JSON.stringify({ action, courseId, screenIds: projectorScreens, intervalSeconds: projectorInterval, completedOnly, startAt }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "The projector could not be updated.");
-      setProjectorSetup((current) => ({ ...current, runningScreenIds: data.runningScreenIds || [] }));
+      setProjectorSetup((current) => ({ ...current, runningScreenIds: data.runningScreenIds || [], runningStartedAt: data.startedAt || null }));
+      const screenCount = data.runningScreenIds.length;
       setProjectorMessage(action === "start"
-        ? `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} rotating on ${data.runningScreenIds.length} screen${data.runningScreenIds.length === 1 ? "" : "s"}.`
+        ? startAt
+          ? `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} scheduled to start at ${new Date(startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
+          : `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} rotating on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
         : "Vocabulary carousel stopped.");
     } catch (error) {
       setProjectorMessage(error.message);
@@ -286,6 +357,9 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
       setProjectorSaving(false);
     }
   }
+
+  const runningStartedAtMs = projectorSetup?.runningStartedAt ? Date.parse(projectorSetup.runningStartedAt) : NaN;
+  const runningIsScheduled = Number.isFinite(runningStartedAtMs) && runningStartedAtMs > Date.now();
 
   if (!courses.length) return null;
 
@@ -394,14 +468,40 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
                   <input type="checkbox" checked={completedOnly} onChange={(event) => setCompletedOnly(event.target.checked)} disabled={projectorSaving} />
                   <span>Only words from completed lessons</span>
                 </label>
+                <label className="manageVocabularyProjectorCompleted">
+                  <input type="checkbox" checked={scheduleStart} onChange={(event) => setScheduleStart(event.target.checked)} disabled={projectorSaving} />
+                  <span>Schedule a start time</span>
+                </label>
+                {scheduleStart ? (
+                  <label className="manageVocabularyProjectorInterval">
+                    <span>Start at</span>
+                    <input
+                      className="input"
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(event) => setScheduleTime(event.target.value)}
+                      disabled={projectorSaving}
+                    />
+                  </label>
+                ) : null}
                 <p className="manageVocabularyProjectorCount">
                   {completedOnly ? projectorSetup.completedCount : projectorSetup.allCount} eligible word{(completedOnly ? projectorSetup.completedCount : projectorSetup.allCount) === 1 ? "" : "s"}
-                  {projectorSetup.runningScreenIds.length ? ` · Running on ${projectorSetup.runningScreenIds.length} screen${projectorSetup.runningScreenIds.length === 1 ? "" : "s"}` : ""}
+                  {projectorSetup.runningScreenIds.length
+                    ? runningIsScheduled
+                      ? ` · Scheduled to start at ${new Date(runningStartedAtMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} on ${projectorSetup.runningScreenIds.length} screen${projectorSetup.runningScreenIds.length === 1 ? "" : "s"}`
+                      : ` · Running on ${projectorSetup.runningScreenIds.length} screen${projectorSetup.runningScreenIds.length === 1 ? "" : "s"}`
+                    : ""}
                 </p>
                 <div className="ctaRow">
                   <button className="btn primary" type="button" onClick={() => updateProjector("start")}
                     disabled={projectorSaving || !projectorScreens.length || !(completedOnly ? projectorSetup.completedCount : projectorSetup.allCount)}>
-                    {projectorSaving ? "Updating…" : projectorSetup.runningScreenIds.length ? "Update Carousel" : "Start Carousel"}
+                    {projectorSaving
+                      ? "Updating…"
+                      : projectorSetup.runningScreenIds.length
+                        ? "Update Carousel"
+                        : scheduleStart
+                          ? "Schedule Carousel"
+                          : "Start Carousel"}
                   </button>
                   {projectorSetup.runningScreenIds.length ? (
                     <button className="btn" type="button" onClick={() => updateProjector("stop")} disabled={projectorSaving}>Stop Carousel</button>
