@@ -15,6 +15,7 @@ import {
   normalizeVocabularyLessonNumber,
   LESSON_VOCABULARY_CSV_MAX_ROWS,
   validateLessonResourceFile,
+  validateLessonVocabularyImage,
 } from "@/lib/lesson-resources/constants";
 import { listConnectedTeachers } from "@/lib/lesson-resources/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -63,12 +64,77 @@ async function allRows(query, pageSize = 500) {
   }
 }
 
-export async function GET() {
+export async function GET(request) {
   const context = await getTeacherContext();
   if (context.error) return context.error;
   const { supabase, user, admin } = context;
 
   try {
+    if (request.nextUrl.searchParams.get("kind") === "vocabulary") {
+      const courseId = request.nextUrl.searchParams.get("courseId");
+      if (!isUuid(courseId)) return jsonError("Choose a valid class.");
+      const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+      if (!access?.course) return jsonError("You cannot edit this class plan.", 403);
+
+      const planRows = await allRows((from, to) =>
+        admin
+          .from("course_lesson_plan")
+          .select("lesson_id, curriculum_lessons(id, source_lesson_code, title)")
+          .eq("course_id", courseId)
+          .order("class_date", { ascending: true })
+          .order("lesson_slot", { ascending: true })
+          .range(from, to)
+      );
+      const seenLessonIds = new Set();
+      const lessons = [];
+      for (const row of planRows) {
+        const lesson = row.curriculum_lessons;
+        if (!lesson?.id || seenLessonIds.has(lesson.id)) continue;
+        seenLessonIds.add(lesson.id);
+        lessons.push({
+          id: lesson.id,
+          label: formatLessonLabel(lesson.source_lesson_code, lesson.title),
+        });
+      }
+      if (lessons.length === 0) return NextResponse.json({ vocabulary: [], lessons: [] });
+
+      const associations = await allRows((from, to) =>
+        admin
+          .from("lesson_resource_lessons")
+          .select("resource_id, lesson_id")
+          .in("lesson_id", lessons.map((lesson) => lesson.id))
+          .range(from, to)
+      );
+      const resourceIds = [...new Set(associations.map((row) => row.resource_id))];
+      if (resourceIds.length === 0) return NextResponse.json({ vocabulary: [], lessons });
+
+      const vocabulary = [];
+      for (let offset = 0; offset < resourceIds.length; offset += 100) {
+        const { data, error } = await admin
+          .from("lesson_resources")
+          .select("id, item_kind, resource_type, title, definition, url, file_name, mime_type, size_bytes, updated_at, created_at")
+          .eq("owner_id", user.id)
+          .eq("item_kind", "vocabulary")
+          .in("id", resourceIds.slice(offset, offset + 100));
+        if (error) throw new Error(error.message);
+        vocabulary.push(...(data || []));
+      }
+      const lessonIdsByResource = new Map();
+      for (const association of associations) {
+        const ids = lessonIdsByResource.get(association.resource_id) || [];
+        if (!ids.includes(association.lesson_id)) ids.push(association.lesson_id);
+        lessonIdsByResource.set(association.resource_id, ids);
+      }
+      vocabulary.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
+      return NextResponse.json({
+        lessons,
+        vocabulary: vocabulary.map((entry) => ({
+          ...entry,
+          lessonIds: lessonIdsByResource.get(entry.id) || [],
+        })),
+      });
+    }
+
     const [resources, courses] = await Promise.all([
       allRows((from, to) =>
         admin
@@ -259,6 +325,63 @@ async function validateStoredFile({ admin, userId, body }) {
       size_bytes: Number(body.sizeBytes),
     },
   };
+}
+
+async function validateStoredVocabularyImage({ admin, userId, body }) {
+  const storedFile = await validateStoredFile({ admin, userId, body });
+  if (storedFile.error) return storedFile;
+  const validation = validateLessonVocabularyImage({
+    name: body.fileName,
+    size: body.sizeBytes,
+    type: body.mimeType,
+  });
+  if (validation.error) return { error: validation.error };
+  return storedFile;
+}
+
+async function validateCourseLessons({ supabase, admin, userId, courseId, lessonIds }) {
+  if (!isUuid(courseId) || lessonIds.length === 0) {
+    return { error: "Choose at least one lesson from this class." };
+  }
+  const access = await getCourseAccessForUser(supabase, userId, courseId, "id, owner_id");
+  if (!access?.course) return { error: "You cannot edit this class plan." };
+  const { data, error } = await admin
+    .from("course_lesson_plan")
+    .select("lesson_id")
+    .eq("course_id", courseId)
+    .in("lesson_id", lessonIds);
+  if (error) throw new Error(error.message);
+  const scheduled = new Set((data || []).map((row) => row.lesson_id));
+  if (lessonIds.some((lessonId) => !scheduled.has(lessonId))) {
+    return { error: "One of those lessons is not scheduled in this class. Refresh and try again." };
+  }
+  return {};
+}
+
+async function replaceVocabularyLessons({ admin, resourceId, lessonIds }) {
+  const { data: existing, error: existingError } = await admin
+    .from("lesson_resource_lessons")
+    .select("lesson_id")
+    .eq("resource_id", resourceId);
+  if (existingError) throw new Error(existingError.message);
+  const existingIds = new Set((existing || []).map((row) => row.lesson_id));
+  const additions = lessonIds.filter((lessonId) => !existingIds.has(lessonId));
+  const removals = [...existingIds].filter((lessonId) => !lessonIds.includes(lessonId));
+  if (additions.length > 0) {
+    const { error } = await admin.from("lesson_resource_lessons").insert(
+      additions.map((lessonId) => ({ resource_id: resourceId, lesson_id: lessonId }))
+    );
+    if (error) throw new Error(error.message);
+  }
+  if (removals.length > 0) {
+    const { error } = await admin
+      .from("lesson_resource_lessons")
+      .delete()
+      .eq("resource_id", resourceId)
+      .in("lesson_id", removals);
+    if (error) throw new Error(error.message);
+  }
+  return [...existingIds];
 }
 
 async function updateDirectShares({ admin, userId, resourceId, teacherIds }) {
@@ -559,6 +682,90 @@ export async function POST(request) {
 
       revalidatePath(`/classes/${body.courseId}/plan`);
       return NextResponse.json({ imported: prepared.length });
+    }
+
+    if (body.action === "update-vocabulary" || body.action === "register-vocabulary-image") {
+      if (!isUuid(body.resourceId)) return jsonError("Vocabulary entry not found.");
+      const lessonIds = normalizeUuidList(body.lessonIds, 500);
+      const lessonCheck = await validateCourseLessons({
+        supabase,
+        admin,
+        userId: user.id,
+        courseId: body.courseId,
+        lessonIds,
+      });
+      if (lessonCheck.error) return jsonError(lessonCheck.error);
+
+      const { data: resource, error } = await admin
+        .from("lesson_resources")
+        .select("id, item_kind, resource_type, storage_bucket, storage_path")
+        .eq("id", body.resourceId)
+        .eq("owner_id", user.id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!resource || resource.item_kind !== "vocabulary") {
+        return jsonError("Vocabulary entry not found.", 404);
+      }
+
+      const normalized = normalizeLessonVocabularyInput({
+        word: body.word,
+        definition: body.definition,
+        attachmentType: "none",
+        url: "",
+      });
+      if (normalized.error) return jsonError(normalized.error);
+
+      const updates = {
+        title: normalized.values.title,
+        definition: normalized.values.definition,
+        updated_at: new Date().toISOString(),
+      };
+      if (body.action === "register-vocabulary-image") {
+        const storedImage = await validateStoredVocabularyImage({ admin, userId: user.id, body });
+        if (storedImage.error) return jsonError(storedImage.error);
+        Object.assign(updates, {
+          resource_type: "file",
+          url: null,
+          ...storedImage.values,
+        });
+      } else if (body.removeAttachment) {
+        Object.assign(updates, {
+          resource_type: "none",
+          url: null,
+          storage_bucket: null,
+          storage_path: null,
+          file_name: null,
+          mime_type: null,
+          size_bytes: null,
+        });
+      }
+
+      const originalLessonIds = await replaceVocabularyLessons({
+        admin,
+        resourceId: resource.id,
+        lessonIds,
+      });
+      const { data: updated, error: updateError } = await admin
+        .from("lesson_resources")
+        .update(updates)
+        .eq("id", resource.id)
+        .eq("owner_id", user.id)
+        .select("id, item_kind, resource_type, title, definition, url, file_name, mime_type, size_bytes, updated_at, created_at")
+        .single();
+      if (updateError) {
+        await replaceVocabularyLessons({ admin, resourceId: resource.id, lessonIds: originalLessonIds });
+        throw new Error(updateError.message);
+      }
+
+      const replacedStoredFile = resource.resource_type === "file" && resource.storage_path &&
+        (body.action === "register-vocabulary-image" || body.removeAttachment);
+      if (replacedStoredFile) {
+        await admin.storage
+          .from(resource.storage_bucket || LESSON_RESOURCE_BUCKET)
+          .remove([resource.storage_path]);
+      }
+      revalidatePath(`/classes/${body.courseId}/plan`);
+      return NextResponse.json({ vocabulary: { ...updated, lessonIds } });
     }
 
     if (body.action === "delete") {

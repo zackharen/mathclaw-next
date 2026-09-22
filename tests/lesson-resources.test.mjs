@@ -17,6 +17,7 @@ import {
   parseLessonVocabularyCsv,
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
+  validateLessonVocabularyImage,
 } from "../lib/lesson-resources/constants.js";
 
 test("lesson resource links accept only http and https URLs", () => {
@@ -174,6 +175,17 @@ test("lesson vocabulary validates optional links and files", () => {
       url: "javascript:alert(1)",
     }).error,
     /valid http or https/
+  );
+});
+
+test("vocabulary images accept classroom image formats and reject documents", () => {
+  assert.deepEqual(
+    validateLessonVocabularyImage({ name: "triangle.png", size: 4096, type: "image/png" }),
+    { mimeType: "image/png" }
+  );
+  assert.match(
+    validateLessonVocabularyImage({ name: "notes.pdf", size: 4096, type: "application/pdf" }).error,
+    /JPG, PNG, WebP, or GIF/
   );
 });
 

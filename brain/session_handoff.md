@@ -8,10 +8,13 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-22 America/New_York (lesson vocabulary CSV import)
+2026-09-22 America/New_York (class vocabulary manager and images)
 
 ## What Changed (2026-09-22 Session - Lesson Vocabulary)
 
+- Added `Manage Class Vocabulary` to both the individual class plan and All Classes grid. It loads every vocabulary entry associated with the selected class, supports search, and lets teachers edit the word, definition, and one-or-more lesson associations; remove the word; preserve/remove an existing attachment; or upload/replace it with one protected JPG, PNG, WebP, or GIF image. Image previews use the authenticated open route because private images cannot safely go through the unauthenticated Next image optimizer.
+- The manager API validates teacher/class access, resource ownership, vocabulary item type, and every selected lesson before updates. New images upload under the teacher's existing private `lesson-resources` path; failed registrations roll back the new object, successful replacements clean up the old stored file, and existing links/files remain unchanged unless explicitly replaced or removed.
+- No schema migration was required. A read-only production audit found 66 current vocabulary entries, confirmed all four image MIME types are allowed in the bucket, and confirmed the four existing lesson-resource storage policies. Verification: targeted ESLint, `git diff --check`, all 130 Node tests, and `npm run build` passed. Local rendering remains blocked by missing Supabase URL/key in this checkout (and the dev watcher still reports the known `EMFILE` warning).
 - Added a course-level `Upload Vocabulary CSV` workflow to both the individual class plan and All Classes grid. The accepted three-column order is word, definition, lesson number; an optional header is supported, quoted commas/newlines parse correctly, the first eight rows are previewed, and imports are capped at 500 rows / 1 MB. The import is all-or-nothing when any row is malformed or its lesson number is not scheduled in the selected class.
 - Lesson-number resolution runs on the server against the selected class's full plan. A production read-only audit found legitimate repeated codes for multi-part lessons (for example `1.02` and `1.02 (Part 2)`), so one CSV row associates its vocabulary entry with every scheduled curriculum lesson carrying that exact source lesson code. This preserves the requested three-column format and makes completion-based Projector lookup work for every part.
 - CSV import did not require a schema migration. Verification: targeted ESLint, CSV/parser and multi-part association tests, `git diff --check`, all 129 Node tests, `npm run build`, and a read-only production lesson-code audit passed.
