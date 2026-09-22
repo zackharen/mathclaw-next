@@ -1948,7 +1948,11 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   gap: 0.35rem 0.7rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(10, 12, 16, 0.94);
-  padding: 0.25rem 0.6rem;
+  /* A Home Screen receiver runs with a translucent status bar drawn over the
+     page (screen/layout.js), so its buttons need to clear the real status
+     bar (clock/battery) instead of sitting under it. env() is 0 in an
+     ordinary browser tab, so this is a no-op there. */
+  padding: calc(0.25rem + env(safe-area-inset-top)) 0.6rem 0.25rem;
   box-sizing: border-box;
 }
 

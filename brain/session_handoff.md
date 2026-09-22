@@ -8,7 +8,14 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-22 America/New_York (projector receiver: iPad Home Screen standalone mode for pre-16.4 fullscreen — shipped live, see entry below)
+2026-09-22 America/New_York (projector receiver: top bar now clears the iPad status bar in standalone mode — shipped live; Zack confirmed the Home Screen standalone fix itself works)
+
+## What Changed (2026-09-22 Session - Projector Receiver Top Bar Safe-Area Fix)
+
+- Zack confirmed the Home Screen standalone-mode fix (previous entry below) works — but the receiver's own top bar (screen name badge, Draw, Fullscreen) was overlapping the iPad's real status bar (clock/battery), because `black-translucent` (chosen for a true fullscreen look) draws the status bar over the page instead of reserving space for it.
+- Fixed in `app/projector/styles.css` → `.projectorScreenTopBar`: added `env(safe-area-inset-top)` to its top padding, which pushes the bar down to clear the real status bar on a device that reports a safe-area inset there. `env()` resolves to `0` anywhere that doesn't apply (an ordinary browser tab, a laptop, etc.), so this is a no-op everywhere except the standalone iPad case it's meant for. `.projectorScreenTopBar` is used in exactly one place (`screen-client.js`'s receiver header), so the change is fully scoped to the receiver.
+- Verification: `git diff --check` clean; visually confirmed in the Browser pane that normal (non-standalone) rendering is byte-for-byte unaffected (env() is 0 there, screenshot matches pre-change). `npm run build` compiles. This CSS change has no testable pure logic and no Node test suite coverage applies. **Could not verify the actual overlap fix in a real iOS standalone context** — no iOS Simulator on this Mac (per prior session notes) and the Browser pane can't emulate `env(safe-area-inset-top)` as a real device would; this is inherently something only Zack's physical iPad can confirm.
+- **SHIPPED 2026-09-22 (Claude)**, per Zack's "push live when ready." Ask Zack to reload the Home Screen icon (or fully close and relaunch it, since standalone-mode pages can cache aggressively) and confirm the top bar buttons are now clear of the status bar.
 
 ## What Changed (2026-09-22 Session - Projector Receiver Home Screen / Standalone Mode)
 
