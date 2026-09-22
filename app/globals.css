@@ -4428,6 +4428,56 @@ details[open] > summary.btn:not(.btnNoToggle),
   gap: 0.5rem;
 }
 
+.manageVocabularyProjectorBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 23, 45, 0.7);
+}
+
+.manageVocabularyProjectorDialog {
+  width: min(35rem, 100%);
+  max-height: min(90vh, 48rem);
+  overflow-y: auto;
+  padding: 1.3rem;
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.manageVocabularyProjectorHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.manageVocabularyProjectorHeader h2 { margin: 0; }
+.manageVocabularyProjectorDialog > p { color: var(--muted); }
+
+.manageVocabularyProjectorScreens {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  margin: 1rem 0;
+  padding: 0.8rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 10px;
+}
+
+.manageVocabularyProjectorScreens legend,
+.manageVocabularyProjectorInterval > span { font-weight: 800; color: var(--navy); }
+.manageVocabularyProjectorScreens label,
+.manageVocabularyProjectorCompleted { display: flex; align-items: center; gap: 0.55rem; }
+.manageVocabularyProjectorScreens small { color: var(--muted); }
+.manageVocabularyProjectorInterval { display: grid; gap: 0.35rem; margin-bottom: 1rem; }
+.manageVocabularyProjectorInterval .input { width: min(16rem, 100%); }
+.manageVocabularyProjectorCount { font-weight: 700; }
+
 @media (max-width: 760px) {
   .manageVocabularyCard {
     grid-template-columns: 1fr;

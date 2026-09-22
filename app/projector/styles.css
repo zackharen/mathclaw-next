@@ -4311,3 +4311,48 @@ body:has(.projectorScreenStage) .gameReadyBanner {
 .projectorSubmitDrawingButton {
   background: #8ecae6;
 }
+
+.projectorVocabularyCarousel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 4vw, 4rem);
+  padding: clamp(1rem, 4vw, 4rem);
+  text-align: center;
+}
+
+.projectorVocabularyCopy {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.projectorVocabularyCopy h1 {
+  margin: 0.2em 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(2.5rem, 7vw, 7rem);
+  line-height: 1.05;
+}
+
+.projectorVocabularyDefinition {
+  margin: 0.6em 0 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(1.5rem, 3.2vw, 3.5rem);
+  line-height: 1.25;
+}
+
+.projectorVocabularyImage {
+  display: block;
+  flex: 0 1 42%;
+  min-width: 0;
+  max-width: 42%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 1rem;
+}
+
+@media (max-width: 680px) {
+  .projectorVocabularyCarousel { flex-direction: column; }
+  .projectorVocabularyImage { max-width: 90%; max-height: 35vh; }
+}

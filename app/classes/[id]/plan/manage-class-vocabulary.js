@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   LESSON_VOCABULARY_IMAGE_ACCEPT,
@@ -195,6 +195,14 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [filter, setFilter] = useState("");
+  const [projectorOpen, setProjectorOpen] = useState(false);
+  const [projectorLoading, setProjectorLoading] = useState(false);
+  const [projectorSaving, setProjectorSaving] = useState(false);
+  const [projectorSetup, setProjectorSetup] = useState(null);
+  const [projectorScreens, setProjectorScreens] = useState([]);
+  const [projectorInterval, setProjectorInterval] = useState(30);
+  const [completedOnly, setCompletedOnly] = useState(false);
+  const [projectorMessage, setProjectorMessage] = useState("");
   const visibleVocabulary = useMemo(() => {
     const query = filter.trim().toLowerCase();
     return vocabulary.filter((entry) =>
@@ -228,6 +236,57 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
     router.refresh();
   }
 
+  useEffect(() => {
+    if (!projectorOpen) return undefined;
+    function onKeyDown(event) {
+      if (event.key === "Escape") setProjectorOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [projectorOpen]);
+
+  async function openProjector() {
+    setProjectorOpen(true);
+    setProjectorLoading(true);
+    setProjectorSetup(null);
+    setProjectorMessage("");
+    try {
+      const response = await fetch(`/api/projector/vocabulary-carousel?courseId=${encodeURIComponent(courseId)}`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Projector screens could not be loaded.");
+      setProjectorSetup(data);
+      const availableIds = data.screens.filter((screen) => screen.enabled).map((screen) => screen.id);
+      const runningAvailable = data.runningScreenIds.filter((id) => availableIds.includes(id));
+      setProjectorScreens(runningAvailable.length ? runningAvailable : availableIds);
+    } catch (error) {
+      setProjectorMessage(error.message);
+    } finally {
+      setProjectorLoading(false);
+    }
+  }
+
+  async function updateProjector(action) {
+    setProjectorSaving(true);
+    setProjectorMessage(action === "start" ? "Starting carousel…" : "Stopping carousel…");
+    try {
+      const response = await fetch("/api/projector/vocabulary-carousel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, courseId, screenIds: projectorScreens, intervalSeconds: projectorInterval, completedOnly }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The projector could not be updated.");
+      setProjectorSetup((current) => ({ ...current, runningScreenIds: data.runningScreenIds || [] }));
+      setProjectorMessage(action === "start"
+        ? `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} rotating on ${data.runningScreenIds.length} screen${data.runningScreenIds.length === 1 ? "" : "s"}.`
+        : "Vocabulary carousel stopped.");
+    } catch (error) {
+      setProjectorMessage(error.message);
+    } finally {
+      setProjectorSaving(false);
+    }
+  }
+
   if (!courses.length) return null;
 
   return (
@@ -250,6 +309,8 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
                 setCourseId(nextCourseId);
                 setFilter("");
                 setLoaded(false);
+                setProjectorSetup(null);
+                setProjectorOpen(false);
                 load(nextCourseId);
               }}
               aria-label="Class vocabulary to manage"
@@ -268,6 +329,9 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
           />
           <button className="btn" type="button" onClick={() => load()} disabled={loading}>
             {loading ? "Loading…" : "Refresh List"}
+          </button>
+          <button className="btn primary" type="button" onClick={openProjector} disabled={!loaded || loading || vocabulary.length === 0}>
+            Push Vocabulary to Projector
           </button>
           {loaded ? <small>{vocabulary.length} word{vocabulary.length === 1 ? "" : "s"}</small> : null}
         </div>
@@ -290,6 +354,66 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
         ) : null}
         {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
       </div>
+      {projectorOpen ? (
+        <div className="manageVocabularyProjectorBackdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setProjectorOpen(false);
+        }}>
+          <section className="manageVocabularyProjectorDialog" role="dialog" aria-modal="true" aria-labelledby="vocabulary-projector-title">
+            <div className="manageVocabularyProjectorHeader">
+              <h2 id="vocabulary-projector-title">Vocabulary on Projector</h2>
+              <button className="btn" type="button" onClick={() => setProjectorOpen(false)} aria-label="Close projector setup">✕</button>
+            </div>
+            <p>Random words and definitions rotate independently on each selected screen. You can close this page while they play.</p>
+            {projectorLoading ? <p>Loading projector screens…</p> : null}
+            {projectorSetup ? (
+              <>
+                <fieldset className="manageVocabularyProjectorScreens">
+                  <legend>Choose displays</legend>
+                  {projectorSetup.screens.map((screen) => (
+                    <label key={screen.id}>
+                      <input type="checkbox" checked={projectorScreens.includes(screen.id)} disabled={!screen.enabled || projectorSaving}
+                        onChange={(event) => setProjectorScreens((current) => event.target.checked
+                          ? [...current, screen.id]
+                          : current.filter((id) => id !== screen.id))} />
+                      <span>{screen.name}</span>
+                      {screen.reason ? <small>{screen.reason}</small> : null}
+                    </label>
+                  ))}
+                </fieldset>
+                <label className="manageVocabularyProjectorInterval">
+                  <span>Change words every</span>
+                  <select className="input" value={projectorInterval} onChange={(event) => setProjectorInterval(Number(event.target.value))} disabled={projectorSaving}>
+                    <option value={15}>15 seconds</option>
+                    <option value={30}>30 seconds</option>
+                    <option value={60}>1 minute</option>
+                    <option value={120}>2 minutes</option>
+                    <option value={300}>5 minutes</option>
+                  </select>
+                </label>
+                <label className="manageVocabularyProjectorCompleted">
+                  <input type="checkbox" checked={completedOnly} onChange={(event) => setCompletedOnly(event.target.checked)} disabled={projectorSaving} />
+                  <span>Only words from completed lessons</span>
+                </label>
+                <p className="manageVocabularyProjectorCount">
+                  {completedOnly ? projectorSetup.completedCount : projectorSetup.allCount} eligible word{(completedOnly ? projectorSetup.completedCount : projectorSetup.allCount) === 1 ? "" : "s"}
+                  {projectorSetup.runningScreenIds.length ? ` · Running on ${projectorSetup.runningScreenIds.length} screen${projectorSetup.runningScreenIds.length === 1 ? "" : "s"}` : ""}
+                </p>
+                <div className="ctaRow">
+                  <button className="btn primary" type="button" onClick={() => updateProjector("start")}
+                    disabled={projectorSaving || !projectorScreens.length || !(completedOnly ? projectorSetup.completedCount : projectorSetup.allCount)}>
+                    {projectorSaving ? "Updating…" : projectorSetup.runningScreenIds.length ? "Update Carousel" : "Start Carousel"}
+                  </button>
+                  {projectorSetup.runningScreenIds.length ? (
+                    <button className="btn" type="button" onClick={() => updateProjector("stop")} disabled={projectorSaving}>Stop Carousel</button>
+                  ) : null}
+                  <a className="btn" href="/projector" target="_blank" rel="noreferrer">Open Projector</a>
+                </div>
+              </>
+            ) : null}
+            {projectorMessage ? <p className="statusNote" role="status">{projectorMessage}</p> : null}
+          </section>
+        </div>
+      ) : null}
     </details>
   );
 }

@@ -8,7 +8,13 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-22 America/New_York (class vocabulary manager and images)
+2026-09-22 America/New_York (class vocabulary projector carousel)
+
+## What Changed (2026-09-22 Session - Vocabulary Projector Carousel)
+
+- `Manage Class Vocabulary` now has a `Push Vocabulary to Projector` dialog in both class and grid views. Teachers choose available active-room displays, a 15-second to 5-minute change interval, and whether to use only vocabulary linked to a lesson marked completed in that class. They can update or stop the carousel from the same dialog. Autopilot and disabled screens cannot be selected.
+- A teacher-authenticated projector API verifies editable class access and resource ownership, computes eligible words from the class plan and lesson-resource associations, and saves a separate shuffled word order for each selected screen in its existing `projector_sessions.screen_states`. Receivers rotate locally from a shared start time, so closing the teacher page does not stop playback. Protected vocabulary images are served to valid projector screen tokens only while the word is in a live carousel. No schema migration was needed.
+- Verification: focused filter/rotation tests, targeted ESLint, and `npm run build` passed. Local dev server starts but its watcher still reports `EMFILE`; this checkout lacks local Supabase credentials for authenticated local UI verification.
 
 ## What Changed (2026-09-22 Session - Lesson Vocabulary)
 

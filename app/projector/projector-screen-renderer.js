@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { vocabularyCarouselIndex, VOCABULARY_CAROUSEL_TYPE } from "@/lib/projector/vocabulary-carousel.mjs";
 
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -64,6 +65,39 @@ function WordWallWidget({ content }) {
     <div className="projectorScreenWidget projectorWordWallWidget">
       <div className="projectorWordWallWord">{word.word || "Word Wall"}</div>
       {word.definition ? <div className="projectorWordWallDefinition">{word.definition}</div> : null}
+    </div>
+  );
+}
+
+function VocabularyCarouselWidget({ content }) {
+  const carousel = useMemo(() => parseWidgetContent(content), [content]);
+  const words = Array.isArray(carousel.words) ? carousel.words : [];
+  const intervalSeconds = Number(carousel.intervalSeconds) || 30;
+  const [index, setIndex] = useState(() =>
+    vocabularyCarouselIndex(carousel.startedAt, intervalSeconds, Date.now(), words.length)
+  );
+
+  useEffect(() => {
+    if (words.length < 2) return undefined;
+    const timer = window.setInterval(() => {
+      setIndex(vocabularyCarouselIndex(carousel.startedAt, intervalSeconds, Date.now(), words.length));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [carousel.startedAt, intervalSeconds, words.length]);
+
+  const current = words[index % words.length];
+  if (!current) return <div className="projectorWaiting">No vocabulary words</div>;
+  return (
+    <div className="projectorVocabularyCarousel">
+      <div className="projectorVocabularyCopy">
+        <p className="eyebrow">Vocabulary</p>
+        <h1>{current.word}</h1>
+        {current.definition ? <p className="projectorVocabularyDefinition">{current.definition}</p> : null}
+      </div>
+      {current.image ? (
+        // Private lesson images are opened through a short-lived signed URL after the screen token is checked.
+        <img className="projectorVocabularyImage" src={current.image} alt={`Illustration for ${current.word}`} />
+      ) : null}
     </div>
   );
 }
@@ -390,6 +424,7 @@ function ProjectorScreenContentBody({ state }) {
   const content = displayContent(state.content);
   if (state.type === "clock") return <ClockWidget content={state.content} />;
   if (state.type === "word_wall") return <WordWallWidget content={state.content} />;
+  if (state.type === VOCABULARY_CAROUSEL_TYPE) return <VocabularyCarouselWidget key={state.content} content={state.content} />;
   if (state.type === "poll_results") return <PollResultsWidget content={state.content} />;
   if (state.type === "text") {
     return <div className="projectorScreenText">{content}</div>;
