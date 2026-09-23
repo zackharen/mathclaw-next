@@ -5,6 +5,7 @@ import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-
 import { listSchoolOptions } from "@/lib/schools";
 import ProfileForm from "./profile-form";
 import AnnouncementAssignmentRuleForm from "./announcement-assignment-rule-form";
+import BellScheduleManager from "./bell-schedule-manager";
 import { getSiteCopy } from "@/lib/site-config";
 import {
   deleteTeacherAnnouncementAssignmentRuleAction,
@@ -296,13 +297,27 @@ async function loadProfileRow(admin, userId) {
 }
 
 async function loadSchoolCalendarDays(supabase, userId, schoolYearStart, schoolYearEnd) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("school_calendar_days")
-    .select("class_date, day_type, is_grace_day, reason_id, note")
+    .select("class_date, day_type, is_grace_day, reason_id, bell_schedule_type_id, note")
     .eq("owner_id", userId)
     .gte("class_date", schoolYearStart)
     .lte("class_date", schoolYearEnd)
     .order("class_date", { ascending: true });
+
+  // The bell_schedule_type_id column is new; a checkout whose migration
+  // hasn't been applied yet should still load the calendar, just without it.
+  if (error && isMissingTableError(error, "bell_schedule_type_id")) {
+    const retry = await supabase
+      .from("school_calendar_days")
+      .select("class_date, day_type, is_grace_day, reason_id, note")
+      .eq("owner_id", userId)
+      .gte("class_date", schoolYearStart)
+      .lte("class_date", schoolYearEnd)
+      .order("class_date", { ascending: true });
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error && isMissingTableError(error, "school_calendar_days")) {
     return { schoolDays: [], overridesUnavailable: true };
@@ -492,6 +507,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
     { data: abSeedCourse },
     { data: teacherCourses },
     { data: reasons },
+    { data: bellScheduleTypes, error: bellScheduleTypesError },
     schoolCalendar,
     markingPeriodState,
     absenceState,
@@ -520,6 +536,13 @@ export default async function OnboardingProfilePage({ searchParams }) {
       .select("id, label")
       .or(`owner_id.is.null,owner_id.eq.${user.id}`)
       .order("label", { ascending: true }),
+    isTeacher
+      ? supabase
+          .from("teacher_bell_schedule_types")
+          .select("id, name")
+          .eq("owner_id", user.id)
+          .order("name", { ascending: true })
+      : Promise.resolve({ data: [] }),
     loadSchoolCalendarDays(supabase, user.id, schoolYearStart, schoolYearEnd),
     loadMarkingPeriods(supabase, user.id, isTeacher),
     loadTeacherAbsences(supabase, user.id, isTeacher, schoolYearStart, schoolYearEnd),
@@ -529,6 +552,11 @@ export default async function OnboardingProfilePage({ searchParams }) {
 
   const weekdays = buildWeekdays(schoolYearStart, schoolYearEnd);
   const abPatternStartIso = abSeedCourse?.ab_pattern_start_date || schoolYearStart;
+
+  if (bellScheduleTypesError && !isMissingTableError(bellScheduleTypesError, "teacher_bell_schedule_types")) {
+    throw new Error(bellScheduleTypesError.message);
+  }
+  const teacherBellScheduleTypes = bellScheduleTypesError ? [] : bellScheduleTypes || [];
 
   const schoolDays = schoolCalendar.schoolDays;
   const schoolCalendarOverridesUnavailable = schoolCalendar.overridesUnavailable;
@@ -752,6 +780,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                 <span>Grace Day</span>
                 <span>Day Type</span>
                 <span>Reason</span>
+                <span>Bell Schedule</span>
                 <span>Note</span>
               </div>
 
@@ -796,6 +825,18 @@ export default async function OnboardingProfilePage({ searchParams }) {
                         {(reasons || []).map((reason) => (
                           <option key={reason.id} value={reason.id}>
                             {reason.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="input"
+                        name={`bell_schedule_type_id__${date}`}
+                        defaultValue={row?.bell_schedule_type_id || ""}
+                      >
+                        <option value="">None</option>
+                        {teacherBellScheduleTypes.map((scheduleType) => (
+                          <option key={scheduleType.id} value={scheduleType.id}>
+                            {scheduleType.name}
                           </option>
                         ))}
                       </select>
@@ -848,6 +889,8 @@ export default async function OnboardingProfilePage({ searchParams }) {
               ) : null}
             </div>
           </details>
+
+          {isTeacher ? <BellScheduleManager courses={teacherCourses || []} /> : null}
 
           <details style={{ marginTop: "1.1rem" }}>
             <summary className="btn btnNoToggle" style={{ display: "inline-block" }}>

@@ -119,6 +119,13 @@ function parseSchoolCalendarRows(formData) {
       updates.set(classDate, row);
     }
 
+    if (key.startsWith("bell_schedule_type_id__")) {
+      const classDate = key.replace("bell_schedule_type_id__", "");
+      const row = updates.get(classDate) || {};
+      row.bell_schedule_type_id = String(value || "");
+      updates.set(classDate, row);
+    }
+
     if (key.startsWith("note__")) {
       const classDate = key.replace("note__", "");
       const row = updates.get(classDate) || {};
@@ -473,9 +480,14 @@ export async function saveSchoolCalendarAction(formData) {
     const dayType = normalizeCalendarDayType(row.day_type);
     const graceDay =
       dayType !== "off" && Boolean(row.is_grace_day || row.day_type === "grace_day");
+    const bellScheduleTypeId = row.bell_schedule_type_id ? row.bell_schedule_type_id : null;
     if (!allowed.has(dayType)) continue;
 
-    if (dayType === "instructional" && !graceDay) continue;
+    // A plain instructional day with no grace flag and no bell schedule
+    // normally isn't worth a row at all (no override = instructional by
+    // default) -- but a bell schedule assignment on an otherwise-ordinary day
+    // is exactly the common case for this feature, so it must still be kept.
+    if (dayType === "instructional" && !graceDay && !bellScheduleTypeId) continue;
 
     overrides.push({
       owner_id: user.id,
@@ -483,6 +495,7 @@ export async function saveSchoolCalendarAction(formData) {
       day_type: dayType,
       is_grace_day: graceDay,
       reason_id: row.reason_id ? row.reason_id : null,
+      bell_schedule_type_id: bellScheduleTypeId,
       note: row.note && row.note.trim() ? row.note.trim() : null,
     });
   }
@@ -499,9 +512,22 @@ export async function saveSchoolCalendarAction(formData) {
   }
 
   if (hasSchoolCalendarTable && overrides.length > 0) {
-    const { error: insertOverridesError } = await admin
+    let { error: insertOverridesError } = await admin
       .from("school_calendar_days")
       .insert(overrides);
+
+    // Backward compatibility if the bell_schedule_type_id migration hasn't
+    // been applied to this Supabase project yet.
+    if (
+      insertOverridesError &&
+      typeof insertOverridesError.message === "string" &&
+      insertOverridesError.message.includes("bell_schedule_type_id")
+    ) {
+      const retry = await admin
+        .from("school_calendar_days")
+        .insert(overrides.map(({ bell_schedule_type_id, ...rest }) => rest));
+      insertOverridesError = retry.error;
+    }
 
     if (insertOverridesError) {
       throw new Error(insertOverridesError.message);

@@ -8,7 +8,146 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-22 America/New_York (projector receiver: top bar now clears the iPad status bar in standalone mode — shipped live; Zack confirmed the Home Screen standalone fix itself works)
+2026-09-23 America/New_York (Bell Schedules feature: implemented and locally verified, NOT committed — blocked on a DB migration this session cannot apply. See entry below before doing anything else with it.)
+
+## What Changed (2026-09-23 Session - Bell Schedules → Automatic Vocabulary Switching by Period)
+
+Zack asked for named school schedules (Full Day, Half Day, Delayed Opening,
+Activity Schedule, custom ones) that designate which class meets when, tagged
+onto calendar days, so the projector vocabulary carousel switches
+automatically by period instead of him starting it manually. Full plan (with
+the reasoning behind each design choice) is at
+`/Users/zackarenstein/.claude/plans/optimized-growing-moonbeam.md` if more
+detail is needed later — this entry summarizes it.
+
+**Design decisions Zack made when asked:** per-screen opt-in (not whole-Room)
+via the existing Autopilot system; exactly one block per class per schedule
+type (no double periods); an unassigned day or a gap between periods does
+nothing (screen keeps showing whatever it had); and the driving mechanism
+reuses the existing client-driven Autopilot loop (`runAutopilotStep` in
+`app/projector/projector-client.js`, a `setTimeout` loop that only runs while
+`/projector` is open in some browser tab) rather than building a new
+server-side cron — explicitly chosen over a "more robust but bigger lift"
+alternative.
+
+**Reused existing infrastructure instead of building parallel systems:**
+`projector_room_schedule_blocks` (time range + course, keyed by weekday,
+drives a manual Room-switch banner) already had the right shape for a
+"period" — this plan's new tables use the same (start_time, end_time,
+course_id) shape but keyed by a new *schedule type* concept instead of
+weekday, feeding the *screen-level Autopilot* system instead of a Room-switch
+banner. Autopilot itself already had a config + `setTimeout` runtime loop
+(`normalizeAutopilotConfig`, `runAutopilotStep`) supporting
+items/playlist/word_wall/clock modes — this adds a fifth mode,
+`"schedule_vocabulary"`.
+
+**New tables** (`supabase/migrations/20260923120000_bell_schedules.sql`, also
+baked into `supabase/schema.sql` in the right dependency order):
+`teacher_bell_schedule_types` (named templates, owner_id → profiles) and
+`teacher_bell_schedule_blocks` (schedule_type_id + course_id + start_time +
+end_time + optional label; `unique(schedule_type_id, course_id)` enforces
+the one-block-per-class rule; overlap between different classes' blocks is
+checked at the application layer, not a DB constraint). `school_calendar_days`
+gets a new nullable `bell_schedule_type_id` column.
+
+**⚠️ THIS MIGRATION IS NOT APPLIED TO PRODUCTION.** Explored this explicitly
+before writing any code: no Supabase MCP connector was available this
+session, the `supabase` CLI isn't installed, and `.claude/settings.json`
+explicitly denies `supabase db push`/`db reset`. Every past production
+migration in this project went through the Supabase MCP connector or was
+pasted into the Supabase dashboard SQL editor by hand — there's no in-repo
+scripted path for schema DDL. **Someone with Supabase access (Zack, or a
+session with the connector) needs to run
+`supabase/migrations/20260923120000_bell_schedules.sql` against
+`mathclaw-prod` before this feature does anything at all.**
+
+**The code is written to degrade safely if shipped before that migration
+lands** — every query against the new tables/column uses the same "missing
+table/column" tolerance pattern already established elsewhere in this
+codebase (`42P01`/`42703`/`PGRST204`/`PGRST205` error codes in the API routes,
+message-string matching in `onboarding/profile/actions.js`, matching how
+`ab_meeting_day` and `projector_room_profiles` already handle a
+not-yet-migrated column/table). Concretely: the Profile calendar's new "Bell
+Schedule" dropdown column just shows "None" for every day and the save action
+silently drops that field on insert; the new "Manage Bell Schedules" panel on
+Profile loads to an empty state; the new "Class Schedule Vocabulary" Autopilot
+mode is selectable but the resolver just returns `{active: false}` forever
+(screen never changes). **This was deliberately verified by design, not by
+actually testing against a database missing the migration** — I could not
+create such a test environment this session; flagging that this reasoning
+should be spot-checked once the migration situation is sorted, ideally before
+or right after applying it.
+
+**Where things live:**
+- `app/onboarding/profile/bell-schedule-manager.js` + new actions in
+  `app/api/bell-schedules/route.js` (GET list, POST
+  create/rename/delete-type, create/update/delete-block, with the overlap
+  check and course-ownership check server-side) — a new collapsible panel on
+  Profile, right after the School Calendar section, `<details>`-based
+  matching `ManageClassVocabulary`'s pattern.
+- Calendar grid (`app/onboarding/profile/page.js` +
+  `app/onboarding/profile/actions.js`): one new `<select>` column,
+  `bell_schedule_type_id__${date}`, following the exact existing
+  `reason_id__${date}` pattern. **Found and fixed a real latent bug while
+  wiring this in**: `saveSchoolCalendarAction` skips writing a row entirely
+  for a plain instructional day with no grace flag (`if (dayType ===
+  "instructional" && !graceDay) continue;`) — which would have silently
+  discarded a bell schedule assigned to an ordinary day, the single most
+  common case for this feature. Fixed by also checking for a bell schedule
+  ID in that skip condition.
+- Runtime resolver: `app/api/projector/bell-schedule/sync/route.js` (POST
+  only, since it performs a write). Takes `{screenId, courseDate, nowMinutes}`
+  — date/time
+  computed from the **dashboard browser's own clock**, deliberately avoiding
+  any server-side timezone guesswork about the teacher's school. Resolves
+  today's schedule type → active block → course → eligible vocabulary (reused
+  `vocabularyForCourse`/`eligibleVocabulary`, moved the server-side vocabulary
+  helpers out of `vocabulary-carousel/route.js` into a new shared
+  `lib/projector/vocabulary-carousel-server.js` so both routes use one
+  implementation), writes a fresh `vocabulary_carousel` screen state only when
+  the active course actually changed (avoids reshuffling/re-pushing every
+  ~45s tick for no reason), and returns `{active:false}` — touching nothing —
+  when there's no schedule type today or no block covering right now.
+- Autopilot wiring: `app/projector/projector-client.js` — new
+  `"schedule_vocabulary"` mode in `normalizeAutopilotConfig`/
+  `autopilotModeLabel`/the mode picker UI (no per-screen sub-config needed,
+  just an enable toggle), and a new `runScheduleVocabularyStep` function
+  (parallel to but distinct from `runAutopilotStep`'s existing
+  step-through-a-list logic, since this mode's content is server-resolved,
+  not a local rotation) on a 45-second recheck cadence.
+- Pure/testable logic in `lib/bell-schedules/constants.js`
+  (`findActiveBellScheduleBlock`, `blocksOverlap`, time-parsing/validation
+  helpers) with `tests/bell-schedules.test.mjs` (5 new tests).
+
+**Verification done:** targeted ESLint on every new/changed file (0
+problems), full `npm test` (142/142 passing, incl. the 5 new bell-schedule
+tests plus 2 new tests added to `vocabulary-carousel.test.mjs` for the
+future-start clamping behavior this reuses), `npm run build` (compiles,
+including `/api/bell-schedules`, `/api/projector/bell-schedule/sync`, and
+`/onboarding/profile`), `git diff --check` clean. Hit `/onboarding/profile`
+on the local dev server (pointed at production Supabase) and confirmed no
+server error and a clean redirect to sign-in — but that only exercises the
+pre-auth boundary, not the new authenticated rendering.
+
+**Verification NOT done, in order of what matters most:**
+1. **The migration has not been applied anywhere, including locally** — so
+   none of this has ever actually run against a database that has the new
+   tables. The graceful-degradation code paths (empty states) are exercised
+   implicitly by every request against the current unmigrated production DB,
+   but the "happy path" (create a schedule type, add a period, tag a
+   calendar day, watch a screen switch) has never executed once.
+2. No authenticated browser QA of the Profile calendar's new column or the
+   Bell Schedule manager panel.
+3. No authenticated browser QA of the new Autopilot mode or the receiver
+   actually switching.
+4. Timezone assumption: the resolver trusts the dashboard browser's local
+   clock for "what date/time is it," which assumes whoever has `/projector`
+   open is physically in the same timezone as the school. True for a
+   classroom computer; worth knowing if Zack ever runs the dashboard
+   remotely.
+
+**NOT committed, NOT pushed.** Given the migration blocker, this needs Zack's
+decision on how to proceed before shipping — see Active Tasks below.
 
 ## What Changed (2026-09-22 Session - Projector Receiver Top Bar Safe-Area Fix)
 
@@ -177,6 +316,7 @@ This file represents the **current state only**. It should stay short enough to 
 - Brain now uses shared core files + model-specific overlays (`brain/model_workflows/codex.md`, `brain/model_workflows/claude.md`, `brain/model_workflows/coordination.md`); `START_HERE.md` is the routing entrypoint
 
 ## Active Tasks
+- NEW 2026-09-23 (Claude), blocked, not committed: the Bell Schedules feature (see "What Changed" above) is fully implemented and passes lint/tests/build, but **cannot go live until `supabase/migrations/20260923120000_bell_schedules.sql` is applied to `mathclaw-prod`** — this session had no Supabase connector and no CLI access. Next step is Zack's call: (a) he pastes the migration into the Supabase dashboard SQL editor himself, or (b) a session with the Supabase MCP connector (Codex, per past sessions) applies it. Either way, once the migration is live, the code still needs to be committed/pushed/deployed and then get its first-ever real QA pass (create a schedule type, add a period, tag a calendar day, turn on the Autopilot mode, confirm a screen actually switches) — none of that has been exercised even once, only reasoned through.
 - NEW 2026-09-22 (Claude), shipped but unverified: both of today's vocabulary features (clipboard image paste, and the projector white-text/class-name/scheduled-start work) are live on `main` @ `adebdde` and deployed, but their actual interactions have not had authenticated browser QA — only the white-text fix was visually confirmed. See the "SHIPPED" notes in both "What Changed" entries above for the exact QA steps still needed. Whoever picks this up next (Codex, or Claude with a signed-in session) should run through those steps and report back; no further ship action is needed unless QA finds a bug.
 
 ## Active File Ownership

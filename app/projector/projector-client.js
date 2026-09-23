@@ -500,7 +500,7 @@ function normalizeRoomSlots(slots) {
 
 function normalizeAutopilotConfig(value) {
   const source = value && typeof value === "object" ? value : {};
-  const mode = ["items", "playlist", "word_wall", "clock"].includes(source.mode) ? source.mode : "clock";
+  const mode = ["items", "playlist", "word_wall", "clock", "schedule_vocabulary"].includes(source.mode) ? source.mode : "clock";
   const config = {
     enabled: source.enabled === true,
     mode,
@@ -552,6 +552,7 @@ function autopilotModeLabel(mode) {
   if (mode === "items") return "Items";
   if (mode === "playlist") return "Playlist";
   if (mode === "word_wall") return "Word Wall";
+  if (mode === "schedule_vocabulary") return "Class Schedule Vocabulary";
   return "Clock";
 }
 
@@ -1803,9 +1804,57 @@ export default function ProjectorClient({
     if (payload.screenStates) applyScreenStates(payload.screenStates);
   }
 
+  // Unlike the other autopilot modes, content here isn't a local list to step
+  // through -- the server resolves "what class is in session right now" from
+  // the teacher's bell schedule and writes the screen's state itself, so this
+  // just asks it to check and re-checks on a fixed cadence. "date"/"minutes"
+  // are computed from this browser's own clock (the dashboard's machine),
+  // deliberately avoiding any server-side timezone guesswork.
+  async function runScheduleVocabularyStep(screenId, config, options = {}) {
+    const currentRuntime = autopilotRuntimeRef.current[screenId];
+    if (currentRuntime?.status === "paused" && !options.force) return;
+    const now = new Date();
+    const courseDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    try {
+      const response = await fetch("/api/projector/bell-schedule/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ screenId, courseDate, nowMinutes }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not check the class schedule.");
+      if (payload.screenStates) applyScreenStates(payload.screenStates);
+      setAutopilotRuntime((current) => ({
+        ...current,
+        [screenId]: {
+          status: "running",
+          mode: config.mode,
+          label: payload.active ? payload.courseTitle || "Class in session" : "No class in session",
+          index: 0,
+        },
+      }));
+      clearAutopilotTimer(screenId);
+      autopilotTimersRef.current[screenId] = window.setTimeout(() => {
+        runScheduleVocabularyStep(screenId, config);
+      }, 45000);
+    } catch (error) {
+      clearAutopilotTimer(screenId);
+      setAutopilotRuntime((current) => ({
+        ...current,
+        [screenId]: { status: "paused", mode: config.mode, label: error.message, index: 0 },
+      }));
+      setMessage(error.message);
+    }
+  }
+
   async function runAutopilotStep(screenId, options = {}) {
     const config = autopilotConfigForScreen(activeRoom, screenId);
     if (!config?.enabled || !activeScreenIds.includes(screenId)) return;
+    if (config.mode === "schedule_vocabulary") {
+      await runScheduleVocabularyStep(screenId, config, options);
+      return;
+    }
     const currentRuntime = autopilotRuntimeRef.current[screenId];
     if (currentRuntime?.status === "paused" && !options.force) return;
     const entries = autopilotItemStates(config);
@@ -4212,6 +4261,7 @@ export default function ProjectorClient({
                           <option value="items">Saved Items</option>
                           <option value="playlist">Saved Playlist</option>
                           {!wordListsSetupMissing ? <option value="word_wall">Word Wall</option> : null}
+                          <option value="schedule_vocabulary">Class Schedule Vocabulary</option>
                         </select>
                       </label>
                       {autopilotDraft.mode === "items" ? (
@@ -4304,6 +4354,16 @@ export default function ProjectorClient({
                           />
                           <span>Show current schedule block</span>
                         </label>
+                      ) : null}
+                      {autopilotDraft.mode === "schedule_vocabulary" ? (
+                        <div className="projectorAutopilotPicker">
+                          <p>
+                            Shows whichever class is currently in session, using the bell schedules and calendar
+                            set up under Profile → Bell Schedules. No list to choose here — turning this on is
+                            enough. A day with no schedule type assigned, or a gap between periods, leaves this
+                            screen showing whatever it already had.
+                          </p>
+                        </div>
                       ) : null}
                       <div className="projectorAutopilotActions">
                         <button className="btn" type="button" onClick={() => saveActiveRoomAutopilot(screenId, autopilotDraft)} disabled={sending}>

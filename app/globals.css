@@ -3236,7 +3236,7 @@ details[open] > summary.gameControlsSummary .hideLabel {
 .schoolCalendarHeader,
 .schoolCalendarRow {
   display: grid;
-  grid-template-columns: 9.5rem 3.5rem 2.5rem 5.5rem 8.5rem 11rem 11rem;
+  grid-template-columns: 9.5rem 3.5rem 2.5rem 5.5rem 8.5rem 11rem 11rem 11rem;
   gap: 0.6rem;
   align-items: center;
   width: fit-content;
@@ -4486,6 +4486,96 @@ details[open] > summary.btn:not(.btnNoToggle),
   .manageVocabularyMedia img,
   .manageVocabularyMedia > span {
     width: min(16rem, 100%);
+  }
+}
+
+.manageBellSchedulesLayout {
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.manageBellSchedulesNewType {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.manageBellSchedulesNewType .input {
+  flex: 1 1 auto;
+}
+
+.manageBellSchedulesTypeList,
+.manageBellSchedulesBlockList {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.manageBellSchedulesTypeList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.manageBellSchedulesTypeList li.isActive > button:first-child {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+
+.manageBellSchedulesBlocks h3 {
+  margin: 0 0 0.5rem;
+}
+
+.manageBellSchedulesBlockList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.manageBellSchedulesBlockList li > span:first-child {
+  font-weight: 800;
+  color: var(--navy);
+  white-space: nowrap;
+}
+
+.manageBellSchedulesBlockList li > span:nth-child(2) {
+  flex: 1 1 auto;
+}
+
+.manageBellSchedulesBlockForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(7rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.manageBellSchedulesBlockForm label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.manageBellSchedulesBlockForm .ctaRow {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .manageBellSchedulesLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .manageBellSchedulesBlockForm {
+    grid-template-columns: 1fr;
   }
 }
 
