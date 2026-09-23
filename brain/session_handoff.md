@@ -8,7 +8,7 @@ This file represents the **current state only**. It should stay short enough to 
 3. Prune obsolete items from "Next Recommended Steps" and "Known Issues."
 
 ## Last Updated
-2026-09-23 America/New_York (Bell Schedules feature: implemented and locally verified, NOT committed — blocked on a DB migration this session cannot apply. See entry below before doing anything else with it.)
+2026-09-23 America/New_York (Bell Schedules feature: shipped live @ `bff9721` at Zack's explicit request, ahead of its migration — the code is deployed but INERT until someone applies `supabase/migrations/20260923120000_bell_schedules.sql`. See entry below.)
 
 ## What Changed (2026-09-23 Session - Bell Schedules → Automatic Vocabulary Switching by Period)
 
@@ -146,8 +146,15 @@ pre-auth boundary, not the new authenticated rendering.
    classroom computer; worth knowing if Zack ever runs the dashboard
    remotely.
 
-**NOT committed, NOT pushed.** Given the migration blocker, this needs Zack's
-decision on how to proceed before shipping — see Active Tasks below.
+**SHIPPED 2026-09-23**, at Zack's explicit request, deliberately ahead of the
+migration ("commit the code now anyway" — chosen over waiting or applying the
+migration first, after being told the tradeoff). Committed
+`bff972106a4e11b5d2f201b9992d81c4c710a6d5` on `main`, pushed to `origin/main`,
+GitHub commit status confirmed Vercel deployment `state: success`. Confirmed
+`https://www.mathclaw.com/` returns 200 and `https://www.mathclaw.com/onboarding/profile`
+still cleanly redirects (307) post-deploy — no server errors from the new
+code paths hitting the still-unmigrated database. **The feature itself does
+nothing yet** — see Active Tasks below for exactly what's still needed.
 
 ## What Changed (2026-09-22 Session - Projector Receiver Top Bar Safe-Area Fix)
 
@@ -316,7 +323,7 @@ decision on how to proceed before shipping — see Active Tasks below.
 - Brain now uses shared core files + model-specific overlays (`brain/model_workflows/codex.md`, `brain/model_workflows/claude.md`, `brain/model_workflows/coordination.md`); `START_HERE.md` is the routing entrypoint
 
 ## Active Tasks
-- NEW 2026-09-23 (Claude), blocked, not committed: the Bell Schedules feature (see "What Changed" above) is fully implemented and passes lint/tests/build, but **cannot go live until `supabase/migrations/20260923120000_bell_schedules.sql` is applied to `mathclaw-prod`** — this session had no Supabase connector and no CLI access. Next step is Zack's call: (a) he pastes the migration into the Supabase dashboard SQL editor himself, or (b) a session with the Supabase MCP connector (Codex, per past sessions) applies it. Either way, once the migration is live, the code still needs to be committed/pushed/deployed and then get its first-ever real QA pass (create a schedule type, add a period, tag a calendar day, turn on the Autopilot mode, confirm a screen actually switches) — none of that has been exercised even once, only reasoned through.
+- NEW 2026-09-23 (Claude), shipped but inert: the Bell Schedules feature (see "What Changed" above) is live on `main` @ `bff9721` and deployed, but **does nothing until `supabase/migrations/20260923120000_bell_schedules.sql` is applied to `mathclaw-prod`** — this session had no Supabase connector and no CLI access, so it couldn't be applied. Next step is Zack's call: (a) he pastes the migration into the Supabase dashboard SQL editor himself, or (b) a session with the Supabase MCP connector (Codex, per past sessions) applies it. Once the migration is live, this needs its first-ever real QA pass (create a schedule type, add a period, tag a calendar day, turn on the Autopilot mode, confirm a screen actually switches) — none of that has been exercised even once, only reasoned through and lint/test/build-verified.
 - NEW 2026-09-22 (Claude), shipped but unverified: both of today's vocabulary features (clipboard image paste, and the projector white-text/class-name/scheduled-start work) are live on `main` @ `adebdde` and deployed, but their actual interactions have not had authenticated browser QA — only the white-text fix was visually confirmed. See the "SHIPPED" notes in both "What Changed" entries above for the exact QA steps still needed. Whoever picks this up next (Codex, or Claude with a signed-in session) should run through those steps and report back; no further ship action is needed unless QA finds a bug.
 
 ## Active File Ownership
