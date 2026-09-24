@@ -148,7 +148,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   }
 
   return (
-    <article className="manageVocabularyCard" onPaste={handlePaste}>
+    <article className="manageVocabularyCard" tabIndex={0} onPaste={handlePaste}>
       <div className="manageVocabularyMedia">
         {imagePreviewUrl ? (
           <>

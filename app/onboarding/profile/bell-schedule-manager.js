@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 function formatTime(value) {
   const [hourString, minuteString] = String(value || "").split(":");
@@ -15,6 +16,7 @@ function formatTime(value) {
 const EMPTY_BLOCK_DRAFT = { id: null, courseId: "", startTime: "", endTime: "", label: "" };
 
 export default function BellScheduleManager({ courses }) {
+  const router = useRouter();
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,6 +81,7 @@ export default function BellScheduleManager({ courses }) {
       setNewTypeName("");
       setSelectedTypeId(data.scheduleType.id);
       await load(`Added "${data.scheduleType.name}".`);
+      router.refresh();
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -94,6 +97,7 @@ export default function BellScheduleManager({ courses }) {
       await post({ action: "rename-type", id, name });
       setRenamingId(null);
       await load("Schedule renamed.");
+      router.refresh();
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -108,6 +112,7 @@ export default function BellScheduleManager({ courses }) {
       await post({ action: "delete-type", id });
       if (selectedTypeId === id) setSelectedTypeId("");
       await load("Schedule removed.");
+      router.refresh();
     } catch (error) {
       setStatus(error.message);
     } finally {
