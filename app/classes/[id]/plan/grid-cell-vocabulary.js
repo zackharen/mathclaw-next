@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { GridSaveStatus, useGridSaveFeedback, useGridLessonSelection } from "./grid-save-feedback";
 import {
   LESSON_RESOURCE_FILE_ACCEPT,
   validateLessonResourceFile,
@@ -18,46 +18,41 @@ export default function GridCellVocabulary({
   lessons,
   vocabulary,
 }) {
-  const router = useRouter();
+  const feedback = useGridSaveFeedback();
+  const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const fileRef = useRef(null);
-  const [lessonIds, setLessonIds] = useState(() => lessons.map((lesson) => lesson.id));
+  const { lessonIds, toggleLesson } = useGridLessonSelection(lessons);
   const [word, setWord] = useState("");
   const [definition, setDefinition] = useState("");
   const [attachmentType, setAttachmentType] = useState("none");
   const [url, setUrl] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
 
-  function toggleLesson(lessonId) {
-    setLessonIds((current) =>
-      current.includes(lessonId) ? current.filter((id) => id !== lessonId) : [...current, lessonId]
-    );
-  }
 
   async function saveVocabulary(event) {
     event.preventDefault();
+    if (locked.current) return;
     if (!word.trim()) {
-      setStatus("Enter a vocabulary word.");
+      reportError("Enter a vocabulary word.");
       return;
     }
     if (lessonIds.length === 0) {
-      setStatus("Choose a lesson.");
+      reportError("Choose a lesson.");
       return;
     }
     const file = fileRef.current?.files?.[0];
     if (attachmentType === "file") {
       if (!file) {
-        setStatus("Choose a file.");
+        reportError("Choose a file.");
         return;
       }
       const validation = validateLessonResourceFile(file);
       if (validation.error) {
-        setStatus(validation.error);
+        reportError(validation.error);
         return;
       }
     }
 
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus(attachmentType === "file" ? "Uploading…" : "Adding…");
     try {
       if (attachmentType === "file") {
@@ -87,9 +82,9 @@ export default function GridCellVocabulary({
       setUrl("");
       if (fileRef.current) fileRef.current.value = "";
       setStatus("Vocabulary added.");
-      router.refresh();
+      refresh();
     } catch (error) {
-      setStatus(error.message);
+      reportError(error.message);
     } finally {
       setSaving(false);
     }
@@ -125,6 +120,7 @@ export default function GridCellVocabulary({
               {lessons.map((lesson) => (
                 <label key={lesson.id}>
                   <input
+                    disabled={saving}
                     type="checkbox"
                     checked={lessonIds.includes(lesson.id)}
                     onChange={() => toggleLesson(lesson.id)}
@@ -135,6 +131,7 @@ export default function GridCellVocabulary({
             </fieldset>
           ) : null}
           <input
+            disabled={saving}
             className="input"
             value={word}
             onChange={(event) => setWord(event.target.value)}
@@ -143,6 +140,7 @@ export default function GridCellVocabulary({
             required
           />
           <textarea
+            disabled={saving}
             className="input"
             value={definition}
             onChange={(event) => setDefinition(event.target.value)}
@@ -151,6 +149,7 @@ export default function GridCellVocabulary({
             placeholder="Definition (optional)"
           />
           <select
+            disabled={saving}
             className="input"
             value={attachmentType}
             onChange={(event) => setAttachmentType(event.target.value)}
@@ -162,6 +161,7 @@ export default function GridCellVocabulary({
           </select>
           {attachmentType === "link" ? (
             <input
+              disabled={saving}
               className="input"
               type="url"
               value={url}
@@ -171,13 +171,13 @@ export default function GridCellVocabulary({
             />
           ) : null}
           {attachmentType === "file" ? (
-            <input className="input" type="file" ref={fileRef} accept={LESSON_RESOURCE_FILE_ACCEPT} required />
+            <input disabled={saving} className="input" type="file" ref={fileRef} accept={LESSON_RESOURCE_FILE_ACCEPT} required />
           ) : null}
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saving…" : "Add Vocabulary"}
           </button>
         </form>
-        {status ? <small aria-live="polite">{status}</small> : null}
+        <GridSaveStatus {...feedback} />
       </div>
     </details>
   );

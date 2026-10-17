@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   LESSON_VOCABULARY_IMAGE_ACCEPT,
   buildClipboardImageFileName,
@@ -11,6 +10,7 @@ import {
   postLessonResource,
   uploadLessonVocabularyImage,
 } from "@/lib/lesson-resources/client";
+import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 import { resolveScheduledStartIso } from "@/lib/projector/vocabulary-carousel.mjs";
 
 function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
@@ -23,8 +23,8 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   const [image, setImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [removeAttachment, setRemoveAttachment] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
+  const feedback = useGridSaveFeedback();
+  const { saving, locked, beginSave, setSaving, setStatus, reportError } = feedback;
   const hasAttachment = entry.resource_type !== "none";
   const hasImage = entry.resource_type === "file" && entry.mime_type?.startsWith("image/");
 
@@ -51,7 +51,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   function applyImageFile(file) {
     const validation = validateLessonVocabularyImage(file);
     if (validation.error) {
-      setStatus(validation.error);
+      reportError(validation.error);
       setImage(null);
       return false;
     }
@@ -74,6 +74,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   }
 
   function handlePaste(event) {
+    if (locked.current) return;
     if (saving) return;
     const items = event.clipboardData?.items;
     if (!items) return;
@@ -93,15 +94,16 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
 
   async function save(event) {
     event.preventDefault();
+    if (locked.current) return;
     if (!word.trim()) {
-      setStatus("Enter a vocabulary word.");
+      reportError("Enter a vocabulary word.");
       return;
     }
     if (lessonIds.length === 0) {
-      setStatus("Choose at least one lesson.");
+      reportError("Choose at least one lesson.");
       return;
     }
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus(image ? "Uploading image…" : "Saving changes…");
     try {
       if (image) {
@@ -128,21 +130,23 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
       setStatus("Vocabulary updated.");
       await onChanged("Vocabulary updated.");
     } catch (error) {
-      setStatus(error.message);
+      reportError(error.message);
     } finally {
       setSaving(false);
     }
   }
 
   async function remove() {
+    if (locked.current) return;
     if (!window.confirm(`Remove “${entry.title}” from your vocabulary library?`)) return;
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus("Removing…");
     try {
       await postLessonResource({ action: "delete", resourceId: entry.id });
       await onChanged("Vocabulary removed.");
     } catch (error) {
-      setStatus(error.message);
+      reportError(error.message);
+    } finally {
       setSaving(false);
     }
   }
@@ -176,11 +180,11 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
       <form onSubmit={save}>
         <label>
           <span>Word</span>
-          <input className="input" value={word} onChange={(event) => setWord(event.target.value)} maxLength={160} required />
+          <input disabled={saving} className="input" value={word} onChange={(event) => setWord(event.target.value)} maxLength={160} required />
         </label>
         <label>
           <span>Definition</span>
-          <textarea className="input" value={definition} onChange={(event) => setDefinition(event.target.value)} maxLength={1000} rows={3} />
+          <textarea disabled={saving} className="input" value={definition} onChange={(event) => setDefinition(event.target.value)} maxLength={1000} rows={3} />
         </label>
 
         <details className="manageVocabularyLessons">
@@ -188,7 +192,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
           <div>
             {lessons.map((lesson) => (
               <label key={lesson.id}>
-                <input type="checkbox" checked={lessonIds.includes(lesson.id)} onChange={() => toggleLesson(lesson.id)} />
+                <input disabled={saving} type="checkbox" checked={lessonIds.includes(lesson.id)} onChange={() => toggleLesson(lesson.id)} />
                 <span>{lesson.label}</span>
               </label>
             ))}
@@ -209,7 +213,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
         </label>
         {hasAttachment ? (
           <label className="manageVocabularyRemoveAttachment">
-            <input
+            <input disabled={saving}
               type="checkbox"
               checked={removeAttachment}
               onChange={(event) => {
@@ -227,7 +231,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
         <div className="ctaRow">
           <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
           <button className="btn" type="button" onClick={remove} disabled={saving}>Remove Word</button>
-          {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
+          <GridSaveStatus {...feedback} />
         </div>
       </form>
     </article>
@@ -235,17 +239,18 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
 }
 
 export default function ManageClassVocabulary({ ownerId, courses }) {
-  const router = useRouter();
+  const feedback = useGridSaveFeedback();
+  const { setStatus, reportError, refresh } = feedback;
   const [courseId, setCourseId] = useState(courses[0]?.id || "");
   const [vocabulary, setVocabulary] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
   const [filter, setFilter] = useState("");
   const [projectorOpen, setProjectorOpen] = useState(false);
   const [projectorLoading, setProjectorLoading] = useState(false);
-  const [projectorSaving, setProjectorSaving] = useState(false);
+  const projectorFeedback = useGridSaveFeedback();
+  const { saving: projectorSaving, setSaving: setProjectorSaving } = projectorFeedback;
   const [projectorSetup, setProjectorSetup] = useState(null);
   const [projectorScreens, setProjectorScreens] = useState([]);
   const [projectorInterval, setProjectorInterval] = useState(30);
@@ -263,7 +268,7 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   async function load(nextCourseId = courseId, successMessage = "") {
     if (!nextCourseId) return;
     setLoading(true);
-    setStatus(successMessage);
+    feedback.clearFeedback();
     try {
       const response = await fetch(
         `/api/lesson-resources?kind=vocabulary&courseId=${encodeURIComponent(nextCourseId)}`,
@@ -274,8 +279,9 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
       setVocabulary(data.vocabulary || []);
       setLessons(data.lessons || []);
       setLoaded(true);
+      setStatus(successMessage);
     } catch (error) {
-      setStatus(error.message);
+      reportError(error.message);
     } finally {
       setLoading(false);
     }
@@ -283,7 +289,7 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
 
   async function changed(message) {
     await load(courseId, message);
-    router.refresh();
+    refresh();
   }
 
   useEffect(() => {
@@ -296,6 +302,7 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   }, [projectorOpen]);
 
   async function openProjector() {
+    projectorFeedback.clearFeedback();
     setProjectorOpen(true);
     setProjectorLoading(true);
     setProjectorSetup(null);
@@ -325,17 +332,18 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   }
 
   async function updateProjector(action) {
+    if (projectorFeedback.locked.current) return;
     let startAt = null;
     if (action === "start" && scheduleStart) {
       const resolved = resolveScheduledStartIso(scheduleTime);
       if (resolved.error) {
-        setProjectorMessage(resolved.error);
+        projectorFeedback.reportError(resolved.error);
         return;
       }
       startAt = resolved.iso;
     }
-    setProjectorSaving(true);
-    setProjectorMessage(action === "start" ? (startAt ? "Scheduling carousel…" : "Starting carousel…") : "Stopping carousel…");
+    if (!projectorFeedback.beginSave()) return;
+    projectorFeedback.setStatus(action === "start" ? (startAt ? "Scheduling carousel…" : "Starting carousel…") : "Stopping carousel…");
     try {
       const response = await fetch("/api/projector/vocabulary-carousel", {
         method: "POST",
@@ -346,13 +354,13 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
       if (!response.ok) throw new Error(data.error || "The projector could not be updated.");
       setProjectorSetup((current) => ({ ...current, runningScreenIds: data.runningScreenIds || [], runningStartedAt: data.startedAt || null }));
       const screenCount = data.runningScreenIds.length;
-      setProjectorMessage(action === "start"
+      projectorFeedback.setStatus(action === "start"
         ? startAt
           ? `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} scheduled to start at ${new Date(startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
           : `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} rotating on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
         : "Vocabulary carousel stopped.");
     } catch (error) {
-      setProjectorMessage(error.message);
+      projectorFeedback.reportError(error.message);
     } finally {
       setProjectorSaving(false);
     }
@@ -426,7 +434,7 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
             {visibleVocabulary.length === 0 ? <p>No matching vocabulary words.</p> : null}
           </div>
         ) : null}
-        {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
+        <GridSaveStatus {...feedback} />
       </div>
       {projectorOpen ? (
         <div className="manageVocabularyProjectorBackdrop" onMouseDown={(event) => {
@@ -510,6 +518,7 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
                 </div>
               </>
             ) : null}
+            <GridSaveStatus {...projectorFeedback} />
             {projectorMessage ? <p className="statusNote" role="status">{projectorMessage}</p> : null}
           </section>
         </div>

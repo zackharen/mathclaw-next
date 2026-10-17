@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 import {
   LESSON_RESOURCE_FILE_ACCEPT,
   getLessonResourceSiteSuggestion,
@@ -31,11 +31,10 @@ function blankRow(id, courses, previousRow = null) {
 }
 
 export default function BulkGridResources({ ownerId, courses, siteNames }) {
-  const router = useRouter();
+  const feedback = useGridSaveFeedback();
+  const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const nextId = useRef(2);
   const [rows, setRows] = useState(() => [blankRow(1, courses)]);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
   const [oneEachCourseId, setOneEachCourseId] = useState(courses[0]?.id || "");
   const [oneEachType, setOneEachType] = useState("link");
   const courseById = useMemo(
@@ -165,16 +164,17 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
 
   async function saveAll(event) {
     event.preventDefault();
+    if (locked.current) return;
     const errors = new Map(rows.map((row) => [row.id, validateRow(row)]));
     if ([...errors.values()].some(Boolean)) {
       setRows((current) =>
         current.map((row) => ({ ...row, error: errors.get(row.id) || "" }))
       );
-      setStatus("Fix the highlighted rows before saving.");
+      reportError("Fix the highlighted rows before saving.");
       return;
     }
 
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus(`Saving ${rows.length} item${rows.length === 1 ? "" : "s"}…`);
     const succeeded = new Set();
     const failed = new Map();
@@ -193,7 +193,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
           .filter((row) => !succeeded.has(row.id))
           .map((row) => ({ ...row, error: failed.get(row.id) || "" }))
       );
-      setStatus(
+      reportError(
         `${succeeded.size} saved. ${failed.size} item${failed.size === 1 ? "" : "s"} still need attention.`
       );
     } else {
@@ -201,7 +201,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
       setStatus(`${succeeded.size} item${succeeded.size === 1 ? "" : "s"} attached.`);
     }
     setSaving(false);
-    router.refresh();
+    refresh();
   }
 
   return (
@@ -258,7 +258,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                 return (
                   <tr key={row.id}>
                     <td>
-                      <input
+                      <input disabled={saving}
                         className="input"
                         value={row.title}
                         onChange={(event) => updateRow(row.id, { title: event.target.value })}
@@ -270,7 +270,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                     </td>
                     <td>
                       <div className="allClassesBulkResourceSource">
-                        <select
+                        <select disabled={saving}
                           className="input"
                           value={row.resourceType}
                           onChange={(event) =>
@@ -282,7 +282,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                           <option value="file">File</option>
                         </select>
                         {row.resourceType === "file" ? (
-                          <input
+                          <input disabled={saving}
                             className="input"
                             type="file"
                             accept={LESSON_RESOURCE_FILE_ACCEPT}
@@ -297,7 +297,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                           />
                         ) : (
                           <>
-                            <input
+                            <input disabled={saving}
                               className="input"
                               type="url"
                               value={row.url}
@@ -307,7 +307,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                               required
                             />
                             {needsSiteName ? (
-                              <input
+                              <input disabled={saving}
                                 className="input"
                                 value={row.siteName}
                                 onChange={(event) => changeSiteName(row, event.target.value)}
@@ -322,7 +322,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                       </div>
                     </td>
                     <td>
-                      <select
+                      <select disabled={saving}
                         className="input"
                         value={row.courseId}
                         onChange={(event) => changeCourse(row, event.target.value)}
@@ -334,7 +334,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
                       </select>
                     </td>
                     <td>
-                      <select
+                      <select disabled={saving}
                         className="input"
                         value={row.lessonId}
                         onChange={(event) => updateRow(row.id, { lessonId: event.target.value })}
@@ -370,7 +370,7 @@ export default function BulkGridResources({ ownerId, courses, siteNames }) {
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saving All…" : "Save All"}
           </button>
-          {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
+          <GridSaveStatus {...feedback} />
         </div>
       </form>
     </details>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { GridSaveStatus, useGridSaveFeedback, useGridLessonSelection } from "./grid-save-feedback";
 import {
   LESSON_RESOURCE_FILE_ACCEPT,
   getLessonResourceSiteSuggestion,
@@ -13,37 +13,32 @@ import { postLessonResource, uploadLessonResourceFile } from "@/lib/lesson-resou
 // adds new ones to that day's lessons -- the same records the class plan's Lesson
 // Resources panel shows, so anything added here appears there too.
 export default function GridCellResources({ ownerId, courseId, classDate, lessons, resources, siteNames }) {
-  const router = useRouter();
+  const feedback = useGridSaveFeedback();
+  const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const fileRef = useRef(null);
-  const [lessonIds, setLessonIds] = useState(() => lessons.map((lesson) => lesson.id));
+  const { lessonIds, toggleLesson } = useGridLessonSelection(lessons);
   const [mode, setMode] = useState("file");
   const [fileTitle, setFileTitle] = useState("");
   const [url, setUrl] = useState("");
   const [siteName, setSiteName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
   const site = url ? getLessonResourceSiteSuggestion(url, siteNames) : null;
   const needsSiteName = Boolean(site?.hostname) && site.source === "unknown";
 
-  function toggleLesson(lessonId) {
-    setLessonIds((current) =>
-      current.includes(lessonId) ? current.filter((id) => id !== lessonId) : [...current, lessonId]
-    );
-  }
 
   async function save(work, pendingMessage, doneMessage) {
+    if (locked.current) return;
     if (lessonIds.length === 0) {
-      setStatus("Choose a lesson.");
+      reportError("Choose a lesson.");
       return;
     }
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus(pendingMessage);
     try {
       await work();
       setStatus(doneMessage);
-      router.refresh();
+      refresh();
     } catch (error) {
-      setStatus(error.message);
+      reportError(error.message);
     } finally {
       setSaving(false);
     }
@@ -53,12 +48,12 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
     event.preventDefault();
     const file = fileRef.current?.files?.[0];
     if (!file) {
-      setStatus("Choose a file.");
+      reportError("Choose a file.");
       return;
     }
     const validation = validateLessonResourceFile(file);
     if (validation.error) {
-      setStatus(validation.error);
+      reportError(validation.error);
       return;
     }
     save(
@@ -106,6 +101,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
             {lessons.map((lesson) => (
               <label key={lesson.id}>
                 <input
+                  disabled={saving}
                   type="checkbox"
                   checked={lessonIds.includes(lesson.id)}
                   onChange={() => toggleLesson(lesson.id)}
@@ -116,10 +112,10 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
           </fieldset>
         ) : null}
         <div className="allClassesGridFilesTabs" role="group" aria-label="Resource type">
-          <button className={`btn${mode === "file" ? " primary" : ""}`} type="button" onClick={() => setMode("file")}>
+          <button className={`btn${mode === "file" ? " primary" : ""}`} type="button" disabled={saving} onClick={() => setMode("file")}>
             File
           </button>
-          <button className={`btn${mode === "link" ? " primary" : ""}`} type="button" onClick={() => setMode("link")}>
+          <button className={`btn${mode === "link" ? " primary" : ""}`} type="button" disabled={saving} onClick={() => setMode("link")}>
             Link
           </button>
         </div>
@@ -128,6 +124,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
             <label>
               <span>Display name</span>
               <input
+                disabled={saving}
                 className="input"
                 value={fileTitle}
                 onChange={(event) => setFileTitle(event.target.value)}
@@ -135,7 +132,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
                 placeholder="Defaults to the file name"
               />
             </label>
-            <input className="input" type="file" ref={fileRef} accept={LESSON_RESOURCE_FILE_ACCEPT} required />
+            <input disabled={saving} className="input" type="file" ref={fileRef} accept={LESSON_RESOURCE_FILE_ACCEPT} required />
             <button className="btn primary" type="submit" disabled={saving}>
               {saving ? "Uploading…" : "Upload"}
             </button>
@@ -143,6 +140,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
         ) : (
           <form onSubmit={addLink}>
             <input
+              disabled={saving}
               className="input"
               type="url"
               value={url}
@@ -152,6 +150,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
             />
             {needsSiteName ? (
               <input
+                disabled={saving}
                 className="input"
                 value={siteName}
                 onChange={(event) => setSiteName(event.target.value)}
@@ -165,7 +164,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
             </button>
           </form>
         )}
-        {status ? <small aria-live="polite">{status}</small> : null}
+        <GridSaveStatus {...feedback} />
       </div>
     </details>
   );

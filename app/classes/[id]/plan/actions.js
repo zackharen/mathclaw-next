@@ -420,7 +420,7 @@ export async function updatePacingModeAction(formData) {
   redirect(`/classes/${course.id}/plan?pacing_updated=1&t=${Date.now()}`);
 }
 
-export async function updateDailyLessonCountAction(formData) {
+export async function updateDailyLessonCountAction(formData, inPlace = false) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
   const classDate = formData.get("class_date");
@@ -435,6 +435,7 @@ export async function updateDailyLessonCountAction(formData) {
     lessonCount < 0 ||
     lessonCount > 2
   ) {
+    if (inPlace) return { error: "This day can no longer be changed. Refresh the grid and try again." };
     return;
   }
 
@@ -443,7 +444,10 @@ export async function updateDailyLessonCountAction(formData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return;
+  if (!user) {
+    if (inPlace) return { error: "Your session expired. Sign in and try again." };
+    return;
+  }
 
   const access = await getCourseAccessForUser(
     supabase,
@@ -452,7 +456,10 @@ export async function updateDailyLessonCountAction(formData) {
     "id, owner_id, schedule_model, ab_meeting_day"
   );
   const course = access?.course;
-  if (!course) return;
+  if (!course) {
+    if (inPlace) return { error: "You no longer have permission to change this class." };
+    return;
+  }
   const writeClient = getCourseWriteClient(access, supabase);
 
   const [dayRes, planRes] = await Promise.all([
@@ -481,15 +488,18 @@ export async function updateDailyLessonCountAction(formData) {
     !courseShowsCalendarDay(course, day) ||
     protectedDate
   ) {
+    if (inPlace) return { error: "This day can no longer be changed. Refresh the grid and try again." };
     return;
   }
 
-  const { error: updateError } = await writeClient
+  const { data: savedDays, error: updateError } = await writeClient
     .from("course_calendar_days")
     .update({ lesson_count_override: lessonCount, updated_at: new Date().toISOString() })
     .eq("course_id", course.id)
-    .eq("class_date", classDate);
+    .eq("class_date", classDate)
+    .select("class_date");
 
+  if (inPlace && !updateError && !savedDays?.length) return { error: "This day was not saved. Refresh the grid and try again." };
   if (updateError) throw new Error(updateError.message);
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
@@ -506,36 +516,48 @@ export async function updateDailyLessonCountAction(formData) {
   revalidatePath("/classes");
   const returnTo = safeClassReturnPath(formData.get("return_to"));
   if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  if (inPlace) return { ok: true };
   redirect(returnTo || `/classes/${course.id}/plan#plan-day-${classDate}`);
 }
 
 
-export async function markLessonCompleteAction(formData) {
+export async function markLessonCompleteAction(formData, inPlace = false) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
   const classDate = formData.get("class_date");
 
-  if (typeof courseId !== "string" || typeof classDate !== "string") return;
+  if (typeof courseId !== "string" || !courseId || !isValidISODate(classDate)) {
+    if (inPlace) return { error: "Choose a valid class and day." };
+    return;
+  }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return;
+  if (!user) {
+    if (inPlace) return { error: "Your session expired. Sign in and try again." };
+    return;
+  }
 
   const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
   const course = access?.course;
 
-  if (!course) return;
+  if (!course) {
+    if (inPlace) return { error: "You no longer have permission to change this class." };
+    return;
+  }
   const writeClient = getCourseWriteClient(access, supabase);
 
-  const { error: markError } = await writeClient
+  const { data: savedLessons, error: markError } = await writeClient
     .from("course_lesson_plan")
     .update({ status: "completed", updated_at: new Date().toISOString() })
     .eq("course_id", course.id)
-    .eq("class_date", classDate);
+    .eq("class_date", classDate)
+    .select("status");
 
+  if (inPlace && !markError && !savedLessons?.length) return { error: "There are no lessons to update on this day. Refresh the grid and try again." };
   if (markError) throw new Error(markError.message);
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
@@ -552,35 +574,47 @@ export async function markLessonCompleteAction(formData) {
   // The all-classes grid sends the teacher back to the same week and row.
   const returnTo = safeClassReturnPath(formData.get("return_to"));
   if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  if (inPlace) return { ok: true };
   redirect(returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
 }
 
-export async function markLessonPlannedAction(formData) {
+export async function markLessonPlannedAction(formData, inPlace = false) {
   const actionStart = Date.now();
   const courseId = formData.get("course_id");
   const classDate = formData.get("class_date");
 
-  if (typeof courseId !== "string" || typeof classDate !== "string") return;
+  if (typeof courseId !== "string" || !courseId || !isValidISODate(classDate)) {
+    if (inPlace) return { error: "Choose a valid class and day." };
+    return;
+  }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return;
+  if (!user) {
+    if (inPlace) return { error: "Your session expired. Sign in and try again." };
+    return;
+  }
 
   const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
   const course = access?.course;
 
-  if (!course) return;
+  if (!course) {
+    if (inPlace) return { error: "You no longer have permission to change this class." };
+    return;
+  }
   const writeClient = getCourseWriteClient(access, supabase);
 
-  const { error: markError } = await writeClient
+  const { data: savedLessons, error: markError } = await writeClient
     .from("course_lesson_plan")
     .update({ status: "planned", updated_at: new Date().toISOString() })
     .eq("course_id", course.id)
-    .eq("class_date", classDate);
+    .eq("class_date", classDate)
+    .select("status");
 
+  if (inPlace && !markError && !savedLessons?.length) return { error: "There are no lessons to update on this day. Refresh the grid and try again." };
   if (markError) throw new Error(markError.message);
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
@@ -597,5 +631,26 @@ export async function markLessonPlannedAction(formData) {
   // The all-classes grid sends the teacher back to the same week and row.
   const returnTo = safeClassReturnPath(formData.get("return_to"));
   if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  if (inPlace) return { ok: true };
   redirect(returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
+}
+
+// Return expected failures to the grid; redirects remain the default for the
+// single-class plan. Never turn a rejected or skipped write into a success.
+export async function saveGridPlanAction(formData) {
+  const actions = {
+    count: updateDailyLessonCountAction,
+    complete: markLessonCompleteAction,
+    planned: markLessonPlannedAction,
+  };
+  const kind = formData.get("grid_action");
+  const action = Object.hasOwn(actions, kind) ? actions[kind] : null;
+  if (!action) return { error: "Choose a valid change." };
+  try {
+    return await action(formData, true);
+  } catch {
+    const returnTo = safeClassReturnPath(formData.get("return_to"));
+    if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+    return { error: "Could not finish saving. Check the grid and try again." };
+  }
 }

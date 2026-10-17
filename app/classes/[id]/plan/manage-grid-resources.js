@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 import { normalizeLessonResourceUrl } from "@/lib/lesson-resources/constants";
 import { postLessonResource } from "@/lib/lesson-resources/client";
 
@@ -20,14 +20,13 @@ function draftFor(resource, courses) {
 }
 
 export default function ManageGridResources() {
-  const router = useRouter();
+  const feedback = useGridSaveFeedback();
+  const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const [resources, setResources] = useState([]);
   const [courses, setCourses] = useState([]);
   const [drafts, setDrafts] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
   const [filter, setFilter] = useState("");
 
   const courseById = useMemo(
@@ -45,7 +44,7 @@ export default function ManageGridResources() {
 
   async function load() {
     setLoading(true);
-    setStatus("");
+    feedback.clearFeedback();
     try {
       const response = await fetch("/api/lesson-resources", { cache: "no-store" });
       const data = await response.json().catch(() => ({}));
@@ -60,7 +59,7 @@ export default function ManageGridResources() {
       ));
       setLoaded(true);
     } catch (error) {
-      setStatus(error.message);
+      reportError(error.message);
     } finally {
       setLoading(false);
     }
@@ -91,6 +90,7 @@ export default function ManageGridResources() {
 
   async function saveAll(event) {
     event.preventDefault();
+    if (locked.current) return;
     const changedResources = resources.filter(changed);
     if (changedResources.length === 0) {
       setStatus("No changes to save.");
@@ -115,11 +115,11 @@ export default function ManageGridResources() {
           { ...draft, error: errors.get(id) || "" },
         ])
       ));
-      setStatus("Fix the highlighted items before saving.");
+      reportError("Fix the highlighted items before saving.");
       return;
     }
 
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus(`Saving ${changedResources.length} item${changedResources.length === 1 ? "" : "s"}…`);
     let savedCount = 0;
     const failed = new Map();
@@ -158,7 +158,7 @@ export default function ManageGridResources() {
           updated.has(id) ? draftFor(updated.get(id), courses) : draft,
         ])
       ));
-      router.refresh();
+      refresh();
     }
     if (failed.size > 0) {
       setDrafts((current) => Object.fromEntries(
@@ -167,7 +167,7 @@ export default function ManageGridResources() {
           { ...draft, error: failed.get(id) || "" },
         ])
       ));
-      setStatus(`${savedCount} saved; ${failed.size} item${failed.size === 1 ? "" : "s"} need attention.`);
+      reportError(`${savedCount} saved; ${failed.size} item${failed.size === 1 ? "" : "s"} need attention.`);
     } else {
       setStatus(`${savedCount} item${savedCount === 1 ? "" : "s"} updated.`);
     }
@@ -185,7 +185,7 @@ export default function ManageGridResources() {
       <div className="allClassesManageResourcesBody">
         <p>Edit your saved items from any week. A resource follows its lesson wherever that lesson appears.</p>
         <div className="allClassesManageResourcesToolbar">
-          <input
+          <input disabled={saving}
             className="input"
             type="search"
             value={filter}
@@ -222,7 +222,7 @@ export default function ManageGridResources() {
                     return (
                       <tr key={resource.id}>
                         <td>
-                          <input
+                          <input disabled={saving}
                             className="input"
                             value={draft?.title || ""}
                             onChange={(event) => changeDraft(resource.id, { title: event.target.value })}
@@ -235,7 +235,7 @@ export default function ManageGridResources() {
                         <td>
                           <small>{resource.resource_type === "file" ? "File" : "Link"}</small>
                           {resource.resource_type === "link" ? (
-                            <input
+                            <input disabled={saving}
                               className="input"
                               type="url"
                               value={draft?.url || ""}
@@ -249,7 +249,7 @@ export default function ManageGridResources() {
                           </a>
                         </td>
                         <td>
-                          <select
+                          <select disabled={saving}
                             className="input"
                             value={draft?.courseId || ""}
                             onChange={(event) => changeCourse(resource.id, event.target.value)}
@@ -262,7 +262,7 @@ export default function ManageGridResources() {
                           </select>
                         </td>
                         <td>
-                          <select
+                          <select disabled={saving}
                             className="input"
                             value={draft?.lessonId || ""}
                             onChange={(event) => changeDraft(resource.id, { lessonId: event.target.value })}
@@ -292,10 +292,10 @@ export default function ManageGridResources() {
               <button className="btn primary" type="submit" disabled={saving || loading}>
                 {saving ? "Saving All…" : "Save All Changes"}
               </button>
-              {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
+              <GridSaveStatus {...feedback} />
             </div>
           </form>
-        ) : status ? <span className="statusNote" role="status">{status}</span> : null}
+        ) : <GridSaveStatus {...feedback} />}
       </div>
     </details>
   );

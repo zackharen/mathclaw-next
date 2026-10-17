@@ -1,4 +1,7 @@
-import { updateDailyLessonCountAction } from "./actions";
+"use client";
+
+import { saveGridPlanAction, updateDailyLessonCountAction } from "./actions";
+import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 
 export default function LessonCountToggle({
   courseId,
@@ -6,7 +9,9 @@ export default function LessonCountToggle({
   currentCount,
   returnTo,
   disabled = false,
+  inPlace = false,
 }) {
+  const feedback = useGridSaveFeedback();
   const selectedCount = Math.max(0, Math.min(2, Number(currentCount) || 0));
 
   return (
@@ -14,7 +19,10 @@ export default function LessonCountToggle({
       <span className="lessonCountLabel">Lessons</span>
       <div className="lessonCountToggle">
         {[0, 1, 2].map((count) => (
-          <form action={updateDailyLessonCountAction} key={count}>
+          <form action={inPlace ? (data) => {
+            data.set("grid_action", "count");
+            feedback.run(() => saveGridPlanAction(data));
+          } : updateDailyLessonCountAction} key={count} aria-busy={feedback.saving}>
             <input type="hidden" name="course_id" value={courseId} />
             <input type="hidden" name="class_date" value={classDate} />
             <input type="hidden" name="lesson_count" value={count} />
@@ -22,7 +30,7 @@ export default function LessonCountToggle({
             <button
               className={`lessonCountOption${selectedCount === count ? " isSelected" : ""}`}
               type="submit"
-              disabled={disabled || selectedCount === count}
+              disabled={disabled || feedback.saving || selectedCount === count}
               aria-pressed={selectedCount === count}
               aria-label={`${count} lesson${count === 1 ? "" : "s"} on this day`}
             >
@@ -31,6 +39,7 @@ export default function LessonCountToggle({
           </form>
         ))}
       </div>
+      {inPlace ? <GridSaveStatus {...feedback} /> : null}
       {disabled ? <span className="lessonCountLocked">Completed</span> : null}
     </div>
   );

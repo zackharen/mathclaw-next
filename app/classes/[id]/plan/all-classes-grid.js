@@ -10,8 +10,7 @@ import {
   gridSchoolDates,
   gridWeekStart,
 } from "@/lib/planning/all-classes-grid";
-import { markLessonCompleteAction, markLessonPlannedAction } from "./actions";
-import SubmitButton from "../../../components/SubmitButton";
+import GridCompletionButton from "./grid-completion-button";
 import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
 import GridCellVocabulary from "./grid-cell-vocabulary";
@@ -233,6 +232,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                               </span>
                               {!cell.grace ? (
                                 <LessonCountToggle
+                              inPlace
                                   courseId={course.id}
                                   classDate={row.date}
                                   currentCount={cell.lessonCountOverride ?? 0}
@@ -248,6 +248,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                           <td key={course.id} className={cell.complete ? "isComplete" : undefined}>
                             {cell.dayType === "half" ? <span className="allClassesGridTag">Half Day</span> : null}
                             <LessonCountToggle
+                              inPlace
                               courseId={course.id}
                               classDate={row.date}
                               currentCount={cell.lessonCountOverride ?? cell.lessons.length}
@@ -260,17 +261,8 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                               </span>
                             ))}
                             <div className="allClassesGridCellActions">
-                              <form action={cell.complete ? markLessonPlannedAction : markLessonCompleteAction}>
-                                <input type="hidden" name="course_id" value={course.id} />
-                                <input type="hidden" name="class_date" value={row.date} />
-                                <input type="hidden" name="return_to" value={returnTo} />
-                                <SubmitButton
-                                  className={`btn allClassesGridComplete${cell.complete ? " isComplete" : ""}`}
-                                  pendingLabel="Saving…"
-                                >
-                                  {cell.complete ? "✓ Completed" : "Mark Complete"}
-                                </SubmitButton>
-                              </form>
+                              <GridCompletionButton courseId={course.id} classDate={row.date}
+                                complete={cell.complete} returnTo={returnTo} />
                               {resourceData.available ? (
                                 <GridCellResources
                                   ownerId={userId}

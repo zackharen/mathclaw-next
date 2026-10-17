@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 import {
   LESSON_VOCABULARY_CSV_MAX_BYTES,
   parseLessonVocabularyCsv,
@@ -9,14 +9,13 @@ import {
 import { postLessonResource } from "@/lib/lesson-resources/client";
 
 export default function VocabularyCsvImport({ courses }) {
-  const router = useRouter();
+  const feedback = useGridSaveFeedback();
+  const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const inputRef = useRef(null);
   const [courseId, setCourseId] = useState(courses[0]?.id || "");
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState([]);
   const [errors, setErrors] = useState([]);
-  const [status, setStatus] = useState("");
-  const [saving, setSaving] = useState(false);
 
   async function chooseFile(event) {
     const file = event.target.files?.[0];
@@ -43,8 +42,9 @@ export default function VocabularyCsvImport({ courses }) {
 
   async function importRows(event) {
     event.preventDefault();
+    if (locked.current) return;
     if (!courseId || rows.length === 0 || errors.length > 0) return;
-    setSaving(true);
+    if (!beginSave()) return;
     setStatus(`Importing ${rows.length} vocabulary row${rows.length === 1 ? "" : "s"}…`);
     try {
       const data = await postLessonResource({
@@ -57,10 +57,9 @@ export default function VocabularyCsvImport({ courses }) {
       setFileName("");
       if (inputRef.current) inputRef.current.value = "";
       setStatus(`${data.imported} vocabulary word${data.imported === 1 ? "" : "s"} imported.`);
-      router.refresh();
+      refresh();
     } catch (error) {
-      setErrors(error.details?.length ? error.details : [error.message]);
-      setStatus("");
+      reportError(error.details?.length ? error.details.join(" ") : error.message);
     } finally {
       setSaving(false);
     }
@@ -122,7 +121,7 @@ export default function VocabularyCsvImport({ courses }) {
               ? `Import ${rows.length} Vocabulary Word${rows.length === 1 ? "" : "s"}`
               : "Import Vocabulary Words"}
           </button>
-          {status ? <span className="statusNote" aria-live="polite">{status}</span> : null}
+          <GridSaveStatus {...feedback} />
         </div>
       </form>
     </details>
