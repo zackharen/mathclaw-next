@@ -4320,10 +4320,34 @@ details[open] > summary.btn:not(.btnNoToggle),
   gap: 0.5rem;
 }
 
-.allClassesSkippedLessonsBody li > span:first-child {
+.allClassesSkipEntry {
+  display: grid;
   flex: 1 1 12rem;
+  gap: 0.1rem;
+}
+
+.allClassesSkipEntry > span {
   color: var(--navy);
   font-weight: 700;
+}
+
+.allClassesSkipEntry small,
+.allClassesSkipPast {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.allClassesSkipEntry > span small {
+  font-weight: 400;
+}
+
+.allClassesSkipHistory {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--soft-line);
+}
+
+.allClassesSkipHistory .allClassesSkipEntry > span {
+  color: var(--muted);
 }
 
 .vocabularyCsvImport {

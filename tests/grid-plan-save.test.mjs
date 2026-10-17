@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { isPastSkippedLesson, logSkip, logUndo } from "../lib/planning/skipped-lessons.js";
 
 const source = (await readFile(new URL("../app/classes/[id]/plan/actions.js", import.meta.url), "utf8"))
   .replace(/^import[\s\S]*?;\n/gm, "")
@@ -59,6 +60,13 @@ function fixture(options = {}) {
       available: !options.noSkipColumn,
       byCourse: new Map([["class-1", options.skipped || []]]),
     }),
+    loadSkippedLessonLog: async () => ({
+      available: !options.noSkipLog,
+      byCourse: new Map([["class-1", options.skipLog || []]]),
+    }),
+    logSkip,
+    logUndo,
+    isPastSkippedLesson,
     revalidatePath: (path) => paths.push(path),
     redirect: (path) => { throw Error(`REDIRECT:${path}`); },
     safeClassReturnPath: (path) => path,
@@ -181,7 +189,41 @@ test("restore: removes the lesson and rebuilds", async () => {
 });
 test("restore: refuses a lesson that sits before completed work", async () => {
   const f = fixture({ skipped: ["lesson-9"], lessonSeq: 5, completedSeq: 10 });
-  assert.match((await f.saveGridPlanAction(skipData("restore"))).error, /before lessons already marked complete/);
+  assert.match((await f.saveGridPlanAction(skipData("restore"))).error, /already completed lessons past this point/);
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.rebuilds(), 0);
+});
+
+test("skip: logs the day it was skipped from and who skipped it", async () => {
+  const f = fixture({ skipLog: [{ lesson_id: "old", skipped_from: "2026-09-01" }] });
+  await f.saveGridPlanAction(skipData());
+  const log = f.writes[0].value.skipped_lesson_log;
+  assert.equal(log.length, 2);
+  assert.equal(log[1].lesson_id, "lesson-9");
+  assert.equal(log[1].skipped_from, "2026-10-16");
+  assert.equal(log[1].skipped_by, "teacher");
+  assert.ok(log[1].skipped_at);
+});
+test("undo: marks the open log entry undone instead of deleting it", async () => {
+  const f = fixture({
+    skipped: ["lesson-9"],
+    skipLog: [{ lesson_id: "lesson-9", skipped_from: "2026-10-16", skipped_at: "2026-10-17T12:00:00Z" }],
+  });
+  assert.equal((await f.saveGridPlanAction(skipData("restore"))).ok, true);
+  const [entry] = f.writes[0].value.skipped_lesson_log;
+  assert.equal(entry.skipped_from, "2026-10-16");
+  assert.ok(entry.undone_at);
+  assert.equal(entry.undone_by, "teacher");
+});
+test("skip still works before the log column exists", async () => {
+  const f = fixture({ noSkipLog: true });
+  assert.equal((await f.saveGridPlanAction(skipData())).ok, true);
+  assert.equal("skipped_lesson_log" in f.writes[0].value, false);
+  assert.deepEqual([...f.writes[0].value.skipped_lesson_ids], ["lesson-9"]);
+});
+test("skipping an already skipped lesson changes nothing", async () => {
+  const f = fixture({ skipped: ["lesson-9"] });
+  assert.equal((await f.saveGridPlanAction(skipData())).ok, true);
   assert.equal(f.writes.length, 0);
   assert.equal(f.rebuilds(), 0);
 });

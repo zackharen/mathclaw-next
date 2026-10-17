@@ -10,7 +10,13 @@ import { isGraceDay } from "@/lib/school-calendar";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 import { logInternalEvent } from "@/lib/observability/events";
 import { generateAnnouncementsForCourse } from "../announcements/actions";
-import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
+import {
+  isPastSkippedLesson,
+  loadSkippedLessonIds,
+  loadSkippedLessonLog,
+  logSkip,
+  logUndo,
+} from "@/lib/planning/skipped-lessons";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -734,11 +740,17 @@ async function changeSkippedLesson(formData, mode) {
   if (!course) return { error: "You no longer have permission to change this class." };
   const writeClient = getCourseWriteClient(access, supabase);
 
-  const current = await loadSkippedLessonIds(writeClient, [course.id]);
+  const [current, currentLog] = await Promise.all([
+    loadSkippedLessonIds(writeClient, [course.id]),
+    loadSkippedLessonLog(writeClient, [course.id]),
+  ]);
   if (!current.available) return { error: "Skipping lessons isn't set up yet." };
   const skipped = current.byCourse.get(course.id) || [];
+  const log = currentLog.byCourse.get(course.id) || [];
+  const now = new Date().toISOString();
 
   let next;
+  let nextLog;
   if (mode === "skip") {
     const { data: rows, error } = await writeClient
       .from("course_lesson_plan")
@@ -749,7 +761,9 @@ async function changeSkippedLesson(formData, mode) {
     if (error) throw new Error(error.message);
     if (!rows?.length) return { error: "That lesson is no longer on this day. Refresh the grid and try again." };
     if (rows.some((row) => row.status === "completed")) return { error: "Completed lessons can't be skipped." };
-    next = skipped.includes(lessonId) ? skipped : [...skipped, lessonId];
+    if (skipped.includes(lessonId)) return { ok: true, announcementsFailed: false };
+    next = [...skipped, lessonId];
+    nextLog = logSkip(log, { lessonId, skippedFrom: classDate, skippedAt: now, userId: user.id });
   } else {
     if (!skipped.includes(lessonId)) return { error: "That lesson isn't skipped anymore. Refresh the grid." };
     // Completion is carried by position, so a lesson restored in front of
@@ -768,15 +782,20 @@ async function changeSkippedLesson(formData, mode) {
       -Infinity,
       ...(completedRes.data || []).map((row) => row.curriculum_lessons?.sequence_index ?? -Infinity)
     );
-    if ((lessonRes.data?.sequence_index ?? Infinity) < lastCompleted) {
-      return { error: "This lesson comes before lessons already marked complete. Undo those first, then restore it." };
+    if (isPastSkippedLesson(lessonRes.data?.sequence_index, lastCompleted)) {
+      return { error: "You've already completed lessons past this point, so this skip can't be undone." };
     }
     next = skipped.filter((id) => id !== lessonId);
+    nextLog = logUndo(log, { lessonId, undoneAt: now, userId: user.id });
   }
 
   const { data: saved, error: saveError } = await writeClient
     .from("courses")
-    .update({ skipped_lesson_ids: next, updated_at: new Date().toISOString() })
+    .update({
+      skipped_lesson_ids: next,
+      ...(currentLog.available ? { skipped_lesson_log: nextLog } : {}),
+      updated_at: now,
+    })
     .eq("id", course.id)
     .select("id");
   if (saveError) throw new Error(saveError.message);

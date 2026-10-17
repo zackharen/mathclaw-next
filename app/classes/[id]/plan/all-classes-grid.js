@@ -21,7 +21,7 @@ import ManageClassVocabulary from "./manage-class-vocabulary";
 import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 import SkippedLessonsPanel from "./skipped-lessons-panel";
-import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
+import { isPastSkippedLesson, loadSkippedLessonIds, loadSkippedLessonLog } from "@/lib/planning/skipped-lessons";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -31,6 +31,19 @@ function dayParts(iso) {
     weekday: WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()],
     short: `${month}/${day}`,
   };
+}
+
+// Server-formatted so the page and the browser agree; teachers are on Eastern time.
+function skipDay(iso) {
+  if (!iso) return null;
+  const { weekday, short } = dayParts(iso);
+  return `${weekday} ${short}`;
+}
+
+function skipWhen(timestamp) {
+  return timestamp
+    ? new Date(timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })
+    : null;
 }
 
 function rowsOrThrow(result) {
@@ -98,25 +111,72 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
   const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows });
 
-  const skipped = await loadSkippedLessonIds(supabase, columns.map((course) => course.id));
-  const skippedIds = [...new Set([...skipped.byCourse.values()].flat())];
-  const skippedLessonRows = skippedIds.length
-    ? await supabase
-        .from("curriculum_lessons")
-        .select("id, source_lesson_code, title, sequence_index")
-        .in("id", skippedIds)
-        .then(rowsOrThrow)
-    : [];
+  const columnIds = columns.map((course) => course.id);
+  const [skipped, skipLog] = await Promise.all([
+    loadSkippedLessonIds(supabase, columnIds),
+    loadSkippedLessonLog(supabase, columnIds),
+  ]);
+  const loggedIds = [...skipLog.byCourse.values()].flat().map((entry) => entry.lesson_id);
+  const skippedIds = [...new Set([...[...skipped.byCourse.values()].flat(), ...loggedIds])];
+  const coursesWithSkips = columns.filter((course) => (skipped.byCourse.get(course.id) || []).length > 0);
+  const [skippedLessonRows, lastCompletedRows] = await Promise.all([
+    skippedIds.length
+      ? supabase
+          .from("curriculum_lessons")
+          .select("id, source_lesson_code, title, sequence_index")
+          .in("id", skippedIds)
+          .then(rowsOrThrow)
+      : [],
+    // Plan rows run in teaching order, so the latest completed row holds the
+    // furthest lesson the class has finished.
+    Promise.all(
+      coursesWithSkips.map((course) =>
+        supabase
+          .from("course_lesson_plan")
+          .select("curriculum_lessons(sequence_index)")
+          .eq("course_id", course.id)
+          .eq("status", "completed")
+          .order("class_date", { ascending: false })
+          .order("lesson_slot", { ascending: false })
+          .limit(1)
+          .then(rowsOrThrow)
+          .then((rows) => [course.id, rows[0]?.curriculum_lessons?.sequence_index ?? null])
+      )
+    ),
+  ]);
   const skippedLessonById = new Map(skippedLessonRows.map((lesson) => [lesson.id, lesson]));
-  const skippedClasses = columns.map((course) => ({
-    id: course.id,
-    title: course.title,
-    lessons: (skipped.byCourse.get(course.id) || [])
-      .map((id) => skippedLessonById.get(id))
-      .filter(Boolean)
-      .sort((a, b) => a.sequence_index - b.sequence_index)
-      .map((lesson) => ({ id: lesson.id, label: formatLessonLabel(lesson.source_lesson_code, lesson.title) })),
-  }));
+  const lastCompletedByCourse = new Map(lastCompletedRows);
+  const lessonLabel = (lesson) => formatLessonLabel(lesson.source_lesson_code, lesson.title);
+  const skippedClasses = columns.map((course) => {
+    const log = skipLog.byCourse.get(course.id) || [];
+    const openEntry = (lessonId) => [...log].reverse().find((entry) => entry.lesson_id === lessonId && !entry.undone_at);
+    return {
+      id: course.id,
+      title: course.title,
+      lessons: (skipped.byCourse.get(course.id) || [])
+        .map((id) => skippedLessonById.get(id))
+        .filter(Boolean)
+        .sort((a, b) => a.sequence_index - b.sequence_index)
+        .map((lesson) => ({
+          id: lesson.id,
+          label: lessonLabel(lesson),
+          skippedFrom: skipDay(openEntry(lesson.id)?.skipped_from),
+          skippedAt: skipWhen(openEntry(lesson.id)?.skipped_at),
+          past: isPastSkippedLesson(lesson.sequence_index, lastCompletedByCourse.get(course.id)),
+        })),
+      undone: log
+        .filter((entry) => entry.undone_at && skippedLessonById.has(entry.lesson_id))
+        .sort((a, b) => b.undone_at.localeCompare(a.undone_at))
+        .slice(0, 10)
+        .map((entry) => ({
+          key: `${entry.lesson_id}-${entry.undone_at}`,
+          label: lessonLabel(skippedLessonById.get(entry.lesson_id)),
+          skippedFrom: skipDay(entry.skipped_from),
+          skippedAt: skipWhen(entry.skipped_at),
+          undoneAt: skipWhen(entry.undone_at),
+        })),
+    };
+  });
 
   const lessonIds = [...new Set(planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean))];
   const resourceData = await loadLessonResourcePlanningData({ userId, lessonIds });
