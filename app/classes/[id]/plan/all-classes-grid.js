@@ -20,6 +20,8 @@ import VocabularyCsvImport from "./vocabulary-csv-import";
 import ManageClassVocabulary from "./manage-class-vocabulary";
 import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
+import SkippedLessonsPanel from "./skipped-lessons-panel";
+import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -96,6 +98,26 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
   const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows });
 
+  const skipped = await loadSkippedLessonIds(supabase, columns.map((course) => course.id));
+  const skippedIds = [...new Set([...skipped.byCourse.values()].flat())];
+  const skippedLessonRows = skippedIds.length
+    ? await supabase
+        .from("curriculum_lessons")
+        .select("id, source_lesson_code, title, sequence_index")
+        .in("id", skippedIds)
+        .then(rowsOrThrow)
+    : [];
+  const skippedLessonById = new Map(skippedLessonRows.map((lesson) => [lesson.id, lesson]));
+  const skippedClasses = columns.map((course) => ({
+    id: course.id,
+    title: course.title,
+    lessons: (skipped.byCourse.get(course.id) || [])
+      .map((id) => skippedLessonById.get(id))
+      .filter(Boolean)
+      .sort((a, b) => a.sequence_index - b.sequence_index)
+      .map((lesson) => ({ id: lesson.id, label: formatLessonLabel(lesson.source_lesson_code, lesson.title) })),
+  }));
+
   const lessonIds = [...new Set(planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean))];
   const resourceData = await loadLessonResourcePlanningData({ userId, lessonIds });
   const bulkResourceCourses = buildGridLessonCourseOptions(columns, planRows);
@@ -151,7 +173,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           </div>
         </div>
 
-        {(resourceData.vocabularyAvailable && columns.length > 0) || resourceData.available ? (
+        {(resourceData.vocabularyAvailable && columns.length > 0) || resourceData.available || (skipped.available && columns.length > 0) ? (
           <details className="allClassesGridOptions">
             <summary>Options</summary>
             <div className="allClassesGridOptionsBody">
@@ -174,6 +196,8 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
               ) : null}
 
               {resourceData.available ? <ManageGridResources /> : null}
+
+              {skipped.available && columns.length > 0 ? <SkippedLessonsPanel classes={skippedClasses} /> : null}
             </div>
           </details>
         ) : null}
@@ -290,6 +314,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                             currentCount={cell.lessonCountOverride ?? cell.lessons.length}
                             returnTo={returnTo}
                             disabled={cell.hasCompleted}
+                            skipLessons={skipped.available ? cellLessons : null}
                           />
                           {cell.lessons.map((lesson, lessonIndex) => (
                             <span key={lesson.id} className="allClassesGridLesson">

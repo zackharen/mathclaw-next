@@ -38,6 +38,7 @@ import { splitLessonDaysForFold } from "@/lib/planning/completed-days";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
+import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -344,7 +345,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .order("start_day_number", { ascending: true }),
   ]);
 
-  const totalLessonsCount = lessonsCountRes.count || 0;
+  // Skipped lessons are not taught, so they don't count toward this class's total.
+  const skippedLessons = curriculumEnabled ? await loadSkippedLessonIds(courseDataClient, [course.id]).catch(() => null) : null;
+  const totalLessonsCount = Math.max(
+    (lessonsCountRes.count || 0) - (skippedLessons?.byCourse.get(course.id)?.length || 0),
+    0
+  );
   const calendarDays = calendarDaysRes.data || [];
   const reasons = reasonsRes.data || [];
   const planSummaryRows = planSummaryRes.data || [];

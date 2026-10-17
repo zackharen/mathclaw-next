@@ -108,6 +108,7 @@ create table if not exists public.courses (
     )
   ),
   pacing_weekday_modifiers jsonb not null default '{}'::jsonb,
+  skipped_lesson_ids uuid[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (school_year_start < school_year_end)

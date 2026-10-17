@@ -27,6 +27,8 @@ function fixture(options = {}) {
         maybeSingle() { return query; },
         then(resolve, reject) {
           const data = update ? (options.noRows ? [] : [update])
+            : table === "curriculum_lessons" ? { sequence_index: options.lessonSeq ?? 50 }
+            : columns.includes("curriculum_lessons(sequence_index)") ? [{ curriculum_lessons: { sequence_index: options.completedSeq ?? 10 } }]
             : columns.includes("lesson_id") ? schedule
             : table === "course_calendar_days"
               ? (options.missingDay ? null : { class_date: "2026-10-16", day_type: "instructional" })
@@ -53,6 +55,10 @@ function fixture(options = {}) {
       return course.id;
     },
     logInternalEvent: async (event) => events.push(event),
+    loadSkippedLessonIds: async () => ({
+      available: !options.noSkipColumn,
+      byCourse: new Map([["class-1", options.skipped || []]]),
+    }),
     revalidatePath: (path) => paths.push(path),
     redirect: (path) => { throw Error(`REDIRECT:${path}`); },
     safeClassReturnPath: (path) => path,
@@ -144,4 +150,38 @@ test("announcement retry reports success and failure", async () => {
   assert.equal((await fixture().refreshGridAnnouncementsAction("class-1", "/classes/current/plan")).ok, true);
   assert.ok((await fixture({ generateError: true }).refreshGridAnnouncementsAction("class-1")).error);
   assert.ok((await fixture({ signedOut: true }).refreshGridAnnouncementsAction("class-1")).error);
+});
+
+function skipData(action = "skip", lessonId = "lesson-9") {
+  const form = data(action);
+  form.set("lesson_id", lessonId);
+  return form;
+}
+test("skip: adds the lesson to the class's skipped list, rebuilds, and refreshes announcements", async () => {
+  const f = fixture({ skipped: ["lesson-1"] });
+  const result = await f.saveGridPlanAction(skipData());
+  assert.equal(result.ok, true);
+  assert.deepEqual([...f.writes[0].value.skipped_lesson_ids], ["lesson-1", "lesson-9"]);
+  assert.equal(f.rebuilds(), 1);
+  assert.equal(f.generations(), 1);
+});
+test("skip: completed lessons and missing setup are refused without writing", async () => {
+  const done = fixture({ completed: true });
+  assert.match((await done.saveGridPlanAction(skipData())).error, /Completed/);
+  const missing = fixture({ noSkipColumn: true });
+  assert.ok((await missing.saveGridPlanAction(skipData())).error);
+  assert.equal(done.writes.length + missing.writes.length, 0);
+});
+test("restore: removes the lesson and rebuilds", async () => {
+  const f = fixture({ skipped: ["lesson-1", "lesson-9"] });
+  const result = await f.saveGridPlanAction(skipData("restore"));
+  assert.equal(result.ok, true);
+  assert.deepEqual([...f.writes[0].value.skipped_lesson_ids], ["lesson-1"]);
+  assert.equal(f.rebuilds(), 1);
+});
+test("restore: refuses a lesson that sits before completed work", async () => {
+  const f = fixture({ skipped: ["lesson-9"], lessonSeq: 5, completedSeq: 10 });
+  assert.match((await f.saveGridPlanAction(skipData("restore"))).error, /before lessons already marked complete/);
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.rebuilds(), 0);
 });

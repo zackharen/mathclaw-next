@@ -10,6 +10,7 @@ import { isGraceDay } from "@/lib/school-calendar";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 import { logInternalEvent } from "@/lib/observability/events";
 import { generateAnnouncementsForCourse } from "../announcements/actions";
+import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -706,6 +707,92 @@ export async function markLessonPlannedAction(formData, inPlace = false) {
   redirect(announcementsUpdated ? destination : withAnnouncementFailure(destination));
 }
 
+// Skip drops one lesson from this class's sequence (later lessons move up);
+// restore puts it back. Grid only, so expected failures are returned.
+async function changeSkippedLesson(formData, mode) {
+  const courseId = formData.get("course_id");
+  const lessonId = formData.get("lesson_id");
+  const classDate = formData.get("class_date");
+  if (
+    typeof courseId !== "string" ||
+    !courseId ||
+    typeof lessonId !== "string" ||
+    !lessonId ||
+    (mode === "skip" && !isValidISODate(classDate))
+  ) {
+    return { error: "Choose a valid lesson." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Your session expired. Sign in and try again." };
+
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id, selected_library_id");
+  const course = access?.course;
+  if (!course) return { error: "You no longer have permission to change this class." };
+  const writeClient = getCourseWriteClient(access, supabase);
+
+  const current = await loadSkippedLessonIds(writeClient, [course.id]);
+  if (!current.available) return { error: "Skipping lessons isn't set up yet." };
+  const skipped = current.byCourse.get(course.id) || [];
+
+  let next;
+  if (mode === "skip") {
+    const { data: rows, error } = await writeClient
+      .from("course_lesson_plan")
+      .select("status")
+      .eq("course_id", course.id)
+      .eq("class_date", classDate)
+      .eq("lesson_id", lessonId);
+    if (error) throw new Error(error.message);
+    if (!rows?.length) return { error: "That lesson is no longer on this day. Refresh the grid and try again." };
+    if (rows.some((row) => row.status === "completed")) return { error: "Completed lessons can't be skipped." };
+    next = skipped.includes(lessonId) ? skipped : [...skipped, lessonId];
+  } else {
+    if (!skipped.includes(lessonId)) return { error: "That lesson isn't skipped anymore. Refresh the grid." };
+    // Completion is carried by position, so a lesson restored in front of
+    // completed work would take over a completed slot. Refuse instead.
+    const [lessonRes, completedRes] = await Promise.all([
+      writeClient.from("curriculum_lessons").select("sequence_index").eq("id", lessonId).maybeSingle(),
+      writeClient
+        .from("course_lesson_plan")
+        .select("curriculum_lessons(sequence_index)")
+        .eq("course_id", course.id)
+        .eq("status", "completed"),
+    ]);
+    if (lessonRes.error) throw new Error(lessonRes.error.message);
+    if (completedRes.error) throw new Error(completedRes.error.message);
+    const lastCompleted = Math.max(
+      -Infinity,
+      ...(completedRes.data || []).map((row) => row.curriculum_lessons?.sequence_index ?? -Infinity)
+    );
+    if ((lessonRes.data?.sequence_index ?? Infinity) < lastCompleted) {
+      return { error: "This lesson comes before lessons already marked complete. Undo those first, then restore it." };
+    }
+    next = skipped.filter((id) => id !== lessonId);
+  }
+
+  const { data: saved, error: saveError } = await writeClient
+    .from("courses")
+    .update({ skipped_lesson_ids: next, updated_at: new Date().toISOString() })
+    .eq("id", course.id)
+    .select("id");
+  if (saveError) throw new Error(saveError.message);
+  if (!saved?.length) return { error: "This change was not saved. Refresh the grid and try again." };
+
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+  const announcementsUpdated = await refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId: course.id });
+
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  const returnTo = safeClassReturnPath(formData.get("return_to"));
+  if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+  return { ok: true, announcementsFailed: !announcementsUpdated };
+}
+
 // Return expected failures to the grid; redirects remain the default for the
 // single-class plan. Never turn a rejected or skipped write into a success.
 export async function saveGridPlanAction(formData) {
@@ -713,6 +800,8 @@ export async function saveGridPlanAction(formData) {
     count: updateDailyLessonCountAction,
     complete: markLessonCompleteAction,
     planned: markLessonPlannedAction,
+    skip: (data) => changeSkippedLesson(data, "skip"),
+    restore: (data) => changeSkippedLesson(data, "restore"),
   };
   const kind = formData.get("grid_action");
   const action = Object.hasOwn(actions, kind) ? actions[kind] : null;

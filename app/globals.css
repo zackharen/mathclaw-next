@@ -3479,6 +3479,38 @@ details[open] > summary.btn:not(.btnNoToggle),
   font-size: 0.65rem;
 }
 
+.lessonCountSkip {
+  min-height: 1.9rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #9fb4c3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--navy);
+  cursor: pointer;
+  font: inherit;
+}
+
+.lessonCountSkip:hover:not(:disabled),
+.lessonCountSkip[aria-expanded="true"] {
+  background: #eaf2f7;
+}
+
+.lessonCountSkipChooser {
+  display: grid;
+  flex-basis: 100%;
+  gap: 0.3rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.lessonCountSkipChooser .btn {
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
 .classPlanWorkspaceHeader > div > p {
   margin-top: 0.35rem;
   color: var(--muted);
@@ -4254,6 +4286,44 @@ details[open] > summary.btn:not(.btnNoToggle),
   border: 1px solid var(--soft-line);
   border-radius: 12px;
   background: #f8fbfd;
+}
+
+.allClassesSkippedLessonsBody {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.allClassesSkippedLessonsBody p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.allClassesSkippedLessonsBody h3 {
+  margin: 0 0 0.35rem;
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.allClassesSkippedLessonsBody ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.allClassesSkippedLessonsBody li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.allClassesSkippedLessonsBody li > span:first-child {
+  flex: 1 1 12rem;
+  color: var(--navy);
+  font-weight: 700;
 }
 
 .vocabularyCsvImport {

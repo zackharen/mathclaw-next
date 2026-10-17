@@ -13,6 +13,7 @@ import { getSiteCopy } from "@/lib/site-config";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
 import { EMPTY_CO_TEACHER_STATE, loadCoTeacherState } from "@/lib/courses/co-teachers";
 import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
+import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
 import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
   archiveClassAction,
@@ -311,10 +312,13 @@ export default async function DashboardPage({ searchParams }) {
 
   const lessonCountByCourse = new Map();
   const lessonCountByLibrary = new Map(libraryLessonCounts);
+  // Skipped lessons are not taught, so they don't count toward a class's total.
+  const skippedLessons = await loadSkippedLessonIds(supabase, courseIds).catch(() => ({ byCourse: new Map() }));
   for (const course of courses) {
+    const libraryCount = course.selected_library_id ? lessonCountByLibrary.get(course.selected_library_id) || 0 : 0;
     lessonCountByCourse.set(
       course.id,
-      course.selected_library_id ? lessonCountByLibrary.get(course.selected_library_id) || 0 : 0
+      Math.max(libraryCount - (skippedLessons.byCourse.get(course.id)?.length || 0), 0)
     );
   }
 
