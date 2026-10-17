@@ -9,6 +9,7 @@ import {
   buildSchoolDayNumberByDate,
   buildSchoolWideDayNumberByDate,
   formatAnnouncementAssignmentDate,
+  assignmentsNotAlreadyListed,
   formatUpcomingRuleAssignments,
   selectUpcomingRuleAssignments,
 } from "@/lib/announcements/assignment-rules";
@@ -16,7 +17,7 @@ import {
   announcementTemplateForCourse,
   shouldIncludeCurriculumDoNow,
 } from "@/lib/announcements/curriculum-content";
-import { buildAnnouncementCurriculum } from "@/lib/announcements/lesson-title";
+import { announcementStandards, buildAnnouncementCurriculum } from "@/lib/announcements/lesson-title";
 import {
   formatCalendarScheduleType,
   isGraceDay,
@@ -204,7 +205,7 @@ function buildAssignmentText(assignments) {
 
 function buildDoNow({ lessonTitle, objective, standards }) {
   const title = titleWithoutCode(lessonTitle) || "today's topic";
-  const standard = standards[0] || "today’s standard";
+  const standard = announcementStandards(standards)[0] || "today’s standard";
   const objectiveText = String(objective || "").trim();
   if (objectiveText) {
     return `Do Now: In 2-3 sentences, explain how "${title}" connects to this objective: ${objectiveText}`;
@@ -480,16 +481,21 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     const regularAssignment = includeRegularAssignments
       ? recurringAssignmentForDate(classDate, recurringAssignments)
       : "";
-    const selectedAssignments = buildAssignmentText(assignmentsByDate.get(classDate) || []);
-    const assignments = [selectedAssignments, regularAssignment].filter(Boolean).join("\n");
-    const selectedUpcomingAssignments = formatUpcomingRuleAssignments(
-      selectUpcomingRuleAssignments({
-        assignmentsByDate,
-        classDate,
-        calendarDays: calendarDays || [],
-      }),
-      classDate
+    const upcomingRuleAssignments = selectUpcomingRuleAssignments({
+      assignmentsByDate,
+      classDate,
+      calendarDays: calendarDays || [],
+    });
+    // Each assignment appears once per announcement, so when the template also
+    // lists upcoming work, {assignments} leaves out anything already there.
+    const selectedAssignments = buildAssignmentText(
+      assignmentsNotAlreadyListed(
+        assignmentsByDate.get(classDate) || [],
+        template.includes("{upcoming_assignments}") ? upcomingRuleAssignments : []
+      )
     );
+    const assignments = [selectedAssignments, regularAssignment].filter(Boolean).join("\n");
+    const selectedUpcomingAssignments = formatUpcomingRuleAssignments(upcomingRuleAssignments, classDate);
     const upcomingAssignments = [selectedUpcomingAssignments, regularAssignment]
       .filter(Boolean)
       .join("\n");

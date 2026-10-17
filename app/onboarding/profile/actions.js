@@ -861,12 +861,19 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
   const startDateRaw = String(formData.get("start_date") || "").trim();
   const ruleStartDate = startDateRaw ? normalizeDateInput(startDateRaw) : "";
 
+  const dueWeekdayRaw = Number.parseInt(String(formData.get("due_weekday") ?? ""), 10);
+  const dueWeekday = Number.isInteger(dueWeekdayRaw) && dueWeekdayRaw >= 0 && dueWeekdayRaw <= 6 ? dueWeekdayRaw : null;
+  const dueWeeksAfterRaw = Number.parseInt(String(formData.get("due_weeks_after") || ""), 10);
+  const dueWeeksAfter = dueWeekday !== null && Number.isInteger(dueWeeksAfterRaw)
+    ? Math.max(0, Math.min(2, dueWeeksAfterRaw))
+    : null;
   const dueSchoolDaysRaw = Number.parseInt(String(formData.get("due_school_days") || ""), 10);
-  const dueSchoolDays = Number.isInteger(dueSchoolDaysRaw)
+  // A weekday due date replaces a school-day count.
+  const dueSchoolDays = dueWeekday === null && Number.isInteger(dueSchoolDaysRaw)
     ? Math.max(1, Math.min(60, dueSchoolDaysRaw))
     : null;
   const oneLessonOnAssignmentDay =
-    dueSchoolDays === null && formData.get("one_lesson_on_assignment_day") === "on";
+    dueSchoolDays === null && dueWeekday === null && formData.get("one_lesson_on_assignment_day") === "on";
 
   const settings = {
     weekdays,
@@ -876,6 +883,8 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
     no_meeting_shift: noMeetingShift,
     start_date: ruleStartDate || null,
     due_school_days: dueSchoolDays,
+    due_weekday: dueWeekday,
+    due_weeks_after: dueWeeksAfter,
     one_lesson_on_assignment_day: oneLessonOnAssignmentDay,
   };
 

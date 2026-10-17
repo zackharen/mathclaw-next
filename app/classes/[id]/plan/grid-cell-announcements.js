@@ -10,13 +10,12 @@ import { useGridCellToggle } from "./grid-cell-toggle";
 // the text never names: it was likely generated for an older plan.
 export default function GridCellAnnouncements({ lessons, announcement }) {
   const { buttonProps, panelProps } = useGridCellToggle();
-  const count = announcement ? 1 : 0;
   const missing = announcement ? lessons.filter((lesson) => !announcement.includes(lesson.label)) : [];
 
   return (
     <>
       <button className="btn allClassesGridToggle allClassesGridSlotAnnouncements" {...buttonProps}>
-        Announcements ({count})
+        Announcements
       </button>
       <div className="allClassesGridFilesPanel allClassesGridAnnouncements allClassesGridPanel" {...panelProps}>
         <strong className="allClassesGridPanelTitle">Announcements</strong>

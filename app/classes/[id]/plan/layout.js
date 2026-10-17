@@ -2,7 +2,11 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseAccessForUser, listEditableCoursesForUser } from "@/lib/courses/access";
-import { buildRuleAssignmentOccurrences, numberRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
+import {
+  buildRuleAssignmentOccurrences,
+  formatRuleDueSummary,
+  numberRuleAssignmentOccurrences,
+} from "@/lib/announcements/assignment-rules";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import ClassSwitcher from "../class-switcher";
 import PlanViewToggle from "./plan-view-toggle";
@@ -34,11 +38,7 @@ function weekdayName(value) {
 function formatAssignmentRuleSummary(rule) {
   const settings = rule?.settings || {};
   const startSuffix = settings.start_date ? `, starting ${shortMonthDate(settings.start_date)}` : "";
-  const dueDays = Number.parseInt(String(settings.due_school_days || ""), 10);
-  const dueSuffix =
-    Number.isInteger(dueDays) && dueDays > 0
-      ? `, due ${dueDays} school day${dueDays === 1 ? "" : "s"} later`
-      : "";
+  const dueSuffix = formatRuleDueSummary(settings);
 
   if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
     const weekInterval = settings.week_interval || (rule.cadence === "biweekly" ? 2 : 1);

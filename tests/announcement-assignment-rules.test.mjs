@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  assignmentsNotAlreadyListed,
   buildOneLessonAssignmentDates,
+  buildRuleAssignmentsByDate,
+  formatRuleDueSummary,
+  onePerAssignment,
+  weekdayDueDate,
   buildRuleAssignmentOccurrences,
   buildSchoolDayNumberByDate,
   formatAnnouncementAssignmentDate,
@@ -129,7 +134,7 @@ test("upcoming assignments include active work and the next five school days", (
   assert.deepEqual(
     selectUpcomingRuleAssignments({ assignmentsByDate, classDate: "2026-09-17", calendarDays: days })
       .map((assignment) => assignment.label),
-    ["AI Word Problem 1.1", "Spiral Review 1.2"]
+    ["Spiral Review 1.2", "AI Word Problem 1.1"]
   );
 });
 
@@ -254,5 +259,69 @@ test("later-due marking-period work leaves room for the due date before the fina
   assert.deepEqual(
     occurrences.map((occurrence) => occurrence.assignment_date),
     ["2026-09-11", "2026-10-02", "2026-10-16"]
+  );
+});
+
+test("only the next-due instance of each assignment is listed, soonest due first, ties alphabetical", () => {
+  const listed = onePerAssignment([
+    { rule_id: "spiral", label: "Delta Math Spiral Review 1.8", assignment_date: "2026-10-23", due_date: "2026-11-01" },
+    { rule_id: "choice", label: "Choice Board 1.3", assignment_date: "2026-10-16", due_date: "2026-10-23" },
+    { rule_id: "spiral", label: "Delta Math Spiral Review 1.7", assignment_date: "2026-10-16", due_date: "2026-10-25" },
+    { rule_id: "notebook", label: "Notebook Check 1.3", assignment_date: "2026-10-23", due_date: null },
+    { rule_id: "assessment", label: "Assessment 1.7", assignment_date: "2026-10-23", due_date: null },
+  ]);
+  assert.deepEqual(listed.map((assignment) => assignment.label), [
+    "Assessment 1.7",
+    "Choice Board 1.3",
+    "Notebook Check 1.3",
+    "Delta Math Spiral Review 1.7",
+  ]);
+});
+
+test("work assigned today is left out when the upcoming list already shows that assignment", () => {
+  const upcoming = [{ rule_id: "spiral", label: "Delta Math Spiral Review 1.7", assignment_date: "2026-10-16", due_date: "2026-10-25" }];
+  const today = [
+    { rule_id: "spiral", label: "Delta Math Spiral Review 1.8", assignment_date: "2026-10-23", due_date: "2026-11-01" },
+    { rule_id: "exit", label: "Exit Ticket 1.1", assignment_date: "2026-10-23", due_date: null },
+  ];
+  assert.deepEqual(assignmentsNotAlreadyListed(today, upcoming).map((assignment) => assignment.label), ["Exit Ticket 1.1"]);
+  assert.equal(assignmentsNotAlreadyListed(today, []).length, 2);
+});
+
+test("weekday due dates land on the next matching weekday, plus whole weeks", () => {
+  assert.equal(weekdayDueDate("2026-10-23", 0, 0), "2026-10-25");
+  assert.equal(weekdayDueDate("2026-10-23", 0, 1), "2026-11-01");
+  assert.equal(weekdayDueDate("2026-10-23", 5, 0), "2026-10-30");
+  assert.equal(formatRuleDueSummary({ due_weekday: 0, due_weeks_after: 1 }), ", due the following week's Sunday");
+  assert.equal(formatRuleDueSummary({ due_school_days: 4 }), ", due 4 school days later");
+  assert.equal(formatRuleDueSummary({}), "");
+});
+
+test("a Friday rule due the following week's Sunday is due nine days later, even off the school calendar", () => {
+  const days = ["2026-10-16", "2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"].map((class_date) => ({
+    class_date,
+    day_type: "instructional",
+  }));
+  const byDate = buildRuleAssignmentsByDate({
+    rules: [{
+      id: "spiral",
+      course_id: null,
+      label: "Delta Math Spiral Review",
+      cadence: "weekly",
+      count_per_period: 1,
+      settings: { weekdays: [5], week_interval: 1, due_weekday: 0, due_weeks_after: 1, due_school_days: 4, no_meeting_shift: "same_day" },
+    }],
+    course,
+    calendarDays: days,
+    markingPeriodRules: [],
+    schoolDayNumberByDate: buildSchoolDayNumberByDate(days),
+    overrides: [],
+  });
+  assert.equal(byDate.get("2026-10-16")[0].due_date, "2026-10-25");
+  assert.equal(byDate.get("2026-10-23")[0].due_date, "2026-11-01");
+  assert.deepEqual(
+    selectUpcomingRuleAssignments({ assignmentsByDate: byDate, classDate: "2026-10-23", calendarDays: days })
+      .map((assignment) => assignment.label),
+    ["Delta Math Spiral Review 1.1"]
   );
 });

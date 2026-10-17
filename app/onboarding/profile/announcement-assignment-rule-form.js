@@ -11,6 +11,16 @@ const WEEKDAY_OPTIONS = [
   { value: 5, label: "Friday" },
 ];
 
+const DUE_WEEKDAY_OPTIONS = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+];
+
 function asString(value, fallback = "") {
   return value === undefined || value === null ? fallback : String(value);
 }
@@ -24,6 +34,8 @@ export default function AnnouncementAssignmentRuleForm({
   const settings = rule?.settings || {};
   const [cadence, setCadence] = useState(rule?.cadence || "weekly");
   const [dueSchoolDays, setDueSchoolDays] = useState(asString(settings.due_school_days, ""));
+  const [dueWeekday, setDueWeekday] = useState(asString(settings.due_weekday, ""));
+  const hasDueDate = dueSchoolDays !== "" || dueWeekday !== "";
   const selectedWeekdays = useMemo(
     () => new Set((settings.weekdays || []).map((day) => String(day))),
     [settings.weekdays]
@@ -93,8 +105,30 @@ export default function AnnouncementAssignmentRuleForm({
             value={dueSchoolDays}
             onChange={(event) => setDueSchoolDays(event.target.value)}
             placeholder="e.g. 4"
+            disabled={dueWeekday !== ""}
           />
         </label>
+        <label style={{ maxWidth: "14rem" }}>
+          Or Due On
+          <select className="input" name="due_weekday" value={dueWeekday} onChange={(event) => setDueWeekday(event.target.value)}>
+            <option value="">School days (above)</option>
+            {DUE_WEEKDAY_OPTIONS.map((day) => (
+              <option key={day.value} value={day.value}>
+                {day.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {dueWeekday !== "" ? (
+          <label style={{ maxWidth: "16rem" }}>
+            Which One
+            <select className="input" name="due_weeks_after" defaultValue={asString(settings.due_weeks_after, "0")}>
+              <option value="0">The next one</option>
+              <option value="1">The following week&apos;s</option>
+              <option value="2">Two weeks after the next</option>
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <label style={{ display: "flex", alignItems: "flex-start", gap: "0.55rem", maxWidth: "42rem" }}>
@@ -102,13 +136,13 @@ export default function AnnouncementAssignmentRuleForm({
           type="checkbox"
           name="one_lesson_on_assignment_day"
           defaultChecked={settings.one_lesson_on_assignment_day === true}
-          disabled={dueSchoolDays !== ""}
+          disabled={hasDueDate}
           style={{ marginTop: "0.2rem" }}
         />
         <span>
           <strong>Schedule only 1 lesson on this assignment day</strong>
           <span className="statusNote" style={{ display: "block" }}>
-            Available only when the assignment is due the same day. Leave “Due After” blank.
+            Available only when the assignment is due the same day. Leave “Due After” blank and “Or Due On” on school days.
           </span>
         </span>
       </label>

@@ -19,11 +19,23 @@ const lessonById = new Map([
     title: "Analyzing Function Behavior using Limits",
     objective: "Let's describe asymptotes using limit notation.",
   }],
+  ["quotient", {
+    source_lesson_code: "2.08",
+    title: "The Quotient Rule",
+    objective: "Let's differentiate two functions divided together.",
+  }],
+  ["unlinked", {
+    source_lesson_code: "2.10",
+    title: "Review",
+    objective: "Let's review.",
+  }],
 ]);
 
 const standardsByLesson = new Map([
   ["limits", ["TOPIC1.3", "F-IF.C.7"]],
   ["behavior", ["TOPIC1.4", "F-IF.C.9"]],
+  ["quotient", ["TOPIC2.9"]],
+  ["unlinked", []],
 ]);
 
 function renderCurriculum(rowsForDate, customTemplate = template) {
@@ -47,7 +59,7 @@ test("single-lesson announcements include the number, objective, and standards",
     `Header
 1.02: Defining Limits (Part 2)
 Let's find limits from graphs and tables.
-TOPIC1.3, F-IF.C.7
+F-IF.C.7
 Footer`
   );
 });
@@ -61,10 +73,10 @@ test("two-lesson announcements repeat complete curriculum blocks without slot la
     `Header
 1.02: Defining Limits (Part 2)
 Let's find limits from graphs and tables.
-TOPIC1.3, F-IF.C.7
+F-IF.C.7
 1.03: Analyzing Function Behavior using Limits
 Let's describe asymptotes using limit notation.
-TOPIC1.4, F-IF.C.9
+F-IF.C.9
 Footer`
   );
 });
@@ -82,10 +94,10 @@ Footer`
     `Header
 Lesson: 1.02: Defining Limits (Part 2)
 Objective: Let's find limits from graphs and tables.
-Standards: TOPIC1.3, F-IF.C.7
+Standards: F-IF.C.7
 Lesson: 1.03: Analyzing Function Behavior using Limits
 Objective: Let's describe asymptotes using limit notation.
-Standards: TOPIC1.4, F-IF.C.9
+Standards: F-IF.C.9
 Footer`
   );
 });
@@ -103,4 +115,30 @@ test("announcement lesson labels do not duplicate codes already in titles", () =
     fallback: "No lesson scheduled",
   });
   assert.equal(result.values.lesson_title, "Review 2.03-2.04");
+});
+
+test("topic-only lessons drop the standards line instead of showing topic tags", () => {
+  assert.equal(
+    renderCurriculum([{ lesson_id: "quotient" }]),
+    `Header
+2.08: The Quotient Rule
+Let's differentiate two functions divided together.
+Footer`
+  );
+  assert.equal(
+    renderCurriculum([{ lesson_id: "quotient" }, { lesson_id: "behavior" }], template.replaceAll("\n", "\r\n")),
+    "Header\r\n2.08: The Quotient Rule\r\nLet's differentiate two functions divided together.\r\n" +
+      "1.03: Analyzing Function Behavior using Limits\r\nLet's describe asymptotes using limit notation.\r\nF-IF.C.9\r\nFooter"
+  );
+});
+
+test("lessons with no standards at all still say None listed", () => {
+  assert.equal(
+    renderCurriculum([{ lesson_id: "unlinked" }]),
+    `Header
+2.10: Review
+Let's review.
+None listed
+Footer`
+  );
 });

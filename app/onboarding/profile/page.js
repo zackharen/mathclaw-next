@@ -19,7 +19,7 @@ import {
   saveTeacherMarkingPeriodAction,
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
-import { buildRuleAssignmentOccurrences } from "@/lib/announcements/assignment-rules";
+import { buildRuleAssignmentOccurrences, formatRuleDueSummary } from "@/lib/announcements/assignment-rules";
 import {
   buildABMap,
   buildMarkingPeriodWeekLabels,
@@ -185,11 +185,7 @@ function ruleSummary(rule) {
   const settings = rule.settings || {};
   const count = rule.count_per_period || 1;
   const startSuffix = settings.start_date ? `, starting ${shortDate(settings.start_date)}` : "";
-  const dueDays = Number.parseInt(String(settings.due_school_days || ""), 10);
-  const dueSuffix =
-    Number.isInteger(dueDays) && dueDays > 0
-      ? `, due ${dueDays} school day${dueDays === 1 ? "" : "s"} later`
-      : "";
+  const dueSuffix = formatRuleDueSummary(settings);
   const pacingSuffix = settings.one_lesson_on_assignment_day
     ? ", 1 lesson that day in two-lesson classes"
     : "";
