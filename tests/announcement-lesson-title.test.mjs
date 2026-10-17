@@ -132,13 +132,19 @@ Footer`
   );
 });
 
-test("lessons with no standards at all still say None listed", () => {
+test("lessons and empty days with no standards leave the standards line out", () => {
   assert.equal(
     renderCurriculum([{ lesson_id: "unlinked" }]),
     `Header
 2.10: Review
 Let's review.
-None listed
+Footer`
+  );
+  assert.equal(
+    renderCurriculum([]),
+    `Header
+No lesson scheduled
+No objective provided.
 Footer`
   );
 });
