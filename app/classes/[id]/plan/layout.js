@@ -40,6 +40,9 @@ function formatAssignmentRuleSummary(rule) {
   const startSuffix = settings.start_date ? `, starting ${shortMonthDate(settings.start_date)}` : "";
   const dueSuffix = formatRuleDueSummary(settings);
 
+  if (settings.weekly_assessment && rule.cadence === "weekly") {
+    return `Last class day of each week, skipping weeks with 3 or fewer school days${startSuffix}${dueSuffix}`;
+  }
   if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
     const weekInterval = settings.week_interval || (rule.cadence === "biweekly" ? 2 : 1);
     const days = (settings.weekdays || [5]).map(weekdayName).filter(Boolean).join(", ");

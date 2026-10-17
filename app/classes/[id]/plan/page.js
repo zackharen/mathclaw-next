@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -37,6 +38,8 @@ import { buildCourseLessonOptions } from "@/lib/lesson-resources/constants";
 import { splitLessonDaysForFold } from "@/lib/planning/completed-days";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 import { loadAssessmentFolderData, occurrenceKey } from "@/lib/assessment-resources/server";
+import { buildAssessmentCoverage, coverageByWeek } from "@/lib/announcements/assessment-coverage";
+import { formatAnnouncementAssignmentDate, isWeeklyAssessmentRule, weekStartIso } from "@/lib/announcements/assignment-rules";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
 
@@ -454,6 +457,23 @@ export default async function ClassPlanPage({ params, searchParams }) {
     ])
   );
 
+  // What each week's assessment covers, shown after the week's last class day.
+  const hasWeeklyAssessment = (assessmentFolderData?.rules || []).some(isWeeklyAssessmentRule);
+  const assessmentCoverageByWeek = hasWeeklyAssessment
+    ? coverageByWeek(
+        buildAssessmentCoverage({
+          rules: assessmentFolderData.rules,
+          occurrences: assessmentFolderData.occurrences,
+          planRows: (courseLessonsRes.data || []).map((row) => ({
+            class_date: row.class_date,
+            lesson_slot: row.lesson_slot,
+            code: row.curriculum_lessons?.source_lesson_code || "",
+          })),
+        })
+      )
+    : null;
+  const lastVisibleDayByWeek = new Map();
+
   const meetsA = course.ab_meeting_day !== "B";
   const meetsB = course.ab_meeting_day !== "A";
 
@@ -461,6 +481,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const visibleLessonDays = visibleCalendarDays.filter(
     (day) => day.class_date >= lessonWindowStart && day.class_date <= lessonWindowEnd
   );
+  for (const day of visibleLessonDays) lastVisibleDayByWeek.set(weekStartIso(day.class_date), day.class_date);
   const hiddenLessonDayCount = Math.max(visibleCalendarDays.length - visibleLessonDays.length, 0);
 
   const instructionalDaysCount = visibleCalendarDays.filter(
@@ -1165,6 +1186,33 @@ export default async function ClassPlanPage({ params, searchParams }) {
                 </article>
               );
               };
+              const renderDayWithAssessment = (day) => {
+                const week = weekStartIso(day.class_date);
+                if (!assessmentCoverageByWeek || lastVisibleDayByWeek.get(week) !== day.class_date) {
+                  return renderLessonDay(day);
+                }
+                const entries = assessmentCoverageByWeek.get(week) || [];
+                return (
+                  <Fragment key={day.class_date}>
+                    {renderLessonDay(day)}
+                    <aside className="classPlanAssessmentCoverage" aria-label="This week's assessment">
+                      {entries.length ? (
+                        entries.map((entry) => (
+                          <span key={`${entry.rule_id}-${entry.date}`}>
+                            <strong>
+                              {entry.label} · {formatAnnouncementAssignmentDate(entry.date)}
+                            </strong>
+                            {" — "}
+                            {entry.codes.length ? `Covers ${entry.codes.join(", ")}` : "No new lessons"}
+                          </span>
+                        ))
+                      ) : (
+                        <span>No assessment this week. These lessons roll into next week&apos;s assessment.</span>
+                      )}
+                    </aside>
+                  </Fragment>
+                );
+              };
 
               return (
                 <>
@@ -1179,10 +1227,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
                           <span className="hideLabel">Hide</span>
                         </span>
                       </summary>
-                      <div className="list classPlanAssignmentsBody">{foldedDays.map(renderLessonDay)}</div>
+                      <div className="list classPlanAssignmentsBody">{foldedDays.map(renderDayWithAssessment)}</div>
                     </details>
                   ) : null}
-                  {openDays.map(renderLessonDay)}
+                  {openDays.map(renderDayWithAssessment)}
                 </>
               );
             })()}

@@ -5,14 +5,22 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import {
+  buildRuleAssignmentOccurrences,
   buildRuleAssignmentsByDate,
   buildSchoolDayNumberByDate,
   buildSchoolWideDayNumberByDate,
   formatAnnouncementAssignmentDate,
   assignmentsNotAlreadyListed,
   formatUpcomingRuleAssignments,
+  isCourseMeetingDay,
+  numberRuleAssignmentOccurrences,
   selectUpcomingRuleAssignments,
 } from "@/lib/announcements/assignment-rules";
+import {
+  buildAssessmentCoverage,
+  coverageByAnnouncementDate,
+  formatAssessmentCoverage,
+} from "@/lib/announcements/assessment-coverage";
 import {
   announcementTemplateForCourse,
   shouldIncludeCurriculumDoNow,
@@ -451,6 +459,30 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     overrides: assignmentRuleOverrides,
   });
 
+  const assessmentCoverageByDate = coverageByAnnouncementDate(
+    buildAssessmentCoverage({
+      rules: assignmentRules,
+      occurrences: numberRuleAssignmentOccurrences(
+        buildRuleAssignmentOccurrences({
+          rules: assignmentRules,
+          course,
+          calendarDays: calendarDays || [],
+          markingPeriodRules,
+          schoolDayNumberByDate,
+          overrides: assignmentRuleOverrides,
+          includeSkipped: true,
+        }),
+        markingPeriodRules
+      ),
+      planRows: (planRows || []).map((row) => ({
+        class_date: row.class_date,
+        lesson_slot: row.lesson_slot,
+        code: lessonById.get(row.lesson_id)?.source_lesson_code || "",
+      })),
+    }),
+    (calendarDays || []).filter((day) => isCourseMeetingDay(course, day)).map((day) => day.class_date)
+  );
+
   for (const link of links || []) {
     const arr = standardsByLesson.get(link.lesson_id) || [];
     const code = link.standards?.code;
@@ -500,6 +532,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       .filter(Boolean)
       .join("\n");
     const teacherAbsencesText = formatTeacherAbsenceList(teacherAbsences, classDate);
+    const assessmentLessons = (assessmentCoverageByDate.get(classDate) || []).map(formatAssessmentCoverage).join("\n");
     const curriculumContent = buildAnnouncementCurriculum({
       template,
       rowsForDate,
@@ -522,10 +555,16 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       upcoming_assignments: upcomingAssignments,
       regular_assignment: regularAssignment,
       teacher_absences: teacherAbsencesText,
+      assessment_lessons: assessmentLessons,
       do_now: doNow,
       quote,
     });
 
+    // What this week's assessment covers goes at the bottom unless the template
+    // places it.
+    if (assessmentLessons && !template.includes("{assessment_lessons}")) {
+      content = `${content.trimEnd()}\n\n${assessmentLessons}`;
+    }
     if (includeCurriculumDoNow && doNow && !template.includes("{do_now}")) {
       content = `${content}\n${doNow}`.trim();
     }

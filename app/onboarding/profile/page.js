@@ -189,6 +189,9 @@ function ruleSummary(rule) {
   const pacingSuffix = settings.one_lesson_on_assignment_day
     ? ", 1 lesson that day in two-lesson classes"
     : "";
+  if (settings.weekly_assessment && rule.cadence === "weekly") {
+    return `Last class day of each week, skipping weeks with 3 or fewer school days${startSuffix}${dueSuffix}${pacingSuffix}`;
+  }
   if (rule.cadence === "weekly" || rule.cadence === "biweekly") {
     const weekInterval = settings.week_interval || (rule.cadence === "biweekly" ? 2 : 1);
     const days = (settings.weekdays || [5]).map(weekdayName).join(", ");

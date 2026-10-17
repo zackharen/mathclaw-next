@@ -22,6 +22,8 @@ import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 import SkippedLessonsPanel from "./skipped-lessons-panel";
 import { isPastSkippedLesson, loadSkippedLessonIds, loadSkippedLessonLog } from "@/lib/planning/skipped-lessons";
+import { coverageByWeek } from "@/lib/announcements/assessment-coverage";
+import { loadAssessmentCoverage } from "@/lib/assessment-resources/server";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -112,10 +114,20 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
   const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows });
 
   const columnIds = columns.map((course) => course.id);
-  const [skipped, skipLog] = await Promise.all([
+  const [skipped, skipLog, coverageRows] = await Promise.all([
     loadSkippedLessonIds(supabase, columnIds),
     loadSkippedLessonLog(supabase, columnIds),
+    // A coverage failure hides the Assessment rows rather than the grid.
+    Promise.all(
+      columns.map((course) =>
+        loadAssessmentCoverage({ course })
+          .then((coverage) => [course.id, coverage.hasWeeklyAssessment ? coverageByWeek(coverage.entries) : null])
+          .catch(() => [course.id, null])
+      )
+    ),
   ]);
+  const coverageByCourse = new Map(coverageRows);
+  const showAssessmentRows = coverageRows.some(([, byWeek]) => byWeek);
   const loggedIds = [...skipLog.byCourse.values()].flat().map((entry) => entry.lesson_id);
   const skippedIds = [...new Set([...[...skipped.byCourse.values()].flat(), ...loggedIds])];
   const coursesWithSkips = columns.filter((course) => (skipped.byCourse.get(course.id) || []).length > 0);
@@ -207,6 +219,47 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     announcementRows.map((row) => [`${row.course_id}|${row.class_date}`, row.content])
   );
 
+  // After each week's Friday: what that week's assessment covers, per class.
+  const withWeekAssessment = (row, rowIndex, dayRow) => {
+    if (!showAssessmentRows || rowIndex % 5 !== 4) return dayRow;
+    const week = gridWeekStart(row.date);
+    return (
+      <Fragment key={`assessment-${week}`}>
+        {dayRow}
+        <tr className="allClassesGridAssessmentRow">
+          <th scope="row">Assessment</th>
+          {columns.map((course) => {
+            const byWeek = coverageByCourse.get(course.id);
+            if (!byWeek) {
+              return (
+                <td key={course.id} className="allClassesGridMuted">
+                  ·
+                </td>
+              );
+            }
+            const entries = byWeek.get(week) || [];
+            return (
+              <td key={course.id}>
+                {entries.length ? (
+                  entries.map((entry) => (
+                    <span key={`${entry.rule_id}-${entry.date}`} className="allClassesGridAssessment">
+                      <strong>
+                        {entry.label} · {skipDay(entry.date)}
+                      </strong>
+                      <span>{entry.codes.length ? `Covers ${entry.codes.join(", ")}` : "No new lessons"}</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="allClassesGridMuted">No assessment this week</span>
+                )}
+              </td>
+            );
+          })}
+        </tr>
+      </Fragment>
+    );
+  };
+
   const basePath = `/classes/${currentCourseId}/plan`;
   const weekHref = (start) => `${basePath}?grid_start=${start}`;
 
@@ -278,7 +331,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                 </tr>
               </thead>
               <tbody>
-                {grid.rows.map((row, rowIndex) => {
+                {grid.rows.map((row, rowIndex) => withWeekAssessment(row, rowIndex, (() => {
                   const { weekday, short } = dayParts(row.date);
                   const rowId = `grid-day-${row.date}`;
                   const returnTo = `${weekHref(weekStart)}#${rowId}`;
@@ -435,7 +488,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                       <tr className="allClassesGridActionsRow">{lessonCells.map((cell) => cell.actions)}</tr>
                     </Fragment>
                   );
-                })}
+                })()))}
               </tbody>
             </table>
           </div>

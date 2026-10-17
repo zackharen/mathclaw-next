@@ -885,6 +885,7 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
     due_school_days: dueSchoolDays,
     due_weekday: dueWeekday,
     due_weeks_after: dueWeeksAfter,
+    weekly_assessment: cadence === "weekly" && formData.get("weekly_assessment") === "on",
     one_lesson_on_assignment_day: oneLessonOnAssignmentDay,
   };
 

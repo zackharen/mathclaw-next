@@ -149,6 +149,21 @@ export default function AnnouncementAssignmentRuleForm({
 
       {cadence === "weekly" ? (
         <div className="list">
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "0.55rem", maxWidth: "42rem" }}>
+            <input
+              type="checkbox"
+              name="weekly_assessment"
+              defaultChecked={settings.weekly_assessment === true}
+              style={{ marginTop: "0.2rem" }}
+            />
+            <span>
+              <strong>Weekly assessment</strong>
+              <span className="statusNote" style={{ display: "block" }}>
+                Falls on the last day each class meets that week (none in weeks with 3 or fewer school days), and the
+                plan, grid, and announcements list the lessons it covers. Overrides the weekday choice below.
+              </span>
+            </span>
+          </label>
           <label style={{ maxWidth: "12rem" }}>
             Every
             <input
