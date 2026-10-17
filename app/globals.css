@@ -4857,32 +4857,82 @@ details[open] > summary.btn:not(.btnNoToggle),
   font-weight: 700;
 }
 
+/* 2x2 action block: Complete | Files / Vocabulary | Announcements. Panels are
+   auto-placed after the pinned buttons and span both columns, so an open panel
+   lands below the block, stacked in Files, Vocabulary, Announcements order. */
 .allClassesGridCellActions {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 0.35rem;
   margin-top: 0.55rem;
+}
+
+.allClassesGridSlotComplete { grid-area: 1 / 1; min-width: 0; }
+.allClassesGridSlotFiles { grid-area: 1 / 2; }
+.allClassesGridSlotVocabulary { grid-area: 2 / 1; }
+.allClassesGridSlotAnnouncements { grid-area: 2 / 2; }
+
+.allClassesGridPanel {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.allClassesGridPanel[hidden] {
+  display: none;
 }
 
 .allClassesGridCellActions .btn {
   width: 100%;
   min-height: 2.2rem;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.85rem;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
   text-align: center;
+}
+
+.allClassesGridToggle[aria-expanded="true"] {
+  border-color: var(--navy);
+  background: #eef4f8;
+}
+
+.allClassesGridPanelTitle {
+  color: var(--navy);
+}
+
+.allClassesGridAnnouncementLessons {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.allClassesGridAnnouncementLessons span {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.allClassesGridAnnouncements .announcementText {
+  margin: 0;
+  max-height: 18rem;
+  overflow: auto;
+  font-size: 0.8rem;
+  background: var(--white);
+}
+
+.allClassesGridAnnouncements p {
+  margin: 0;
+}
+
+.allClassesGridAnnouncementStale {
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .allClassesGridComplete.isComplete {
   border-color: rgba(16, 185, 129, 0.6);
   background: rgba(16, 185, 129, 0.15);
   color: #0a6b4a;
-}
-
-.allClassesGridFiles > summary {
-  list-style: none;
-}
-
-.allClassesGridFiles > summary::-webkit-details-marker {
-  display: none;
 }
 
 .allClassesGridFilesPanel {

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { GridSaveStatus, useGridSaveFeedback, useGridLessonSelection } from "./grid-save-feedback";
+import { useGridCellToggle } from "./grid-cell-toggle";
 import {
   LESSON_RESOURCE_FILE_ACCEPT,
   getLessonResourceSiteSuggestion,
@@ -16,6 +17,7 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
   const feedback = useGridSaveFeedback();
   const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const fileRef = useRef(null);
+  const { buttonProps, panelProps } = useGridCellToggle();
   const { lessonIds, toggleLesson } = useGridLessonSelection(lessons);
   const [mode, setMode] = useState("file");
   const [fileTitle, setFileTitle] = useState("");
@@ -81,9 +83,12 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
   }
 
   return (
-    <details className="allClassesGridFiles">
-      <summary className="btn">{resources.length > 0 ? `Files (${resources.length})` : "＋ Add File"}</summary>
-      <div className="allClassesGridFilesPanel">
+    <>
+      <button className="btn allClassesGridToggle allClassesGridSlotFiles" {...buttonProps}>
+        {resources.length > 0 ? `Files (${resources.length})` : "＋ Add File"}
+      </button>
+      <div className="allClassesGridFilesPanel allClassesGridPanel" {...panelProps}>
+        <strong className="allClassesGridPanelTitle">Files</strong>
         {resources.length > 0 ? (
           <ul>
             {resources.map((resource) => (
@@ -166,6 +171,6 @@ export default function GridCellResources({ ownerId, courseId, classDate, lesson
         )}
         <GridSaveStatus {...feedback} />
       </div>
-    </details>
+    </>
   );
 }

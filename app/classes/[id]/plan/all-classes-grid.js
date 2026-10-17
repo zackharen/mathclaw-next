@@ -14,6 +14,7 @@ import GridCompletionButton from "./grid-completion-button";
 import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
 import GridCellVocabulary from "./grid-cell-vocabulary";
+import GridCellAnnouncements from "./grid-cell-announcements";
 import VocabularyCsvImport from "./vocabulary-csv-import";
 import ManageClassVocabulary from "./manage-class-vocabulary";
 import ManageGridResources from "./manage-grid-resources";
@@ -46,7 +47,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
   const courses = await listEditableCoursesForUser(supabase, userId);
   const courseIds = courses.map((course) => course.id);
 
-  const [lessonCounts, calendarDays, planRows] = courseIds.length
+  const [lessonCounts, calendarDays, planRows, announcementRows] = courseIds.length
     ? await Promise.all([
         // One existence check per class rather than one big select: a single
         // query is capped at 1000 rows and would silently drop whole classes.
@@ -78,8 +79,15 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           .order("class_date", { ascending: true })
           .order("lesson_slot", { ascending: true })
           .then(rowsOrThrow),
+        supabase
+          .from("course_announcements")
+          .select("course_id, class_date, content")
+          .in("course_id", courseIds)
+          .gte("class_date", firstDate)
+          .lte("class_date", lastDate)
+          .then(rowsOrThrow),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   const lessonCountByCourse = new Map(lessonCounts);
   const columns = courses
@@ -112,6 +120,10 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
         resource_type: resource.resource_type,
       }));
 
+  const announcementByCell = new Map(
+    announcementRows.map((row) => [`${row.course_id}|${row.class_date}`, row.content])
+  );
+
   const basePath = `/classes/${currentCourseId}/plan`;
   const weekHref = (start) => `${basePath}?grid_start=${start}`;
 
@@ -123,7 +135,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
             <h2>
               {dayParts(firstDate).short} – {dayParts(lastDate).short}
             </h2>
-            <p>Mark lessons complete and add files or vocabulary without leaving the grid.</p>
+            <p>Mark lessons complete, add files or vocabulary, and check announcements without leaving the grid.</p>
           </div>
           <div className="ctaRow allClassesGridNav">
             <Link className="btn" href={weekHref(addDaysIso(weekStart, -7))}>
@@ -162,7 +174,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           <p>None of your classes have scheduled lessons yet.</p>
         ) : (
           <div className="allClassesGridScroll">
-            <table className="allClassesGrid" style={{ minWidth: `${7 + columns.length * 11}rem` }}>
+            <table className="allClassesGrid" style={{ minWidth: `${7 + columns.length * 15}rem` }}>
               <thead>
                 <tr>
                   <th scope="col">Day</th>
@@ -244,6 +256,10 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                         }
 
                         const labels = cell.lessons.map((lesson) => formatLessonLabel(lesson.code, lesson.title));
+                        const cellLessons = cell.lessons.map((lesson, lessonIndex) => ({
+                          id: lesson.id,
+                          label: labels[lessonIndex],
+                        }));
                         return (
                           <td key={course.id} className={cell.complete ? "isComplete" : undefined}>
                             {cell.dayType === "half" ? <span className="allClassesGridTag">Half Day</span> : null}
@@ -268,10 +284,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                                   ownerId={userId}
                                   courseId={course.id}
                                   classDate={row.date}
-                                  lessons={cell.lessons.map((lesson, lessonIndex) => ({
-                                    id: lesson.id,
-                                    label: labels[lessonIndex],
-                                  }))}
+                                  lessons={cellLessons}
                                   resources={resourcesFor(cell.lessons.map((lesson) => lesson.id))}
                                   siteNames={resourceData.siteNames}
                                 />
@@ -281,13 +294,14 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                                   ownerId={userId}
                                   courseId={course.id}
                                   classDate={row.date}
-                                  lessons={cell.lessons.map((lesson, lessonIndex) => ({
-                                    id: lesson.id,
-                                    label: labels[lessonIndex],
-                                  }))}
+                                  lessons={cellLessons}
                                   vocabulary={vocabularyFor(cell.lessons.map((lesson) => lesson.id))}
                                 />
                               ) : null}
+                              <GridCellAnnouncements
+                                lessons={cellLessons}
+                                announcement={announcementByCell.get(`${course.id}|${row.date}`) || null}
+                              />
                             </div>
                           </td>
                         );

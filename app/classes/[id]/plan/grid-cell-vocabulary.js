@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { GridSaveStatus, useGridSaveFeedback, useGridLessonSelection } from "./grid-save-feedback";
+import { useGridCellToggle } from "./grid-cell-toggle";
 import {
   LESSON_RESOURCE_FILE_ACCEPT,
   validateLessonResourceFile,
@@ -21,6 +22,7 @@ export default function GridCellVocabulary({
   const feedback = useGridSaveFeedback();
   const { saving, locked, beginSave, setSaving, setStatus, reportError, refresh } = feedback;
   const fileRef = useRef(null);
+  const { buttonProps, panelProps } = useGridCellToggle();
   const { lessonIds, toggleLesson } = useGridLessonSelection(lessons);
   const [word, setWord] = useState("");
   const [definition, setDefinition] = useState("");
@@ -91,11 +93,12 @@ export default function GridCellVocabulary({
   }
 
   return (
-    <details className="allClassesGridFiles allClassesGridVocabulary">
-      <summary className="btn">
+    <>
+      <button className="btn allClassesGridToggle allClassesGridSlotVocabulary" {...buttonProps}>
         {vocabulary.length > 0 ? `Vocabulary (${vocabulary.length})` : "＋ Vocabulary"}
-      </summary>
-      <div className="allClassesGridFilesPanel">
+      </button>
+      <div className="allClassesGridFilesPanel allClassesGridVocabulary allClassesGridPanel" {...panelProps}>
+        <strong className="allClassesGridPanelTitle">Vocabulary</strong>
         {vocabulary.length > 0 ? (
           <ul>
             {vocabulary.map((entry) => (
@@ -179,6 +182,6 @@ export default function GridCellVocabulary({
         </form>
         <GridSaveStatus {...feedback} />
       </div>
-    </details>
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 export default function GridCompletionButton({ courseId, classDate, complete, returnTo }) {
   const feedback = useGridSaveFeedback();
   return (
-    <form action={(data) => feedback.run(() => saveGridPlanAction(data))}>
+    <form className="allClassesGridSlotComplete" action={(data) => feedback.run(() => saveGridPlanAction(data))}>
       <input type="hidden" name="course_id" value={courseId} />
       <input type="hidden" name="class_date" value={classDate} />
       <input type="hidden" name="return_to" value={returnTo} />
