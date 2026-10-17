@@ -4227,6 +4227,28 @@ details[open] > summary.btn:not(.btnNoToggle),
   margin: 0;
 }
 
+.allClassesGridOptions {
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.allClassesGridOptions > summary {
+  padding: 0.75rem 0.9rem;
+  color: var(--navy);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.allClassesGridOptions[open] > summary {
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.allClassesGridOptionsBody {
+  padding: 0.85rem 0.85rem 0;
+}
+
 .allClassesBulkResources {
   margin-bottom: 0.9rem;
   border: 1px solid var(--soft-line);
@@ -4822,13 +4844,21 @@ details[open] > summary.btn:not(.btnNoToggle),
 }
 
 .allClassesGridLesson {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: block;
+  overflow-wrap: break-word;
   color: var(--navy);
   font-weight: 700;
   line-height: 1.25;
+}
+
+/* A lesson cell is two table rows (see all-classes-grid.js); draw it as one box. */
+.allClassesGrid td.allClassesGridCellHead {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.allClassesGrid td.allClassesGridCellFoot {
+  padding-top: 0;
 }
 
 .allClassesGridEmptyLabel {
@@ -6729,4 +6759,15 @@ details[open] > summary.adminSectionSummary .hideLabel {
   display: block;
   font-size: 0.8rem;
   line-height: 1.3;
+}
+
+.gridSaveRetry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
 }

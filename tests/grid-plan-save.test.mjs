@@ -10,18 +10,24 @@ const source = (await readFile(new URL("../app/classes/[id]/plan/actions.js", im
 function fixture(options = {}) {
   const writes = [];
   const paths = [];
+  const events = [];
   let rebuilds = 0;
+  let generations = 0;
+  let schedule = [{ class_date: "2026-10-16", lesson_slot: 1, lesson_id: "lesson-1" }];
   const client = {
     auth: { getUser: async () => ({ data: { user: options.signedOut ? null : { id: "teacher" } } }) },
     from(table) {
       let update;
+      let columns = "";
       const query = {
-        select() { return query; },
+        select(value) { columns = value || ""; return query; },
+        order() { return query; },
         eq() { return query; },
         update(value) { update = value; writes.push({ table, value }); return query; },
         maybeSingle() { return query; },
         then(resolve, reject) {
           const data = update ? (options.noRows ? [] : [update])
+            : columns.includes("lesson_id") ? schedule
             : table === "course_calendar_days"
               ? (options.missingDay ? null : { class_date: "2026-10-16", day_type: "instructional" })
               : [{ status: options.completed ? "completed" : "planned" }];
@@ -36,15 +42,25 @@ function fixture(options = {}) {
     createClient: async () => client,
     getCourseAccessForUser: async () => options.denied ? null : { course: { id: "class-1" } },
     getCourseWriteClient: () => client,
-    rebuildPlanFromCalendar: async () => { rebuilds++; if (options.rebuildError) throw Error("Rebuild failed"); },
+    rebuildPlanFromCalendar: async () => {
+      rebuilds++;
+      if (options.rebuildError) throw Error("Rebuild failed");
+      if (options.shift) schedule = [{ class_date: "2026-10-19", lesson_slot: 1, lesson_id: "lesson-1" }];
+    },
+    generateAnnouncementsForCourse: async ({ course }) => {
+      generations++;
+      if (options.generateError) throw Error("Generator failed");
+      return course.id;
+    },
+    logInternalEvent: async (event) => events.push(event),
     revalidatePath: (path) => paths.push(path),
     redirect: (path) => { throw Error(`REDIRECT:${path}`); },
     safeClassReturnPath: (path) => path,
     isGraceDay: () => false,
     courseShowsCalendarDay: () => true,
   });
-  vm.runInContext(source + "\nglobalThis.actions = { saveGridPlanAction, updateDailyLessonCountAction };", context);
-  return { ...context.actions, writes, paths, rebuilds: () => rebuilds };
+  vm.runInContext(source + "\nglobalThis.actions = { saveGridPlanAction, updateDailyLessonCountAction, markLessonCompleteAction, refreshGridAnnouncementsAction };", context);
+  return { ...context.actions, writes, paths, events, rebuilds: () => rebuilds, generations: () => generations };
 }
 function data(action = "count") {
   const form = new FormData();
@@ -86,4 +102,46 @@ test("unknown action and invalid dates do not write", async () => {
   const invalid = data("complete"); invalid.set("class_date", "2026-02-30");
   assert.ok((await f.saveGridPlanAction(invalid)).error);
   assert.equal(f.writes.length, 0);
+});
+
+test("count: regenerates the class's announcements after the rebuild", async () => {
+  const f = fixture();
+  const result = await f.saveGridPlanAction(data());
+  assert.equal(result.ok, true);
+  assert.equal(result.announcementsFailed, false);
+  assert.equal(f.generations(), 1);
+});
+test("count: a failed announcement refresh keeps the saved change and reports the partial failure", async () => {
+  const f = fixture({ generateError: true });
+  const result = await f.saveGridPlanAction(data());
+  assert.equal(result.ok, true);
+  assert.equal(result.announcementsFailed, true);
+  assert.equal(f.writes.length, 1);
+  assert.equal(f.events[0].eventKey, "plan_announcement_refresh_failed");
+});
+for (const action of ["complete", "planned"]) {
+  test(`${action}: regenerates announcements only when the rebuild moved lessons`, async () => {
+    const still = fixture();
+    assert.equal((await still.saveGridPlanAction(data(action))).announcementsFailed, false);
+    assert.equal(still.generations(), 0);
+    const shifted = fixture({ shift: true });
+    assert.equal((await shifted.saveGridPlanAction(data(action))).ok, true);
+    assert.equal(shifted.generations(), 1);
+  });
+}
+test("single-class pages flag a failed announcement refresh in the redirect", async () => {
+  await assert.rejects(
+    fixture({ generateError: true }).updateDailyLessonCountAction(data()),
+    /REDIRECT:\/classes\/current\/plan\?grid_start=2026-10-12&announcements_failed=1#grid-day-2026-10-16/
+  );
+  const form = data("complete"); form.delete("return_to");
+  await assert.rejects(
+    fixture({ generateError: true, shift: true }).markLessonCompleteAction(form),
+    /REDIRECT:\/classes\/class-1\/plan\?progress_updated=1&t=\d+&announcements_failed=1#next-class-day/
+  );
+});
+test("announcement retry reports success and failure", async () => {
+  assert.equal((await fixture().refreshGridAnnouncementsAction("class-1", "/classes/current/plan")).ok, true);
+  assert.ok((await fixture({ generateError: true }).refreshGridAnnouncementsAction("class-1")).error);
+  assert.ok((await fixture({ signedOut: true }).refreshGridAnnouncementsAction("class-1")).error);
 });

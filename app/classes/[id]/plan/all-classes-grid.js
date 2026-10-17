@@ -1,3 +1,4 @@
+import { Fragment, cloneElement } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
@@ -150,25 +151,32 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           </div>
         </div>
 
-        {resourceData.vocabularyAvailable && columns.length > 0 ? (
-          <>
-            <ManageClassVocabulary
-              ownerId={userId}
-              courses={columns.map((course) => ({ id: course.id, title: course.title }))}
-            />
-            <VocabularyCsvImport courses={columns.map((course) => ({ id: course.id, title: course.title }))} />
-          </>
-        ) : null}
+        {(resourceData.vocabularyAvailable && columns.length > 0) || resourceData.available ? (
+          <details className="allClassesGridOptions">
+            <summary>Options</summary>
+            <div className="allClassesGridOptionsBody">
+              {resourceData.vocabularyAvailable && columns.length > 0 ? (
+                <>
+                  <ManageClassVocabulary
+                    ownerId={userId}
+                    courses={columns.map((course) => ({ id: course.id, title: course.title }))}
+                  />
+                  <VocabularyCsvImport courses={columns.map((course) => ({ id: course.id, title: course.title }))} />
+                </>
+              ) : null}
 
-        {resourceData.available && bulkResourceCourses.length > 0 ? (
-          <BulkGridResources
-            ownerId={userId}
-            courses={bulkResourceCourses}
-            siteNames={resourceData.siteNames}
-          />
-        ) : null}
+              {resourceData.available && bulkResourceCourses.length > 0 ? (
+                <BulkGridResources
+                  ownerId={userId}
+                  courses={bulkResourceCourses}
+                  siteNames={resourceData.siteNames}
+                />
+              ) : null}
 
-        {resourceData.available ? <ManageGridResources /> : null}
+              {resourceData.available ? <ManageGridResources /> : null}
+            </div>
+          </details>
+        ) : null}
 
         {columns.length === 0 ? (
           <p>None of your classes have scheduled lessons yet.</p>
@@ -217,96 +225,130 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                     );
                   }
 
-                  return (
-                    <tr key={row.date} id={rowId} className={rowClass}>
-                      {dayHeader}
-                      {row.cells.map((cell, index) => {
-                        const course = columns[index];
-                        if (cell.kind === "no-meeting") {
-                          return (
-                            <td key={course.id} className="allClassesGridMuted" aria-label="Class does not meet">
-                              ·
-                            </td>
-                          );
-                        }
-                        if (cell.kind === "off") {
-                          return (
-                            <td key={course.id} className="allClassesGridMuted">
-                              No School
-                            </td>
-                          );
-                        }
-                        if (cell.kind === "empty") {
-                          return (
-                            <td key={course.id} className={cell.grace ? "allClassesGridMuted" : undefined}>
-                              <span className={cell.grace ? undefined : "allClassesGridEmptyLabel"}>
-                                {cell.grace ? "Grace Day" : "No lesson"}
-                              </span>
-                              {!cell.grace ? (
-                                <LessonCountToggle
-                              inPlace
-                                  courseId={course.id}
-                                  classDate={row.date}
-                                  currentCount={cell.lessonCountOverride ?? 0}
-                                  returnTo={returnTo}
-                                />
-                              ) : null}
-                            </td>
-                          );
-                        }
-
-                        const labels = cell.lessons.map((lesson) => formatLessonLabel(lesson.code, lesson.title));
-                        const cellLessons = cell.lessons.map((lesson, lessonIndex) => ({
-                          id: lesson.id,
-                          label: labels[lessonIndex],
-                        }));
-                        return (
-                          <td key={course.id} className={cell.complete ? "isComplete" : undefined}>
-                            {cell.dayType === "half" ? <span className="allClassesGridTag">Half Day</span> : null}
-                            <LessonCountToggle
-                              inPlace
-                              courseId={course.id}
-                              classDate={row.date}
-                              currentCount={cell.lessonCountOverride ?? cell.lessons.length}
-                              returnTo={returnTo}
-                              disabled={cell.hasCompleted}
-                            />
-                            {cell.lessons.map((lesson, lessonIndex) => (
-                              <span key={lesson.id} className="allClassesGridLesson" title={labels[lessonIndex]}>
-                                {labels[lessonIndex]}
-                              </span>
-                            ))}
-                            <div className="allClassesGridCellActions">
-                              <GridCompletionButton courseId={course.id} classDate={row.date}
-                                complete={cell.complete} returnTo={returnTo} />
-                              {resourceData.available ? (
-                                <GridCellResources
-                                  ownerId={userId}
-                                  courseId={course.id}
-                                  classDate={row.date}
-                                  lessons={cellLessons}
-                                  resources={resourcesFor(cell.lessons.map((lesson) => lesson.id))}
-                                  siteNames={resourceData.siteNames}
-                                />
-                              ) : null}
-                              {resourceData.vocabularyAvailable ? (
-                                <GridCellVocabulary
-                                  ownerId={userId}
-                                  courseId={course.id}
-                                  classDate={row.date}
-                                  lessons={cellLessons}
-                                  vocabulary={vocabularyFor(cell.lessons.map((lesson) => lesson.id))}
-                                />
-                              ) : null}
-                              <GridCellAnnouncements
-                                lessons={cellLessons}
-                                announcement={announcementByCell.get(`${course.id}|${row.date}`) || null}
-                              />
-                            </div>
+                  // Lesson cells span two table rows: lesson info on top, actions
+                  // below. The table sizes the top row to its tallest cell, so the
+                  // 2x2 action blocks line up across the day however titles wrap.
+                  const cells = row.cells.map((cell, index) => {
+                    const course = columns[index];
+                    if (cell.kind === "no-meeting") {
+                      return {
+                        course,
+                        whole: (
+                          <td key={course.id} className="allClassesGridMuted" aria-label="Class does not meet">
+                            ·
                           </td>
-                        );
-                      })}
-                    </tr>
+                        ),
+                      };
+                    }
+                    if (cell.kind === "off") {
+                      return {
+                        course,
+                        whole: (
+                          <td key={course.id} className="allClassesGridMuted">
+                            No School
+                          </td>
+                        ),
+                      };
+                    }
+                    if (cell.kind === "empty") {
+                      return {
+                        course,
+                        whole: (
+                          <td key={course.id} className={cell.grace ? "allClassesGridMuted" : undefined}>
+                            <span className={cell.grace ? undefined : "allClassesGridEmptyLabel"}>
+                              {cell.grace ? "Grace Day" : "No lesson"}
+                            </span>
+                            {!cell.grace ? (
+                              <LessonCountToggle
+                            inPlace
+                                courseId={course.id}
+                                classDate={row.date}
+                                currentCount={cell.lessonCountOverride ?? 0}
+                                returnTo={returnTo}
+                              />
+                            ) : null}
+                          </td>
+                        ),
+                      };
+                    }
+
+                    const labels = cell.lessons.map((lesson) => formatLessonLabel(lesson.code, lesson.title));
+                    const cellLessons = cell.lessons.map((lesson, lessonIndex) => ({
+                      id: lesson.id,
+                      label: labels[lessonIndex],
+                    }));
+                    const completeClass = cell.complete ? " isComplete" : "";
+                    return {
+                      course,
+                      head: (
+                        <td key={course.id} className={`allClassesGridCellHead${completeClass}`}>
+                          {cell.dayType === "half" ? <span className="allClassesGridTag">Half Day</span> : null}
+                          <LessonCountToggle
+                            inPlace
+                            courseId={course.id}
+                            classDate={row.date}
+                            currentCount={cell.lessonCountOverride ?? cell.lessons.length}
+                            returnTo={returnTo}
+                            disabled={cell.hasCompleted}
+                          />
+                          {cell.lessons.map((lesson, lessonIndex) => (
+                            <span key={lesson.id} className="allClassesGridLesson">
+                              {labels[lessonIndex]}
+                            </span>
+                          ))}
+                        </td>
+                      ),
+                      actions: (
+                        <td key={course.id} className={`allClassesGridCellFoot${completeClass}`}>
+                          <div className="allClassesGridCellActions">
+                            <GridCompletionButton courseId={course.id} classDate={row.date}
+                              complete={cell.complete} returnTo={returnTo} />
+                            {resourceData.available ? (
+                              <GridCellResources
+                                ownerId={userId}
+                                courseId={course.id}
+                                classDate={row.date}
+                                lessons={cellLessons}
+                                resources={resourcesFor(cell.lessons.map((lesson) => lesson.id))}
+                                siteNames={resourceData.siteNames}
+                              />
+                            ) : null}
+                            {resourceData.vocabularyAvailable ? (
+                              <GridCellVocabulary
+                                ownerId={userId}
+                                courseId={course.id}
+                                classDate={row.date}
+                                lessons={cellLessons}
+                                vocabulary={vocabularyFor(cell.lessons.map((lesson) => lesson.id))}
+                              />
+                            ) : null}
+                            <GridCellAnnouncements
+                              lessons={cellLessons}
+                              announcement={announcementByCell.get(`${course.id}|${row.date}`) || null}
+                            />
+                          </div>
+                        </td>
+                      ),
+                    };
+                  });
+
+                  const lessonCells = cells.filter((cell) => !cell.whole);
+                  if (lessonCells.length === 0) {
+                    return (
+                      <tr key={row.date} id={rowId} className={rowClass}>
+                        {dayHeader}
+                        {cells.map((cell) => cell.whole)}
+                      </tr>
+                    );
+                  }
+                  return (
+                    <Fragment key={row.date}>
+                      <tr id={rowId} className={rowClass}>
+                        {cloneElement(dayHeader, { rowSpan: 2 })}
+                        {cells.map((cell) => (cell.whole ? cloneElement(cell.whole, { rowSpan: 2 }) : cell.head))}
+                      </tr>
+                      <tr className="allClassesGridActionsRow">{lessonCells.map((cell) => cell.actions)}</tr>
+                    </Fragment>
                   );
                 })}
               </tbody>

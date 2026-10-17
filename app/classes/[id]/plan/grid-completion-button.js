@@ -1,12 +1,12 @@
 "use client";
 
 import { saveGridPlanAction } from "./actions";
-import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
+import { GridSaveStatus, runGridPacingSave, useGridSaveFeedback } from "./grid-save-feedback";
 
 export default function GridCompletionButton({ courseId, classDate, complete, returnTo }) {
   const feedback = useGridSaveFeedback();
   return (
-    <form className="allClassesGridSlotComplete" action={(data) => feedback.run(() => saveGridPlanAction(data))}>
+    <form className="allClassesGridSlotComplete" action={(data) => runGridPacingSave(feedback, { courseId, returnTo, action: () => saveGridPlanAction(data) })}>
       <input type="hidden" name="course_id" value={courseId} />
       <input type="hidden" name="class_date" value={classDate} />
       <input type="hidden" name="return_to" value={returnTo} />

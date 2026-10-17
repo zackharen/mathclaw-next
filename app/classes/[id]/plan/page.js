@@ -206,6 +206,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const abUpdated = qs.ab_updated === "1";
   const progressUpdated = qs.progress_updated === "1";
   const announcementsUpdated = qs.announcements_updated === "1";
+  const announcementsFailed = qs.announcements_failed === "1";
   const pacingUpdated = qs.pacing_updated === "1";
   const dateRangeUpdated = qs.date_range_updated === "1";
   const imported = qs.imported === "1";
@@ -224,6 +225,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
         imported ? "Calendar Imported!" : null,
         calendarCopied ? "Calendar copied to other classes." : null,
         announcementsUpdated ? "Announcements Updated!" : null,
+        announcementsFailed ? "Lessons saved, but announcements didn't update. Use Refresh Announcements." : null,
       ].filter(Boolean);
 
   const cookieStore = await cookies();

@@ -1,7 +1,7 @@
 "use client";
 
 import { saveGridPlanAction, updateDailyLessonCountAction } from "./actions";
-import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
+import { GridSaveStatus, runGridPacingSave, useGridSaveFeedback } from "./grid-save-feedback";
 
 export default function LessonCountToggle({
   courseId,
@@ -21,7 +21,7 @@ export default function LessonCountToggle({
         {[0, 1, 2].map((count) => (
           <form action={inPlace ? (data) => {
             data.set("grid_action", "count");
-            feedback.run(() => saveGridPlanAction(data));
+            runGridPacingSave(feedback, { courseId, returnTo, action: () => saveGridPlanAction(data) });
           } : updateDailyLessonCountAction} key={count} aria-busy={feedback.saving}>
             <input type="hidden" name="course_id" value={courseId} />
             <input type="hidden" name="class_date" value={classDate} />

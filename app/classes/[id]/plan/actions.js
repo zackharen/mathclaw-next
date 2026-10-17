@@ -8,6 +8,8 @@ import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/acce
 import { safeClassReturnPath } from "@/lib/planning/return-path";
 import { isGraceDay } from "@/lib/school-calendar";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
+import { logInternalEvent } from "@/lib/observability/events";
+import { generateAnnouncementsForCourse } from "../announcements/actions";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -165,6 +167,52 @@ async function relabelExistingABDays({ writeClient, course, startDate, endDate }
   }
 
   return updatedCount;
+}
+
+const ANNOUNCEMENT_COURSE_COLUMNS =
+  "id, title, school_year_start, school_year_end, owner_id, schedule_model, ab_meeting_day, selected_library_id";
+
+async function loadLessonScheduleKey(client, courseId) {
+  const { data, error } = await client
+    .from("course_lesson_plan")
+    .select("class_date, lesson_slot, lesson_id")
+    .eq("course_id", courseId)
+    .order("class_date", { ascending: true })
+    .order("lesson_slot", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data || []).map((row) => `${row.class_date}|${row.lesson_slot}|${row.lesson_id}`).join(",");
+}
+
+// Announcement text is generated from the lesson schedule, so a pacing change
+// leaves it describing the old lessons. Regenerate the whole class: one change
+// can shift every later date. The generator upserts on (course_id, class_date),
+// so existing rows are updated in place. Never throws: the lesson change is
+// already saved, and the caller reports this step separately.
+async function refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId }) {
+  try {
+    const access = await getCourseAccessForUser(supabase, user.id, courseId, ANNOUNCEMENT_COURSE_COLUMNS);
+    if (!access?.course) return false;
+    // Read with the write client too, so a co-teacher's regeneration sees the
+    // same plan rows the rebuild just wrote.
+    await generateAnnouncementsForCourse({ supabase: writeClient, writeClient, userId: user.id, course: access.course });
+    revalidatePath(`/classes/${courseId}/announcements`);
+    return true;
+  } catch (error) {
+    await logInternalEvent({
+      eventKey: "plan_announcement_refresh_failed",
+      source: "classes.plan.actions",
+      message: error?.message || String(error),
+      user,
+      courseId,
+    });
+    return false;
+  }
+}
+
+function withAnnouncementFailure(path) {
+  const [beforeHash, hash] = path.split("#");
+  const joined = `${beforeHash}${beforeHash.includes("?") ? "&" : "?"}announcements_failed=1`;
+  return hash === undefined ? joined : `${joined}#${hash}`;
 }
 
 export async function generatePacingAction(formData) {
@@ -503,6 +551,12 @@ export async function updateDailyLessonCountAction(formData, inPlace = false) {
   if (updateError) throw new Error(updateError.message);
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+  const announcementsUpdated = await refreshAnnouncementsAfterPacing({
+    supabase,
+    writeClient,
+    user,
+    courseId: course.id,
+  });
 
   perfLog("updateDailyLessonCountAction", {
     course: course.id,
@@ -516,8 +570,9 @@ export async function updateDailyLessonCountAction(formData, inPlace = false) {
   revalidatePath("/classes");
   const returnTo = safeClassReturnPath(formData.get("return_to"));
   if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
-  if (inPlace) return { ok: true };
-  redirect(returnTo || `/classes/${course.id}/plan#plan-day-${classDate}`);
+  if (inPlace) return { ok: true, announcementsFailed: !announcementsUpdated };
+  const destination = returnTo || `/classes/${course.id}/plan#plan-day-${classDate}`;
+  redirect(announcementsUpdated ? destination : withAnnouncementFailure(destination));
 }
 
 
@@ -550,6 +605,9 @@ export async function markLessonCompleteAction(formData, inPlace = false) {
   }
   const writeClient = getCourseWriteClient(access, supabase);
 
+  // In manual pacing the completion boundary decides which lessons later days
+  // get, so compare the schedule around the rebuild to catch a shift.
+  const scheduleBefore = await loadLessonScheduleKey(writeClient, course.id);
   const { data: savedLessons, error: markError } = await writeClient
     .from("course_lesson_plan")
     .update({ status: "completed", updated_at: new Date().toISOString() })
@@ -561,6 +619,10 @@ export async function markLessonCompleteAction(formData, inPlace = false) {
   if (markError) throw new Error(markError.message);
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+  const scheduleShifted = (await loadLessonScheduleKey(writeClient, course.id)) !== scheduleBefore;
+  const announcementsUpdated = scheduleShifted
+    ? await refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId: course.id })
+    : true;
 
   perfLog("markLessonCompleteAction", {
     course: course.id,
@@ -574,8 +636,9 @@ export async function markLessonCompleteAction(formData, inPlace = false) {
   // The all-classes grid sends the teacher back to the same week and row.
   const returnTo = safeClassReturnPath(formData.get("return_to"));
   if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
-  if (inPlace) return { ok: true };
-  redirect(returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
+  if (inPlace) return { ok: true, announcementsFailed: !announcementsUpdated };
+  const destination = returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`;
+  redirect(announcementsUpdated ? destination : withAnnouncementFailure(destination));
 }
 
 export async function markLessonPlannedAction(formData, inPlace = false) {
@@ -607,6 +670,9 @@ export async function markLessonPlannedAction(formData, inPlace = false) {
   }
   const writeClient = getCourseWriteClient(access, supabase);
 
+  // In manual pacing the completion boundary decides which lessons later days
+  // get, so compare the schedule around the rebuild to catch a shift.
+  const scheduleBefore = await loadLessonScheduleKey(writeClient, course.id);
   const { data: savedLessons, error: markError } = await writeClient
     .from("course_lesson_plan")
     .update({ status: "planned", updated_at: new Date().toISOString() })
@@ -618,6 +684,10 @@ export async function markLessonPlannedAction(formData, inPlace = false) {
   if (markError) throw new Error(markError.message);
 
   await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+  const scheduleShifted = (await loadLessonScheduleKey(writeClient, course.id)) !== scheduleBefore;
+  const announcementsUpdated = scheduleShifted
+    ? await refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId: course.id })
+    : true;
 
   perfLog("markLessonPlannedAction", {
     course: course.id,
@@ -631,8 +701,9 @@ export async function markLessonPlannedAction(formData, inPlace = false) {
   // The all-classes grid sends the teacher back to the same week and row.
   const returnTo = safeClassReturnPath(formData.get("return_to"));
   if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
-  if (inPlace) return { ok: true };
-  redirect(returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`);
+  if (inPlace) return { ok: true, announcementsFailed: !announcementsUpdated };
+  const destination = returnTo || `/classes/${course.id}/plan?progress_updated=1&t=${Date.now()}#next-class-day`;
+  redirect(announcementsUpdated ? destination : withAnnouncementFailure(destination));
 }
 
 // Return expected failures to the grid; redirects remain the default for the
@@ -653,4 +724,22 @@ export async function saveGridPlanAction(formData) {
     if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
     return { error: "Could not finish saving. Check the grid and try again." };
   }
+}
+
+// Retry for the grid when lessons saved but the announcement refresh did not.
+export async function refreshGridAnnouncementsAction(courseId, returnTo) {
+  if (typeof courseId !== "string" || !courseId) return { error: "Choose a valid class." };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Your session expired. Sign in and try again." };
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  if (!access?.course) return { error: "You no longer have permission to change this class." };
+  const writeClient = getCourseWriteClient(access, supabase);
+  const updated = await refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId });
+  revalidatePath(`/classes/${courseId}/plan`);
+  const safeReturn = safeClassReturnPath(returnTo);
+  if (safeReturn) revalidatePath(safeReturn.split(/[?#]/)[0]);
+  return updated ? { ok: true } : { error: "Announcements still didn't update. Try again in a moment." };
 }
