@@ -1,12 +1,10 @@
 import SignInForm from "./sign-in-form";
+import { isSameOriginPath } from "@/lib/auth/account-type";
 
 export default async function SignInPage({ searchParams }) {
   const params = await searchParams;
   const redirectRaw = params?.redirect;
-  const redirectTo =
-    typeof redirectRaw === "string" && redirectRaw.startsWith("/")
-      ? redirectRaw
-      : "/";
+  const redirectTo = isSameOriginPath(redirectRaw) ? redirectRaw : "/";
 
   return (
     <div className="stack">

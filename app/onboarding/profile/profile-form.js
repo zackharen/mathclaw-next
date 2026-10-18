@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 export default function ProfileForm({
   userId,
@@ -37,7 +37,7 @@ export default function ProfileForm({
     setSaved(false);
     setError("");
 
-    const supabase = createClient();
+    const supabase = await loadBrowserClient();
     const resolvedSchoolName = newSchoolName.trim() || selectedSchoolName || "";
     const payload = {
       id: userId,

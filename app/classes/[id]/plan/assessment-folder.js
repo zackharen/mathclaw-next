@@ -11,7 +11,7 @@ import {
   sanitizeLessonResourceFileName,
   validateLessonResourceFile,
 } from "@/lib/lesson-resources/constants";
-import { createClient } from "@/lib/supabase/client";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import ResourceEditForm from "./resource-edit-form";
 
@@ -150,7 +150,7 @@ export default function AssessmentFolder({
     setSaving(true);
     setStatus("Uploading file…");
     const storagePath = `${ownerId}/assessments/${crypto.randomUUID()}/${sanitizeLessonResourceFileName(file.name)}`;
-    const supabase = createClient();
+    const supabase = await loadBrowserClient();
     const { error } = await supabase.storage.from(LESSON_RESOURCE_BUCKET).upload(storagePath, file, { contentType: validation.mimeType, upsert: false });
     if (error) {
       setSaving(false);

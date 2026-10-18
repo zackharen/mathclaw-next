@@ -190,7 +190,12 @@ export default async function DashboardPage({ searchParams }) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const accountType = await getAccountTypeForUser(supabase, user);
+  const [accountType, { data: profile }] = await Promise.all([
+    getAccountTypeForUser(supabase, user),
+    user
+      ? supabase.from("profiles").select("id, display_name").eq("id", user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   if (!isTeacherAccountType(accountType)) {
     redirect("/play");
@@ -199,12 +204,6 @@ export default async function DashboardPage({ searchParams }) {
   if (!user) {
     redirect("/auth/sign-in?redirect=/dashboard");
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, display_name")
-    .eq("id", user.id)
-    .maybeSingle();
 
   if (!profile) {
     redirect("/onboarding/profile");
@@ -278,7 +277,7 @@ export default async function DashboardPage({ searchParams }) {
   const selectedLibraryIds = [
     ...new Set(courses.map((course) => course.selected_library_id).filter(Boolean)),
   ];
-  // These four only depend on the loaded courses, so they run as a single wave
+  // These only depend on the loaded courses, so they run as a single wave
   // instead of the three sequential round trips this used to make.
   const planRowsPromise = courseIds.length
     ? supabase
@@ -288,7 +287,7 @@ export default async function DashboardPage({ searchParams }) {
         .order("class_date", { ascending: true })
         .order("lesson_slot", { ascending: true })
     : Promise.resolve({ data: [] });
-  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }, courseGameSettings] =
+  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }, courseGameSettings, skippedLessons] =
     await Promise.all([
       planRowsPromise,
       Promise.all(
@@ -307,13 +306,13 @@ export default async function DashboardPage({ searchParams }) {
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
         .eq("status", "accepted"),
       listCourseGameSettingsMap(courseIds),
+      // Skipped lessons are not taught, so they don't count toward a class's total.
+      loadSkippedLessonIds(supabase, courseIds).catch(() => ({ byCourse: new Map() })),
     ]);
   gameSettingsByKey = courseGameSettings;
 
   const lessonCountByCourse = new Map();
   const lessonCountByLibrary = new Map(libraryLessonCounts);
-  // Skipped lessons are not taught, so they don't count toward a class's total.
-  const skippedLessons = await loadSkippedLessonIds(supabase, courseIds).catch(() => ({ byCourse: new Map() }));
   for (const course of courses) {
     const libraryCount = course.selected_library_id ? lessonCountByLibrary.get(course.selected_library_id) || 0 : 0;
     lessonCountByCourse.set(

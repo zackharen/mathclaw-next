@@ -89,3 +89,10 @@ test("owned courses still infer teacher for legacy accounts", async () => {
 test("student fallback keeps teacher-only redirects out of student accounts", () => {
   assert.equal(sanitizeNextForAccountType("/classes", null), "/play");
 });
+
+test("sign-in redirects never leave MathClaw", () => {
+  for (const bad of ["//evil.example/x", "/\\evil.example", "https://evil.example", "/\tclasses", "", null]) {
+    assert.equal(sanitizeNextForAccountType(bad, "teacher"), "/classes", String(bad));
+  }
+  assert.equal(sanitizeNextForAccountType("/classes/abc/plan?x=1", "teacher"), "/classes/abc/plan?x=1");
+});

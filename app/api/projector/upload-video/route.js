@@ -200,7 +200,7 @@ async function convertBufferToPublicUrl(admin, user, inputBuffer) {
 
 async function convertVideo(admin, user, body) {
   const rawPath = String(body.path || "");
-  if (!rawPath.startsWith(`raw/${user.id}/`)) return jsonError("That upload was not found.", 404);
+  if (!rawPath.startsWith(`raw/${user.id}/`) || rawPath.includes("..")) return jsonError("That upload was not found.", 404);
 
   const bucketError = await ensureVideoBucket(admin);
   if (bucketError) return jsonError(bucketError.message, 500);

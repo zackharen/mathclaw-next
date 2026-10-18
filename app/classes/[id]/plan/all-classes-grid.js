@@ -65,7 +65,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
   const courses = await listEditableCoursesForUser(supabase, userId);
   const courseIds = courses.map((course) => course.id);
 
-  const [lessonCounts, calendarDays, planRows, announcementRows] = courseIds.length
+  const [lessonCounts, calendarDays, planRows, announcementRows, skipped, skipLog] = courseIds.length
     ? await Promise.all([
         // One existence check per class rather than one big select: a single
         // query is capped at 1000 rows and would silently drop whole classes.
@@ -104,8 +104,10 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           .gte("class_date", firstDate)
           .lte("class_date", lastDate)
           .then(rowsOrThrow),
+        loadSkippedLessonIds(supabase, courseIds),
+        loadSkippedLessonLog(supabase, courseIds),
       ])
-    : [[], [], [], []];
+    : [[], [], [], [], { available: true, byCourse: new Map() }, { available: true, byCourse: new Map() }];
 
   const lessonCountByCourse = new Map(lessonCounts);
   const columns = courses
@@ -113,10 +115,11 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
   const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows });
 
-  const columnIds = columns.map((course) => course.id);
-  const [skipped, skipLog, coverageRows] = await Promise.all([
-    loadSkippedLessonIds(supabase, columnIds),
-    loadSkippedLessonLog(supabase, columnIds),
+  const loggedIds = columns.flatMap((course) => skipLog.byCourse.get(course.id) || []).map((entry) => entry.lesson_id);
+  const skippedIds = [...new Set([...columns.flatMap((course) => skipped.byCourse.get(course.id) || []), ...loggedIds])];
+  const coursesWithSkips = columns.filter((course) => (skipped.byCourse.get(course.id) || []).length > 0);
+  const lessonIds = [...new Set(planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean))];
+  const [coverageRows, resourceData, skippedLessonRows, lastCompletedRows] = await Promise.all([
     // A coverage failure hides the Assessment rows rather than the grid.
     Promise.all(
       columns.map((course) =>
@@ -125,13 +128,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           .catch(() => [course.id, null])
       )
     ),
-  ]);
-  const coverageByCourse = new Map(coverageRows);
-  const showAssessmentRows = coverageRows.some(([, byWeek]) => byWeek);
-  const loggedIds = [...skipLog.byCourse.values()].flat().map((entry) => entry.lesson_id);
-  const skippedIds = [...new Set([...[...skipped.byCourse.values()].flat(), ...loggedIds])];
-  const coursesWithSkips = columns.filter((course) => (skipped.byCourse.get(course.id) || []).length > 0);
-  const [skippedLessonRows, lastCompletedRows] = await Promise.all([
+    loadLessonResourcePlanningData({ userId, lessonIds }),
     skippedIds.length
       ? supabase
           .from("curriculum_lessons")
@@ -156,6 +153,8 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
       )
     ),
   ]);
+  const coverageByCourse = new Map(coverageRows);
+  const showAssessmentRows = coverageRows.some(([, byWeek]) => byWeek);
   const skippedLessonById = new Map(skippedLessonRows.map((lesson) => [lesson.id, lesson]));
   const lastCompletedByCourse = new Map(lastCompletedRows);
   const lessonLabel = (lesson) => formatLessonLabel(lesson.source_lesson_code, lesson.title);
@@ -190,8 +189,6 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     };
   });
 
-  const lessonIds = [...new Set(planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean))];
-  const resourceData = await loadLessonResourcePlanningData({ userId, lessonIds });
   const bulkResourceCourses = buildGridLessonCourseOptions(columns, planRows);
   const resourcesFor = (ids) =>
     resourceData.ownResources

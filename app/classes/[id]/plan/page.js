@@ -243,14 +243,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
   if (!user) {
     redirect(`/auth/sign-in?redirect=/classes/${id}/plan`);
   }
-  const accountType = await getAccountTypeForUser(supabase, user);
-
-  const access = await getCourseAccessForUser(
-    supabase,
-    user.id,
-    id,
-    "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode, pacing_weekday_modifiers, owner_id"
-  );
+  const [accountType, access] = await Promise.all([
+    getAccountTypeForUser(supabase, user),
+    getCourseAccessForUser(
+      supabase,
+      user.id,
+      id,
+      "id, title, class_name, selected_library_id, schedule_model, ab_meeting_day, school_year_start, school_year_end, pacing_mode, pacing_weekday_modifiers, owner_id"
+    ),
+  ]);
   const course = access?.course;
 
   if (!course) {
@@ -289,6 +290,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
     gamesRes,
     schoolDaysRes,
     markingPeriodRulesRes,
+    skippedLessons,
+    assessmentFolderData,
+    assessmentSupportsData,
+    courseLessonsRes,
   ] = await Promise.all([
     curriculumEnabled
       ? supabase
@@ -346,10 +351,22 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .select("id, name, start_day_number, end_day_number")
       .eq("owner_id", user.id)
       .order("start_day_number", { ascending: true }),
+    curriculumEnabled ? loadSkippedLessonIds(courseDataClient, [course.id]).catch(() => null) : Promise.resolve(null),
+    curriculumEnabled
+      ? loadAssessmentFolderData({ userId: user.id, course })
+      : Promise.resolve(null),
+    loadTeacherAssessmentSupportsData({ supabase, course }),
+    // Full school year, not the visible lesson window: the resource editor's
+    // Lesson picker has to reach lessons outside the days on screen.
+    courseDataClient
+      .from("course_lesson_plan")
+      .select("class_date, lesson_slot, curriculum_lessons(id, source_lesson_code, title)")
+      .eq("course_id", course.id)
+      .order("class_date", { ascending: true })
+      .order("lesson_slot", { ascending: true }),
   ]);
 
   // Skipped lessons are not taught, so they don't count toward this class's total.
-  const skippedLessons = curriculumEnabled ? await loadSkippedLessonIds(courseDataClient, [course.id]).catch(() => null) : null;
   const totalLessonsCount = Math.max(
     (lessonsCountRes.count || 0) - (skippedLessons?.byCourse.get(course.id)?.length || 0),
     0
@@ -364,24 +381,11 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const enabledGames = new Set((gamesRes || []).filter((game) => game.enabled).map((game) => game.slug));
   const schoolDays = schoolDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];
-  const [lessonResourceData, assessmentFolderData, assessmentSupportsData, courseLessonsRes] = await Promise.all([
-    loadLessonResourcePlanningData({
-      userId: user.id,
-      lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
-    }),
-    curriculumEnabled
-      ? loadAssessmentFolderData({ userId: user.id, course })
-      : Promise.resolve(null),
-    loadTeacherAssessmentSupportsData({ supabase, course }),
-    // Full school year, not the visible lesson window: the resource editor's
-    // Lesson picker has to reach lessons outside the days on screen.
-    courseDataClient
-      .from("course_lesson_plan")
-      .select("class_date, lesson_slot, curriculum_lessons(id, source_lesson_code, title)")
-      .eq("course_id", course.id)
-      .order("class_date", { ascending: true })
-      .order("lesson_slot", { ascending: true }),
-  ]);
+  // The only load that needs the first wave: resources for the lessons on screen.
+  const lessonResourceData = await loadLessonResourcePlanningData({
+    userId: user.id,
+    lessonIds: planRows.map((row) => row.curriculum_lessons?.id).filter(Boolean),
+  });
   const courseLessonOptions = buildCourseLessonOptions(courseLessonsRes.data || []);
 
   // Build school-day# map by walking all weekdays in the school year,
