@@ -806,7 +806,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
         )}
         {calendarDays.length > 0 || completedActionMessages.length > 0 ? (
           <div className="classPlanCompletedActionSpace" aria-live="polite">
-            {calendarDays.length > 0 ? (
+            {calendarDays.length > 0 && !fixedDates ? (
               <span>
                 AB Days: {meetsA ? "A" : ""}
                 {meetsA && meetsB ? " + " : ""}
