@@ -11,6 +11,7 @@ import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { getSiteCopy } from "@/lib/site-config";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
+import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { EMPTY_CO_TEACHER_STATE, loadCoTeacherState } from "@/lib/courses/co-teachers";
 import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
 import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
@@ -149,6 +150,11 @@ function dashboardPaceStatus(card) {
   if (card.totalLessons === 0) {
     return { className: "isSetup", label: "Setup needed" };
   }
+  // Syllabus classes release on fixed dates; "behind" would only mean nobody
+  // clicked Mark Complete on an asynchronous course.
+  if (card.releasedByNow !== null) {
+    return { className: "isOnPace", label: `${card.releasedByNow} of ${card.totalLessons} released` };
+  }
   if (card.delta < 0) {
     return { className: "isBehind", label: paceDeltaLabel(card.delta) };
   }
@@ -224,7 +230,7 @@ export default async function DashboardPage({ searchParams }) {
       listEditableCoursesForUser(
         supabase,
         user.id,
-        "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at, selected_library_id, archived_at",
+        "id, title, class_name, schedule_model, ab_meeting_day, school_year_start, school_year_end, student_join_code, owner_id, created_at, selected_library_id, archived_at, pacing_mode",
         { includeArchived: true }
       ),
       listGamesWithCourseSettings(supabase, null, {
@@ -417,6 +423,7 @@ export default async function DashboardPage({ searchParams }) {
       colleagueAvg,
       colleagueCount: colleagueStats?.samples || 0,
       colleagueDelta,
+      releasedByNow: isFixedDatesCourse(course) ? expectedByNow : null,
     };
   });
   const teacherName = getBestDisplayName(
