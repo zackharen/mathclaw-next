@@ -19,7 +19,7 @@ import {
   saveTeacherMarkingPeriodAction,
 } from "./actions";
 import { joinClassByCodeAction } from "@/app/play/actions";
-import { buildRuleAssignmentOccurrences, formatRuleDueSummary } from "@/lib/announcements/assignment-rules";
+import { buildRuleAssignmentOccurrences, formatRuleDueSummary, ruleAppliesToCourse } from "@/lib/announcements/assignment-rules";
 import {
   buildABMap,
   buildMarkingPeriodWeekLabels,
@@ -178,7 +178,12 @@ function weekdayName(value) {
 }
 
 function ruleScopeText(rule, courseById) {
-  return rule.course_id ? courseLabel(courseById.get(rule.course_id)) : "All classes";
+  if (rule.course_id) return courseLabel(courseById.get(rule.course_id));
+  const excluded = (rule.settings?.excluded_course_ids || [])
+    .map((courseId) => courseById.get(courseId))
+    .filter(Boolean)
+    .map(courseLabel);
+  return excluded.length ? `All classes except ${excluded.join(", ")}` : "All classes";
 }
 
 function ruleSummary(rule) {
@@ -211,9 +216,7 @@ function ruleSummary(rule) {
 function buildAssignmentRulePreviews({ rules, courses, calendarDaysByCourseId, markingPeriods, overrides, schoolDayNumberByDate }) {
   const previewsByRuleId = new Map();
   for (const rule of rules || []) {
-    const scopedCourses = rule.course_id
-      ? (courses || []).filter((course) => course.id === rule.course_id)
-      : courses || [];
+    const scopedCourses = (courses || []).filter((course) => ruleAppliesToCourse(rule, course.id));
     const previews = [];
 
     for (const course of scopedCourses) {

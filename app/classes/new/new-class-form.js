@@ -182,6 +182,7 @@ export default function NewClassForm({
             <option value="one_lesson_no_half_days">1 Lesson Per Day (No Half Days)</option>
             <option value="two_lessons_per_day">2 Lessons Per Day</option>
             <option value="manual_complete">Manual (Move On When Marked Complete)</option>
+            <option value="fixed_dates">Syllabus Dates (Set Each Release Date)</option>
           </select>
         </label>
       ) : (

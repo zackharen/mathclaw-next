@@ -7,6 +7,7 @@ import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
 import { normalizeCalendarDayType } from "@/lib/school-calendar";
 import { generateAnnouncementsForCourse } from "../announcements/actions";
+import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const PACING_MODES = new Set([
@@ -14,6 +15,7 @@ const PACING_MODES = new Set([
   "one_lesson_no_half_days",
   "two_lessons_per_day",
   "manual_complete",
+  "fixed_dates",
 ]);
 const DAY_TYPES = new Set(["instructional", "off", "half", "modified"]);
 
@@ -490,13 +492,16 @@ export async function updateScheduleAction(formData) {
     supabase,
     user.id,
     courseId,
-    "id, title, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end, selected_library_id"
+    "id, title, owner_id, schedule_model, ab_pattern_start_date, school_year_start, school_year_end, selected_library_id, pacing_mode"
   );
   const course = access?.course;
 
   if (!course) return;
   const writeClient = getCourseWriteClient(access, supabase);
-  const pacingMode = normalizePacingMode(String(formData.get("pacing_mode") || ""));
+  // A syllabus class keeps its explicit release dates through calendar saves.
+  const pacingMode = isFixedDatesCourse(course)
+    ? course.pacing_mode
+    : normalizePacingMode(String(formData.get("pacing_mode") || ""));
   const weekdayModifiers = parseWeekdayModifiers(formData);
   const copyToAll = formData.get("copy_to_all") === "1";
   const { updates, selectedDates } = parseBulkUpdates(formData);

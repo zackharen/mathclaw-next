@@ -23,6 +23,7 @@ import LessonCountToggle from "./lesson-count-toggle";
 import SkippedLessonsPanel from "./skipped-lessons-panel";
 import { isPastSkippedLesson, loadSkippedLessonIds, loadSkippedLessonLog } from "@/lib/planning/skipped-lessons";
 import { coverageByWeek } from "@/lib/announcements/assessment-coverage";
+import { formatClockTime, isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { loadAssessmentCoverage } from "@/lib/assessment-resources/server";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -48,6 +49,21 @@ function skipWhen(timestamp) {
     : null;
 }
 
+// What a syllabus class has due on a grid day, shown whether or not anything
+// new is released that day.
+function DueList({ due }) {
+  if (!due?.length) return null;
+  return (
+    <ul className="allClassesGridDue" aria-label="Due this day">
+      {due.map((item) => (
+        <li key={item.id}>
+          <strong>Due{item.due_time ? ` ${formatClockTime(item.due_time)}` : ""}:</strong> {item.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function rowsOrThrow(result) {
   if (result.error) throw new Error(result.error.message);
   return result.data || [];
@@ -65,7 +81,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
   const courses = await listEditableCoursesForUser(supabase, userId);
   const courseIds = courses.map((course) => course.id);
 
-  const [lessonCounts, calendarDays, planRows, announcementRows, skipped, skipLog] = courseIds.length
+  const [lessonCounts, calendarDays, planRows, announcementRows, skipped, skipLog, pacingRows, dueAssignments] = courseIds.length
     ? await Promise.all([
         // One existence check per class rather than one big select: a single
         // query is capped at 1000 rows and would silently drop whole classes.
@@ -106,14 +122,26 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           .then(rowsOrThrow),
         loadSkippedLessonIds(supabase, courseIds),
         loadSkippedLessonLog(supabase, courseIds),
+        supabase.from("courses").select("id, pacing_mode").in("id", courseIds).then(rowsOrThrow),
+        // Dated syllabus assignments due in these two weeks. A failure (e.g. an
+        // older schema) hides due lines rather than the grid.
+        supabase
+          .from("teacher_announcement_assignments")
+          .select("id, course_id, label, due_date, due_time, sort_order")
+          .in("course_id", courseIds)
+          .gte("due_date", firstDate)
+          .lte("due_date", lastDate)
+          .then((result) => (result.error ? [] : result.data || [])),
       ])
-    : [[], [], [], [], { available: true, byCourse: new Map() }, { available: true, byCourse: new Map() }];
+    : [[], [], [], [], { available: true, byCourse: new Map() }, { available: true, byCourse: new Map() }, [], []];
 
   const lessonCountByCourse = new Map(lessonCounts);
+  const pacingByCourse = new Map(pacingRows.map((row) => [row.id, row.pacing_mode]));
   const columns = courses
     .filter((course) => lessonCountByCourse.get(course.id) > 0)
+    .map((course) => ({ ...course, pacing_mode: pacingByCourse.get(course.id) || course.pacing_mode }))
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
-  const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows });
+  const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows, dueAssignments });
 
   const loggedIds = columns.flatMap((course) => skipLog.byCourse.get(course.id) || []).map((entry) => entry.lesson_id);
   const skippedIds = [...new Set([...columns.flatMap((course) => skipped.byCourse.get(course.id) || []), ...loggedIds])];
@@ -123,7 +151,10 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     // A coverage failure hides the Assessment rows rather than the grid.
     Promise.all(
       columns.map((course) =>
-        loadAssessmentCoverage({ course })
+        // Syllabus classes schedule their own exams; no weekly coverage row.
+        isFixedDatesCourse(course)
+          ? Promise.resolve([course.id, null])
+          : loadAssessmentCoverage({ course })
           .then((coverage) => [course.id, coverage.hasWeeklyAssessment ? coverageByWeek(coverage.entries) : null])
           .catch(() => [course.id, null])
       )
@@ -380,6 +411,20 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                         whole: (
                           <td key={course.id} className="allClassesGridMuted">
                             No School
+                            <DueList due={cell.due} />
+                          </td>
+                        ),
+                      };
+                    }
+                    if (cell.kind === "empty" && cell.fixed) {
+                      // Syllabus class with nothing released today: say so, and
+                      // never offer to add a lesson (that would re-pace the syllabus).
+                      return {
+                        course,
+                        whole: (
+                          <td key={course.id}>
+                            <span className="allClassesGridEmptyLabel">No new release</span>
+                            <DueList due={cell.due} />
                           </td>
                         ),
                       };
@@ -416,21 +461,26 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                       course,
                       head: (
                         <td key={course.id} className={`allClassesGridCellHead${completeClass}`}>
-                          {cell.dayType === "half" ? <span className="allClassesGridTag">Half Day</span> : null}
-                          <LessonCountToggle
-                            inPlace
-                            courseId={course.id}
-                            classDate={row.date}
-                            currentCount={cell.lessonCountOverride ?? cell.lessons.length}
-                            returnTo={returnTo}
-                            disabled={cell.hasCompleted}
-                            skipLessons={skipped.available ? cellLessons : null}
-                          />
+                          {cell.dayType === "half" && !cell.fixed ? <span className="allClassesGridTag">Half Day</span> : null}
+                          {cell.fixed ? (
+                            <span className="allClassesGridTag">Released</span>
+                          ) : (
+                            <LessonCountToggle
+                              inPlace
+                              courseId={course.id}
+                              classDate={row.date}
+                              currentCount={cell.lessonCountOverride ?? cell.lessons.length}
+                              returnTo={returnTo}
+                              disabled={cell.hasCompleted}
+                              skipLessons={skipped.available ? cellLessons : null}
+                            />
+                          )}
                           {cell.lessons.map((lesson, lessonIndex) => (
                             <span key={lesson.id} className="allClassesGridLesson">
                               {labels[lessonIndex]}
                             </span>
                           ))}
+                          <DueList due={cell.due} />
                         </td>
                       ),
                       actions: (

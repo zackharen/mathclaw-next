@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { listEditableCoursesForUser } from "@/lib/courses/access";
-import { formatRuleDueSummary } from "@/lib/announcements/assignment-rules";
+import { formatRuleDueSummary, ruleAppliesToCourse } from "@/lib/announcements/assignment-rules";
 
 function weekdayName(value) {
   const names = {
@@ -89,7 +89,7 @@ export async function GET() {
 
   for (const course of courses || []) {
     assignmentsByCourseId[course.id] = rules
-      .filter((rule) => !rule.course_id || rule.course_id === course.id)
+      .filter((rule) => ruleAppliesToCourse(rule, course.id))
       .map((rule) => ({
         id: rule.id,
         label: rule.label,

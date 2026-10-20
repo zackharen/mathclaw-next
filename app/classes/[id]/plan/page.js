@@ -42,6 +42,9 @@ import { buildAssessmentCoverage, coverageByWeek } from "@/lib/announcements/ass
 import { formatAnnouncementAssignmentDate, isWeeklyAssessmentRule, weekStartIso } from "@/lib/announcements/assignment-rules";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
+import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
+import { loadDatedAssignments } from "@/lib/planning/dated-assignments";
+import SyllabusSchedulePanel from "./syllabus-schedule-panel";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const LESSON_WINDOW_PAST_DAYS = 5;
@@ -215,6 +218,28 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const dateRangeUpdated = qs.date_range_updated === "1";
   const imported = qs.imported === "1";
   const scheduleUpdated = qs.schedule_updated === "1";
+  const SYLLABUS_ERRORS = {
+    label: "Give the assignment a name.",
+    "release-date": "Choose a release date inside this class's dates.",
+    "due-date": "Choose a due date inside this class's dates, on or after the release date.",
+    category: "Choose one of the listed categories.",
+    url: "Links must start with http:// or https://.",
+    lesson: "That lesson isn't on this class's schedule.",
+    duplicate: "This class already has an assignment with that name on that release date.",
+    "move-past-due": "One of that lesson's assignments is due before the new release date. Change its due date first, or move the lesson without its assignments.",
+    missing: "That item no longer exists. Refresh and try again.",
+    "not-syllabus": "Only syllabus-date classes have a Syllabus Schedule.",
+  };
+  const syllabusMessage = qs.syllabus_error
+    ? { kind: "error", text: SYLLABUS_ERRORS[qs.syllabus_error] || "That change couldn't be saved." }
+    : qs.syllabus_updated === "1"
+      ? {
+          kind: "ok",
+          text: announcementsFailed
+            ? "Saved, but announcements didn't update. Use Refresh Announcements."
+            : "Saved. Announcements updated.",
+        }
+      : null;
   const completedActionMessages = scheduleUpdated
     ? [
         "Schedule Updated!",
@@ -294,6 +319,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
     assessmentFolderData,
     assessmentSupportsData,
     courseLessonsRes,
+    profileRes,
+    datedAssignmentRows,
   ] = await Promise.all([
     curriculumEnabled
       ? supabase
@@ -339,11 +366,12 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .lte("class_date", lessonWindowEnd)
       .order("class_date", { ascending: true }),
     listGamesWithCourseSettings(supabase, course.id, { viewerAccountType: accountType || "teacher" }),
+    // No lower bound: day numbers count from the teacher's school year, which
+    // can start before a half-year class does.
     supabase
       .from("school_calendar_days")
       .select("class_date, day_type")
       .eq("owner_id", user.id)
-      .gte("class_date", course.school_year_start)
       .lte("class_date", course.school_year_end)
       .order("class_date", { ascending: true }),
     supabase
@@ -364,7 +392,10 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .eq("course_id", course.id)
       .order("class_date", { ascending: true })
       .order("lesson_slot", { ascending: true }),
+    supabase.from("profiles").select("school_year_start, school_year_end").eq("id", user.id).maybeSingle(),
+    isFixedDatesCourse(course) ? loadDatedAssignments(courseDataClient, course.id) : Promise.resolve([]),
   ]);
+  const fixedDates = isFixedDatesCourse(course);
 
   // Skipped lessons are not taught, so they don't count toward this class's total.
   const totalLessonsCount = Math.max(
@@ -393,7 +424,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const schoolDayByDate = new Map(schoolDays.map((d) => [d.class_date, d]));
   const schoolDayNumberByDate = new Map();
   if (course.school_year_start && course.school_year_end) {
-    const [sy, sm, sd] = course.school_year_start.split("-").map(Number);
+    const dayNumberStart = [profileRes?.data?.school_year_start, course.school_year_start].filter(Boolean).sort()[0];
+    const [sy, sm, sd] = dayNumberStart.split("-").map(Number);
     const [ey, em, ed] = course.school_year_end.split("-").map(Number);
     const cursor = new Date(Date.UTC(sy, sm - 1, sd));
     const endDate = new Date(Date.UTC(ey, em - 1, ed));
@@ -481,7 +513,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
   const meetsA = course.ab_meeting_day !== "B";
   const meetsB = course.ab_meeting_day !== "A";
 
-  const visibleCalendarDays = calendarDays.filter((day) => courseShowsCalendarDay(course, day));
+  // A syllabus class lists only days with a release or a due date; the other
+  // weekdays have nothing to teach or announce.
+  const syllabusDates = new Set([
+    ...(courseLessonsRes.data || []).map((row) => row.class_date),
+    ...datedAssignmentRows.flatMap((row) => [row.assignment_date, row.due_date]).filter(Boolean),
+  ]);
+  const visibleCalendarDays = calendarDays.filter((day) =>
+    fixedDates ? syllabusDates.has(day.class_date) : courseShowsCalendarDay(course, day)
+  );
   const visibleLessonDays = visibleCalendarDays.filter(
     (day) => day.class_date >= lessonWindowStart && day.class_date <= lessonWindowEnd
   );
@@ -570,6 +610,13 @@ export default async function ClassPlanPage({ params, searchParams }) {
           <div className="classPlanControlRow classPlanControlRowSchedule">
             <form id="class-plan-schedule-form" action={updateScheduleAction} className="inlineControlForm classPlanPacingForm">
               <input type="hidden" name="course_id" value={course.id} />
+              {fixedDates ? (
+                <>
+                  <input type="hidden" name="pacing_mode" value="fixed_dates" />
+                  <span className="classPlanFixedPacing">Pacing: Syllabus release dates (calendar changes never move them)</span>
+                </>
+              ) : (
+              <>
               <select
                 className="input"
                 name="pacing_mode"
@@ -612,6 +659,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
                   ))}
                 </div>
               </details>
+              </>
+              )}
             </form>
 
             {calendarDays.length > 0 && course.schedule_model === "ab" ? (
@@ -771,7 +820,18 @@ export default async function ClassPlanPage({ params, searchParams }) {
         ) : null}
       </section>
 
-      {assessmentFolderData?.available ? (
+      {fixedDates ? (
+        <SyllabusSchedulePanel
+          courseId={course.id}
+          courseStart={course.school_year_start}
+          courseEnd={course.school_year_end}
+          planRows={courseLessonsRes.data || []}
+          assignments={datedAssignmentRows}
+          message={syllabusMessage}
+        />
+      ) : null}
+
+      {assessmentFolderData?.available && !fixedDates ? (
         <AssessmentFolder
           courseId={course.id}
           ownerId={user.id}
@@ -918,7 +978,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       ? "partly completed"
                       : "planned";
               const noLessonLabel =
-                day.day_type === "off"
+                fixedDates
+                  ? `No new release${day.day_type === "off" ? " | No School" : ""}`
+                  : day.day_type === "off"
                   ? "No School"
                   : isGraceDay(day)
                     ? "Grace Day"
@@ -945,7 +1007,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       Day Type: {normalizeCalendarDayType(day.day_type)}{isGraceDay(day) ? " · Grace Day" : ""}
                     </p>
 
-                    {day.day_type !== "off" && !isGraceDay(day) ? (
+                    {day.day_type !== "off" && !isGraceDay(day) && !fixedDates ? (
                       <LessonCountToggle
                         courseId={course.id}
                         classDate={day.class_date}
@@ -1023,13 +1085,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
                       <div className="classPlanDayPaneHeader">
                         <strong>Lesson Plan</strong>
                         <div className="classPlanLessonHeaderControls">
-                          <LessonCountToggle
-                            courseId={course.id}
-                            classDate={day.class_date}
-                            currentCount={day.lesson_count_override ?? dayPlanRows.length}
-                            returnTo={lessonCountReturnTo}
-                            disabled={hasCompletedLesson}
-                          />
+                          {fixedDates ? null : (
+                            <LessonCountToggle
+                              courseId={course.id}
+                              classDate={day.class_date}
+                              currentCount={day.lesson_count_override ?? dayPlanRows.length}
+                              returnTo={lessonCountReturnTo}
+                              disabled={hasCompletedLesson}
+                            />
+                          )}
                           <span className={`classPlanStatus classPlanStatus-${dayStatus.replaceAll(" ", "-")}`}>
                             {dayStatus}
                           </span>

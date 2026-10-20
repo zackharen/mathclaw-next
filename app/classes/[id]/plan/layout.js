@@ -6,6 +6,7 @@ import {
   buildRuleAssignmentOccurrences,
   formatRuleDueSummary,
   numberRuleAssignmentOccurrences,
+  ruleAppliesToCourse,
 } from "@/lib/announcements/assignment-rules";
 import ArcadeSuggestionsToggle from "./arcade-suggestions-toggle";
 import ClassSwitcher from "../class-switcher";
@@ -141,7 +142,7 @@ async function loadAssignmentPanelData({ courseId }) {
     throw new Error(overridesRes.error.message);
   }
 
-  const rules = (rulesRes.data || []).filter((rule) => !rule.course_id || rule.course_id === course.id);
+  const rules = (rulesRes.data || []).filter((rule) => ruleAppliesToCourse(rule, course.id));
   const overrides = overridesRes.data || [];
   const calendarDays = calendarDaysRes.data || [];
   const markingPeriodRules = markingPeriodRulesRes.data || [];

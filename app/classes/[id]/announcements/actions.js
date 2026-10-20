@@ -26,6 +26,15 @@ import {
   shouldIncludeCurriculumDoNow,
 } from "@/lib/announcements/curriculum-content";
 import { announcementStandards, buildAnnouncementCurriculum } from "@/lib/announcements/lesson-title";
+import { formatLessonLabel } from "@/lib/curriculum/lesson-label";
+import {
+  addAssignmentsByDate,
+  buildFixedDatesAnnouncement,
+  datedAssignmentsForAnnouncements,
+  fixedDatesAnnouncementDates,
+  isFixedDatesCourse,
+} from "@/lib/planning/fixed-dates";
+import { loadDatedAssignments } from "@/lib/planning/dated-assignments";
 import {
   formatCalendarScheduleType,
   isGraceDay,
@@ -181,6 +190,14 @@ function isMissingTeacherAnnouncementAssignmentRuleOverridesTableError(error) {
   return message.includes("teacher_announcement_assignment_rule_overrides");
 }
 
+// School-wide day numbers count from the teacher's school year, not from a
+// half-year course's own start date.
+function dayNumberRange(course, profile) {
+  const start = [profile?.school_year_start, course.school_year_start].filter(Boolean).sort()[0] || null;
+  const end = [profile?.school_year_end, course.school_year_end].filter(Boolean).sort().at(-1) || null;
+  return { start, end };
+}
+
 function formatTeacherAbsenceList(absences, classDate) {
   const upcomingAbsences = (absences || []).filter(
     (absence) => absence.absence_date >= classDate
@@ -228,7 +245,18 @@ function buildQuote({ classDate, className }) {
   return QUOTES[hash % QUOTES.length];
 }
 
-export async function generateAnnouncementsForCourse({ supabase, writeClient, userId, course }) {
+export async function generateAnnouncementsForCourse({ supabase, writeClient, userId, course: courseInput }) {
+  // Callers pass varying course columns; the pacing mode decides the layout.
+  const [{ data: courseExtra, error: courseExtraError }, { data: profile }, datedRows] = await Promise.all([
+    supabase.from("courses").select("pacing_mode, timezone").eq("id", courseInput.id).maybeSingle(),
+    supabase.from("profiles").select("school_year_start, school_year_end").eq("id", userId).maybeSingle(),
+    loadDatedAssignments(supabase, courseInput.id),
+  ]);
+  if (courseExtraError) throw new Error(courseExtraError.message);
+  const course = { ...courseInput, ...(courseExtra || {}) };
+  const datedAssignments = datedAssignmentsForAnnouncements(datedRows);
+  const yearRange = dayNumberRange(course, profile);
+
   const { data: planRows, error: planError } = await supabase
     .from("course_lesson_plan")
     .select("class_date, lesson_slot, lesson_id")
@@ -344,8 +372,8 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
       .from("school_calendar_days")
       .select("class_date, day_type")
       .eq("owner_id", userId)
-      .gte("class_date", course.school_year_start)
-      .lte("class_date", course.school_year_end)
+      .gte("class_date", yearRange.start)
+      .lte("class_date", yearRange.end)
       .order("class_date", { ascending: true });
 
     if (schoolDaysError && !String(schoolDaysError.message || "").includes("school_calendar_days")) {
@@ -367,8 +395,8 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     if (abSeedError) throw new Error(abSeedError.message);
 
     schoolAbDayByDate = buildSchoolWideABDayByDate({
-      schoolYearStart: course.school_year_start,
-      schoolYearEnd: course.school_year_end,
+      schoolYearStart: yearRange.start,
+      schoolYearEnd: yearRange.end,
       schoolDays: schoolCalendarDays,
       abPatternStartDate: abSeedCourse?.ab_pattern_start_date || course.school_year_start,
     });
@@ -444,8 +472,8 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
   const schoolDayNumberByDate =
     course.school_year_start && course.school_year_end
       ? buildSchoolWideDayNumberByDate({
-          schoolYearStart: course.school_year_start,
-          schoolYearEnd: course.school_year_end,
+          schoolYearStart: yearRange.start,
+          schoolYearEnd: yearRange.end,
           schoolDays: schoolCalendarDays,
         })
       : buildSchoolDayNumberByDate(calendarDays || []);
@@ -458,6 +486,7 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     schoolDayNumberByDate,
     overrides: assignmentRuleOverrides,
   });
+  addAssignmentsByDate(assignmentsByDate, datedAssignments);
 
   const assessmentCoverageByDate = coverageByAnnouncementDate(
     buildAssessmentCoverage({
@@ -584,6 +613,17 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
     return content;
   }
 
+  if (isFixedDatesCourse(course)) {
+    return writeFixedDatesAnnouncements({
+      writeClient,
+      course,
+      planRowsByDate,
+      lessonById,
+      datedAssignments,
+      schoolDayNumberByDate,
+    });
+  }
+
   const rows = [...planRowsByDate.entries()].map(([classDate, rowsForDate]) => {
     const firstRow = rowsForDate[0];
     const lesson = lessonById.get(firstRow.lesson_id);
@@ -617,6 +657,56 @@ export async function generateAnnouncementsForCourse({ supabase, writeClient, us
 
   if (upsertError) throw new Error(upsertError.message);
 
+  return rows.length;
+}
+
+// Asynchronous syllabus courses announce only days with a release or a due
+// date, inside the course's own date range, and drop rows for days that no
+// longer have either (e.g. after a release date is edited).
+async function writeFixedDatesAnnouncements({
+  writeClient,
+  course,
+  planRowsByDate,
+  lessonById,
+  datedAssignments,
+  schoolDayNumberByDate,
+}) {
+  const dates = fixedDatesAnnouncementDates({
+    releaseDates: [...planRowsByDate.keys()],
+    assignments: datedAssignments,
+  }).filter(
+    (date) =>
+      (!course.school_year_start || date >= course.school_year_start) &&
+      (!course.school_year_end || date <= course.school_year_end)
+  );
+  const now = new Date().toISOString();
+  const rows = dates.map((classDate) => ({
+    course_id: course.id,
+    class_date: classDate,
+    content: buildFixedDatesAnnouncement({
+      classDate,
+      courseTitle: course.title || "Class",
+      dateLabel: formatDate(classDate),
+      dayNumber: schoolDayNumberByDate.get(classDate) || "",
+      releasedLessons: (planRowsByDate.get(classDate) || [])
+        .map((row) => lessonById.get(row.lesson_id))
+        .filter(Boolean)
+        .map((lesson) => formatLessonLabel(lesson.source_lesson_code, lesson.title)),
+      assignments: datedAssignments,
+    }),
+    updated_at: now,
+  }));
+
+  let staleQuery = writeClient.from("course_announcements").delete().eq("course_id", course.id);
+  if (dates.length) staleQuery = staleQuery.not("class_date", "in", `(${dates.join(",")})`);
+  const { error: staleError } = await staleQuery;
+  if (staleError) throw new Error(staleError.message);
+
+  if (rows.length === 0) return 0;
+  const { error: upsertError } = await writeClient
+    .from("course_announcements")
+    .upsert(rows, { onConflict: "course_id,class_date" });
+  if (upsertError) throw new Error(upsertError.message);
   return rows.length;
 }
 

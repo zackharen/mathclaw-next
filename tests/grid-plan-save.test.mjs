@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { isPastSkippedLesson, logSkip, logUndo } from "../lib/planning/skipped-lessons.js";
+import { isFixedDatesCourse } from "../lib/planning/fixed-dates.js";
 
 const source = (await readFile(new URL("../app/classes/[id]/plan/actions.js", import.meta.url), "utf8"))
   .replace(/^import[\s\S]*?;\n/gm, "")
@@ -43,8 +44,9 @@ function fixture(options = {}) {
   const context = vm.createContext({
     console: { info() {} }, process: { env: {} },
     createClient: async () => client,
-    getCourseAccessForUser: async () => options.denied ? null : { course: { id: "class-1" } },
+    getCourseAccessForUser: async () => options.denied ? null : { course: { id: "class-1", ...(options.fixed ? { pacing_mode: "fixed_dates" } : {}) } },
     getCourseWriteClient: () => client,
+    isFixedDatesCourse,
     rebuildPlanFromCalendar: async () => {
       rebuilds++;
       if (options.rebuildError) throw Error("Rebuild failed");
@@ -224,6 +226,14 @@ test("skip still works before the log column exists", async () => {
 test("skipping an already skipped lesson changes nothing", async () => {
   const f = fixture({ skipped: ["lesson-9"] });
   assert.equal((await f.saveGridPlanAction(skipData())).ok, true);
+  assert.equal(f.writes.length, 0);
+  assert.equal(f.rebuilds(), 0);
+});
+
+test("syllabus-date classes refuse lesson-count changes and skips without writing", async () => {
+  const f = fixture({ fixed: true });
+  assert.match((await f.saveGridPlanAction(data())).error, /syllabus release dates/);
+  assert.match((await f.saveGridPlanAction(skipData())).error, /syllabus release dates/);
   assert.equal(f.writes.length, 0);
   assert.equal(f.rebuilds(), 0);
 });

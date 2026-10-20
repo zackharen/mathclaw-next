@@ -35,6 +35,8 @@ export default function AnnouncementAssignmentRuleForm({
   const [cadence, setCadence] = useState(rule?.cadence || "weekly");
   const [dueSchoolDays, setDueSchoolDays] = useState(asString(settings.due_school_days, ""));
   const [dueWeekday, setDueWeekday] = useState(asString(settings.due_weekday, ""));
+  const [courseScope, setCourseScope] = useState(rule?.course_id || "all");
+  const excludedCourseIds = new Set(settings.excluded_course_ids || []);
   const hasDueDate = dueSchoolDays !== "" || dueWeekday !== "";
   const selectedWeekdays = useMemo(
     () => new Set((settings.weekdays || []).map((day) => String(day))),
@@ -52,7 +54,12 @@ export default function AnnouncementAssignmentRuleForm({
         </label>
         <label>
           Applies To
-          <select className="input" name="course_scope" defaultValue={rule?.course_id || "all"}>
+          <select
+            className="input"
+            name="course_scope"
+            value={courseScope}
+            onChange={(event) => setCourseScope(event.target.value)}
+          >
             <option value="all">All classes</option>
             {(courses || []).map((course) => (
               <option key={course.id} value={course.id}>
@@ -83,6 +90,25 @@ export default function AnnouncementAssignmentRuleForm({
           </div>
         </fieldset>
       </div>
+
+      {courseScope === "all" && (courses || []).length > 1 ? (
+        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend style={{ fontWeight: 700 }}>Except (optional)</legend>
+          <div className="ctaRow" style={{ marginTop: "0.35rem" }}>
+            {(courses || []).map((course) => (
+              <label key={course.id} style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <input
+                  type="checkbox"
+                  name="excluded_course_id"
+                  value={course.id}
+                  defaultChecked={excludedCourseIds.has(course.id)}
+                />
+                {course.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="schoolYearRangeRow">
         <label style={{ maxWidth: "12rem" }}>

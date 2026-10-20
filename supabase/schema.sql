@@ -104,7 +104,8 @@ create table if not exists public.courses (
       'one_lesson_per_day',
       'one_lesson_no_half_days',
       'two_lessons_per_day',
-      'manual_complete'
+      'manual_complete',
+      'fixed_dates'
     )
   ),
   pacing_weekday_modifiers jsonb not null default '{}'::jsonb,

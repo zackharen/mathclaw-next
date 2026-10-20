@@ -8,6 +8,7 @@ import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/acce
 import { safeClassReturnPath } from "@/lib/planning/return-path";
 import { isGraceDay } from "@/lib/school-calendar";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
+import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { logInternalEvent } from "@/lib/observability/events";
 import { generateAnnouncementsForCourse } from "../announcements/actions";
 import {
@@ -25,6 +26,7 @@ const PACING_MODES = new Set([
   "one_lesson_no_half_days",
   "two_lessons_per_day",
   "manual_complete",
+  "fixed_dates",
 ]);
 
 function perfLog(action, details) {
@@ -443,10 +445,14 @@ export async function updatePacingModeAction(formData) {
 
   if (!user) return;
 
-  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id");
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id, pacing_mode");
   const course = access?.course;
 
   if (!course) return;
+  // Syllabus release dates are explicit; they are never re-paced from here.
+  if (isFixedDatesCourse(course)) {
+    redirect(`/classes/${course.id}/plan?t=${Date.now()}`);
+  }
   const writeClient = getCourseWriteClient(access, supabase);
 
   const { error } = await writeClient
@@ -508,11 +514,15 @@ export async function updateDailyLessonCountAction(formData, inPlace = false) {
     supabase,
     user.id,
     courseId,
-    "id, owner_id, schedule_model, ab_meeting_day"
+    "id, owner_id, schedule_model, ab_meeting_day, pacing_mode"
   );
   const course = access?.course;
   if (!course) {
     if (inPlace) return { error: "You no longer have permission to change this class." };
+    return;
+  }
+  if (isFixedDatesCourse(course)) {
+    if (inPlace) return { error: "This class follows syllabus release dates. Edit them in Syllabus Schedule." };
     return;
   }
   const writeClient = getCourseWriteClient(access, supabase);
@@ -735,9 +745,10 @@ async function changeSkippedLesson(formData, mode) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Your session expired. Sign in and try again." };
 
-  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id, selected_library_id");
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id, selected_library_id, pacing_mode");
   const course = access?.course;
   if (!course) return { error: "You no longer have permission to change this class." };
+  if (isFixedDatesCourse(course)) return { error: "This class follows syllabus release dates, so lessons can't be skipped here." };
   const writeClient = getCourseWriteClient(access, supabase);
 
   const [current, currentLog] = await Promise.all([

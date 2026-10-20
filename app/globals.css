@@ -4990,6 +4990,22 @@ details[open] > summary.btn:not(.btnNoToggle),
   margin-bottom: 0.5rem;
 }
 
+/* Dated syllabus work due on a grid day, listed under any release. */
+.allClassesGridDue {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.4rem 0 0.5rem;
+  padding: 0.35rem 0.5rem;
+  list-style: none;
+  border-left: 3px solid var(--navy);
+  background: #f4f8fb;
+  color: var(--navy);
+  font-size: 0.82rem;
+  line-height: 1.25;
+  text-align: left;
+  overflow-wrap: break-word;
+}
+
 .allClassesGrid .lessonCountLabel,
 .allClassesGrid .lessonCountLocked {
   flex-basis: 100%;
@@ -6889,4 +6905,103 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-weight: 700;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Syllabus Schedule (fixed-date classes) */
+.classPlanFixedPacing {
+  align-self: center;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.syllabusMessage {
+  padding: 0.55rem 0.8rem;
+  border: 2px solid rgba(16, 185, 129, 0.45);
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  font-weight: 700;
+}
+
+.syllabusMessage.isError {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(220, 38, 38, 0.06);
+}
+
+.syllabusDays {
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.syllabusDay,
+.syllabusAssignment {
+  border: 2px solid #d7e6f2;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.55rem 0.75rem;
+  min-width: 0;
+}
+
+.syllabusDay > summary,
+.syllabusAssignment > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  cursor: pointer;
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+
+.syllabusDayCount {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.syllabusAssignments {
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.syllabusAssignment {
+  background: #f8fbfd;
+}
+
+.syllabusDraftTag {
+  background: #fff4d6;
+}
+
+.syllabusNotes {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.syllabusMoveForm,
+.syllabusAssignmentForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.6rem;
+}
+
+.syllabusFormGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  gap: 0.5rem 0.75rem;
+  width: 100%;
+}
+
+.syllabusFormGrid label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.syllabusFormWide {
+  grid-column: 1 / -1;
 }

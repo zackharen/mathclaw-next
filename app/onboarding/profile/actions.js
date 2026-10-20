@@ -855,6 +855,20 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
     courseId = course.id;
   }
 
+  // "All classes" rules can skip specific classes (e.g. a syllabus course that
+  // should not get regular-class checks). Only the teacher's own classes count.
+  let excludedCourseIds = [];
+  const requestedExclusions = [...new Set(formData.getAll("excluded_course_id").map(String).filter(Boolean))];
+  if (!courseId && requestedExclusions.length) {
+    const { data: ownedCourses, error: ownedError } = await supabase
+      .from("courses")
+      .select("id")
+      .eq("owner_id", user.id)
+      .in("id", requestedExclusions);
+    if (ownedError) throw new Error(ownedError.message);
+    excludedCourseIds = (ownedCourses || []).map((course) => course.id).sort();
+  }
+
   const noMeetingShiftRaw = String(formData.get("no_meeting_shift") || "before");
   const noMeetingShift = ["before", "after", "same_day", "skip"].includes(noMeetingShiftRaw) ? noMeetingShiftRaw : "before";
 
@@ -887,6 +901,7 @@ export async function saveTeacherAnnouncementAssignmentRuleAction(formData) {
     due_weeks_after: dueWeeksAfter,
     weekly_assessment: cadence === "weekly" && formData.get("weekly_assessment") === "on",
     one_lesson_on_assignment_day: oneLessonOnAssignmentDay,
+    excluded_course_ids: excludedCourseIds,
   };
 
   if ((cadence === "weekly" || cadence === "marking_period") && settings.weekdays.length === 0) {

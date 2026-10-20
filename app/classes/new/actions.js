@@ -15,6 +15,7 @@ function normalizeScheduleModel(value) {
 }
 
 function normalizePacingMode(value) {
+  if (value === "fixed_dates") return "fixed_dates";
   if (value === "manual_complete") return "manual_complete";
   if (value === "two_lessons_per_day") return "two_lessons_per_day";
   if (value === "two_lessons_unless_modified") return "two_lessons_per_day";
