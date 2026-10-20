@@ -111,3 +111,27 @@ test("grid cells carry date-specific lesson counts and completion locks", () => 
   assert.equal(rows[1].cells[0].lessonCountOverride, 2);
   assert.equal(rows[1].cells[0].hasCompleted, true);
 });
+
+test("rule deadlines show on their day, and weekend ones on the Friday before", () => {
+  const alg = { id: "alg", schedule_model: "every_day" };
+  const calc = { id: "calc", schedule_model: "ab", ab_meeting_day: "B" };
+  const day = (course_id, class_date, extra = {}) => ({ course_id, class_date, day_type: "instructional", ...extra });
+  const dates = ["2026-10-22", "2026-10-23"];
+  const calendarDays = [
+    day("alg", "2026-10-22"), day("alg", "2026-10-23"),
+    day("calc", "2026-10-22", { ab_day: "B" }), day("calc", "2026-10-23", { ab_day: "A" }),
+  ];
+  const dueAssignments = [
+    { id: "r1", course_id: "alg", label: "Choice Board 1.2", due_date: "2026-10-22" },
+    { id: "r2", course_id: "alg", label: "Delta Math Spiral Review 1.6", due_date: "2026-10-25" },
+    { id: "r3", course_id: "calc", label: "Delta Math Spiral Review 1.6", due_date: "2026-10-24" },
+  ];
+  const { rows } = buildAllClassesGrid({ courses: [alg, calc], dates, calendarDays, planRows: [], dueAssignments });
+  const [thu, fri] = rows;
+  assert.deepEqual(thu.cells[0].due, [{ id: "r1", label: "Choice Board 1.2", due_time: null }]);
+  assert.deepEqual(fri.cells[0].due, [{ id: "r2", label: "Delta Math Spiral Review 1.6", due_time: null, due_day: "Sun 10/25" }]);
+  // A B-day class off its letter on Friday still shows Saturday's deadline.
+  assert.equal(fri.cells[1].kind, "no-meeting");
+  assert.equal(fri.cells[1].due[0].due_day, "Sat 10/24");
+  assert.equal(thu.cells[1].due, undefined);
+});

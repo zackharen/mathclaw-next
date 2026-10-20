@@ -57,7 +57,11 @@ function DueList({ due }) {
     <ul className="allClassesGridDue" aria-label="Due this day">
       {due.map((item) => (
         <li key={item.id}>
-          <strong>Due{item.due_time ? ` ${formatClockTime(item.due_time)}` : ""}:</strong> {item.label}
+          <strong>
+            Due{item.due_day ? ` ${item.due_day}` : ""}
+            {item.due_time ? ` ${formatClockTime(item.due_time)}` : ""}:
+          </strong>{" "}
+          {item.label}
         </li>
       ))}
     </ul>
@@ -130,7 +134,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           .select("id, course_id, label, due_date, due_time, sort_order")
           .in("course_id", courseIds)
           .gte("due_date", firstDate)
-          .lte("due_date", lastDate)
+          .lte("due_date", addDaysIso(lastDate, 2))
           .then((result) => (result.error ? [] : result.data || [])),
       ])
     : [[], [], [], [], { available: true, byCourse: new Map() }, { available: true, byCourse: new Map() }, [], []];
@@ -141,7 +145,6 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     .filter((course) => lessonCountByCourse.get(course.id) > 0)
     .map((course) => ({ ...course, pacing_mode: pacingByCourse.get(course.id) || course.pacing_mode }))
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
-  const grid = buildAllClassesGrid({ courses: columns, dates, calendarDays, planRows, dueAssignments });
 
   const loggedIds = columns.flatMap((course) => skipLog.byCourse.get(course.id) || []).map((entry) => entry.lesson_id);
   const skippedIds = [...new Set([...columns.flatMap((course) => skipped.byCourse.get(course.id) || []), ...loggedIds])];
@@ -152,11 +155,16 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
     Promise.all(
       columns.map((course) =>
         // Syllabus classes schedule their own exams; no weekly coverage row.
+        // A failure also hides that class's rule deadlines, not the grid.
         isFixedDatesCourse(course)
-          ? Promise.resolve([course.id, null])
+          ? Promise.resolve([course.id, null, []])
           : loadAssessmentCoverage({ course })
-          .then((coverage) => [course.id, coverage.hasWeeklyAssessment ? coverageByWeek(coverage.entries) : null])
-          .catch(() => [course.id, null])
+          .then((coverage) => [
+            course.id,
+            coverage.hasWeeklyAssessment ? coverageByWeek(coverage.entries) : null,
+            coverage.dueAssignments.filter((item) => item.due_date >= firstDate && item.due_date <= addDaysIso(lastDate, 2)),
+          ])
+          .catch(() => [course.id, null, []])
       )
     ),
     loadLessonResourcePlanningData({ userId, lessonIds }),
@@ -184,7 +192,14 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
       )
     ),
   ]);
-  const coverageByCourse = new Map(coverageRows);
+  const coverageByCourse = new Map(coverageRows.map(([courseId, byWeek]) => [courseId, byWeek]));
+  const grid = buildAllClassesGrid({
+    courses: columns,
+    dates,
+    calendarDays,
+    planRows,
+    dueAssignments: [...dueAssignments, ...coverageRows.flatMap(([, , due]) => due)],
+  });
   const showAssessmentRows = coverageRows.some(([, byWeek]) => byWeek);
   const skippedLessonById = new Map(skippedLessonRows.map((lesson) => [lesson.id, lesson]));
   const lastCompletedByCourse = new Map(lastCompletedRows);
@@ -401,6 +416,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                         whole: (
                           <td key={course.id} className="allClassesGridMuted" aria-label="Class does not meet">
                             ·
+                            <DueList due={cell.due} />
                           </td>
                         ),
                       };
@@ -437,6 +453,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                             <span className={cell.grace ? undefined : "allClassesGridEmptyLabel"}>
                               {cell.grace ? "Grace Day" : "No lesson"}
                             </span>
+                            <DueList due={cell.due} />
                             {!cell.grace ? (
                               <LessonCountToggle
                             inPlace
