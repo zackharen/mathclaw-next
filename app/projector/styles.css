@@ -4362,6 +4362,19 @@ body:has(.projectorScreenStage) .gameReadyBanner {
   border-radius: 1rem;
 }
 
+.projectorCarouselObjective + .projectorCarouselObjective {
+  margin-top: clamp(1rem, 3vh, 2.5rem);
+}
+
+.projectorCarouselObjective h2 {
+  /* Same navy-heading override as the carousel h1 above. */
+  color: inherit;
+  margin: 0.2em 0 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(2rem, 5vw, 5rem);
+  line-height: 1.1;
+}
+
 @media (max-width: 680px) {
   .projectorVocabularyCarousel { flex-direction: column; }
   .projectorVocabularyImage { max-width: 90%; max-height: 35vh; }

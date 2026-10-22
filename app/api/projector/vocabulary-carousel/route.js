@@ -4,7 +4,11 @@ import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-
 import { getCourseAccessForUser } from "@/lib/courses/access";
 import { LESSON_RESOURCE_BUCKET } from "@/lib/lesson-resources/constants";
 import { eligibleVocabulary, VOCABULARY_CAROUSEL_TYPE } from "@/lib/projector/vocabulary-carousel.mjs";
-import { buildVocabularyCarouselWords, vocabularyForCourse } from "@/lib/projector/vocabulary-carousel-server";
+import {
+  buildVocabularyCarouselWords,
+  nextLessonObjectives,
+  vocabularyForCourse,
+} from "@/lib/projector/vocabulary-carousel-server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +18,10 @@ const SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const DEFAULT_SLOTS = Array.from({ length: 4 }, (_, index) => ({ name: `Screen ${index + 1}`, enabled: true }));
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 const errorResponse = (message, status = 400) => NextResponse.json({ error: message }, { status });
+// The teacher's local date comes from the browser; the server clock may be a day off.
+const teacherToday = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))
+  ? String(value)
+  : new Date().toISOString().slice(0, 10));
 
 async function teacherContext(admin) {
   const supabase = await createClient();
@@ -127,10 +135,11 @@ export async function GET(request) {
     if (context.error) return context.error;
     const courseId = params.get("courseId");
     if (!(await assertCourse(context, courseId))) return errorResponse("You cannot use this class.", 403);
-    const [screens, session, vocabulary] = await Promise.all([
+    const [screens, session, vocabulary, nextObjectives] = await Promise.all([
       availableScreens(admin, context.user.id),
       currentSession(admin, context.user.id),
       vocabularyForCourse(admin, context.user.id, courseId),
+      nextLessonObjectives(admin, courseId, teacherToday(params.get("today"))),
     ]);
     const runningScreenIds = SCREEN_IDS.filter((id) =>
       carouselFromState(session?.screen_states?.[id])?.courseId === courseId
@@ -138,10 +147,15 @@ export async function GET(request) {
     const runningStartedAt = runningScreenIds.length
       ? carouselFromState(session.screen_states[runningScreenIds[0]])?.startedAt || null
       : null;
+    const runningIncludesObjectives = runningScreenIds.some((id) =>
+      Boolean(carouselFromState(session.screen_states[id])?.objectives)
+    );
     return NextResponse.json({
       screens,
       runningScreenIds,
       runningStartedAt,
+      runningIncludesObjectives,
+      nextObjectives,
       allCount: eligibleVocabulary(vocabulary.resources, vocabulary.associations, [], false).length,
       completedCount: eligibleVocabulary(vocabulary.resources, vocabulary.associations, vocabulary.completedLessonIds, true).length,
     });
@@ -187,7 +201,12 @@ export async function POST(request) {
     const eligible = eligibleVocabulary(
       vocabulary.resources, vocabulary.associations, vocabulary.completedLessonIds, body.completedOnly === true
     );
-    if (!eligible.length) return errorResponse("This class has no vocabulary words for that selection.");
+    const includeObjectives = body.includeObjectives === true;
+    const objectives = includeObjectives
+      ? await nextLessonObjectives(admin, body.courseId, teacherToday(body.today))
+      : null;
+    if (includeObjectives && !objectives) return errorResponse("This class has no upcoming lesson with an objective.");
+    if (!eligible.length && !objectives) return errorResponse("This class has no vocabulary words for that selection.");
     let startedAt = new Date().toISOString();
     if (body.startAt) {
       const scheduled = new Date(body.startAt);
@@ -196,13 +215,22 @@ export async function POST(request) {
     }
     const previouslyRunning = SCREEN_IDS.filter((id) => carouselFromState(states[id])?.courseId === body.courseId);
     previouslyRunning.filter((id) => !selected.includes(id)).forEach((id) => { states[id] = null; });
-    for (const screenId of selected) {
+    // Numeric screen order, so the objectives card walks Screen 1 -> 2 -> 3.
+    const ordered = [...selected].sort((a, b) => Number(a) - Number(b));
+    for (const [slot, screenId] of ordered.entries()) {
       const token = session.screen_tokens?.[screenId];
       if (!token) return errorResponse("Open Projector once to set up this screen, then try again.");
       const words = buildVocabularyCarouselWords(eligible, token);
       states[screenId] = {
         type: VOCABULARY_CAROUSEL_TYPE,
-        content: JSON.stringify({ courseId: body.courseId, courseTitle: course.title || "", words, intervalSeconds, startedAt }),
+        content: JSON.stringify({
+          courseId: body.courseId,
+          courseTitle: course.title || "",
+          words,
+          intervalSeconds,
+          startedAt,
+          ...(objectives ? { objectives, objectivesSlot: slot, objectivesScreenCount: ordered.length } : {}),
+        }),
       };
     }
     const { error } = await admin.from("projector_sessions").update({ screen_states: states, updated_at: startedAt })

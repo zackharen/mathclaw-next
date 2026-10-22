@@ -4603,6 +4603,8 @@ details[open] > summary.btn:not(.btnNoToggle),
 .manageVocabularyProjectorInterval { display: grid; gap: 0.35rem; margin-bottom: 1rem; }
 .manageVocabularyProjectorInterval .input { width: min(16rem, 100%); }
 .manageVocabularyProjectorCount { font-weight: 700; }
+.manageVocabularyProjectorCompleted small { color: var(--muted); }
+.manageVocabularyProjectorObjectives { margin: 0.25rem 0 0.75rem 1.6rem; color: var(--muted); }
 
 @media (max-width: 760px) {
   .manageVocabularyCard {

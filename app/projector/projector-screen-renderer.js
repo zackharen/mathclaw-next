@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { vocabularyCarouselIndex, VOCABULARY_CAROUSEL_TYPE } from "@/lib/projector/vocabulary-carousel.mjs";
+import {
+  carouselShowsObjectives,
+  vocabularyCarouselIndex,
+  VOCABULARY_CAROUSEL_TYPE,
+} from "@/lib/projector/vocabulary-carousel.mjs";
 
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -69,6 +73,33 @@ function WordWallWidget({ content }) {
   );
 }
 
+function objectivesHeading(dateKey) {
+  const [year, month, day] = String(dateKey || "").split("-").map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return "Today's Objectives";
+  return `Objectives for ${date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}`;
+}
+
+function CarouselObjectivesCard({ carousel }) {
+  const lessons = carousel.objectives.lessons;
+  return (
+    <div className="projectorVocabularyCarousel">
+      <div className="projectorVocabularyCopy">
+        <p className="eyebrow">
+          {carousel.courseTitle ? `${carousel.courseTitle} · ` : ""}{objectivesHeading(carousel.objectives.date)}
+        </p>
+        {lessons.map((lesson, index) => (
+          <div className="projectorCarouselObjective" key={`${lesson.code}-${index}`}>
+            <h2>{[lesson.code, lesson.title].filter(Boolean).join(" ")}</h2>
+            <p className="projectorVocabularyDefinition">{lesson.objective}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function VocabularyCarouselWidget({ content }) {
   const carousel = useMemo(() => parseWidgetContent(content), [content]);
   const words = Array.isArray(carousel.words) ? carousel.words : [];
@@ -98,6 +129,10 @@ function VocabularyCarouselWidget({ content }) {
         </div>
       </div>
     );
+  }
+
+  if (carouselShowsObjectives(carousel, nowMs) || (!words.length && carousel.objectives?.lessons?.length)) {
+    return <CarouselObjectivesCard carousel={carousel} />;
   }
 
   const index = vocabularyCarouselIndex(carousel.startedAt, intervalSeconds, nowMs, words.length);

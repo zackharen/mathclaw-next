@@ -238,6 +238,16 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   );
 }
 
+function localDateKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function objectivesDayLabel(dateKey) {
+  if (dateKey === localDateKey()) return "today";
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
 export default function ManageClassVocabulary({ ownerId, courses }) {
   const feedback = useGridSaveFeedback();
   const { setStatus, reportError, refresh } = feedback;
@@ -255,6 +265,7 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
   const [projectorScreens, setProjectorScreens] = useState([]);
   const [projectorInterval, setProjectorInterval] = useState(30);
   const [completedOnly, setCompletedOnly] = useState(false);
+  const [includeObjectives, setIncludeObjectives] = useState(false);
   const [scheduleStart, setScheduleStart] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("");
   const [projectorMessage, setProjectorMessage] = useState("");
@@ -308,13 +319,17 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
     setProjectorSetup(null);
     setProjectorMessage("");
     try {
-      const response = await fetch(`/api/projector/vocabulary-carousel?courseId=${encodeURIComponent(courseId)}`, { cache: "no-store" });
+      const response = await fetch(
+        `/api/projector/vocabulary-carousel?courseId=${encodeURIComponent(courseId)}&today=${localDateKey()}`,
+        { cache: "no-store" }
+      );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Projector screens could not be loaded.");
       setProjectorSetup(data);
       const availableIds = data.screens.filter((screen) => screen.enabled).map((screen) => screen.id);
       const runningAvailable = data.runningScreenIds.filter((id) => availableIds.includes(id));
       setProjectorScreens(runningAvailable.length ? runningAvailable : availableIds);
+      setIncludeObjectives(Boolean(data.runningIncludesObjectives && data.nextObjectives));
       const scheduledMs = data.runningStartedAt ? Date.parse(data.runningStartedAt) : NaN;
       if (Number.isFinite(scheduledMs) && scheduledMs > Date.now()) {
         const scheduled = new Date(scheduledMs);
@@ -348,16 +363,19 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
       const response = await fetch("/api/projector/vocabulary-carousel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, courseId, screenIds: projectorScreens, intervalSeconds: projectorInterval, completedOnly, startAt }),
+        body: JSON.stringify({ action, courseId, screenIds: projectorScreens, intervalSeconds: projectorInterval, completedOnly, startAt,
+          includeObjectives, today: localDateKey(),
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "The projector could not be updated.");
       setProjectorSetup((current) => ({ ...current, runningScreenIds: data.runningScreenIds || [], runningStartedAt: data.startedAt || null }));
       const screenCount = data.runningScreenIds.length;
+      const plusObjectives = action === "start" && includeObjectives ? " plus objectives" : "";
       projectorFeedback.setStatus(action === "start"
         ? startAt
-          ? `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} scheduled to start at ${new Date(startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
-          : `${data.wordCount} word${data.wordCount === 1 ? "" : "s"} rotating on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
+          ? `${data.wordCount} word${data.wordCount === 1 ? "" : "s"}${plusObjectives} scheduled to start at ${new Date(startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
+          : `${data.wordCount} word${data.wordCount === 1 ? "" : "s"}${plusObjectives} rotating on ${screenCount} screen${screenCount === 1 ? "" : "s"}.`
         : "Vocabulary carousel stopped.");
     } catch (error) {
       projectorFeedback.reportError(error.message);
@@ -477,6 +495,24 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
                   <span>Only words from completed lessons</span>
                 </label>
                 <label className="manageVocabularyProjectorCompleted">
+                  <input type="checkbox" checked={includeObjectives} onChange={(event) => setIncludeObjectives(event.target.checked)}
+                    disabled={projectorSaving || !projectorSetup.nextObjectives} />
+                  <span>
+                    Include next lesson&apos;s objectives
+                    {projectorSetup.nextObjectives
+                      ? ` (${objectivesDayLabel(projectorSetup.nextObjectives.date)})`
+                      : ""}
+                  </span>
+                  {projectorSetup.nextObjectives ? null : <small>No upcoming lesson has an objective.</small>}
+                </label>
+                {includeObjectives && projectorSetup.nextObjectives ? (
+                  <p className="manageVocabularyProjectorObjectives">
+                    {projectorSetup.nextObjectives.lessons.map((lesson) => [lesson.code, lesson.title].filter(Boolean).join(" ")).join(" · ")}
+                    {" — "}
+                    {projectorScreens.length === 1 ? "stays on the screen" : "always on one screen, moving each change"}
+                  </p>
+                ) : null}
+                <label className="manageVocabularyProjectorCompleted">
                   <input type="checkbox" checked={scheduleStart} onChange={(event) => setScheduleStart(event.target.checked)} disabled={projectorSaving} />
                   <span>Schedule a start time</span>
                 </label>
@@ -502,7 +538,9 @@ export default function ManageClassVocabulary({ ownerId, courses }) {
                 </p>
                 <div className="ctaRow">
                   <button className="btn primary" type="button" onClick={() => updateProjector("start")}
-                    disabled={projectorSaving || !projectorScreens.length || !(completedOnly ? projectorSetup.completedCount : projectorSetup.allCount)}>
+                    disabled={projectorSaving || !projectorScreens.length
+                      || !((completedOnly ? projectorSetup.completedCount : projectorSetup.allCount)
+                        || (includeObjectives && projectorSetup.nextObjectives))}>
                     {projectorSaving
                       ? "Updating…"
                       : projectorSetup.runningScreenIds.length
