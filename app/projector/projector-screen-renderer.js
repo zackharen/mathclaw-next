@@ -6,6 +6,7 @@ import {
   vocabularyCarouselIndex,
   VOCABULARY_CAROUSEL_TYPE,
 } from "@/lib/projector/vocabulary-carousel.mjs";
+import MathRichText from "@/components/math-rich-text";
 
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -68,7 +69,7 @@ function WordWallWidget({ content }) {
   return (
     <div className="projectorScreenWidget projectorWordWallWidget">
       <div className="projectorWordWallWord">{word.word || "Word Wall"}</div>
-      {word.definition ? <div className="projectorWordWallDefinition">{word.definition}</div> : null}
+      {word.definition ? <MathRichText as="div" className="projectorWordWallDefinition" text={word.definition} /> : null}
     </div>
   );
 }
@@ -143,7 +144,7 @@ function VocabularyCarouselWidget({ content }) {
       <div className="projectorVocabularyCopy">
         <p className="eyebrow">{eyebrow}</p>
         <h1>{current.word}</h1>
-        {current.definition ? <p className="projectorVocabularyDefinition">{current.definition}</p> : null}
+        {current.definition ? <MathRichText as="p" className="projectorVocabularyDefinition" text={current.definition} /> : null}
       </div>
       {current.image ? (
         // Private lesson images are opened through a short-lived signed URL after the screen token is checked.

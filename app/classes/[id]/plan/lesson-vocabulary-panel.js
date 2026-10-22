@@ -11,6 +11,7 @@ import {
   postLessonResource,
   uploadLessonVocabularyFile,
 } from "@/lib/lesson-resources/client";
+import MathRichText from "@/components/math-rich-text";
 
 function attachmentLabel(entry) {
   if (entry.resource_type === "file") {
@@ -239,7 +240,7 @@ export default function LessonVocabularyPanel({
             <article className="classPlanResourceCard" key={entry.id}>
               <div className="classPlanVocabularyIdentity">
                 <strong>{entry.title}</strong>
-                {entry.definition ? <p>{entry.definition}</p> : null}
+                {entry.definition ? <MathRichText as="p" text={entry.definition} /> : null}
                 <small>{attachmentLabel(entry)}</small>
                 <div className="classPlanResourceLessonChips">
                   {(entry.lessonIds || [])

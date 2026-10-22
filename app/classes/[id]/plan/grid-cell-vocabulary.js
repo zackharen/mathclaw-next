@@ -11,6 +11,7 @@ import {
   postLessonResource,
   uploadLessonVocabularyFile,
 } from "@/lib/lesson-resources/client";
+import MathRichText from "@/components/math-rich-text";
 
 export default function GridCellVocabulary({
   ownerId,
@@ -110,7 +111,7 @@ export default function GridCellVocabulary({
                     {entry.title}
                   </a>
                 )}
-                {entry.definition ? <small>{entry.definition}</small> : null}
+                {entry.definition ? <MathRichText as="small" text={entry.definition} /> : null}
               </li>
             ))}
           </ul>

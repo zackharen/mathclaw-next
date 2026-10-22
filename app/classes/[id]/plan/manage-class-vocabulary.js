@@ -12,6 +12,7 @@ import {
 } from "@/lib/lesson-resources/client";
 import { GridSaveStatus, useGridSaveFeedback } from "./grid-save-feedback";
 import { resolveScheduledStartIso } from "@/lib/projector/vocabulary-carousel.mjs";
+import MathRichText from "@/components/math-rich-text";
 
 function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
   const fileRef = useRef(null);
@@ -185,6 +186,7 @@ function VocabularyEditor({ entry, lessons, ownerId, courseId, onChanged }) {
         <label>
           <span>Definition</span>
           <textarea disabled={saving} className="input" value={definition} onChange={(event) => setDefinition(event.target.value)} maxLength={1000} rows={3} />
+          {definition.includes("$") ? <MathRichText as="small" className="manageVocabularyMathPreview" text={definition} /> : null}
         </label>
 
         <details className="manageVocabularyLessons">

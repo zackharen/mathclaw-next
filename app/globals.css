@@ -4604,6 +4604,7 @@ details[open] > summary.btn:not(.btnNoToggle),
 .manageVocabularyProjectorInterval .input { width: min(16rem, 100%); }
 .manageVocabularyProjectorCount { font-weight: 700; }
 .manageVocabularyProjectorCompleted small { color: var(--muted); }
+.manageVocabularyMathPreview { display: block; margin-top: 0.35rem; }
 .manageVocabularyProjectorObjectives { margin: 0.25rem 0 0.75rem 1.6rem; color: var(--muted); }
 
 @media (max-width: 760px) {
