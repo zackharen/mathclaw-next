@@ -23,3 +23,17 @@ test("escaped, unmatched, and empty dollar signs stay text", () => {
   assert.deepEqual(splitMathSegments("Costs $5 each"), [{ math: false, value: "Costs $5 each" }]);
   assert.deepEqual(splitMathSegments("a $$ b"), [{ math: false, value: "a $$ b" }]);
 });
+
+test("$$...$$ becomes an own-line equation and inline math still works beside it", () => {
+  assert.deepEqual(splitMathSegments("$$\\dfrac{d}{dx}(x^n) = n x^{n-1}$$ wherever $x$ is defined."), [
+    { math: true, display: true, value: "\\dfrac{d}{dx}(x^n) = n x^{n-1}" },
+    { math: false, value: " wherever " },
+    { math: true, value: "x" },
+    { math: false, value: " is defined." },
+  ]);
+  assert.deepEqual(splitMathSegments("$$a$$ and $$b$$"), [
+    { math: true, display: true, value: "a" },
+    { math: false, value: " and " },
+    { math: true, display: true, value: "b" },
+  ]);
+});

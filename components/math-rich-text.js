@@ -38,7 +38,7 @@ function useKatexReady(needed) {
   return ready;
 }
 
-// Renders text with inline $...$ LaTeX as MathPrint-style math. Plain text
+// Renders text with $...$ (inline) and $$...$$ (own line) LaTeX as MathPrint-style math. Plain text
 // renders as-is; until KaTeX loads, math shows as its LaTeX source.
 export default function MathRichText({ text, as: Tag = "span", className }) {
   const segments = splitMathSegments(text);
@@ -48,10 +48,16 @@ export default function MathRichText({ text, as: Tag = "span", className }) {
     <Tag className={className}>
       {segments.map((segment, index) => {
         if (!segment.math) return segment.value;
-        if (!ready) return <span key={index}>{segment.value}</span>;
+        if (!ready) return <span key={index} className={segment.display ? "mathRichTextDisplay" : undefined}>{segment.value}</span>;
         // KaTeX escapes its input (trust is off), so this markup is safe to inject.
-        const html = window.katex.renderToString(segment.value, { throwOnError: false });
-        return <span key={index} className="mathRichTextMath" dangerouslySetInnerHTML={{ __html: html }} />;
+        const html = window.katex.renderToString(segment.value, { throwOnError: false, displayMode: Boolean(segment.display) });
+        return (
+          <span
+            key={index}
+            className={segment.display ? "mathRichTextMath mathRichTextDisplay" : "mathRichTextMath"}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
       })}
     </Tag>
   );

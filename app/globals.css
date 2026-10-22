@@ -4605,6 +4605,9 @@ details[open] > summary.btn:not(.btnNoToggle),
 .manageVocabularyProjectorCount { font-weight: 700; }
 .manageVocabularyProjectorCompleted small { color: var(--muted); }
 .manageVocabularyMathPreview { display: block; margin-top: 0.35rem; }
+/* $$...$$ equations in vocabulary definitions sit on their own centered line. */
+.mathRichTextDisplay { display: block; margin: 0.5em 0; text-align: center; }
+.mathRichTextDisplay .katex-display { margin: 0; }
 .manageVocabularyProjectorObjectives { margin: 0.25rem 0 0.75rem 1.6rem; color: var(--muted); }
 
 @media (max-width: 760px) {
