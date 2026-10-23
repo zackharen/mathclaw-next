@@ -7,6 +7,7 @@ import {
   VOCABULARY_CAROUSEL_TYPE,
 } from "@/lib/projector/vocabulary-carousel.mjs";
 import MathRichText from "@/components/math-rich-text";
+import { serverNow, syncServerClock } from "@/lib/projector/server-clock";
 
 const KATEX_CSS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css";
 const KATEX_JS = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js";
@@ -105,12 +106,17 @@ function VocabularyCarouselWidget({ content }) {
   const carousel = useMemo(() => parseWidgetContent(content), [content]);
   const words = Array.isArray(carousel.words) ? carousel.words : [];
   const intervalSeconds = Number(carousel.intervalSeconds) || 30;
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => serverNow());
 
   // Ticks every second regardless of word count so a scheduled (future-started)
-  // carousel flips from "starting soon" to its first word on its own.
+  // carousel flips from "starting soon" to its first word on its own. Uses server
+  // time, not this computer's clock, so every screen and the dashboard agree.
   useEffect(() => {
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    syncServerClock().then(() => setNowMs(serverNow()));
+    const timer = window.setInterval(() => {
+      setNowMs(serverNow());
+      syncServerClock();
+    }, 1000);
     return () => window.clearInterval(timer);
   }, []);
 

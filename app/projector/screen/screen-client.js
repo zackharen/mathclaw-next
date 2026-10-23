@@ -3,6 +3,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { containedRect } from "@/lib/projector/snapshot-layout";
+import { syncServerClock } from "@/lib/projector/server-clock";
 import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay, displayContent, questionForState } from "../projector-screen-renderer";
 import "../styles.css";
 
@@ -559,6 +560,69 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
     const id = window.setInterval(loadActivePoll, 2000);
     return () => window.clearInterval(id);
   }, [loadActivePoll, token]);
+
+  // Realtime broadcasts can be missed (sleeping computer, dropped socket), and
+  // nothing else would correct the screen. Quietly re-check what this screen
+  // should show every 30s and whenever it comes back into view or online.
+  const stateKeyRef = useRef("");
+  useEffect(() => {
+    stateKeyRef.current = JSON.stringify(state || null);
+  }, [state]);
+  const resyncScreen = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`/api/projector/rooms?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const nextState = payload.state || null;
+      if (JSON.stringify(nextState) !== stateKeyRef.current) setState(nextState);
+      setEnabled(payload.enabled !== false);
+      setScreenTimer(timerForScreen(payload.timer, payload.screenNumber));
+      if (payload.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
+    } catch {
+      // Offline: the next tick or the realtime channel will catch up.
+    }
+  }, [token]);
+
+  // A screen left open across a deploy keeps running old code. Reload once a new
+  // build is live, but never while someone is drawing, voting, or sending work.
+  const firstBuildRef = useRef("");
+  const busyRef = useRef(false);
+  useEffect(() => {
+    busyRef.current = Boolean(drawPenOn || activePoll || workFile || workStatus === "submitting");
+  }, [activePoll, drawPenOn, workFile, workStatus]);
+  const checkForNewBuild = useCallback(async () => {
+    const clock = await syncServerClock({ force: true });
+    const build = clock?.build || "";
+    if (!build) return;
+    if (!firstBuildRef.current) {
+      firstBuildRef.current = build;
+      return;
+    }
+    if (build !== firstBuildRef.current && !busyRef.current) window.location.reload();
+  }, []);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    checkForNewBuild();
+    const resyncId = window.setInterval(resyncScreen, 30000);
+    const buildId = window.setInterval(checkForNewBuild, 5 * 60 * 1000);
+    function onWake() {
+      if (document.visibilityState === "hidden") return;
+      resyncScreen();
+      checkForNewBuild();
+    }
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("online", onWake);
+    window.addEventListener("focus", onWake);
+    return () => {
+      window.clearInterval(resyncId);
+      window.clearInterval(buildId);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("online", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+  }, [checkForNewBuild, resyncScreen, token]);
 
   useEffect(() => {
     function syncFullscreenState() {
