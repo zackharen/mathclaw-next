@@ -910,17 +910,17 @@ export async function updateGridDayScheduleAction(formData) {
         if (updateError) throw new Error(updateError.message);
         if (!savedDays?.length) throw new Error("Calendar day was not saved.");
 
-        // A/B classes off their letter day have no lesson or announcement then.
-        let announcementsUpdated = true;
+        // A/B classes off their letter day have no lessons then, but they still
+        // keep an announcement for every school day, so always refresh those.
         if (courseShowsCalendarDay(course, day)) {
           await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
-          announcementsUpdated = await refreshAnnouncementsAfterPacing({
-            supabase,
-            writeClient,
-            user,
-            courseId: course.id,
-          });
         }
+        const announcementsUpdated = await refreshAnnouncementsAfterPacing({
+          supabase,
+          writeClient,
+          user,
+          courseId: course.id,
+        });
         revalidatePath(`/classes/${course.id}/plan`);
         revalidatePath(`/classes/${course.id}/calendar`);
         return { status: "changed", courseId: course.id, title: course.title, announcementsUpdated };
