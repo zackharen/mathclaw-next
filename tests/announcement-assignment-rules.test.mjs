@@ -88,6 +88,45 @@ test("skipped occurrences keep their place in stable numbering", () => {
   );
 });
 
+test("quarter rounds stop at eight across planning and assignment displays, then restart", () => {
+  const dates = ["2026-09-04", "2026-09-11", "2026-09-18", "2026-09-25", "2026-10-02", "2026-10-09", "2026-10-16", "2026-10-23", "2026-10-30", "2026-11-13"];
+  const days = dates.map((class_date) => ({ class_date, day_type: "instructional" }));
+  const periods = [
+    { name: "Quarter 1", start_day_number: 1, end_day_number: 9 },
+    { name: "Quarter 2", start_day_number: 10, end_day_number: 18 },
+  ];
+  const options = {
+    course,
+    calendarDays: days,
+    markingPeriodRules: periods,
+    schoolDayNumberByDate: buildSchoolDayNumberByDate(days),
+    rules: ["Assessment", "Delta Math Spiral Review"].map((label) => ({
+      id: label, label, cadence: "weekly",
+      settings: { weekdays: [5], one_lesson_on_assignment_day: true },
+    })),
+    overrides: [{ rule_id: "Assessment", course_id: course.id, original_date: dates[0], is_skipped: true }],
+  };
+  const occurrences = buildRuleAssignmentOccurrences({ ...options, includeSkipped: true });
+  for (const label of ["Assessment", "Delta Math Spiral Review"]) {
+    assert.deepEqual(numberRuleAssignmentOccurrences(occurrences.filter((item) => item.label === label), periods)
+      .map((item) => item.assessment_number), ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.1"]);
+  }
+  assert.equal(buildRuleAssignmentsByDate(options).has("2026-10-30"), false);
+  assert.equal(buildOneLessonAssignmentDates(options).has("2026-10-30"), false);
+  assert.equal(buildRuleAssignmentOccurrences(options).filter((item) => item.label === "Assessment" && item.marking_period === "Quarter 1").length, 7);
+});
+
+test("moving round eight across a quarter boundary does not admit round nine", () => {
+  const occurrences = Array.from({ length: 9 }, (_, index) => ({
+    rule_id: "Assessment", course_id: course.id, marking_period: "Quarter 1",
+    original_date: `2026-10-${String(index + 1).padStart(2, "0")}`,
+    assignment_date: index === 7 ? "2026-11-13" : `2026-10-${String(index + 1).padStart(2, "0")}`,
+  }));
+  const numbered = numberRuleAssignmentOccurrences(occurrences, [{ name: "Quarter 1", start_day_number: 1 }]);
+  assert.equal(numbered.length, 8);
+  assert.equal(numbered.find((item) => item.assignment_date === "2026-11-13").assessment_number, "1.8");
+});
+
 test("assignments due later cannot reduce the assignment day to one lesson", () => {
   assert.deepEqual(
     [...datesForRule({ one_lesson_on_assignment_day: true, due_school_days: 1 })],
