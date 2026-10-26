@@ -16,6 +16,7 @@ import BulkGridResources from "./bulk-grid-resources";
 import GridCellResources from "./grid-cell-resources";
 import GridCellVocabulary from "./grid-cell-vocabulary";
 import GridCellAnnouncements from "./grid-cell-announcements";
+import GridDaySchedule from "./grid-day-schedule";
 import VocabularyCsvImport from "./vocabulary-csv-import";
 import ManageClassVocabulary from "./manage-class-vocabulary";
 import ManageGridResources from "./manage-grid-resources";
@@ -391,6 +392,9 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                       {weekday}
                       <br />
                       {short}
+                      {row.scheduleType && !row.schoolClosed ? (
+                        <GridDaySchedule classDate={row.date} scheduleType={row.scheduleType} returnTo={returnTo} />
+                      ) : null}
                     </th>
                   );
 
@@ -479,6 +483,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                       head: (
                         <td key={course.id} className={`allClassesGridCellHead${completeClass}`}>
                           {cell.dayType === "half" && !cell.fixed ? <span className="allClassesGridTag">Half Day</span> : null}
+                          {cell.dayType === "modified" && !cell.fixed ? <span className="allClassesGridTag">Activity Day</span> : null}
                           {cell.fixed ? (
                             <span className="allClassesGridTag">Released</span>
                           ) : (

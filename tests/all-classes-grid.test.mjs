@@ -135,3 +135,30 @@ test("rule deadlines show on their day, and weekend ones on the Friday before", 
   assert.equal(fri.cells[1].due[0].due_day, "Sat 10/24");
   assert.equal(thu.cells[1].due, undefined);
 });
+
+test("each row reports the regular classes' shared schedule for the day picker", () => {
+  const courses = [
+    { id: "alg", schedule_model: "every_day" },
+    { id: "calcB", schedule_model: "ab", ab_meeting_day: "B" },
+    { id: "ecc", schedule_model: "every_day", pacing_mode: "fixed_dates" },
+  ];
+  const calendarDays = [
+    { course_id: "alg", class_date: "2026-09-14", day_type: "half", ab_day: "B" },
+    { course_id: "calcB", class_date: "2026-09-14", day_type: "half", ab_day: "B" },
+    { course_id: "ecc", class_date: "2026-09-14", day_type: "instructional", ab_day: "B" },
+    { course_id: "alg", class_date: "2026-09-15", day_type: "modified", ab_day: "A" },
+    { course_id: "calcB", class_date: "2026-09-15", day_type: "instructional", ab_day: "A" },
+    { course_id: "alg", class_date: "2026-09-16", day_type: "off" },
+    { course_id: "calcB", class_date: "2026-09-16", day_type: "off" },
+    { course_id: "ecc", class_date: "2026-09-16", day_type: "half" },
+  ];
+  const { rows } = buildAllClassesGrid({
+    courses,
+    dates: ["2026-09-14", "2026-09-15", "2026-09-16"],
+    calendarDays,
+    planRows: [],
+  });
+  assert.equal(rows[0].scheduleType, "half", "syllabus classes don't count");
+  assert.equal(rows[1].scheduleType, "mixed", "an off-letter A/B class still counts");
+  assert.equal(rows[2].scheduleType, null, "no regular class open");
+});

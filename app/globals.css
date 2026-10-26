@@ -5017,6 +5017,32 @@ details[open] > summary.btn:not(.btnNoToggle),
   flex-basis: 100%;
 }
 
+/* Day column schedule picker (Full / Half / Activity Day for every regular class). */
+.allClassesGridDaySchedule {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.45rem;
+  font-weight: 400;
+}
+
+.allClassesGridDayScheduleSelect {
+  width: 100%;
+  min-width: 0;
+  padding: 0.2rem 0.25rem;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--navy);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.allClassesGridDaySchedule .gridSaveStatus,
+.allClassesGridDaySchedule .gridSaveError {
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
 .allClassesGridTag {
   display: inline-block;
   margin-bottom: 0.3rem;

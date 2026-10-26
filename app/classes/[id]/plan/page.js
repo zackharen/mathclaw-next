@@ -719,7 +719,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                         <option value="instructional">Full</option>
                         <option value="off">Off</option>
                         <option value="half">Half Day</option>
-                        <option value="modified">Modified</option>
+                        <option value="modified">Activity Day</option>
                       </select>
                       <select className="input" name="selected_reason_id" defaultValue="" form="class-plan-schedule-form">
                         <option value="">Keep Row Reason</option>
@@ -773,7 +773,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             <option value="instructional">Full</option>
                             <option value="off">Off</option>
                             <option value="half">Half Day</option>
-                            <option value="modified">Modified</option>
+                            <option value="modified">Activity Day</option>
                           </select>
                           <select
                             className="input"
@@ -1004,7 +1004,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                     </p>
                     {day.note ? <p>{day.note}</p> : null}
                     <p style={{ fontSize: "0.85rem", opacity: 0.75 }}>
-                      Day Type: {normalizeCalendarDayType(day.day_type)}{isGraceDay(day) ? " · Grace Day" : ""}
+                      Day Type: {day.day_type === "modified" ? "activity" : normalizeCalendarDayType(day.day_type)}{isGraceDay(day) ? " · Grace Day" : ""}
                     </p>
 
                     {day.day_type !== "off" && !isGraceDay(day) && !fixedDates ? (
@@ -1049,7 +1049,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             <option value="instructional">Full</option>
                             <option value="off">Off</option>
                             <option value="half">Half Day</option>
-                            <option value="modified">Modified</option>
+                            <option value="modified">Activity Day</option>
                           </select>
                           <label className="calendarSelectCell">
                             <input type="checkbox" name="is_grace_day" defaultChecked={isGraceDay(day)} />
@@ -1232,7 +1232,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                           <option value="instructional">Full</option>
                           <option value="off">Off</option>
                           <option value="half">Half Day</option>
-                          <option value="modified">Modified</option>
+                          <option value="modified">Activity Day</option>
                         </select>
                         <label className="calendarSelectCell">
                           <input type="checkbox" name="is_grace_day" defaultChecked={isGraceDay(day)} />

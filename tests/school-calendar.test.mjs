@@ -120,3 +120,7 @@ test("legacy grace-day rows normalize to full-day grace days", () => {
   assert.equal(isGraceDay(legacyDay), true);
   assert.equal(formatCalendarScheduleType(legacyDay), "Full Day Schedule · Grace Day");
 });
+
+test("activity days are announced as the Activity Day schedule", () => {
+  assert.equal(formatCalendarScheduleType({ day_type: "modified" }), "Activity Day Schedule");
+});

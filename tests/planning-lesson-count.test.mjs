@@ -63,3 +63,14 @@ test("a date-specific override wins over the pacing mode and weekday rules", () 
     2
   );
 });
+
+test("activity days pace like half days", () => {
+  const day = (day_type) => ({ class_date: "2026-09-08", day_type });
+  const count = (day_type, pacingMode) =>
+    lessonsForPlanningDay({ day: day(day_type), pacingMode, weekdayModifiers: {}, oneLessonAssignmentDates: new Set() });
+  for (const mode of ["one_lesson_per_day", "one_lesson_no_half_days", "two_lessons_per_day", "manual_complete"]) {
+    assert.equal(count("modified", mode), count("half", mode), mode);
+  }
+  assert.equal(count("modified", "one_lesson_no_half_days"), 0);
+  assert.equal(count("modified", "two_lessons_per_day"), 1);
+});

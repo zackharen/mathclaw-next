@@ -816,7 +816,7 @@ export default async function OnboardingProfilePage({ searchParams }) {
                         <option value="instructional">Full</option>
                         <option value="off">Off</option>
                         <option value="half">Half Day</option>
-                        <option value="modified">Modified</option>
+                        <option value="modified">Activity Day</option>
                       </select>
                       <select
                         className="input"

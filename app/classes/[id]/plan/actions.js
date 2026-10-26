@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
-import { getCourseAccessForUser, getCourseWriteClient } from "@/lib/courses/access";
+import { getCourseAccessForUser, getCourseWriteClient, listEditableCoursesForUser } from "@/lib/courses/access";
 import { safeClassReturnPath } from "@/lib/planning/return-path";
-import { isGraceDay } from "@/lib/school-calendar";
+import { isGraceDay, SCHEDULE_DAY_TYPES } from "@/lib/school-calendar";
 import { courseShowsCalendarDay } from "@/lib/planning/meeting-days";
 import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { logInternalEvent } from "@/lib/observability/events";
@@ -843,6 +843,122 @@ export async function saveGridPlanAction(formData) {
     if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
     return { error: "Could not finish saving. Check the grid and try again." };
   }
+}
+
+// The grid's day column: set one date's schedule (Full / Half / Activity Day)
+// for every regular class, then re-pace and refresh announcements for the
+// classes that meet that day. Syllabus classes keep their own dates, and a class
+// that already completed lessons that day is left alone (rebuilds carry
+// completed lessons by count, so they would shift).
+export async function updateGridDayScheduleAction(formData) {
+  const actionStart = Date.now();
+  const classDate = formData.get("class_date");
+  const dayType = formData.get("day_type");
+  if (!isValidISODate(classDate) || !SCHEDULE_DAY_TYPES.some((type) => type.value === dayType)) {
+    return { error: "Choose a valid schedule." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Your session expired. Sign in and try again." };
+
+  const courses = await listEditableCoursesForUser(supabase, user.id);
+  const results = await Promise.all(
+    courses.map(async (listed) => {
+      try {
+        const access = await getCourseAccessForUser(
+          supabase,
+          user.id,
+          listed.id,
+          "id, title, owner_id, schedule_model, ab_meeting_day, pacing_mode"
+        );
+        const course = access?.course;
+        if (!course || isFixedDatesCourse(course)) return { status: "ignored" };
+        const writeClient = getCourseWriteClient(access, supabase);
+
+        const [dayRes, planRes] = await Promise.all([
+          writeClient
+            .from("course_calendar_days")
+            .select("class_date, day_type, is_grace_day, ab_day")
+            .eq("course_id", course.id)
+            .eq("class_date", classDate)
+            .maybeSingle(),
+          writeClient
+            .from("course_lesson_plan")
+            .select("status")
+            .eq("course_id", course.id)
+            .eq("class_date", classDate),
+        ]);
+        if (dayRes.error) throw new Error(dayRes.error.message);
+        if (planRes.error) throw new Error(planRes.error.message);
+
+        const day = dayRes.data;
+        if (!day || day.day_type === "off") return { status: "ignored" };
+        if (day.day_type === dayType) return { status: "unchanged" };
+        if ((planRes.data || []).some((row) => row.status === "completed")) {
+          return { status: "completed", title: course.title };
+        }
+
+        const { data: savedDays, error: updateError } = await writeClient
+          .from("course_calendar_days")
+          .update({ day_type: dayType, updated_at: new Date().toISOString() })
+          .eq("course_id", course.id)
+          .eq("class_date", classDate)
+          .select("class_date");
+        if (updateError) throw new Error(updateError.message);
+        if (!savedDays?.length) throw new Error("Calendar day was not saved.");
+
+        // A/B classes off their letter day have no lesson or announcement then.
+        let announcementsUpdated = true;
+        if (courseShowsCalendarDay(course, day)) {
+          await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+          announcementsUpdated = await refreshAnnouncementsAfterPacing({
+            supabase,
+            writeClient,
+            user,
+            courseId: course.id,
+          });
+        }
+        revalidatePath(`/classes/${course.id}/plan`);
+        revalidatePath(`/classes/${course.id}/calendar`);
+        return { status: "changed", courseId: course.id, title: course.title, announcementsUpdated };
+      } catch (error) {
+        await logInternalEvent({
+          eventKey: "grid_day_schedule_failed",
+          source: "classes.plan.actions",
+          message: error?.message || String(error),
+          user,
+          courseId: listed.id,
+        });
+        return { status: "failed", title: listed.title };
+      }
+    })
+  );
+
+  perfLog("updateGridDayScheduleAction", {
+    classDate,
+    dayType,
+    changed: results.filter((result) => result.status === "changed").length,
+    ms: Date.now() - actionStart,
+  });
+
+  revalidatePath("/classes");
+  const returnTo = safeClassReturnPath(formData.get("return_to"));
+  if (returnTo) revalidatePath(returnTo.split(/[?#]/)[0]);
+
+  const titles = (status) => results.filter((result) => result.status === status).map((result) => result.title);
+  const failed = titles("failed");
+  if (failed.length) return { error: `Could not update ${failed.join(", ")}. Refresh the grid and try again.` };
+  return {
+    ok: true,
+    changed: titles("changed").length,
+    lockedTitles: titles("completed"),
+    announcementsFailedCourseIds: results
+      .filter((result) => result.status === "changed" && !result.announcementsUpdated)
+      .map((result) => result.courseId),
+  };
 }
 
 // Retry for the grid when lessons saved but the announcement refresh did not.
