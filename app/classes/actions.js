@@ -15,6 +15,7 @@ import {
   normalizeAccountType,
 } from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
+import { CUSTOM_LESSON_LIBRARY_CODE } from "@/lib/planning/lesson-swaps";
 
 function normalizeReturnTo(value) {
   return value === "students" ? "students" : "dashboard";
@@ -178,6 +179,7 @@ export async function updateClassSettingsAction(formData) {
       .from("curriculum_libraries")
       .select("id")
       .eq("id", selectedLibraryId)
+      .neq("class_code", CUSTOM_LESSON_LIBRARY_CODE)
       .maybeSingle();
 
     if (libraryError || !data) {

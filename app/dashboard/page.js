@@ -16,6 +16,7 @@ import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { EMPTY_CO_TEACHER_STATE, loadCoTeacherState } from "@/lib/courses/co-teachers";
 import { sortCoursesAlphabetically } from "@/lib/student-games/courses";
 import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
+import { CUSTOM_LESSON_LIBRARY_CODE, loadCustomLessons } from "@/lib/planning/lesson-swaps";
 import { listCourseGameSettingsMap, listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import {
   archiveClassAction,
@@ -241,6 +242,7 @@ export default async function DashboardPage({ searchParams }) {
       supabase
         .from("curriculum_libraries")
         .select("id, class_code, class_name, curriculum_providers!inner(code, name)")
+        .neq("class_code", CUSTOM_LESSON_LIBRARY_CODE)
         .order("class_name", { ascending: true })
         .then(({ data, error: librariesError }) => {
           if (librariesError) throw new Error(librariesError.message);
@@ -294,7 +296,7 @@ export default async function DashboardPage({ searchParams }) {
         .order("class_date", { ascending: true })
         .order("lesson_slot", { ascending: true })
     : Promise.resolve({ data: [] });
-  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }, courseGameSettings, skippedLessons] =
+  const [{ data: planRows }, libraryLessonCounts, { data: connectionRows }, courseGameSettings, skippedLessons, customLessons] =
     await Promise.all([
       planRowsPromise,
       Promise.all(
@@ -315,6 +317,7 @@ export default async function DashboardPage({ searchParams }) {
       listCourseGameSettingsMap(courseIds),
       // Skipped lessons are not taught, so they don't count toward a class's total.
       loadSkippedLessonIds(supabase, courseIds).catch(() => ({ byCourse: new Map() })),
+      loadCustomLessons(supabase, courseIds).catch(() => ({ byCourse: new Map() })),
     ]);
   gameSettingsByKey = courseGameSettings;
 
@@ -324,7 +327,12 @@ export default async function DashboardPage({ searchParams }) {
     const libraryCount = course.selected_library_id ? lessonCountByLibrary.get(course.selected_library_id) || 0 : 0;
     lessonCountByCourse.set(
       course.id,
-      Math.max(libraryCount - (skippedLessons.byCourse.get(course.id)?.length || 0), 0)
+      Math.max(
+        libraryCount +
+          (customLessons.byCourse.get(course.id)?.length || 0) -
+          (skippedLessons.byCourse.get(course.id)?.length || 0),
+        0
+      )
     );
   }
 

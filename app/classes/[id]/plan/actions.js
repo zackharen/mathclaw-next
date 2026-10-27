@@ -18,7 +18,14 @@ import {
   logSkip,
   logUndo,
 } from "@/lib/planning/skipped-lessons";
-import { addLessonSwap, loadLessonSwaps } from "@/lib/planning/lesson-swaps";
+import {
+  addCustomLessonInsert,
+  addLessonSwap,
+  CUSTOM_LESSON_LIBRARY_CODE,
+  loadLessonSwaps,
+  removeCustomLessonEdits,
+} from "@/lib/planning/lesson-swaps";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -1046,4 +1053,171 @@ export async function swapLessonsAction(formData) {
   revalidatePath("/classes");
   const destination = back(`lessons_swapped=1&t=${Date.now()}`, returnDate);
   redirect(announcementsUpdated ? destination : withAnnouncementFailure(destination));
+}
+
+const CUSTOM_LESSON_TITLE_MAX = 120;
+const CUSTOM_LESSON_OBJECTIVE_MAX = 500;
+
+// Shared checks for adding or removing a custom lesson. Returns the course and
+// clients, or a redirect query for the expected failures.
+async function loadCustomLessonContext(courseId) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/sign-in");
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id, selected_library_id, pacing_mode");
+  const course = access?.course;
+  if (!course) return { error: "no-course" };
+  if (isFixedDatesCourse(course)) return { error: "syllabus" };
+  const writeClient = getCourseWriteClient(access, supabase);
+  const edits = await loadLessonSwaps(writeClient, [course.id]);
+  if (!edits.available) return { error: "not-ready" };
+  return { supabase, user, course, writeClient, edits: edits.byCourse.get(course.id) || [] };
+}
+
+async function saveLessonEditsAndRebuild({ supabase, user, course, writeClient, edits }) {
+  const { data: saved, error } = await writeClient
+    .from("courses")
+    .update({ lesson_swaps: edits, updated_at: new Date().toISOString() })
+    .eq("id", course.id)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!saved?.length) return { saved: false };
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+  const announcementsUpdated = await refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId: course.id });
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  return { saved: true, announcementsUpdated };
+}
+
+function customLessonReturnPath(courseId, query, classDate) {
+  return `/classes/${courseId}/plan?${query}${isValidISODate(classDate) ? `#plan-day-${classDate}` : "#lesson-by-day"}`;
+}
+
+// Puts a teacher-written lesson on this day, in front of its first planned
+// lesson; later lessons move back a slot. Only this class sees it.
+export async function addCustomLessonAction(formData) {
+  const courseId = formData.get("course_id");
+  const classDate = formData.get("class_date");
+  const title = String(formData.get("title") || "").trim();
+  const objective = String(formData.get("objective") || "").trim();
+  if (typeof courseId !== "string" || !courseId) return;
+  const back = (query) => customLessonReturnPath(courseId, query, classDate);
+  if (!isValidISODate(classDate)) redirect(back("custom_lesson_error=missing"));
+  if (!title || title.length > CUSTOM_LESSON_TITLE_MAX) redirect(back("custom_lesson_error=title"));
+  if (objective.length > CUSTOM_LESSON_OBJECTIVE_MAX) redirect(back("custom_lesson_error=objective"));
+
+  const context = await loadCustomLessonContext(courseId);
+  if (context.error === "no-course") return;
+  if (context.error) redirect(back(`custom_lesson_error=${context.error}`));
+  const { course, writeClient } = context;
+
+  const { data: dayRows, error: dayError } = await writeClient
+    .from("course_lesson_plan")
+    .select("lesson_slot, lesson_id, status")
+    .eq("course_id", course.id)
+    .eq("class_date", classDate)
+    .order("lesson_slot", { ascending: true });
+  if (dayError) throw new Error(dayError.message);
+  // Completion is carried by position, so nothing can go in front of completed work.
+  const target = (dayRows || []).find((row) => row.status !== "completed" && row.lesson_id);
+  if (!target) redirect(back("custom_lesson_error=no-planned"));
+
+  // Custom lessons live in a hidden library that teachers can't write to
+  // directly; access to this class was checked above.
+  const admin = createAdminClient();
+  const { data: library, error: libraryError } = await admin
+    .from("curriculum_libraries")
+    .select("id")
+    .eq("class_code", CUSTOM_LESSON_LIBRARY_CODE)
+    .maybeSingle();
+  if (libraryError) throw new Error(libraryError.message);
+  if (!library) redirect(back("custom_lesson_error=not-ready"));
+
+  // Negative numbers keep custom lessons below every real lesson, so checks
+  // that compare sequence numbers are unaffected. Retry if two saves collide.
+  let customLesson = null;
+  for (let attempt = 0; attempt < 3 && !customLesson; attempt += 1) {
+    const { data: lowest, error: lowestError } = await admin
+      .from("curriculum_lessons")
+      .select("sequence_index")
+      .eq("library_id", library.id)
+      .order("sequence_index", { ascending: true })
+      .limit(1);
+    if (lowestError) throw new Error(lowestError.message);
+    const sequenceIndex = Math.min(0, lowest?.[0]?.sequence_index ?? 0) - 1;
+    const { data, error } = await admin
+      .from("curriculum_lessons")
+      .insert({
+        library_id: library.id,
+        course_id: course.id,
+        sequence_index: sequenceIndex,
+        source_lesson_code: null,
+        title,
+        objective: objective || null,
+      })
+      .select("id")
+      .single();
+    if (error && error.code !== "23505") throw new Error(error.message);
+    customLesson = data || null;
+  }
+  if (!customLesson) redirect(back("custom_lesson_error=not-saved"));
+
+  const result = await saveLessonEditsAndRebuild({
+    ...context,
+    edits: addCustomLessonInsert(context.edits, customLesson.id, target.lesson_id),
+  });
+  if (!result.saved) {
+    await admin.from("curriculum_lessons").delete().eq("id", customLesson.id);
+    redirect(back("custom_lesson_error=not-saved"));
+  }
+  const destination = back(`custom_lesson_added=1&t=${Date.now()}`);
+  redirect(result.announcementsUpdated ? destination : withAnnouncementFailure(destination));
+}
+
+// Takes a custom lesson out of this class's sequence and deletes it.
+export async function removeCustomLessonAction(formData) {
+  const courseId = formData.get("course_id");
+  const lessonId = formData.get("lesson_id");
+  const classDate = formData.get("class_date");
+  if (typeof courseId !== "string" || !courseId) return;
+  const back = (query) => customLessonReturnPath(courseId, query, classDate);
+  if (typeof lessonId !== "string" || !lessonId) redirect(back("custom_lesson_error=missing"));
+
+  const context = await loadCustomLessonContext(courseId);
+  if (context.error === "no-course") return;
+  if (context.error) redirect(back(`custom_lesson_error=${context.error}`));
+  const { course, writeClient } = context;
+
+  const admin = createAdminClient();
+  const [{ data: lesson, error: lessonError }, { data: rows, error: rowsError }] = await Promise.all([
+    admin.from("curriculum_lessons").select("id, course_id").eq("id", lessonId).maybeSingle(),
+    writeClient.from("course_lesson_plan").select("status").eq("course_id", course.id).eq("lesson_id", lessonId),
+  ]);
+  if (lessonError) throw new Error(lessonError.message);
+  if (rowsError) throw new Error(rowsError.message);
+  if (!lesson || lesson.course_id !== course.id) redirect(back("custom_lesson_error=missing"));
+  if ((rows || []).some((row) => row.status === "completed")) redirect(back("custom_lesson_error=completed"));
+
+  const result = await saveLessonEditsAndRebuild({
+    ...context,
+    edits: removeCustomLessonEdits(context.edits, lessonId),
+  });
+  if (!result.saved) redirect(back("custom_lesson_error=not-saved"));
+
+  // The rebuild above dropped its plan rows, so the lesson can go now.
+  const { error: deleteError } = await admin.from("curriculum_lessons").delete().eq("id", lessonId).eq("course_id", course.id);
+  if (deleteError) {
+    await logInternalEvent({
+      eventKey: "custom_lesson_delete_failed",
+      source: "classes.plan.actions",
+      message: deleteError.message,
+      user: context.user,
+      courseId: course.id,
+    });
+  }
+  const destination = back(`custom_lesson_removed=1&t=${Date.now()}`);
+  redirect(result.announcementsUpdated ? destination : withAnnouncementFailure(destination));
 }

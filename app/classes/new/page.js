@@ -8,6 +8,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import NewClassForm from "./new-class-form";
+import { CUSTOM_LESSON_LIBRARY_CODE } from "@/lib/planning/lesson-swaps";
 
 function defaultSchoolYearDates() {
   const now = new Date();
@@ -67,6 +68,7 @@ export default async function NewClassPage() {
   const { data: libraries, error: librariesError } = await supabase
     .from("curriculum_libraries")
     .select("id, class_code, class_name, curriculum_providers!inner(code, name)")
+    .neq("class_code", CUSTOM_LESSON_LIBRARY_CODE)
     .order("class_name", { ascending: true });
 
   const defaults = defaultSchoolYearDates();

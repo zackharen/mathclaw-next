@@ -9,6 +9,7 @@ import { rebuildPlanFromCalendar } from "@/lib/planning/rebuild-plan";
 import { generateJoinCode } from "@/lib/student-games/join-code";
 import { getAdminAccessContext } from "@/lib/auth/admin-scope";
 import { isGraceDay, normalizeCalendarDayType } from "@/lib/school-calendar";
+import { CUSTOM_LESSON_LIBRARY_CODE } from "@/lib/planning/lesson-swaps";
 
 function normalizeScheduleModel(value) {
   return value === "ab" ? "ab" : "every_day";
@@ -89,6 +90,7 @@ export async function createClassAction(formData) {
       .from("curriculum_libraries")
       .select("id, class_name")
       .eq("id", selectedLibraryId)
+      .neq("class_code", CUSTOM_LESSON_LIBRARY_CODE)
       .single();
 
     if (libraryError || !data) {

@@ -43,8 +43,9 @@ import { buildAssessmentCoverage, coverageByWeek } from "@/lib/announcements/ass
 import { formatAnnouncementAssignmentDate, isWeeklyAssessmentRule, weekStartIso } from "@/lib/announcements/assignment-rules";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
-import { loadLessonSwaps } from "@/lib/planning/lesson-swaps";
+import { loadCustomLessons, loadLessonSwaps } from "@/lib/planning/lesson-swaps";
 import LessonSwapBar from "./lesson-swap-bar";
+import CustomLessonForm, { RemoveCustomLessonButton } from "./custom-lesson-form";
 import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { loadDatedAssignments } from "@/lib/planning/dated-assignments";
 import SyllabusSchedulePanel from "./syllabus-schedule-panel";
@@ -252,16 +253,31 @@ export default async function ClassPlanPage({ params, searchParams }) {
     same: "Those are the same lesson. Pick two different lessons.",
     "not-saved": "That switch wasn't saved. Refresh and try again.",
   };
+  const CUSTOM_LESSON_ERRORS = {
+    missing: "That lesson or day changed. Refresh and try again.",
+    title: "Give the custom lesson a title (120 characters or fewer).",
+    objective: "Keep the objective to 500 characters or fewer.",
+    syllabus: "This class follows syllabus release dates, so custom lessons can't be added here.",
+    "not-ready": "Custom lessons aren't set up yet.",
+    "no-planned": "That day has no planned lesson to add in front of.",
+    completed: "Completed lessons can't be removed.",
+    "not-saved": "That change wasn't saved. Refresh and try again.",
+  };
+  const doneText = (what) =>
+    announcementsFailed
+      ? `${what}, but announcements didn't update. Use Refresh Announcements.`
+      : `${what}. Announcements updated.`;
   const swapMessage = qs.swap_error
     ? { kind: "error", text: SWAP_ERRORS[qs.swap_error] || "Those lessons couldn't be switched." }
-    : qs.lessons_swapped === "1"
-      ? {
-          kind: "ok",
-          text: announcementsFailed
-            ? "Lessons switched, but announcements didn't update. Use Refresh Announcements."
-            : "Lessons switched. Announcements updated.",
-        }
-      : null;
+    : qs.custom_lesson_error
+      ? { kind: "error", text: CUSTOM_LESSON_ERRORS[qs.custom_lesson_error] || "That custom lesson change couldn't be saved." }
+      : qs.lessons_swapped === "1"
+        ? { kind: "ok", text: doneText("Lessons switched") }
+        : qs.custom_lesson_added === "1"
+          ? { kind: "ok", text: doneText("Custom lesson added") }
+          : qs.custom_lesson_removed === "1"
+            ? { kind: "ok", text: doneText("Custom lesson removed") }
+            : null;
   const completedActionMessages = scheduleUpdated
     ? [
         "Schedule Updated!",
@@ -339,6 +355,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     markingPeriodRulesRes,
     skippedLessons,
     lessonSwaps,
+    customLessons,
     assessmentFolderData,
     assessmentSupportsData,
     courseLessonsRes,
@@ -370,7 +387,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     courseDataClient
       .from("course_lesson_plan")
       .select(
-        "class_date, lesson_slot, status, curriculum_lessons(id, sequence_index, source_lesson_code, title, objective)"
+        "class_date, lesson_slot, status, curriculum_lessons(id, sequence_index, source_lesson_code, title, objective, course_id)"
       )
       .eq("course_id", course.id)
       .gte("class_date", lessonWindowStart)
@@ -406,6 +423,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
     curriculumEnabled && !isFixedDatesCourse(course)
       ? loadLessonSwaps(courseDataClient, [course.id]).catch(() => null)
       : Promise.resolve(null),
+    curriculumEnabled && !isFixedDatesCourse(course)
+      ? loadCustomLessons(courseDataClient, [course.id]).catch(() => null)
+      : Promise.resolve(null),
     curriculumEnabled
       ? loadAssessmentFolderData({ userId: user.id, course })
       : Promise.resolve(null),
@@ -423,10 +443,14 @@ export default async function ClassPlanPage({ params, searchParams }) {
   ]);
   const fixedDates = isFixedDatesCourse(course);
   const canSwapLessons = Boolean(lessonSwaps?.available);
+  const canAddCustomLessons = canSwapLessons && Boolean(customLessons?.available);
 
-  // Skipped lessons are not taught, so they don't count toward this class's total.
+  // Skipped lessons are not taught, so they don't count toward this class's
+  // total; custom lessons are added to it.
   const totalLessonsCount = Math.max(
-    (lessonsCountRes.count || 0) - (skippedLessons?.byCourse.get(course.id)?.length || 0),
+    (lessonsCountRes.count || 0) +
+      (customLessons?.byCourse.get(course.id)?.length || 0) -
+      (skippedLessons?.byCourse.get(course.id)?.length || 0),
     0
   );
   const calendarDays = calendarDaysRes.data || [];
@@ -910,7 +934,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
           </>
         ) : null}
         {canSwapLessons ? (
-          <LessonSwapBar key={`${qs.t || ""}-${qs.swap_error || ""}`} courseId={course.id} message={swapMessage} />
+          <LessonSwapBar key={`${qs.t || ""}-${qs.swap_error || ""}-${qs.custom_lesson_error || ""}`} courseId={course.id} message={swapMessage} />
         ) : null}
         {!curriculumEnabled ? (
           <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
@@ -1148,6 +1172,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
                               <div className="lessonPlanItemTitle">
                                 <p>
                                   <strong>Lesson {index + 1}:</strong> {lessonLabel}
+                                  {lesson?.course_id ? <span className="customLessonBadge">Custom</span> : null}
                                 </p>
                                 {canSwapLessons && lesson && row.status !== "completed" ? (
                                   <label className="lessonSwapPick" title="Check two lessons to switch them">
@@ -1163,6 +1188,16 @@ export default async function ClassPlanPage({ params, searchParams }) {
                                 ) : null}
                               </div>
                               <p>{objectiveText}</p>
+                              {canAddCustomLessons && lesson?.course_id === course.id && row.status !== "completed" ? (
+                                <div className="customLessonItemActions">
+                                  <RemoveCustomLessonButton
+                                    courseId={course.id}
+                                    classDate={day.class_date}
+                                    lessonId={lesson.id}
+                                    lessonLabel={lessonLabel}
+                                  />
+                                </div>
+                              ) : null}
                             </div>
                           );
                         })}
@@ -1204,6 +1239,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
                             <button className="btn" type="submit">Mark Complete</button>
                           </form>
                         )}
+                        {canAddCustomLessons && dayPlanRows.some((row) => row.status !== "completed" && row.curriculum_lessons) ? (
+                          <CustomLessonForm courseId={course.id} classDate={day.class_date} />
+                        ) : null}
                       </div>
                     </section>
 
