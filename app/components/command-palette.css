@@ -1,0 +1,111 @@
+/* Teacher command palette (app/components/CommandPalette.js). */
+.commandPaletteTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(15, 59, 99, 0.18);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f3b63;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.commandPaletteTrigger:hover,
+.commandPaletteTrigger:focus-visible {
+  border-color: #0f3b63;
+}
+
+.commandPaletteTrigger kbd {
+  border-radius: 6px;
+  background: #e8f4fd;
+  color: #07598f;
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.05rem 0.35rem;
+}
+
+.commandPaletteOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(7, 26, 46, 0.45);
+}
+
+.commandPaletteContent {
+  position: fixed;
+  top: 12vh;
+  left: 50%;
+  z-index: 1001;
+  width: min(92vw, 560px);
+  transform: translateX(-50%);
+  overflow: hidden;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(7, 26, 46, 0.35);
+}
+
+.commandPaletteInput {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e3ebf3;
+  padding: 1rem 1.15rem;
+  color: #0f3b63;
+  font: inherit;
+  font-size: 1.05rem;
+  outline: none;
+}
+
+.commandPaletteList {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.4rem;
+}
+
+.commandPaletteList [cmdk-group-heading] {
+  padding: 0.6rem 0.75rem 0.3rem;
+  color: #5d7690;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.commandPaletteList [cmdk-item] {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  color: #0f3b63;
+  cursor: pointer;
+}
+
+.commandPaletteList [cmdk-item] small {
+  color: #5d7690;
+}
+
+.commandPaletteList [cmdk-item][data-selected="true"] {
+  background: #e8f4fd;
+}
+
+.commandPaletteList [cmdk-group]:not(:has([cmdk-item])):not(:has([cmdk-loading])) {
+  display: none;
+}
+
+.commandPaletteEmpty,
+.commandPaletteList [cmdk-loading] {
+  padding: 0.9rem 0.75rem;
+  color: #5d7690;
+}
+
+@media (max-width: 760px) {
+  .commandPaletteTrigger kbd {
+    display: none;
+  }
+}

@@ -1,6 +1,8 @@
 import "./globals.css";
 import { Suspense } from "react";
 import GlobalHeader, { GlobalHeaderFallback } from "./global-header";
+import PageTransition from "./page-transition";
+import { AppToaster } from "./components/Toasts";
 
 export const metadata = {
   title: "MathClaw",
@@ -20,10 +22,11 @@ export default function RootLayout({ children }) {
               <GlobalHeader />
             </Suspense>
             <section className="content" id="main-content" tabIndex={-1}>
-              {children}
+              <PageTransition>{children}</PageTransition>
             </section>
           </div>
         </main>
+        <AppToaster />
       </body>
     </html>
   );

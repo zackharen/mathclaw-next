@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useStatusToast } from "@/app/components/Toasts";
 import ProjectorSceneWorkshop from "./projector-scene-workshop";
 import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay } from "./projector-screen-renderer";
 import "./styles.css";
@@ -754,6 +755,7 @@ export default function ProjectorClient({
   const [videoUploadUrl, setVideoUploadUrl] = useState("");
   const [videoFileName, setVideoFileName] = useState("");
   const [message, setMessage] = useState("");
+  useStatusToast(message);
   const [sending, setSending] = useState(false);
   const [savingLibrary, setSavingLibrary] = useState(false);
   const [savingScene, setSavingScene] = useState(false);

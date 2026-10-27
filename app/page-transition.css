@@ -1,0 +1,29 @@
+/* Page cross-fade for app/page-transition.js. */
+::view-transition-old(.mc-page) {
+  animation: 140ms ease-out both mc-page-out;
+}
+
+::view-transition-new(.mc-page) {
+  animation: 220ms ease-out 60ms both mc-page-in;
+}
+
+@keyframes mc-page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mc-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

@@ -13,6 +13,8 @@ import AppNav from "./app-nav";
 import { context as assessmentContext } from "@/lib/assessments/server";
 import MobileNav from "./mobile-nav";
 import GameReadyBanner from "./components/GameReadyBanner";
+import CommandPalette from "./components/CommandPalette";
+import { GAME_CATALOG, sortGamesByName } from "@/lib/student-games/catalog";
 
 const PUBLIC_NAV_ITEMS = [
   { href: "/", label: "Home" },
@@ -150,6 +152,13 @@ async function loadGameReadyBanner(userId) {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] || null;
 }
 
+function paletteGames() {
+  return sortGamesByName(GAME_CATALOG).map((game) => ({
+    label: game.name,
+    href: `/play/${game.slug === "double_board_review" ? "double-board" : game.slug.replaceAll("_", "-")}`,
+  }));
+}
+
 const getCachedGameReadyBanner = unstable_cache(
   loadGameReadyBanner,
   ["student-game-ready-banner-v1"],
@@ -219,6 +228,12 @@ export default async function GlobalHeader() {
         <Brand roleLabel={roleLabel} roleMode={roleMode} />
         <div className="topbarNav">
           <AppNav items={navItems} />
+          {isTeacher ? (
+            <CommandPalette
+              pages={[...navItems, { href: "/classes", label: "Classes" }]}
+              games={paletteGames()}
+            />
+          ) : null}
           {user ? (
             <form action={signOutAction} className="navForm topbarMenuForm">
               <button className="navButton" type="submit">

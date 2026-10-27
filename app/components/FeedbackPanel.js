@@ -1,5 +1,10 @@
+import { SuccessToast } from "./Toasts";
+
 export function StatusNotice({ children, tone = "success" }) {
   const isError = tone === "error";
+
+  // Success confirmations clear themselves; errors stay on the page.
+  if (!isError) return <SuccessToast>{children}</SuccessToast>;
 
   return (
     <div
