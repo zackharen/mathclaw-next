@@ -174,6 +174,7 @@ async function get(query = "", who = ZACK_ID, api = endpoint) {
   return { status: response.status, data: await response.json() };
 }
 async function approvedDraft(q, mode = "standard") {
+  q = { ...q, work_mode: q.work_mode || "typed" };
   let out = await post({ action: "create", title: "API assessment" });
   const draft = out.data;
   out = await post({
@@ -197,6 +198,20 @@ async function approvedDraft(q, mode = "standard") {
 
 test("actual route handlers enforce teacher, student and outsider boundaries without production mutations", async () => {
   const db = fixture();
+  assert.equal(
+    (await post({ action: "previewPath", generator: "linear" }, "student"))
+      .status,
+    403,
+  );
+  assert.equal(
+    (
+      await post(
+        { action: "convertAdaptive", draft_id: "not-allowed" },
+        "student",
+      )
+    ).status,
+    403,
+  );
   assert.equal((await get("", null)).status, 401);
   assert.equal((await get("", "outsider")).status, 403);
   assert.equal((await post({ action: "create" }, "student")).status, 403);
@@ -603,5 +618,111 @@ test("standard draft edits, approval and new attempts keep the spiral last", asy
   assert.deepEqual(
     attempt.questions.map((q) => q.id),
     [first.id, second.id, spiral.id],
+  );
+});
+
+test("paper is the default, automatic answer marks remain preliminary until teacher work review", async () => {
+  const db = fixture(),
+    q = { ...makeQuestion("linear", 3, 71, 0), spiral: true };
+  const draft = (await post({ action: "create", title: "Paper default" })).data;
+  await post({
+    action: "edit",
+    id: draft.id,
+    revision: 0,
+    title: "Paper default",
+    document: { mode: "standard", questions: [q] },
+  });
+  const c = db.mc_assessment_classes[0];
+  assert.equal((await post({ action: "approve", id: c.id })).status, 200);
+  assert.equal(c.document.questions[0].work_mode, "paper");
+  await post({ action: "access", id: c.id, is_open: true, time_minutes: null });
+  let a = (await post({ action: "start", id: c.id }, "student")).data;
+  assert.equal(a.questions[0].work_mode, "paper");
+  assert.equal(a.questionNumber, 1);
+  a = (
+    await post(
+      {
+        action: "save",
+        id: c.id,
+        attempt_id: a.id,
+        revision: a.revision,
+        work: { [q.id]: { answer: q.answer, typed: "" } },
+        submit: true,
+      },
+      "student",
+    )
+  ).data;
+  assert.equal(db.mc_assessment_attempts[0].score, 100);
+  assert.equal(a.score, null);
+  assert.equal(
+    (await post({ action: "release", id: c.id, release: true })).status,
+    400,
+  );
+  let review = (await get(`&id=${c.id}`)).data.attempts[0];
+  assert.equal(review.paperReviewPending, true);
+  // Saving marks alone is not confirmation that paper reasoning was reviewed.
+  assert.equal(
+    (
+      await post({
+        action: "grade",
+        id: c.id,
+        attempt_id: a.id,
+        revision: review.revision,
+        marks: { [q.id]: 1.5 },
+        feedback: {},
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await post({ action: "release", id: c.id, release: true })).status,
+    400,
+  );
+  review = (await get(`&id=${c.id}`)).data.attempts[0];
+  assert.equal(
+    (
+      await post({
+        action: "grade",
+        id: c.id,
+        attempt_id: a.id,
+        revision: review.revision,
+        marks: { [q.id]: 1.5 },
+        feedback: {},
+        paper_reviewed: true,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await post({ action: "release", id: c.id, release: true })).status,
+    200,
+  );
+  const released = (await get(`&id=${c.id}`, "student")).data.attempt;
+  assert.equal(released.score, 50);
+  assert.equal(released.workReview, undefined);
+});
+
+test("explicit work modes survive variants and legacy attempt presentation remains typed", async () => {
+  const db = fixture(),
+    q = {
+      ...makeQuestion("linear", 3, 72, 0),
+      spiral: true,
+      work_mode: "either",
+    };
+  const c = await approvedDraft(q);
+  c.document.variants = true;
+  await post({ action: "access", id: c.id, is_open: true, time_minutes: null });
+  const a = (await post({ action: "start", id: c.id }, "student")).data;
+  assert.equal(a.questions[0].work_mode, "either");
+  const practice = (
+    await post({ action: "practice", id: c.id, fresh: true }, "student")
+  ).data;
+  assert.equal(practice.question.work_mode, "either");
+  delete db.mc_assessment_attempts[0].document.questions[0].work_mode;
+  const legacy = (await get(`&id=${c.id}`, "student")).data.attempt;
+  assert.equal(legacy.questions[0].work_mode, "typed");
+  assert.equal(
+    db.mc_assessment_attempts[0].document.questions[0].work_mode,
+    undefined,
   );
 });

@@ -256,6 +256,7 @@ export default function DesmosWorkspace({ courseId }) {
           </details>
           <Question
             question={run.question}
+            workMode="typed"
             work={work}
             onChange={change}
             disabled={busy || run.done}

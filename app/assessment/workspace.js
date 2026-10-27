@@ -3,7 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ClassPicker, Question } from "./shared";
 import { adaptiveNext, adaptiveGrade } from "@/lib/assessments/core";
 import MathPrint from "./math-print";
-import { spiralLast, safeQuestion } from "@/lib/assessments/core";
+import {
+  questionWorkMode,
+  spiralLast,
+  safeQuestion,
+} from "@/lib/assessments/core";
 
 export default function AssessmentWorkspace({ courseId }) {
   const [data, setData] = useState(null),
@@ -596,7 +600,7 @@ function DraftEditor({
                 Edit this question
               </button>
             </div>
-            <Question question={safeQuestion(q)} />
+            <Question question={safeQuestion(q)} number={index + 1} />
           </section>
         ) : (
           <div className="mcEditorQuestion" key={q.id}>
@@ -684,6 +688,21 @@ function DraftEditor({
                 Teacher reviews scoring
               </label>
             </div>
+            <label>
+              Where students show their work
+              <select
+                value={questionWorkMode(q)}
+                onChange={(e) => change(index, { work_mode: e.target.value })}
+              >
+                <option value="paper">
+                  Paper — enter final answer online (default)
+                </option>
+                <option value="typed">Typed work online</option>
+                <option value="either">
+                  Student chooses paper or typed work
+                </option>
+              </select>
+            </label>
             <label>
               Student-visible success criteria (no answers)
               <textarea
@@ -871,12 +890,12 @@ function TeacherAssignment({
       </div>
       {preview &&
         spiralLast(c.document.questions, c.document.mode || "standard").map(
-          (q) => (
+          (q, index) => (
             <section key={q.id} className="mcPreviewQuestion">
               <button onClick={() => editDraft(q.id)}>
                 Edit this question in source draft
               </button>
-              <Question question={safeQuestion(q)} />
+              <Question question={safeQuestion(q)} number={index + 1} />
             </section>
           ),
         )}
@@ -1232,7 +1251,12 @@ function TeacherAssignment({
                               : "Started"
                           : "Not started"}
                       </td>
-                      <td>{a?.score ?? "Needs review"}</td>
+                      <td>
+                        {a?.score ?? "Needs review"}
+                        {a?.paperReviewPending && (
+                          <p className="mcMuted">Reasoning review pending</p>
+                        )}
+                      </td>
                       <td>
                         {a?.questions
                           .filter(
@@ -1416,7 +1440,11 @@ function GradeEditor({
   const [marks, setMarks] = useState(a.marks || {}),
     [feedback, setFeedback] = useState(a.feedback || {}),
     [override, setOverride] = useState(""),
-    [note, setNote] = useState("");
+    [note, setNote] = useState(""),
+    [paperReviewed, setPaperReviewed] = useState(Boolean(a.workReview));
+  const hasPaperWork = a.questions.some((q) =>
+    ["paper", "either"].includes(q.work_mode),
+  );
   return (
     <section className="mcPanel">
       <h3>Submission review</h3>
@@ -1428,12 +1456,17 @@ function GradeEditor({
           </button>
         </div>
       )}
-      {a.questions.map((q) => (
+      {a.questions.map((q, index) => (
         <details className="mcPanel" key={q.id}>
           <summary>
             {q.prompt.slice(0, 100)} · {marks[q.id] ?? "Review"}/{q.points}
           </summary>
-          <Question question={q} work={a.work?.[q.id]} disabled />
+          <Question
+            question={q}
+            number={index + 1}
+            work={a.work?.[q.id]}
+            disabled
+          />
           <p>
             <strong>Teacher solution:</strong>{" "}
             <MathPrint text={q.solution || q.answer} />
@@ -1500,13 +1533,25 @@ function GradeEditor({
         Teacher note
         <textarea value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
+      {hasPaperWork && (
+        <label className="mcCheck">
+          <input
+            type="checkbox"
+            checked={paperReviewed}
+            onChange={(e) => setPaperReviewed(e.target.checked)}
+          />
+          I reviewed the student’s reasoning and any paper work for partial
+          credit.
+        </label>
+      )}
       <button
-        disabled={busy || !a.submitted_at}
+        disabled={busy || !a.submitted_at || (hasPaperWork && !paperReviewed)}
         onClick={() =>
           save({
             marks,
             feedback,
             override: override === "" ? null : Number(override),
+            paper_reviewed: hasPaperWork ? paperReviewed : undefined,
             note,
           })
         }
@@ -1535,14 +1580,19 @@ function GradeEditor({
 const draftKey = (attemptId) => `mathclaw:assessment-draft:${attemptId}`;
 function readDraft(attemptId) {
   try {
-    return JSON.parse(window.sessionStorage.getItem(draftKey(attemptId)) || "null");
+    return JSON.parse(
+      window.sessionStorage.getItem(draftKey(attemptId)) || "null",
+    );
   } catch {
     return null;
   }
 }
 function writeDraft(attemptId, revision, work) {
   try {
-    window.sessionStorage.setItem(draftKey(attemptId), JSON.stringify({ revision, work }));
+    window.sessionStorage.setItem(
+      draftKey(attemptId),
+      JSON.stringify({ revision, work }),
+    );
   } catch {}
 }
 function clearDraft(attemptId) {
@@ -1627,7 +1677,8 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
     const a = current.current;
     if (!draft || !a) return;
     const closed =
-      Boolean(a.submitted_at) || ["frozen", "locked", "submitted"].includes(a.state);
+      Boolean(a.submitted_at) ||
+      ["frozen", "locked", "submitted"].includes(a.state);
     if (closed || draft.revision !== a.revision) {
       clearDraft(attemptId);
       return;
@@ -1746,7 +1797,11 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
     dirty.current = true;
     if (current.current?.id)
       writeDraft(current.current.id, current.current.revision, updated);
-    setStatus(navigator.onLine === false ? "Offline: saved in this tab until you reconnect." : "Saving…");
+    setStatus(
+      navigator.onLine === false
+        ? "Offline: saved in this tab until you reconnect."
+        : "Saving…",
+    );
     clearTimeout(timer.current);
     timer.current = setTimeout(() => save().catch(() => {}), 700);
   }
@@ -1850,6 +1905,9 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
             <Question
               key={`${q.id}:${remoteVersion}`}
               question={q}
+              number={
+                attempt.mode === "standard" ? index + 1 : attempt.questionNumber
+              }
               work={work[q.id] || {}}
               onChange={change}
               disabled={frozen || busy}

@@ -15,6 +15,9 @@ import { curatedDraft, draftDrift } from "@/lib/assessments/drafting";
 import { liveCoverage } from "@/lib/assessments/coverage";
 import {
   validateDraft,
+  questionWorkMode,
+  WORK_MODES,
+  needsPaperReview,
   spiralLast,
   safeQuestion,
   anonymousStats,
@@ -266,6 +269,7 @@ export async function POST(request) {
           );
         return {
           ...makeQuestion(q.adaptiveGenerator, 2),
+          work_mode: questionWorkMode(q),
           id: q.id,
           skill: q.skill,
           spiral: false,
@@ -467,7 +471,11 @@ export async function POST(request) {
       if (
         !d.document ||
         !Array.isArray(d.document.questions) ||
-        d.document.questions.length > 30
+        d.document.questions.length > 30 ||
+        d.document.questions.some(
+          (q) =>
+            q?.work_mode !== undefined && !WORK_MODES.includes(q.work_mode),
+        )
       )
         fail("Invalid draft.");
       return json(
@@ -560,7 +568,7 @@ export async function POST(request) {
         questions: spiralLast(
           draft.document.questions,
           draft.document.mode || "standard",
-        ),
+        ).map((q) => ({ ...q, work_mode: questionWorkMode(q) })),
       };
       validateDraft(doc);
       if (doc.week === "2026-11-02" || draft.week === "2026-11-02")
@@ -620,11 +628,18 @@ export async function POST(request) {
       const attempts = result(
         await admin
           .from("mc_assessment_attempts")
-          .select("id,revision,score,submitted_at")
+          .select("id,revision,score,submitted_at,document")
           .eq("assignment_id", c.id),
       );
       if (d.release && attempts.some((a) => a.submitted_at && a.score === null))
         fail("Finish grading submitted attempts before releasing results.");
+      if (
+        d.release &&
+        attempts.some((a) => a.submitted_at && needsPaperReview(a.document))
+      )
+        fail(
+          "Review the required paper work and save each reviewed grade before releasing results.",
+        );
       await audit(ctx, "release-results", {
         id: c.id,
         release: d.release === true,
@@ -774,6 +789,7 @@ export async function POST(request) {
           q.manual && q.adaptiveGenerator
             ? {
                 ...makeQuestion(q.adaptiveGenerator, 2),
+                work_mode: questionWorkMode(q),
                 skill: q.skill,
                 spiral: false,
               }
@@ -1005,6 +1021,10 @@ export async function POST(request) {
       )
         fail(
           "Review a submitted, graded Spiral Review and explicitly approve recovery.",
+        );
+      if (needsPaperReview(a.document))
+        fail(
+          "Review this Spiral Review’s paper work before approving grade recovery.",
         );
       const original = requireRow(
         result(

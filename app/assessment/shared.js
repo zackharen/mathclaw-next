@@ -1,4 +1,5 @@
 "use client";
+import { questionWorkMode } from "@/lib/assessments/core";
 import { useState } from "react";
 import MathPrint from "./math-print";
 import Calculator from "./calculator";
@@ -23,23 +24,42 @@ export function Question({
   work: providedWork,
   onChange,
   disabled = false,
+  number,
+  workMode,
 }) {
   const [previewWork, setPreviewWork] = useState({});
   const work = providedWork || previewWork;
+  const mode = workMode || questionWorkMode(question);
   const update = (patch) =>
     onChange
       ? onChange((current) => ({ ...current, ...patch }))
       : setPreviewWork((current) => ({ ...current, ...patch }));
+  const typedWork = (
+    <label>
+      {mode === "paper"
+        ? "Optional typed work"
+        : mode === "either"
+          ? "Typed work (or use paper)"
+          : "Show or explain your work online"}
+      <textarea
+        value={work.typed || ""}
+        onChange={(e) => update({ typed: e.target.value })}
+      />
+    </label>
+  );
   return (
     <article className="mcQuestion">
       <div className="mcEyebrow">
+        {number ? `Question ${number} · ` : ""}
         {question.spiral ? "Spiral review · " : ""}
         {question.points} points · {question.name || question.skill}
       </div>
       <h2 style={{ whiteSpace: "pre-wrap" }}>
         <MathPrint text={question.prompt} />
       </h2>
-      {question.visual && <SafeVisual className="mcVisual" html={question.visual} />}
+      {question.visual && (
+        <SafeVisual className="mcVisual" html={question.visual} />
+      )}
       <p>
         <strong>Success criteria:</strong>{" "}
         <MathPrint text={question.criteria} />
@@ -47,6 +67,23 @@ export function Question({
       <p>
         <strong>Allowed supports:</strong>{" "}
         <MathPrint text={question.supports || "None specified"} />
+      </p>
+      <p className="mcNotice">
+        {mode === "paper"
+          ? "Enter your final answer online and show your reasoning on paper. "
+          : mode === "typed"
+            ? "Enter your final answer and show your reasoning online. "
+            : "Enter your final answer online. Show your reasoning on paper or type it below. "}
+        {mode !== "typed" && (
+          <>
+            {mode === "either"
+              ? "If using paper, label it "
+              : "Label your paper "}
+            {number ? `Question ${number}` : "with this question"} and hand it
+            in to your teacher. Your teacher reviews paper work for reasoning
+            and partial credit.
+          </>
+        )}
       </p>
       <fieldset disabled={disabled}>
         <legend>Your response</legend>
@@ -66,20 +103,21 @@ export function Question({
           </div>
         ) : (
           <label>
-            Answer
+            Final answer
             <textarea
               value={work.answer || ""}
               onChange={(e) => update({ answer: e.target.value })}
             />
           </label>
         )}
-        <label>
-          Show or explain your work
-          <textarea
-            value={work.typed || ""}
-            onChange={(e) => update({ typed: e.target.value })}
-          />
-        </label>
+        {mode === "paper" ? (
+          <details open={Boolean(work.typed)}>
+            <summary>Prefer to type your work? (optional)</summary>
+            {typedWork}
+          </details>
+        ) : (
+          typedWork
+        )}
       </fieldset>
       {question.desmos && (
         <Calculator
