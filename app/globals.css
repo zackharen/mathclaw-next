@@ -7145,3 +7145,49 @@ details[open] > summary.adminSectionSummary .hideLabel {
   font-size: 0.85rem;
   opacity: 0.75;
 }
+
+/* All Classes grid: Switch box beside each lesson title, and + Custom Lesson
+   as a full-width third row under the 2x2 action block. */
+.allClassesGridSwapPick {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.allClassesGridLesson .customLessonBadge {
+  margin-left: 0.3rem;
+  font-size: 0.65rem;
+}
+
+.allClassesGridSlotCustom {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.allClassesGridPanel .customLessonForm {
+  padding: 0.5rem;
+}
+
+.gridCustomLessonList {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.gridCustomLessonList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.gridCustomLessonList .btn {
+  width: auto;
+  min-height: 0;
+}

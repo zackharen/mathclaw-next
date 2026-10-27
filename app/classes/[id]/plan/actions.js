@@ -993,9 +993,12 @@ export async function refreshGridAnnouncementsAction(courseId, returnTo) {
 export async function swapLessonsAction(formData) {
   const courseId = formData.get("course_id");
   const picks = formData.getAll("swap_lesson").filter((value) => typeof value === "string");
-  const back = (query, date) =>
-    `/classes/${courseId}/plan?${query}${isValidISODate(date) ? `#plan-day-${date}` : "#lesson-by-day"}`;
   if (typeof courseId !== "string" || !courseId) return;
+  const returnTo = safeClassReturnPath(formData.get("return_to"));
+  const back = (query, date) =>
+    returnTo
+      ? withReturnQuery(returnTo, query)
+      : `/classes/${courseId}/plan?${query}${isValidISODate(date) ? `#plan-day-${date}` : "#lesson-by-day"}`;
 
   const slots = picks.map((value) => {
     const [classDate, slot] = value.split("|");
@@ -1092,7 +1095,15 @@ async function saveLessonEditsAndRebuild({ supabase, user, course, writeClient, 
   return { saved: true, announcementsUpdated };
 }
 
-function customLessonReturnPath(courseId, query, classDate) {
+// Adds a result to a grid return path, keeping its week and #row anchor.
+function withReturnQuery(path, query) {
+  const [beforeHash, hash] = path.split("#");
+  const joined = `${beforeHash}${beforeHash.includes("?") ? "&" : "?"}${query}`;
+  return hash === undefined ? joined : `${joined}#${hash}`;
+}
+
+function customLessonReturnPath(courseId, query, classDate, returnTo = null) {
+  if (returnTo) return withReturnQuery(returnTo, query);
   return `/classes/${courseId}/plan?${query}${isValidISODate(classDate) ? `#plan-day-${classDate}` : "#lesson-by-day"}`;
 }
 
@@ -1104,7 +1115,7 @@ export async function addCustomLessonAction(formData) {
   const title = String(formData.get("title") || "").trim();
   const objective = String(formData.get("objective") || "").trim();
   if (typeof courseId !== "string" || !courseId) return;
-  const back = (query) => customLessonReturnPath(courseId, query, classDate);
+  const back = (query) => customLessonReturnPath(courseId, query, classDate, safeClassReturnPath(formData.get("return_to")));
   if (!isValidISODate(classDate)) redirect(back("custom_lesson_error=missing"));
   if (!title || title.length > CUSTOM_LESSON_TITLE_MAX) redirect(back("custom_lesson_error=title"));
   if (objective.length > CUSTOM_LESSON_OBJECTIVE_MAX) redirect(back("custom_lesson_error=objective"));
@@ -1183,7 +1194,7 @@ export async function removeCustomLessonAction(formData) {
   const lessonId = formData.get("lesson_id");
   const classDate = formData.get("class_date");
   if (typeof courseId !== "string" || !courseId) return;
-  const back = (query) => customLessonReturnPath(courseId, query, classDate);
+  const back = (query) => customLessonReturnPath(courseId, query, classDate, safeClassReturnPath(formData.get("return_to")));
   if (typeof lessonId !== "string" || !lessonId) redirect(back("custom_lesson_error=missing"));
 
   const context = await loadCustomLessonContext(courseId);

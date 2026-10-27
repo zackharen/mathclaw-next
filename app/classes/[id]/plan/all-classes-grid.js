@@ -22,6 +22,8 @@ import ManageClassVocabulary from "./manage-class-vocabulary";
 import ManageGridResources from "./manage-grid-resources";
 import LessonCountToggle from "./lesson-count-toggle";
 import SkippedLessonsPanel from "./skipped-lessons-panel";
+import LessonSwapBar from "./lesson-swap-bar";
+import { GridCellCustomLessons } from "./custom-lesson-form";
 import { isPastSkippedLesson, loadSkippedLessonIds, loadSkippedLessonLog } from "@/lib/planning/skipped-lessons";
 import { coverageByWeek } from "@/lib/announcements/assessment-coverage";
 import { formatClockTime, isFixedDatesCourse } from "@/lib/planning/fixed-dates";
@@ -74,7 +76,7 @@ function rowsOrThrow(result) {
   return result.data || [];
 }
 
-export default async function AllClassesGrid({ currentCourseId, userId, gridStartParam }) {
+export default async function AllClassesGrid({ currentCourseId, userId, gridStartParam, planMessage = null, planMessageKey = "" }) {
   const supabase = await createClient();
   const todayIso = new Date().toISOString().slice(0, 10);
   const focusDate = /^\d{4}-\d{2}-\d{2}$/.test(String(gridStartParam || "")) ? gridStartParam : todayIso;
@@ -111,7 +113,7 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           .then(rowsOrThrow),
         supabase
           .from("course_lesson_plan")
-          .select("course_id, class_date, lesson_slot, status, curriculum_lessons(id, source_lesson_code, title)")
+          .select("course_id, class_date, lesson_slot, status, curriculum_lessons(id, source_lesson_code, title, course_id)")
           .in("course_id", courseIds)
           .gte("class_date", firstDate)
           .lte("class_date", lastDate)
@@ -359,6 +361,8 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
           </details>
         ) : null}
 
+        {columns.length > 0 ? <LessonSwapBar key={planMessageKey} message={planMessage} /> : null}
+
         {columns.length === 0 ? (
           <p>None of your classes have scheduled lessons yet.</p>
         ) : (
@@ -500,6 +504,21 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                           {cell.lessons.map((lesson, lessonIndex) => (
                             <span key={lesson.id} className="allClassesGridLesson">
                               {labels[lessonIndex]}
+                              {lesson.custom ? <span className="customLessonBadge">Custom</span> : null}
+                              {!cell.fixed && lesson.status !== "completed" ? (
+                                <label className="lessonSwapPick allClassesGridSwapPick" title="Check two lessons in this class to switch them">
+                                  <input
+                                    type="checkbox"
+                                    name="swap_lesson"
+                                    form="lesson-swap-form"
+                                    value={`${row.date}|${lesson.slot}`}
+                                    data-course={course.id}
+                                    data-return={returnTo}
+                                    aria-label={`Switch ${labels[lessonIndex]} (${course.title})`}
+                                  />
+                                  <span>Switch</span>
+                                </label>
+                              ) : null}
                             </span>
                           ))}
                           <DueList due={cell.due} />
@@ -533,6 +552,17 @@ export default async function AllClassesGrid({ currentCourseId, userId, gridStar
                               lessons={cellLessons}
                               announcement={announcementByCell.get(`${course.id}|${row.date}`) || null}
                             />
+                            {!cell.fixed && cell.lessons.some((lesson) => lesson.status !== "completed") ? (
+                              <GridCellCustomLessons
+                                courseId={course.id}
+                                classDate={row.date}
+                                returnTo={returnTo}
+                                customLessons={cell.lessons
+                                  .map((lesson, lessonIndex) => ({ ...lesson, label: labels[lessonIndex] }))
+                                  .filter((lesson) => lesson.custom)
+                                  .map((lesson) => ({ id: lesson.id, label: lesson.label, planned: lesson.status !== "completed" }))}
+                              />
+                            ) : null}
                           </div>
                         </td>
                       ),

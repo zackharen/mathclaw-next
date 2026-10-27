@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { addCustomLessonAction, removeCustomLessonAction } from "./actions";
+import { useGridCellToggle } from "./grid-cell-toggle";
 
 function SubmitButton({ idle, busy, className = "btn primary" }) {
   const { pending } = useFormStatus();
@@ -18,21 +19,23 @@ function SubmitButton({ idle, busy, className = "btn primary" }) {
 export default function CustomLessonForm({ courseId, classDate }) {
   const [open, setOpen] = useState(false);
 
-  if (!open) {
-    return (
-      <button className="btn" type="button" onClick={() => setOpen(true)}>
-        + Custom Lesson
-      </button>
-    );
-  }
+  if (open) return <CustomLessonFields courseId={courseId} classDate={classDate} onCancel={() => setOpen(false)} />;
+  return (
+    <button className="btn" type="button" onClick={() => setOpen(true)}>
+      + Custom Lesson
+    </button>
+  );
+}
 
+function CustomLessonFields({ courseId, classDate, returnTo = null, onCancel = null }) {
   return (
     <form action={addCustomLessonAction} className="customLessonForm">
       <input type="hidden" name="course_id" value={courseId} />
       <input type="hidden" name="class_date" value={classDate} />
+      {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
       <label>
         <span>Lesson title</span>
-        <input name="title" required maxLength={120} placeholder="e.g. Unit Circle Review" autoFocus />
+        <input name="title" required maxLength={120} placeholder="e.g. Unit Circle Review" autoFocus={Boolean(onCancel)} />
       </label>
       <label>
         <span>Objective (optional)</span>
@@ -43,15 +46,17 @@ export default function CustomLessonForm({ courseId, classDate }) {
       </p>
       <div className="ctaRow">
         <SubmitButton idle="Add Lesson" busy="Adding…" />
-        <button className="btn" type="button" onClick={() => setOpen(false)}>
-          Cancel
-        </button>
+        {onCancel ? (
+          <button className="btn" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
       </div>
     </form>
   );
 }
 
-export function RemoveCustomLessonButton({ courseId, classDate, lessonId, lessonLabel }) {
+export function RemoveCustomLessonButton({ courseId, classDate, lessonId, lessonLabel, returnTo = null }) {
   return (
     <form
       action={removeCustomLessonAction}
@@ -64,7 +69,44 @@ export function RemoveCustomLessonButton({ courseId, classDate, lessonId, lesson
       <input type="hidden" name="course_id" value={courseId} />
       <input type="hidden" name="class_date" value={classDate} />
       <input type="hidden" name="lesson_id" value={lessonId} />
+      {returnTo ? <input type="hidden" name="return_to" value={returnTo} /> : null}
       <SubmitButton idle="Remove" busy="Removing…" className="btn customLessonRemove" />
     </form>
+  );
+}
+
+// All Classes grid: a full-width button under the cell's 2x2 actions. Its
+// panel adds a custom lesson to this class on this day and lists the cell's
+// custom lessons with Remove.
+export function GridCellCustomLessons({ courseId, classDate, returnTo, customLessons }) {
+  const { buttonProps, panelProps } = useGridCellToggle();
+  return (
+    <>
+      <button className="btn allClassesGridToggle allClassesGridSlotCustom" {...buttonProps}>
+        + Custom Lesson
+      </button>
+      <div className="allClassesGridFilesPanel allClassesGridPanel" {...panelProps}>
+        <strong className="allClassesGridPanelTitle">Custom Lesson</strong>
+        {customLessons.length > 0 ? (
+          <ul className="gridCustomLessonList">
+            {customLessons.map((lesson) => (
+              <li key={lesson.id}>
+                <span>{lesson.label}</span>
+                {lesson.planned ? (
+                  <RemoveCustomLessonButton
+                    courseId={courseId}
+                    classDate={classDate}
+                    lessonId={lesson.id}
+                    lessonLabel={lesson.label}
+                    returnTo={returnTo}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <CustomLessonFields courseId={courseId} classDate={classDate} returnTo={returnTo} />
+      </div>
+    </>
   );
 }

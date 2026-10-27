@@ -323,7 +323,15 @@ export default async function ClassPlanPage({ params, searchParams }) {
   // All Classes view (toggle in the pinned title bar): skip this class's heavy
   // plan loading entirely and render the cross-class grid instead.
   if (cookieStore.get("class_plan_view")?.value === "grid") {
-    return <AllClassesGrid currentCourseId={course.id} userId={user.id} gridStartParam={qs.grid_start} />;
+    return (
+      <AllClassesGrid
+        currentCourseId={course.id}
+        userId={user.id}
+        gridStartParam={qs.grid_start}
+        planMessage={swapMessage}
+        planMessageKey={`${qs.t || ""}-${qs.swap_error || ""}-${qs.custom_lesson_error || ""}`}
+      />
+    );
   }
   const courseDataClient = getCourseWriteClient(access, supabase);
   const curriculumEnabled = hasCurriculum(course);
