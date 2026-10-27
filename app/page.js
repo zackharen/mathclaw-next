@@ -199,7 +199,7 @@ function SignedInHome({ siteCopy, user, accountType, canAccessAdmin }) {
             </span>
           </div>
           <p className={styles.eyebrow}>MathClaw Today</p>
-          <h1>Welcome back, {firstName}.</h1>
+          <h1 className={styles.headlineReveal}>Welcome back, {firstName}.</h1>
           <p className={styles.heroLead}>
             {isTeacher
               ? "Everything you need to plan, play, and run the room is ready from here."

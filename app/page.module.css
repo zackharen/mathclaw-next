@@ -354,8 +354,8 @@
 }
 
 /* Homepage headline reveal: CSS take on React Bits Blur Text (reactbits.dev).
-   Plays once on mount; skipped without JavaScript or with reduced motion.
-   Remove this block and the h1 class in app/page.js to roll back. */
+   Used on both homepage headlines. Plays once on mount; skipped without JavaScript or with reduced motion.
+   Remove this block and the h1 classes in app/page.js to roll back. */
 @media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
   .headlineReveal {
     animation: headlineBlurIn 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
