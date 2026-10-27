@@ -11,8 +11,12 @@ export function AppToaster() {
 // Shows a success message as a toast once when it appears on the page.
 export function SuccessToast({ children }) {
   useEffect(() => {
-    if (!children) return;
-    toast.success(children, { id: typeof children === "string" ? children : undefined });
+    if (!children) return undefined;
+    // Wait a tick so the Toaster (mounted later in the layout) is listening.
+    const timer = setTimeout(() => {
+      toast.success(children, { id: typeof children === "string" ? children : undefined });
+    }, 0);
+    return () => clearTimeout(timer);
   }, [children]);
   return null;
 }
