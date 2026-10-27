@@ -22,6 +22,7 @@ function SwitchButton() {
 export default function LessonSwapBar({ courseId, message }) {
   const [picked, setPicked] = useState(0);
   const [notice, setNotice] = useState(message);
+  const [startFresh] = useState(Boolean(message));
 
   useEffect(() => {
     function sync() {
@@ -36,10 +37,15 @@ export default function LessonSwapBar({ courseId, message }) {
         sync();
       }
     }
+    // After a switch the page keeps the same checkbox elements, still checked,
+    // even though those days now hold the other lessons. Start fresh.
+    if (startFresh) {
+      for (const box of document.querySelectorAll(CHECKBOX_SELECTOR)) box.checked = false;
+    }
     sync();
     document.addEventListener("change", onChange);
     return () => document.removeEventListener("change", onChange);
-  }, []);
+  }, [startFresh]);
 
   function clear() {
     for (const box of document.querySelectorAll(CHECKBOX_SELECTOR)) {
