@@ -1480,6 +1480,28 @@ function GradeEditor({
   );
 }
 
+// Unsaved answers are copied to this tab's sessionStorage so a reload or a
+// dropped connection doesn't lose them. sessionStorage clears when the tab
+// closes, so nothing lingers on a shared Chromebook.
+const draftKey = (attemptId) => `mathclaw:assessment-draft:${attemptId}`;
+function readDraft(attemptId) {
+  try {
+    return JSON.parse(window.sessionStorage.getItem(draftKey(attemptId)) || "null");
+  } catch {
+    return null;
+  }
+}
+function writeDraft(attemptId, revision, work) {
+  try {
+    window.sessionStorage.setItem(draftKey(attemptId), JSON.stringify({ revision, work }));
+  } catch {}
+}
+function clearDraft(attemptId) {
+  try {
+    window.sessionStorage.removeItem(draftKey(attemptId));
+  } catch {}
+}
+
 function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
   const [remoteVersion, setRemoteVersion] = useState(0);
   const [attempt, setAttempt] = useState(detail.attempt),
@@ -1549,6 +1571,35 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
       window.removeEventListener("focus", poll);
     };
   }, [c.id, busy, setStatus]);
+  const attemptId = attempt?.id;
+  useEffect(() => {
+    if (!attemptId) return;
+    const draft = readDraft(attemptId);
+    const a = current.current;
+    if (!draft || !a) return;
+    const closed =
+      Boolean(a.submitted_at) || ["frozen", "locked", "submitted"].includes(a.state);
+    if (closed || draft.revision !== a.revision) {
+      clearDraft(attemptId);
+      return;
+    }
+    if (JSON.stringify(draft.work) === JSON.stringify(a.work || {})) return;
+    latestWork.current = draft.work;
+    setWork(draft.work);
+    dirty.current = true;
+    setStatus("Restored unsaved answers from this tab. Saving…");
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => save().catch(() => {}), 300);
+    // Run once per attempt; save() reads refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId]);
+  useEffect(() => {
+    function resend() {
+      if (dirty.current) save().catch(() => {});
+    }
+    window.addEventListener("online", resend);
+    return () => window.removeEventListener("online", resend);
+  });
   async function start() {
     setBusy(true);
     try {
@@ -1603,6 +1654,8 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
             dirty.current = false;
             setIndex(0);
           }
+          if (dirty.current) writeDraft(a.id, out.revision, latestWork.current);
+          else clearDraft(a.id);
           setStatus(
             options.submit
               ? "Submitted. Your teacher will release results when ready."
@@ -1642,7 +1695,9 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
     latestWork.current = updated;
     setWork(updated);
     dirty.current = true;
-    setStatus("Saving…");
+    if (current.current?.id)
+      writeDraft(current.current.id, current.current.revision, updated);
+    setStatus(navigator.onLine === false ? "Offline: saved in this tab until you reconnect." : "Saving…");
     clearTimeout(timer.current);
     timer.current = setTimeout(() => save().catch(() => {}), 700);
   }

@@ -1,3 +1,5 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -45,4 +47,14 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry reports go through /monitoring on our own domain, so the CSP and ad
+// blockers leave them alone. Source maps upload only when SENTRY_AUTH_TOKEN is set.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  tunnelRoute: "/monitoring",
+  silent: !process.env.CI,
+  telemetry: false,
+});

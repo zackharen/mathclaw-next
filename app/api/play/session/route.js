@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { userCanAccessCourse } from "@/lib/student-games/courses";
 import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { ensureGameCatalog, GAME_SLUGS } from "@/lib/student-games/catalog";
 
 const ALLOWED_GAMES = GAME_SLUGS;
@@ -44,6 +45,10 @@ export async function POST(request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // A game ends at most every few seconds; anything faster is a script.
+  const limited = rateLimit(`game-session:${user.id}`, { limit: 60, windowMs: 60 * 1000 });
+  if (!limited.ok) return tooManyRequests(limited.retryAfterSeconds);
 
   const accountType = await getAccountTypeForUser(supabase, user);
 

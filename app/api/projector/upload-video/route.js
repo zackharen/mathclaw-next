@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { getAccountTypeForUser, isTeacherAccountType } from "@/lib/auth/account-type";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -235,6 +236,11 @@ export async function POST(request) {
   const admin = createAdminClient();
   const context = await getTeacherContext(admin);
   if (context.error) return context.error;
+
+  // Video conversion is the most expensive thing MathClaw runs.
+  if (!rateLimit(`video-upload:${context.user.id}`, { limit: 40, windowMs: 60 * 60 * 1000 }).ok) {
+    return jsonError("Too many video uploads this hour. Try again later.", 429);
+  }
 
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("multipart/form-data")) {

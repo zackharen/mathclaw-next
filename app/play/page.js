@@ -161,6 +161,7 @@ export default async function PlayPage({ searchParams }) {
     params?.join_error === "missing" ||
     params?.join_error === "not_found" ||
     params?.join_error === "server" ||
+    params?.join_error === "too_many" ||
     params?.join_success === "1" ||
     typeof params?.game_disabled === "string";
   const hasQuestionFeedback =
@@ -284,6 +285,11 @@ export default async function PlayPage({ searchParams }) {
                 {params?.join_error === "not_found" ? (
                   <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
                     That class code was not found. Double-check the letters and numbers with your teacher.
+                  </p>
+                ) : null}
+                {params?.join_error === "too_many" ? (
+                  <p role="alert" style={{ color: "var(--red)", marginTop: "0.75rem" }}>
+                    Too many class code tries. Wait a few minutes, then check the code with your teacher.
                   </p>
                 ) : null}
                 {params?.join_error === "server" ? (

@@ -8,6 +8,7 @@ import { getAccountTypeForUser } from "@/lib/auth/account-type";
 import { logInternalEvent } from "@/lib/observability/events";
 import { normalizeJoinCode } from "@/lib/student-games/join-code";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { rateLimit } from "@/lib/rate-limit";
 
 const STUDENT_CREATED_QUESTIONS_GAME = {
   slug: "student_created_questions",
@@ -49,6 +50,11 @@ export async function joinClassByCodeAction(formData) {
 
   if (accountType === "teacher") {
     redirect("/play?join_error=teachers_use_co_teacher_flow");
+  }
+
+  // Slow down class-code guessing: 10 tries per account every 10 minutes.
+  if (!rateLimit(`join-code:${user.id}`, { limit: 10, windowMs: 10 * 60 * 1000 }).ok) {
+    redirect("/play?join_error=too_many");
   }
 
   let course = null;
