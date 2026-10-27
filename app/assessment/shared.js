@@ -2,6 +2,7 @@
 import { useState } from "react";
 import MathPrint from "./math-print";
 import Calculator from "./calculator";
+import SafeVisual from "./safe-visual";
 export async function api(path, data) {
   const r = await fetch(
     path,
@@ -38,12 +39,7 @@ export function Question({
       <h2 style={{ whiteSpace: "pre-wrap" }}>
         <MathPrint text={question.prompt} />
       </h2>
-      {question.visual && (
-        <div
-          className="mcVisual"
-          dangerouslySetInnerHTML={{ __html: question.visual }}
-        />
-      )}
+      {question.visual && <SafeVisual className="mcVisual" html={question.visual} />}
       <p>
         <strong>Success criteria:</strong>{" "}
         <MathPrint text={question.criteria} />

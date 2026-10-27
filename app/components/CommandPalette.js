@@ -2,14 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Command } from "cmdk";
+import dynamic from "next/dynamic";
 import "./command-palette.css";
+
+const CommandPaletteDialog = dynamic(() => import("./CommandPaletteDialog"), { ssr: false });
 
 // Teacher quick-jump (Cmd/Ctrl+K): pages, classes and games.
 export default function CommandPalette({ pages = [], games = [] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [classes, setClasses] = useState(null);
+  // Download the dialog code on first open (or on hover/focus of the trigger).
+  const [loaded, setLoaded] = useState(false);
+  if (open && !loaded) setLoaded(true);
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -52,53 +57,23 @@ export default function CommandPalette({ pages = [], games = [] }) {
         className="commandPaletteTrigger"
         type="button"
         onClick={() => setOpen(true)}
+        onPointerEnter={() => setLoaded(true)}
+        onFocus={() => setLoaded(true)}
         aria-label="Search pages, classes and games"
         aria-keyshortcuts="Meta+K Control+K"
       >
         <span aria-hidden="true">⌕</span> Search <kbd>⌘K</kbd>
       </button>
-      <Command.Dialog
-        open={open}
-        onOpenChange={setOpen}
-        label="Search MathClaw"
-        overlayClassName="commandPaletteOverlay"
-        contentClassName="commandPaletteContent"
-      >
-        <Command.Input className="commandPaletteInput" placeholder="Jump to a page, class or game…" />
-        <Command.List className="commandPaletteList">
-          <Command.Empty className="commandPaletteEmpty">No matches.</Command.Empty>
-          <Command.Group heading="Pages">
-            {pages.map((item) => (
-              <Command.Item key={item.href} value={`page ${item.label}`} onSelect={() => go(item.href)}>
-                {item.label}
-              </Command.Item>
-            ))}
-          </Command.Group>
-          <Command.Group heading="Classes">
-            {classes === null ? (
-              <Command.Loading>Loading classes…</Command.Loading>
-            ) : (
-              classes.map((course) => (
-                <Command.Item
-                  key={course.id}
-                  value={`class ${course.title} ${course.subtitle} ${course.id}`}
-                  onSelect={() => go(`/classes/${course.id}/plan`)}
-                >
-                  {course.title}
-                  {course.subtitle ? <small>{course.subtitle}</small> : null}
-                </Command.Item>
-              ))
-            )}
-          </Command.Group>
-          <Command.Group heading="Games">
-            {games.map((game) => (
-              <Command.Item key={game.href} value={`game ${game.label}`} onSelect={() => go(game.href)}>
-                {game.label}
-              </Command.Item>
-            ))}
-          </Command.Group>
-        </Command.List>
-      </Command.Dialog>
+      {loaded ? (
+        <CommandPaletteDialog
+          open={open}
+          setOpen={setOpen}
+          pages={pages}
+          games={games}
+          classes={classes}
+          go={go}
+        />
+      ) : null}
     </>
   );
 }

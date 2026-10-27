@@ -30,8 +30,9 @@ function Brand({ roleLabel = null, roleMode = null }) {
         <Image
           src="/mathclaw-logo-nav.png"
           alt="MathClaw"
+          // Matches the 880×293 file's shape so Next serves a ~132px-wide image.
           height={44}
-          width={440}
+          width={132}
           style={{ height: "clamp(32px, 3.5vw, 44px)", width: "auto" }}
           priority
         />
