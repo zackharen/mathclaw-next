@@ -6,6 +6,7 @@ import { useStatusToast } from "@/app/components/Toasts";
 import ProjectorSceneWorkshop from "./projector-scene-workshop";
 import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay } from "./projector-screen-renderer";
 import "./styles.css";
+import ModalFocus from "@/app/components/ModalFocus";
 
 const ALL_SCREEN_IDS = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const DEFAULT_SCREEN_IDS = ["1", "2", "3", "4"];
@@ -3679,6 +3680,7 @@ export default function ProjectorClient({
             if (event.target === event.currentTarget && !savingScene) cancelAssignment();
           }}
         >
+          <ModalFocus onClose={savingScene ? undefined : cancelAssignment}>
           <section
             className="projectorAssignmentModal"
             role="dialog"
@@ -3759,6 +3761,7 @@ export default function ProjectorClient({
               </button>
             </div>
           </section>
+          </ModalFocus>
         </div>
       ) : null}
       {playlistStartPrompt ? (
@@ -3769,6 +3772,7 @@ export default function ProjectorClient({
             if (event.target === event.currentTarget && !savingScene) setPlaylistStartPrompt(null);
           }}
         >
+          <ModalFocus onClose={savingScene ? undefined : () => setPlaylistStartPrompt(null)}>
           <section className="projectorPlaylistTargetModal" role="dialog" aria-modal="true" aria-labelledby="projector-playlist-target-title">
             <div className="projectorAssignmentHeader">
               <div>
@@ -3806,6 +3810,7 @@ export default function ProjectorClient({
               </button>
             </div>
           </section>
+          </ModalFocus>
         </div>
       ) : null}
       {rotationPromptOpen ? (
@@ -3816,6 +3821,7 @@ export default function ProjectorClient({
             if (event.target === event.currentTarget) setRotationPromptOpen(false);
           }}
         >
+          <ModalFocus onClose={() => setRotationPromptOpen(false)}>
           <section className="projectorTimedRotationModal" role="dialog" aria-modal="true" aria-labelledby="projector-timed-rotation-title">
             <div className="projectorAssignmentHeader">
               <div>
@@ -3857,10 +3863,12 @@ export default function ProjectorClient({
               </button>
             </div>
           </section>
+          </ModalFocus>
         </div>
       ) : null}
       {previewWorkEntry ? (
         <div className="projectorPlaylistOverlay" role="presentation" onClick={() => setPreviewWorkEntry(null)}>
+          <ModalFocus onClose={() => setPreviewWorkEntry(null)}>
           <section
             className="projectorWorkPreviewModal"
             role="dialog"
@@ -3910,10 +3918,12 @@ export default function ProjectorClient({
             </div>
             {workQueueMessage ? <p className="projectorMessage">{workQueueMessage}</p> : null}
           </section>
+          </ModalFocus>
         </div>
       ) : null}
       {drawSnapshot ? (
         <div className="projectorPlaylistOverlay" role="presentation" onClick={closeDrawSnapshotModal}>
+          <ModalFocus onClose={closeDrawSnapshotModal}>
           <section
             className="projectorWorkPreviewModal projectorDrawSnapshotModal"
             role="dialog"
@@ -3983,6 +3993,7 @@ export default function ProjectorClient({
             </div>
             {drawSnapshot.error ? <p className="projectorMessage">{drawSnapshot.error}</p> : null}
           </section>
+          </ModalFocus>
         </div>
       ) : null}
       <section className="projectorHeader">

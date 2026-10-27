@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import ModalFocus from "@/app/components/ModalFocus";
 
 const MAX_VIDEO_BYTES = 75 * 1024 * 1024;
 const DIRECT_VIDEO_UPLOAD_BYTES = 4 * 1024 * 1024;
@@ -554,6 +555,7 @@ export default function ProjectorSceneWorkshop({
     <>
       {launcher}
       <div className="projectorWorkshopOverlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
+        <ModalFocus onClose={() => setOpen(false)}>
         <section className="projectorWorkshopModal" role="dialog" aria-modal="true" aria-labelledby="projector-workshop-title">
           <header className="projectorWorkshopHeader">
             <div>
@@ -744,6 +746,7 @@ export default function ProjectorSceneWorkshop({
             </main>
           </div>
         </section>
+        </ModalFocus>
       </div>
     </>
   );

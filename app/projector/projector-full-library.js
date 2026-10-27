@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import ModalFocus from "@/app/components/ModalFocus";
 
 const SCREEN_IDS = ["1", "2", "3", "4"];
 const LIBRARY_CATEGORIES = ["Questions", "Activities", "Word Walls", "Data Walls", "News", "Announcements"];
@@ -679,6 +680,7 @@ export default function ProjectorFullLibrary({
             if (event.target === event.currentTarget) setOpen(false);
           }}
         >
+          <ModalFocus onClose={() => setOpen(false)}>
           <section className="projectorFullLibraryModal" role="dialog" aria-modal="true" aria-labelledby="projector-full-library-title">
             <div className="projectorFullLibraryHeader">
               <div>
@@ -933,6 +935,7 @@ export default function ProjectorFullLibrary({
               </div>
             )}
           </section>
+          </ModalFocus>
         </div>
       ) : null}
       <style>{`

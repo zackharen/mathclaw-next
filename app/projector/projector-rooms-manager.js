@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import ModalFocus from "@/app/components/ModalFocus";
 
 const INPUT_TYPES = [
   { value: "display_only", label: "Display Only" },
@@ -443,6 +444,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
 
   const modal = open ? (
     <div className="projectorRoomsOverlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
+      <ModalFocus onClose={() => setOpen(false)}>
       <section className="projectorRoomsModal" role="dialog" aria-modal="true" aria-labelledby="projector-rooms-title">
         <div className="projectorRoomsHeader">
           <div>
@@ -707,6 +709,7 @@ export default function ProjectorRoomsManager({ session, initialActiveRoom = nul
         )}
         {status ? <p className="projectorRoomsStatus">{status}</p> : null}
       </section>
+      </ModalFocus>
       <style>{`
         .projectorRoomsOverlay {
           position: fixed; inset: 0; z-index: 45; display: grid; align-items: start; justify-items: center;
