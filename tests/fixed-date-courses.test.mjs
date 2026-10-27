@@ -256,6 +256,8 @@ async function loadRebuild(course) {
     isFixedDatesCourse,
     loadSkippedLessonIds: async () => ({ byCourse: new Map() }),
     withoutSkippedLessons: (lessons) => lessons,
+    loadLessonSwaps: async () => ({ byCourse: new Map() }),
+    applyLessonSwaps: (lessons) => lessons,
     lessonsForPlanningDay: () => 1,
     isGraceDay: () => false,
     buildOneLessonAssignmentDates: () => new Set(),

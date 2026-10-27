@@ -18,6 +18,7 @@ import {
   logSkip,
   logUndo,
 } from "@/lib/planning/skipped-lessons";
+import { addLessonSwap, loadLessonSwaps } from "@/lib/planning/lesson-swaps";
 
 const PERF_ENABLED = process.env.MATHCLAW_TIMING !== "0";
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -977,4 +978,72 @@ export async function refreshGridAnnouncementsAction(courseId, returnTo) {
   const safeReturn = safeClassReturnPath(returnTo);
   if (safeReturn) revalidatePath(safeReturn.split(/[?#]/)[0]);
   return updated ? { ok: true } : { error: "Announcements still didn't update. Try again in a moment." };
+}
+
+// Switch two planned lessons in this class's sequence. Each checkbox sends
+// "class_date|lesson_slot"; the switch is saved on the course so later pacing
+// rebuilds keep it.
+export async function swapLessonsAction(formData) {
+  const courseId = formData.get("course_id");
+  const picks = formData.getAll("swap_lesson").filter((value) => typeof value === "string");
+  const back = (query, date) =>
+    `/classes/${courseId}/plan?${query}${isValidISODate(date) ? `#plan-day-${date}` : "#lesson-by-day"}`;
+  if (typeof courseId !== "string" || !courseId) return;
+
+  const slots = picks.map((value) => {
+    const [classDate, slot] = value.split("|");
+    return { classDate, slot: Number(slot) };
+  });
+  if (slots.length !== 2 || slots.some(({ classDate, slot }) => !isValidISODate(classDate) || !Number.isInteger(slot) || slot < 1)) {
+    redirect(back("swap_error=pick-two"));
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/sign-in");
+
+  const access = await getCourseAccessForUser(supabase, user.id, courseId, "id, owner_id, selected_library_id, pacing_mode");
+  const course = access?.course;
+  if (!course) return;
+  if (isFixedDatesCourse(course)) redirect(back("swap_error=syllabus"));
+  const writeClient = getCourseWriteClient(access, supabase);
+
+  const [{ data: rows, error: rowsError }, current] = await Promise.all([
+    writeClient
+      .from("course_lesson_plan")
+      .select("class_date, lesson_slot, lesson_id, status")
+      .eq("course_id", course.id)
+      .in("class_date", [...new Set(slots.map((pick) => pick.classDate))]),
+    loadLessonSwaps(writeClient, [course.id]),
+  ]);
+  if (rowsError) throw new Error(rowsError.message);
+  if (!current.available) redirect(back("swap_error=not-ready"));
+
+  const [first, second] = slots.map(({ classDate, slot }) =>
+    (rows || []).find((row) => row.class_date === classDate && row.lesson_slot === slot)
+  );
+  const returnDate = slots[0].classDate;
+  if (!first?.lesson_id || !second?.lesson_id) redirect(back("swap_error=missing", returnDate));
+  if (first.status === "completed" || second.status === "completed") redirect(back("swap_error=completed", returnDate));
+  if (first.lesson_id === second.lesson_id) redirect(back("swap_error=same", returnDate));
+
+  const next = addLessonSwap(current.byCourse.get(course.id), first.lesson_id, second.lesson_id);
+  const { data: saved, error: saveError } = await writeClient
+    .from("courses")
+    .update({ lesson_swaps: next, updated_at: new Date().toISOString() })
+    .eq("id", course.id)
+    .select("id");
+  if (saveError) throw new Error(saveError.message);
+  if (!saved?.length) redirect(back("swap_error=not-saved", returnDate));
+
+  await rebuildPlanFromCalendar({ supabase: writeClient, courseId: course.id, userId: user.id });
+  const announcementsUpdated = await refreshAnnouncementsAfterPacing({ supabase, writeClient, user, courseId: course.id });
+
+  revalidatePath(`/classes/${course.id}/plan`);
+  revalidatePath(`/classes/${course.id}/calendar`);
+  revalidatePath("/classes");
+  const destination = back(`lessons_swapped=1&t=${Date.now()}`, returnDate);
+  redirect(announcementsUpdated ? destination : withAnnouncementFailure(destination));
 }

@@ -5385,6 +5385,61 @@ details[open] > summary.btn:not(.btnNoToggle),
   border-top: 1px dashed #6b7c8a;
 }
 
+.lessonPlanItemTitle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.lessonSwapPick {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.lessonSwapPick:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lessonSwapBar {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 1rem;
+  border: 2px solid var(--navy);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--navy);
+  font-weight: 700;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  transform: translateX(-50%);
+}
+
+.lessonSwapBarError {
+  border-color: #b42318;
+  color: #b42318;
+}
+
+.lessonSwapBarActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .abScheduleForm {
   display: flex;
   flex-wrap: nowrap;

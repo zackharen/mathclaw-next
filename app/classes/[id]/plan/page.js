@@ -43,6 +43,8 @@ import { buildAssessmentCoverage, coverageByWeek } from "@/lib/announcements/ass
 import { formatAnnouncementAssignmentDate, isWeeklyAssessmentRule, weekStartIso } from "@/lib/announcements/assignment-rules";
 import { loadTeacherAssessmentSupportsData } from "@/lib/assessment-supports/server";
 import { loadSkippedLessonIds } from "@/lib/planning/skipped-lessons";
+import { loadLessonSwaps } from "@/lib/planning/lesson-swaps";
+import LessonSwapBar from "./lesson-swap-bar";
 import { isFixedDatesCourse } from "@/lib/planning/fixed-dates";
 import { loadDatedAssignments } from "@/lib/planning/dated-assignments";
 import SyllabusSchedulePanel from "./syllabus-schedule-panel";
@@ -241,6 +243,25 @@ export default async function ClassPlanPage({ params, searchParams }) {
             : "Saved. Announcements updated.",
         }
       : null;
+  const SWAP_ERRORS = {
+    "pick-two": "Check exactly two lessons to switch.",
+    syllabus: "This class follows syllabus release dates, so lessons can't be switched here.",
+    "not-ready": "Switching lessons isn't set up yet.",
+    missing: "One of those lessons moved. Refresh and pick again.",
+    completed: "Completed lessons can't be switched.",
+    same: "Those are the same lesson. Pick two different lessons.",
+    "not-saved": "That switch wasn't saved. Refresh and try again.",
+  };
+  const swapMessage = qs.swap_error
+    ? { kind: "error", text: SWAP_ERRORS[qs.swap_error] || "Those lessons couldn't be switched." }
+    : qs.lessons_swapped === "1"
+      ? {
+          kind: "ok",
+          text: announcementsFailed
+            ? "Lessons switched, but announcements didn't update. Use Refresh Announcements."
+            : "Lessons switched. Announcements updated.",
+        }
+      : null;
   const completedActionMessages = scheduleUpdated
     ? [
         "Schedule Updated!",
@@ -317,6 +338,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     schoolDaysRes,
     markingPeriodRulesRes,
     skippedLessons,
+    lessonSwaps,
     assessmentFolderData,
     assessmentSupportsData,
     courseLessonsRes,
@@ -381,6 +403,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
       .eq("owner_id", user.id)
       .order("start_day_number", { ascending: true }),
     curriculumEnabled ? loadSkippedLessonIds(courseDataClient, [course.id]).catch(() => null) : Promise.resolve(null),
+    curriculumEnabled && !isFixedDatesCourse(course)
+      ? loadLessonSwaps(courseDataClient, [course.id]).catch(() => null)
+      : Promise.resolve(null),
     curriculumEnabled
       ? loadAssessmentFolderData({ userId: user.id, course })
       : Promise.resolve(null),
@@ -397,6 +422,7 @@ export default async function ClassPlanPage({ params, searchParams }) {
     isFixedDatesCourse(course) ? loadDatedAssignments(courseDataClient, course.id) : Promise.resolve([]),
   ]);
   const fixedDates = isFixedDatesCourse(course);
+  const canSwapLessons = Boolean(lessonSwaps?.available);
 
   // Skipped lessons are not taught, so they don't count toward this class's total.
   const totalLessonsCount = Math.max(
@@ -883,6 +909,9 @@ export default async function ClassPlanPage({ params, searchParams }) {
             <VocabularyCsvImport courses={[{ id: course.id, title: course.title }]} />
           </>
         ) : null}
+        {canSwapLessons ? (
+          <LessonSwapBar key={`${qs.t || ""}-${qs.swap_error || ""}`} courseId={course.id} message={swapMessage} />
+        ) : null}
         {!curriculumEnabled ? (
           <p>This class does not have a curriculum track attached, so there are no lesson assignments to pace here.</p>
         ) : null}
@@ -1116,9 +1145,23 @@ export default async function ClassPlanPage({ params, searchParams }) {
 
                           return (
                             <div className="lessonPlanItem" key={`${day.class_date}-${row.lesson_slot || index + 1}`}>
-                              <p>
-                                <strong>Lesson {index + 1}:</strong> {lessonLabel}
-                              </p>
+                              <div className="lessonPlanItemTitle">
+                                <p>
+                                  <strong>Lesson {index + 1}:</strong> {lessonLabel}
+                                </p>
+                                {canSwapLessons && lesson && row.status !== "completed" ? (
+                                  <label className="lessonSwapPick" title="Check two lessons to switch them">
+                                    <input
+                                      type="checkbox"
+                                      name="swap_lesson"
+                                      form="lesson-swap-form"
+                                      value={`${day.class_date}|${row.lesson_slot}`}
+                                      aria-label={`Switch ${lessonLabel}`}
+                                    />
+                                    <span>Switch</span>
+                                  </label>
+                                ) : null}
+                              </div>
                               <p>{objectiveText}</p>
                             </div>
                           );
