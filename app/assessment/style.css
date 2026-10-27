@@ -1,0 +1,385 @@
+.mcWorkspace {
+  --mc-ink: #122c45;
+  --mc-teal: #006b68;
+  max-width: 1400px;
+  margin: auto;
+  color: var(--mc-ink);
+  display: grid;
+  gap: 22px;
+  padding: 20px 0 60px;
+}
+.mcHero {
+  background: var(--mc-ink);
+  color: white;
+  padding: 32px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.mcHero h1 {
+  font-size: clamp(2.1rem, 4vw, 3.8rem);
+  margin: 0;
+}
+.mcHero p {
+  max-width: 65ch;
+  margin: 10px 0 0;
+}
+.mcEyebrow {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+.mcClassPicker {
+  min-width: 230px;
+  display: grid;
+  gap: 8px;
+}
+.mcClassPicker select {
+  color: var(--mc-ink);
+}
+.mcWorkspace button:not(.dcg-container *),
+.mcWorkspace .btn {
+  min-height: 42px;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+.mcWorkspace button:not(.dcg-container *):disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.mcWorkspace input:not(.dcg-container *),
+.mcWorkspace select:not(.dcg-container *),
+.mcWorkspace textarea:not(.dcg-container *) {
+  font: inherit;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid #95a9b6;
+  border-radius: 8px;
+  color: var(--mc-ink);
+  background: white;
+}
+.mcWorkspace textarea:not(.dcg-container *) {
+  width: 100%;
+  min-height: 100px;
+}
+.mcWorkspace label {
+  display: grid;
+  gap: 6px;
+}
+.mcWorkspace input:not(.dcg-container *)[type="checkbox"],
+.mcWorkspace input:not(.dcg-container *)[type="radio"] {
+  width: auto;
+  accent-color: var(--mc-teal);
+}
+.mcRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mcGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 18px;
+}
+.mcCard,
+.mcQuestion,
+.mcPanel {
+  border: 2px solid #d4dfe4;
+  border-radius: 16px;
+  background: #fff;
+  padding: 22px;
+  min-width: 0;
+}
+.mcCard h2,
+.mcCard h3 {
+  margin-top: 5px;
+}
+.mcCard .mcRow {
+  margin-top: 16px;
+}
+.mcPanel {
+  display: grid;
+  gap: 16px;
+}
+.mcPanel > summary {
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+.mcPanel[open] > summary {
+  margin-bottom: 16px;
+}
+.mcStatus {
+  padding: 14px 18px;
+  border-left: 5px solid var(--mc-teal);
+  background: #e9f5f0;
+  white-space: pre-wrap;
+}
+.mcNotice {
+  padding: 14px;
+  background: #fff1ce;
+  border: 1px solid #d6b05a;
+  border-radius: 9px;
+}
+.mcTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mcTabs button[aria-pressed="true"],
+.mcTabs button[aria-current="step"] {
+  background: var(--mc-ink);
+  color: white;
+}
+.mcQuestion h2 {
+  font-size: 1.45rem;
+  line-height: 1.5;
+}
+.mcQuestion fieldset {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.mcChoices {
+  display: grid;
+  gap: 10px;
+}
+.mcChoices label,
+.mcCheck {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #c6d4dc;
+  border-radius: 8px;
+}
+.mcGraph {
+  height: 460px;
+  min-height: 300px;
+  background: #f5f7f9;
+  border: 1px solid #c7d5dd;
+  margin-top: 18px;
+}
+.mcGraphFrozen {
+  pointer-events: none;
+  opacity: 0.85;
+}
+.mcGraphChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.mcGraphChoices label > div {
+  height: 230px;
+}
+.mcVisual {
+  overflow: auto;
+}
+.mcVisual svg {
+  max-width: 100%;
+  height: auto;
+}
+.mcVisual table {
+  border-collapse: collapse;
+}
+.mcVisual td,
+.mcVisual th {
+  padding: 8px;
+  border: 1px solid #c4d2db;
+}
+.mcTableWrap {
+  overflow: auto;
+}
+.mcTable {
+  border-collapse: collapse;
+  width: 100%;
+}
+.mcTable th,
+.mcTable td {
+  text-align: left;
+  border-bottom: 1px solid #c7d4db;
+  padding: 12px;
+  vertical-align: top;
+}
+.mcTable input {
+  max-width: 100px;
+}
+.mcEditorQuestion {
+  border-left: 5px solid #73a9a5;
+  padding: 18px;
+  background: #f5f9fa;
+  display: grid;
+  gap: 12px;
+}
+.mcCode {
+  font-family: monospace !important;
+  min-height: 220px !important;
+}
+.mcSkill {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.mcSkill p {
+  margin: 7px 0;
+}
+.mcPill {
+  display: inline-block;
+  background: #e6f0f0;
+  border-radius: 30px;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.mcDistribution {
+  display: flex;
+  gap: 5px;
+  align-items: flex-end;
+  height: 160px;
+}
+.mcDistribution > div {
+  flex: 1;
+  text-align: center;
+  font-size: 0.7rem;
+}
+.mcDistribution i {
+  display: block;
+  background: #95adb9;
+  min-height: 2px;
+}
+.mcDistribution .self i {
+  background: #00766c;
+}
+.mcBar {
+  height: 8px;
+  background: #e0e7ec;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.mcBar span {
+  display: block;
+  height: 100%;
+  background: #00766c;
+}
+.mcTimer {
+  font-variant-numeric: tabular-nums;
+  font-weight: bold;
+}
+.mcMuted {
+  color: #546b7a;
+  font-size: 0.9rem;
+}
+.mcTwo {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+}
+.mcTwo aside {
+  align-self: start;
+}
+.mcWorkspace a {
+  color: inherit;
+}
+.mcHero a {
+  color: white;
+}
+.mcEmpty {
+  padding: 35px;
+  text-align: center;
+  background: #f1f6f8;
+  border-radius: 14px;
+}
+@media (max-width: 750px) {
+  .mcTwo {
+    grid-template-columns: 1fr;
+  }
+  .mcHero {
+    padding: 22px;
+  }
+  .mcWorkspace {
+    padding-top: 8px;
+  }
+  .mcQuestion,
+  .mcPanel,
+  .mcCard {
+    padding: 16px;
+  }
+  .mcGraphChoices {
+    grid-template-columns: 1fr;
+  }
+  .mcGraph {
+    height: 500px;
+  }
+  .mcClassPicker {
+    width: 100%;
+  }
+}
+.mcHero h1 {
+  color: #fff;
+}
+.mcWorkspace button:not(.dcg-container *) {
+  border: 2px solid #1d3b51;
+  border-radius: 10px;
+  background: #fff;
+  color: #18364d;
+  padding: 9px 16px;
+  transition: background 0.15s;
+}
+.mcWorkspace button:not(.dcg-container *):hover:not(:disabled) {
+  background: #e4f2ef;
+}
+.mcWorkspace .mcRow > button:first-of-type {
+  background: #18364d;
+  color: white;
+}
+.mcWorkspace .mcTabs button[aria-pressed="true"],
+.mcWorkspace .mcTabs button[aria-current="step"] {
+  background: #18364d;
+  color: white;
+}
+.mcWorkspace button:not(.dcg-container *):focus-visible,
+.mcWorkspace a:focus-visible {
+  outline: 3px solid #dd9c28;
+  outline-offset: 3px;
+}
+.mcGraphChoices label {
+  display: block;
+}
+.mcGraphChoices label > input {
+  margin-right: 8px;
+}
+.mcGraphChoices label > div {
+  margin-top: 10px;
+}
+
+/* Keep long class names and calculator workspaces inside narrow screens. */
+.mcWorkspace {
+  min-width: 0;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+.mcWorkspace > *,
+.mcHero > *,
+.mcRow > * {
+  min-width: 0;
+}
+.mcClassPicker {
+  max-width: 100%;
+}
+.mcClassPicker select {
+  width: 100%;
+  min-width: 0;
+}
+.mcWorkspace p,
+.mcWorkspace h2,
+.mcWorkspace summary {
+  overflow-wrap: anywhere;
+}

@@ -8,6 +8,7 @@ import {
   isStudentAccountType,
 } from "@/lib/auth/account-type";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { context as assessmentContext } from "@/lib/assessments/server";
 import { listGamesWithCourseSettings } from "@/lib/student-games/game-controls";
 import { createStudentQuestionAction, joinClassByCodeAction } from "./actions";
 import { getSiteCopy } from "@/lib/site-config";
@@ -171,6 +172,7 @@ export default async function PlayPage({ searchParams }) {
   const joinedCourseId = typeof params?.course === "string" ? params.course : "";
   const joinedCourse = joinedCourseId ? courses.find((course) => course.id === joinedCourseId) : null;
   const activeCourse = joinedCourse || courses[0] || null;
+  const assessmentAccess = await assessmentContext(activeCourse?.id,user).catch(() => null);
   const publicName = getPublicDisplayName(profile, profile?.display_name || "Student");
   const shouldOpenClasses = hasJoinFeedback || (isStudent && courses.length === 0);
   const games = await listGamesWithCourseSettings(supabase, activeCourse?.id || null, {
@@ -343,6 +345,8 @@ export default async function PlayPage({ searchParams }) {
               </article>
             </div>
       </ArcadeDisclosure>
+
+      {assessmentAccess && activeCourse ? <section className="card"><h2>{activeCourse?.title} · Assessment &amp; Desmos</h2><p>Open class assessments, fresh practice, calculator assignments and your review queue.</p><div className="ctaRow"><Link className="btn primary" href={`/assessment?course=${activeCourse.id}`}>Assessment</Link><Link className="btn" href={`/desmos?course=${activeCourse.id}`}>Desmos</Link></div></section> : null}
 
       {isStudent && activeCourse?.relationship === "student" ? (
         <ArcadeDisclosure

@@ -1,0 +1,207 @@
+[
+  {
+    "id": "reference-17-1",
+    "skill": "systems-of-inequalities",
+    "name": "One point, two conditions",
+    "prompt": "Is (2, 1) a solution to this system of inequalities? Explain your reasoning. System: y \u2265 x \u2212 2; y < \u2212x + 6.",
+    "points": 3,
+    "solution": "1 \u2265 0 and 1 < 4 are both true. Yes. A solution must satisfy both inequalities.",
+    "rubric": "1 point for the correct conclusion; 2 points for an explanation showing that the point satisfies both inequalities. Accept algebraic or graphical reasoning.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 1
+    }
+  },
+  {
+    "id": "reference-17-2",
+    "skill": "systems-of-inequalities",
+    "name": "Boundary points",
+    "prompt": "Check every point below that is a solution to the system. Leave points that are not solutions unchecked. Explain your reasoning for each point in the response box. System: y \u2264 2x + 1; y > \u2212x \u2212 2. Points: (1,3), (1,\u22123).",
+    "points": 3,
+    "solution": "(1,3) satisfies both: 3 \u2264 3 and 3 > \u22123. (1,\u22123) fails the strict inequality \u22123 > \u22123.",
+    "rubric": "1 point for each correct decision; 1 point for reasoning that supports both decisions.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 2
+    }
+  },
+  {
+    "id": "reference-17-3",
+    "skill": "systems-of-inequalities",
+    "name": "Build the graph",
+    "prompt": "a) Graph the system in Desmos. Set the window to x from \u22124 to 8 and y from \u22124 to 10.\n\nb) Choose the graph below that represents the solution to the system.\n\nc) In the response box, explain which section is the solution and why. System: y \u2265 2x \u2212 3; y < \u2212x + 6.",
+    "points": 3,
+    "solution": "The solution is above/on y=2x\u22123 and strictly below y=\u2212x+6. Choice B shows the intersection of the two inequalities you entered; check your entered inequalities against the prompt before awarding credit.",
+    "rubric": "1 point for the correct system and requested window; 1 for selecting the intersection (B) after entering the correct inequalities; 1 for explaining that every point in this section satisfies both conditions.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "graphChoices": true,
+    "graphGroup": "inequalities-34",
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 3
+    }
+  },
+  {
+    "id": "reference-17-4",
+    "skill": "systems-of-inequalities",
+    "name": "Read and verify",
+    "prompt": "Continue with your graph from Question 3.\n\na) Add one point strictly inside the solution region and one outside it to your Desmos graph.\n\nb) In the response box, explain why each point is or is not a solution.",
+    "points": 3,
+    "solution": "Example inside: (0,0), since 0 \u2265 \u22123 and 0 < 6. Example outside: (0,8), since 8 \u2265 \u22123 but 8 < 6 is false. Accept other valid examples.",
+    "rubric": "1 per correctly verified point; 1 for agreement between the graph and algebra.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "graphGroup": "inequalities-34",
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 4
+    }
+  },
+  {
+    "id": "reference-17-5",
+    "skill": "systems-of-inequalities",
+    "name": "Turn words into constraints",
+    "prompt": "A club sells student tickets for $4 and adult tickets for $6. It can sell at most 30 tickets and needs at least $120 in revenue. Let x be student tickets and y be adult tickets.\n\na) Type the inequalities that represent the scenario into Desmos.\n\nb) In the response box, explain how you came up with each inequality and how you chose each inequality symbol.",
+    "points": 3,
+    "solution": "x+y \u2264 30; 4x+6y \u2265 120. At most includes 30; at least includes 120. Restrictions on x and y are not required.",
+    "rubric": "1 point for the ticket-capacity inequality; 1 point for the revenue inequality; 1 point for explaining how the context determines both inequalities and their symbols. Do not require restrictions on x and y.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "graphGroup": "fundraiser-56",
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 5
+    }
+  },
+  {
+    "id": "reference-17-6",
+    "skill": "systems-of-inequalities",
+    "name": "Choose a useful window",
+    "prompt": "Continue with your fundraiser graph from Question 5.\n\na) Choose a useful window and plot two different feasible ticket combinations in Desmos.\n\nb) In the response box, explain why you chose those coordinates.",
+    "points": 3,
+    "solution": "Constraints: x+y \u2264 30; 4x+6y \u2265 120; nonnegative integers. Example window: \u22122 \u2264 x \u2264 35 and \u22122 \u2264 y \u2264 35. (15,10): 25 tickets and $120; (0,20): 20 tickets and $120. Accept other feasible combinations and useful windows.",
+    "rubric": "1 point for a useful graph window; 1 point for two different feasible ticket combinations; 1 point for explaining why the chosen coordinates make sense as solutions. Separate numerical verification and a written explanation of the window bounds are not required.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "graphGroup": "fundraiser-56",
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 6
+    }
+  },
+  {
+    "id": "reference-17-7",
+    "skill": "systems-of-inequalities",
+    "name": "Diagnose a near miss",
+    "prompt": "A van can carry at most 20 boxes with a total weight of at most 140 pounds. Small boxes weigh 4 pounds and large boxes weigh 10 pounds. Let x be small boxes and y be large boxes.\n\nCheck every combination below that is feasible. Leave infeasible combinations unchecked. In the response box, explain each decision using both constraints.",
+    "points": 3,
+    "solution": "x+y \u2264 20 and 4x+10y \u2264 140. (15,5): 20 boxes, 110 lb, feasible. (10,11): 21 boxes, 150 lb, fails both. (5,13): 18 boxes, 150 lb, fails weight.",
+    "rubric": "1 point for each decision supported by both totals.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 7
+    }
+  },
+  {
+    "id": "reference-17-8",
+    "skill": "systems-of-inequalities",
+    "name": "A second model",
+    "prompt": "A student has at most 12 hours for tutoring and library work. Tutoring pays $15 per hour and library work pays $10 per hour. The student wants to earn at least $150. Let x be tutoring hours and y be library hours.\n\na) Enter the inequalities that represent the scenario in Desmos.\n\nb) Give one feasible answer by plotting its coordinates in Desmos.\n\nc) Do the answers need to be whole numbers? Explain your reasoning in the response box.",
+    "points": 3,
+    "solution": "a) x+y \u2264 12; 15x+10y \u2265 150; x,y \u2265 0. b) Example: (8,3), representing 8 tutoring hours and 3 library hours, gives 11 hours and $150. Accept any feasible schedule. c) No, hours can be fractional unless the job requires whole-hour shifts. Accept a clearly stated and reasonable shift assumption.",
+    "rubric": "a) 1 point for the two main scenario inequalities in Desmos; b) 1 point for a feasible plotted schedule in Desmos; c) 1 point for a reasonable whole-number explanation in the response box. Parts a and b do not need to be repeated in the response box.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 8
+    }
+  },
+  {
+    "id": "reference-17-9",
+    "skill": "systems-of-inequalities",
+    "name": "Transfer: can it ever work?",
+    "prompt": "A theater has at most 40 seats. Tickets cost $7 for students and $9 for adults.\n\na) Could it earn at least $370 in one sold-out show? Justify without listing every combination.\n\nb) Describe and verify one change that would make the goal possible.",
+    "points": 3,
+    "solution": "No: the maximum is 40 adult tickets at $9 = $360. For example increasing capacity to 42 permits $378 with all adult tickets.",
+    "rubric": "a) 1 point for impossibility and 1 for the $360 maximum-revenue reasoning; b) 1 point for a verified workable change.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": false,
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 9
+    }
+  },
+  {
+    "id": "reference-17-10",
+    "skill": "linear",
+    "name": "Spiral: solve and check",
+    "prompt": "Solve 3(2x \u2212 4) = 2x + 16.\n\na) Show your steps and give the solution.\n\nb) Check the solution in the original equation.",
+    "points": 3,
+    "solution": "6x\u221212=2x+16; 4x=28; x=7. Check: 3(14\u22124)=30 and 14+16=30.",
+    "rubric": "1 for valid distribution; 1 for solving x=7; 1 for substitution into the original equation.",
+    "criteria": "Represent the constraints accurately, justify your reasoning, and check your conclusions.",
+    "manual": true,
+    "desmos": true,
+    "supports": "Desmos graphing calculator",
+    "spiral": true,
+    "provenance": {
+      "siteVersion": 61,
+      "commit": "ccbccfb02d88cf21212bd97bbce1652497c445e6",
+      "file": "public/assessment-1-7.js",
+      "item": 10
+    }
+  }
+]

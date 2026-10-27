@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/account-type";
 import { canAccessAdminArea } from "@/lib/auth/owner";
 import AppNav from "./app-nav";
+import { context as assessmentContext } from "@/lib/assessments/server";
 import MobileNav from "./mobile-nav";
 import GameReadyBanner from "./components/GameReadyBanner";
 
@@ -198,6 +199,18 @@ export default async function GlobalHeader() {
       { href: "/report-bug", label: "Report Bug" },
       { href: "/about", label: "About" },
     ];
+  }
+
+  if (user) {
+    const assessmentAccess = await assessmentContext(undefined, user).catch(() => null);
+    if (assessmentAccess) {
+      navItems = [
+        ...navItems.slice(0, 2),
+        { href: "/assessment", label: "Assessment" },
+        { href: "/desmos", label: "Desmos" },
+        ...navItems.slice(2),
+      ];
+    }
   }
 
   return (

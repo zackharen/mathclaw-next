@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { eligibleCourse } from "@/lib/assessments/core";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AllClassesGridLink from "./all-classes-grid-link";
@@ -592,6 +593,10 @@ export default async function DashboardPage({ searchParams }) {
                 <span aria-hidden="true">◎</span>
                 <strong>Students</strong>
               </Link>
+              {eligibleCourse(card.course) ? <>
+                <Link href={`/assessment?course=${card.course.id}`}><span aria-hidden="true">▤</span><strong>Assessment</strong></Link>
+                <Link href={`/desmos?course=${card.course.id}`}><span aria-hidden="true">↗</span><strong>Desmos</strong></Link>
+              </> : null}
             </nav>
 
             <details className="teacherDashboardCourseDetails">

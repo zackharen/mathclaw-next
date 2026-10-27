@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { eligibleCourse } from "@/lib/assessments/core";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -830,6 +831,8 @@ export default async function ClassPlanPage({ params, searchParams }) {
           message={syllabusMessage}
         />
       ) : null}
+
+      {eligibleCourse(course) && user.id === course.owner_id ? <section className="card"><h2>Online assessment &amp; Desmos</h2><div className="ctaRow"><Link className="btn" href={`/assessment?course=${course.id}`}>Manage assessments</Link><Link className="btn" href={`/desmos?course=${course.id}`}>Desmos assignments &amp; mastery</Link></div></section> : null}
 
       {assessmentFolderData?.available && !fixedDates ? (
         <AssessmentFolder
