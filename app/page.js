@@ -44,7 +44,7 @@ function PublicHome({ siteCopy }) {
       <section className={styles.publicHero}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>Math practice that runs with the room</p>
-          <h1>{siteCopy.homeWelcome}</h1>
+          <h1 className={styles.headlineReveal}>{siteCopy.homeWelcome}</h1>
           <p className={styles.heroLead}>{siteCopy.homeIntro}</p>
           <div className={styles.heroActions}>
             <Link className={styles.primaryAction} href="/auth/sign-up">
