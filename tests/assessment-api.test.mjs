@@ -569,3 +569,39 @@ test("Desmos rejects stale work revisions without clearing persisted hint use", 
   assert.equal(state.document.active.linear.work.typed, "First tab");
   assert.equal(state.document.active.linear.hinted, true);
 });
+
+test("standard draft edits, approval and new attempts keep the spiral last", async () => {
+  const db = fixture();
+  const draft = (await post({ action: "create", title: "Ordering check" }))
+    .data;
+  const spiral = { ...makeQuestion("linear", 3, 51, 0), spiral: true };
+  const first = { ...makeQuestion("linear", 3, 52, 0), spiral: false };
+  const second = { ...makeQuestion("linear", 3, 53, 0), spiral: false };
+  let out = await post({
+    action: "edit",
+    id: draft.id,
+    revision: 0,
+    title: "Ordering check",
+    document: { mode: "standard", questions: [spiral, first, second] },
+  });
+  assert.equal(out.status, 200);
+  assert.deepEqual(
+    out.data.document.questions.map((q) => q.id),
+    [first.id, second.id, spiral.id],
+  );
+  const c = db.mc_assessment_classes[0];
+  // Even an older stored draft is normalized on approval.
+  db.mc_assessment_drafts[0].document.questions = [first, spiral, second];
+  out = await post({ action: "approve", id: c.id });
+  assert.equal(out.status, 200, JSON.stringify(out.data));
+  assert.deepEqual(
+    c.document.questions.map((q) => q.id),
+    [first.id, second.id, spiral.id],
+  );
+  await post({ action: "access", id: c.id, is_open: true, time_minutes: null });
+  const attempt = (await post({ action: "start", id: c.id }, "student")).data;
+  assert.deepEqual(
+    attempt.questions.map((q) => q.id),
+    [first.id, second.id, spiral.id],
+  );
+});

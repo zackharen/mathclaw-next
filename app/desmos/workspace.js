@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import MathPrint from "../assessment/math-print";
 import { api, ClassPicker, Question } from "../assessment/shared";
 
 export default function DesmosWorkspace({ courseId }) {
@@ -215,7 +216,9 @@ export default function DesmosWorkspace({ courseId }) {
             <summary>Guided lesson · {skill.name}</summary>
             {skill.lesson ? (
               <>
-                <p>{skill.lesson.intro}</p>
+                <p>
+                  <MathPrint text={skill.lesson.intro} />
+                </p>
                 <ol>
                   {skill.lesson.inputs.map((v, i) => (
                     <li key={i}>
@@ -223,9 +226,12 @@ export default function DesmosWorkspace({ courseId }) {
                     </li>
                   ))}
                 </ol>
-                <p>{skill.lesson.result}</p>
                 <p>
-                  <strong>Watch for:</strong> {skill.lesson.pitfall}
+                  <MathPrint text={skill.lesson.result} />
+                </p>
+                <p>
+                  <strong>Watch for:</strong>{" "}
+                  <MathPrint text={skill.lesson.pitfall} />
                 </p>
                 <div className="mcRow">
                   {skill.lesson.resources?.map((r) => (
@@ -276,23 +282,33 @@ export default function DesmosWorkspace({ courseId }) {
               </button>
             )}
           </div>
-          {hint && <div className="mcNotice">{hint}</div>}
+          {hint && (
+            <div className="mcNotice">
+              <MathPrint text={hint} />
+            </div>
+          )}
           {run.done && (
             <section className="mcPanel">
               <h2>
                 {run.feedback.correct ? "Correct" : "Review and try again"}
               </h2>
-              <p>Answer: {run.feedback.answer}</p>
+              <p>
+                Answer: <MathPrint text={run.feedback.answer} />
+              </p>
               <ol>
                 {run.feedback.steps.map((v, i) => (
-                  <li key={i}>{v}</li>
+                  <li key={i}>
+                    <MathPrint text={v} />
+                  </li>
                 ))}
               </ol>
               <p>Desmos entries:</p>
               {run.feedback.inputs?.map((v, i) => (
                 <code key={i}>{v}</code>
               ))}
-              <p>{run.feedback.evidence}</p>
+              <p>
+                <MathPrint text={run.feedback.evidence} />
+              </p>
             </section>
           )}
         </>

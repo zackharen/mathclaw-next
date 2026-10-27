@@ -383,3 +383,23 @@
 .mcWorkspace summary {
   overflow-wrap: anywhere;
 }
+
+.mcMathPrint {
+  white-space: pre-wrap;
+}
+.mcMathPrint .katex {
+  font-size: 1.08em;
+}
+.mcMathPrint .mathRichTextDisplay {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.mcPreviewQuestion {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.mcWorkspace .mcRow > button:first-of-type:hover:not(:disabled) {
+  background: #24495c;
+  color: #fff;
+}

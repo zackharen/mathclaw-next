@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ClassPicker, Question } from "./shared";
 import { adaptiveNext, adaptiveGrade } from "@/lib/assessments/core";
-import { safeQuestion } from "@/lib/assessments/core";
+import MathPrint from "./math-print";
+import { spiralLast, safeQuestion } from "@/lib/assessments/core";
 
 export default function AssessmentWorkspace({ courseId }) {
   const [data, setData] = useState(null),
@@ -142,13 +143,16 @@ export default function AssessmentWorkspace({ courseId }) {
             action={action}
             refresh={() => refreshDetail(detail.assignment.id)}
             setStatus={setStatus}
-            editDraft={() =>
+            editDraft={(questionId) =>
               perform(async () => {
-                setDraft(
-                  await api(
-                    `/api/assessment?course=${course}&draft=${detail.assignment.draft_id}`,
-                  ),
+                const source = await api(
+                  `/api/assessment?course=${course}&draft=${detail.assignment.draft_id}`,
                 );
+                setDraft({
+                  ...source,
+                  initialPreview: Boolean(questionId),
+                  initialEditingId: questionId,
+                });
                 setDetail(null);
               })
             }
@@ -346,7 +350,11 @@ export default function AssessmentWorkspace({ courseId }) {
                       <p>{q.document.prompt}</p>
                       <details>
                         <summary>Scoring key</summary>
-                        <p>{q.document.solution || q.document.answer}</p>
+                        <p>
+                          <MathPrint
+                            text={q.document.solution || q.document.answer}
+                          />
+                        </p>
                       </details>
                       {q.status !== "curated" && (
                         <button
@@ -388,13 +396,28 @@ function DraftEditor({
   action,
 }) {
   const [title, setTitle] = useState(draft.title),
-    [doc, setDoc] = useState(draft.document),
-    [preview, setPreview] = useState(false),
+    [doc, setRawDoc] = useState(() => ({
+      ...draft.document,
+      questions: spiralLast(
+        draft.document.questions,
+        draft.document.mode || "standard",
+      ),
+    })),
+    [preview, setPreview] = useState(Boolean(draft.initialPreview)),
+    [editingId, setEditingId] = useState(draft.initialEditingId || null),
     [selected, setSelected] = useState(
       library.find((q) => q.status === "curated")?.id || "",
     ),
     [advanced, setAdvanced] = useState(JSON.stringify(draft.document, null, 2)),
     [error, setError] = useState("");
+  const setDoc = (update) =>
+    setRawDoc((previous) => {
+      const next = typeof update === "function" ? update(previous) : update;
+      return {
+        ...next,
+        questions: spiralLast(next.questions, next.mode || "standard"),
+      };
+    });
   const questions = doc.questions || [];
   function change(index, patch) {
     setDoc((d) => ({
@@ -443,6 +466,11 @@ function DraftEditor({
           Save draft
         </button>
       </div>
+      <p className="mcMuted">
+        MathPrint formats recognized equations and fractions automatically. Use
+        $...$ for inline LaTeX or $$...$$ for a separate equation. Standard
+        assessments keep the spiral question last.
+      </p>
       <label>
         Assessment title
         <input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -560,14 +588,27 @@ function DraftEditor({
         ))}
       </details>
       {questions.map((q, index) =>
-        preview ? (
-          <Question key={q.id} question={safeQuestion(q)} />
+        preview && editingId !== q.id ? (
+          <section key={q.id} className="mcPreviewQuestion">
+            <div className="mcRow">
+              <strong>Question {index + 1}</strong>
+              <button onClick={() => setEditingId(q.id)}>
+                Edit this question
+              </button>
+            </div>
+            <Question question={safeQuestion(q)} />
+          </section>
         ) : (
           <div className="mcEditorQuestion" key={q.id}>
             <div className="mcRow">
               <strong>Question {index + 1}</strong>
+              {preview && (
+                <button onClick={() => setEditingId(null)}>
+                  Back to student preview
+                </button>
+              )}
               <button
-                disabled={!index}
+                disabled={!index || (doc.mode === "standard" && q.spiral)}
                 onClick={() =>
                   setDoc((d) => {
                     const a = [...d.questions];
@@ -806,7 +847,7 @@ function TeacherAssignment({
             ? "Approved · fixed question version"
             : "Private draft"}
         </span>
-        <button onClick={editDraft}>Edit source draft</button>
+        <button onClick={() => editDraft()}>Edit source draft</button>
         {c.approved_at && (
           <button onClick={() => setPreview((v) => !v)}>
             Preview published student questions
@@ -829,9 +870,16 @@ function TeacherAssignment({
         )}
       </div>
       {preview &&
-        c.document.questions?.map((q) => (
-          <Question key={q.id} question={safeQuestion(q)} />
-        ))}
+        spiralLast(c.document.questions, c.document.mode || "standard").map(
+          (q) => (
+            <section key={q.id} className="mcPreviewQuestion">
+              <button onClick={() => editDraft(q.id)}>
+                Edit this question in source draft
+              </button>
+              <Question question={safeQuestion(q)} />
+            </section>
+          ),
+        )}
       {c.approved_at && (
         <>
           <form
@@ -1387,10 +1435,11 @@ function GradeEditor({
           </summary>
           <Question question={q} work={a.work?.[q.id]} disabled />
           <p>
-            <strong>Teacher solution:</strong> {q.solution || q.answer}
+            <strong>Teacher solution:</strong>{" "}
+            <MathPrint text={q.solution || q.answer} />
           </p>
           <p>
-            <strong>Rubric:</strong> {q.rubric || q.criteria}
+            <strong>Rubric:</strong> <MathPrint text={q.rubric || q.criteria} />
           </p>
           <div className="mcRow">
             <label>
@@ -1852,13 +1901,19 @@ function StudentAssignment({ detail, action, refresh, setStatus, leaveGuard }) {
               </h2>
               {attempt.questions.map((question) => (
                 <article key={question.id}>
-                  <h3>{question.prompt}</h3>
+                  <h3>
+                    <MathPrint text={question.prompt} />
+                  </h3>
                   <p>
                     {attempt.marks?.[question.id] ?? "Pending"}/
                     {question.points}
                   </p>
-                  <p>{question.solution || question.answer}</p>
-                  <p>{attempt.feedback?.[question.id]}</p>
+                  <p>
+                    <MathPrint text={question.solution || question.answer} />
+                  </p>
+                  <p>
+                    <MathPrint text={attempt.feedback?.[question.id]} />
+                  </p>
                 </article>
               ))}
               {detail.stats && !detail.stats.suppressed ? (
@@ -2054,8 +2109,12 @@ function Practice({ assignment, action, setStatus, leaveGuard }) {
                     ? "Correct"
                     : "Review your approach"}
               </h3>
-              <p>{feedback.solution}</p>
-              <p>{feedback.rubric}</p>
+              <p>
+                <MathPrint text={feedback.solution} />
+              </p>
+              <p>
+                <MathPrint text={feedback.rubric} />
+              </p>
             </div>
           )}
         </>

@@ -15,6 +15,7 @@ import { curatedDraft, draftDrift } from "@/lib/assessments/drafting";
 import { liveCoverage } from "@/lib/assessments/coverage";
 import {
   validateDraft,
+  spiralLast,
   safeQuestion,
   anonymousStats,
   latestSubmittedScores,
@@ -472,7 +473,13 @@ export async function POST(request) {
       return json(
         await cas(admin, "mc_assessment_drafts", row, {
           title: String(d.title || row.title).slice(0, 200),
-          document: d.document,
+          document: {
+            ...d.document,
+            questions: spiralLast(
+              d.document.questions,
+              d.document.mode || "standard",
+            ),
+          },
         }),
       );
     }
@@ -547,7 +554,14 @@ export async function POST(request) {
             .single(),
         ),
       );
-      const doc = { ...draft.document, title: draft.title };
+      const doc = {
+        ...draft.document,
+        title: draft.title,
+        questions: spiralLast(
+          draft.document.questions,
+          draft.document.mode || "standard",
+        ),
+      };
       validateDraft(doc);
       if (doc.week === "2026-11-02" || draft.week === "2026-11-02")
         fail("This week is explicitly skipped.");

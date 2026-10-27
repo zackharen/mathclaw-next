@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import MathPrint from "./math-print";
 import Calculator from "./calculator";
 export async function api(path, data) {
   const r = await fetch(
@@ -34,7 +35,9 @@ export function Question({
         {question.spiral ? "Spiral review · " : ""}
         {question.points} points · {question.name || question.skill}
       </div>
-      <h2 style={{ whiteSpace: "pre-wrap" }}>{question.prompt}</h2>
+      <h2 style={{ whiteSpace: "pre-wrap" }}>
+        <MathPrint text={question.prompt} />
+      </h2>
       {question.visual && (
         <div
           className="mcVisual"
@@ -42,11 +45,12 @@ export function Question({
         />
       )}
       <p>
-        <strong>Success criteria:</strong> {question.criteria}
+        <strong>Success criteria:</strong>{" "}
+        <MathPrint text={question.criteria} />
       </p>
       <p>
         <strong>Allowed supports:</strong>{" "}
-        {question.supports || "None specified"}
+        <MathPrint text={question.supports || "None specified"} />
       </p>
       <fieldset disabled={disabled}>
         <legend>Your response</legend>
@@ -60,7 +64,7 @@ export function Question({
                   checked={work.answer === c.text}
                   onChange={() => update({ answer: c.text })}
                 />
-                {c.text}
+                <MathPrint text={c.text} />
               </label>
             ))}
           </div>
