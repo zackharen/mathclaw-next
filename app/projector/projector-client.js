@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useProjectorPolling } from "@/lib/projector/use-polling";
 import { useStatusToast } from "@/app/components/Toasts";
 import ProjectorSceneWorkshop from "./projector-scene-workshop";
 import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay } from "./projector-screen-renderer";
@@ -1143,36 +1144,38 @@ export default function ProjectorClient({
     return () => window.removeEventListener("projector:scene-library-updated", updateSceneLibrary);
   }, []);
 
-  async function loadWorkQueue({ silent = false } = {}) {
+  async function loadWorkQueue({ silent = false, signal } = {}) {
     try {
       // Cache-busted like loadPolls: stale cached lists resurrected deleted rows on the 12s poll.
-      const response = await fetch(`/api/projector/work-queue?_=${Date.now()}`, { cache: "no-store" });
+      const response = await fetch(`/api/projector/work-queue?_=${Date.now()}`, { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error || "Could not load submitted work.");
       setWorkQueue(Array.isArray(payload.entries) ? payload.entries : []);
       setWorkQueueSetupMissing(Boolean(payload.setupMissing));
     } catch (error) {
+      if (signal?.aborted) return;
       if (!silent) setMessage(error.message);
+      return false;
     }
   }
 
-  useEffect(() => {
-    loadWorkQueue({ silent: true });
-    const id = window.setInterval(() => loadWorkQueue({ silent: true }), 12000);
-    return () => window.clearInterval(id);
-  }, []);
+  useProjectorPolling((signal) => loadWorkQueue({ silent: true, signal }), 12000);
 
-  const loadPolls = useCallback(async ({ silent = false } = {}) => {
+  const loadPolls = useCallback(async ({ silent = false, signal } = {}) => {
     try {
-      const response = await fetch(`/api/projector/polls?_=${Date.now()}`, { cache: "no-store" });
+      const response = await fetch(`/api/projector/polls?_=${Date.now()}`, { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error || "Could not load polls.");
       setPollsSetupMissing(Boolean(payload.setupMissing));
       setActivePoll(payload.activePoll || null);
       setPollResults(payload.activeResults || null);
       setRecentPolls(Array.isArray(payload.recentPolls) ? payload.recentPolls : []);
     } catch (error) {
+      if (signal?.aborted) return;
       if (!silent) setMessage(error.message);
+      return false;
     }
   }, []);
 
@@ -1188,20 +1191,20 @@ export default function ProjectorClient({
     }
   }
 
-  useEffect(() => {
-    loadPolls({ silent: true });
-    const id = window.setInterval(() => loadPolls({ silent: true }), activePollId ? 1500 : 6000);
-    return () => window.clearInterval(id);
-  }, [activePollId, loadPolls]);
+  const refreshPolls = useProjectorPolling(
+    (signal) => loadPolls({ silent: true, signal }),
+    activePollId ? 1500 : 30000
+  );
 
   useEffect(() => {
     if (!session.id) return undefined;
     const supabase = createClient();
     const channel = supabase
       .channel(`projector-session-${session.id}`)
-      .on("broadcast", { event: "poll-updated" }, ({ payload }) => {
-        if (payload?.pollId && activePollId === payload.pollId) loadPollResults(payload.pollId, { silent: true });
-        else loadPolls({ silent: true });
+      .on("broadcast", { event: "poll-updated" }, () => {
+        // Coalesce broadcast bursts with the HTTP fallback, including in-flight
+        // requests; a hidden studio catches up when it becomes visible again.
+        refreshPolls();
       })
       .on("broadcast", { event: "timer-updated" }, ({ payload }) => {
         applyTimerState(payload?.timer || null);
@@ -1211,7 +1214,7 @@ export default function ProjectorClient({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activePollId, loadPolls, session.id]);
+  }, [refreshPolls, session.id]);
 
   function applyTimerState(timer) {
     setScreenStates((current) => {

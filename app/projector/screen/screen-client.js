@@ -4,6 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { createClient } from "@/lib/supabase/client";
 import { containedRect } from "@/lib/projector/snapshot-layout";
 import { syncServerClock } from "@/lib/projector/server-clock";
+import { useProjectorPolling } from "@/lib/projector/use-polling";
 import { ProjectorScreenContent, ProjectorScreenInactiveState, ProjectorTimerOverlay, displayContent, questionForState } from "../projector-screen-renderer";
 import "../styles.css";
 
@@ -428,7 +429,7 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
   const [state, setState] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
-  const [reconnectKey, setReconnectKey] = useState(0);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [workPreviewUrl, setWorkPreviewUrl] = useState("");
   const [workFile, setWorkFile] = useState(null);
@@ -511,13 +512,12 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
     }
   }, []);
 
-  const loadScreen = useCallback(async () => {
+  const loadScreen = useCallback(async (signal) => {
     if (!token) return;
-    setStatus("connecting");
-    setMessage("");
     try {
-      const response = await fetch(`/api/projector/rooms?token=${encodeURIComponent(token)}`);
+      const response = await fetch(`/api/projector/rooms?token=${encodeURIComponent(token)}`, { cache: "no-store", signal });
       const payload = await response.json();
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error || "Could not connect.");
       setSessionId(payload.sessionId);
       setScreenNumber(String(payload.screenNumber || "1"));
@@ -525,64 +525,44 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
       setInputType(payload.inputType || "display_only");
       setEnabled(payload.enabled !== false);
       setRoomScreens(Array.isArray(payload.screens) ? payload.screens : []);
-      setState(payload.state || null);
+      setState((current) => JSON.stringify(current) === JSON.stringify(payload.state || null) ? current : payload.state || null);
       setScreenTimer(timerForScreen(payload.timer, payload.screenNumber));
       if (payload.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
       setStatus("connected");
     } catch (error) {
+      if (signal?.aborted) return;
       setStatus("error");
       setMessage(error.message);
+      return false;
     }
   }, [token]);
 
-  const loadActivePoll = useCallback(async () => {
+  const loadActivePoll = useCallback(async (signal) => {
     if (!token) return;
     try {
-      const response = await fetch(`/api/projector/polls?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+      const response = await fetch(`/api/projector/polls?token=${encodeURIComponent(token)}`, { cache: "no-store", signal });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error || "Could not load poll.");
       setActivePoll(payload.poll || null);
       setPollVote(payload.vote || null);
       setPollStatus("idle");
     } catch (error) {
+      if (signal?.aborted) return;
       setPollStatus("error");
       setMessage(error.message);
+      return false;
     }
   }, [token]);
 
-  useEffect(() => {
-    loadScreen();
-    loadActivePoll();
-  }, [loadActivePoll, loadScreen, reconnectKey]);
-
-  useEffect(() => {
-    if (!token) return undefined;
-    const id = window.setInterval(loadActivePoll, 2000);
-    return () => window.clearInterval(id);
-  }, [loadActivePoll, token]);
-
-  // Realtime broadcasts can be missed (sleeping computer, dropped socket), and
-  // nothing else would correct the screen. Quietly re-check what this screen
-  // should show every 30s and whenever it comes back into view or online.
-  const stateKeyRef = useRef("");
-  useEffect(() => {
-    stateKeyRef.current = JSON.stringify(state || null);
-  }, [state]);
-  const resyncScreen = useCallback(async () => {
-    if (!token) return;
-    try {
-      const response = await fetch(`/api/projector/rooms?token=${encodeURIComponent(token)}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json();
-      const nextState = payload.state || null;
-      if (JSON.stringify(nextState) !== stateKeyRef.current) setState(nextState);
-      setEnabled(payload.enabled !== false);
-      setScreenTimer(timerForScreen(payload.timer, payload.screenNumber));
-      if (payload.serverNow) setTimerOffsetMs(payload.serverNow - Date.now());
-    } catch {
-      // Offline: the next tick or the realtime channel will catch up.
-    }
-  }, [token]);
+  // Broadcasts keep classroom changes immediate. HTTP is a repair path, not
+  // a two-second heartbeat on every idle receiver left open overnight.
+  const refreshScreen = useProjectorPolling(loadScreen, realtimeConnected ? 60000 : 5000, token);
+  const refreshActivePoll = useProjectorPolling(
+    loadActivePoll,
+    realtimeConnected && !activePoll ? 60000 : 5000,
+    token
+  );
 
   // A screen left open across a deploy keeps running old code. Reload once a new
   // build is live, but never while someone is drawing, voting, or sending work.
@@ -591,8 +571,9 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
   useEffect(() => {
     busyRef.current = Boolean(drawPenOn || activePoll || workFile || workStatus === "submitting");
   }, [activePoll, drawPenOn, workFile, workStatus]);
-  const checkForNewBuild = useCallback(async () => {
+  const checkForNewBuild = useCallback(async (signal) => {
     const clock = await syncServerClock({ force: true });
+    if (signal?.aborted) return;
     const build = clock?.build || "";
     if (!build) return;
     if (!firstBuildRef.current) {
@@ -602,27 +583,8 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
     if (build !== firstBuildRef.current && !busyRef.current) window.location.reload();
   }, []);
 
-  useEffect(() => {
-    if (!token) return undefined;
-    checkForNewBuild();
-    const resyncId = window.setInterval(resyncScreen, 30000);
-    const buildId = window.setInterval(checkForNewBuild, 5 * 60 * 1000);
-    function onWake() {
-      if (document.visibilityState === "hidden") return;
-      resyncScreen();
-      checkForNewBuild();
-    }
-    document.addEventListener("visibilitychange", onWake);
-    window.addEventListener("online", onWake);
-    window.addEventListener("focus", onWake);
-    return () => {
-      window.clearInterval(resyncId);
-      window.clearInterval(buildId);
-      document.removeEventListener("visibilitychange", onWake);
-      window.removeEventListener("online", onWake);
-      window.removeEventListener("focus", onWake);
-    };
-  }, [checkForNewBuild, resyncScreen, token]);
+  // Build checks follow the same visibility/offline lifecycle as state sync.
+  useProjectorPolling(checkForNewBuild, 5 * 60 * 1000, token);
 
   useEffect(() => {
     function syncFullscreenState() {
@@ -639,14 +601,14 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
   }, []);
 
   useEffect(() => {
-    if (!sessionId || !screenNumber) return undefined;
+    if (!token || !sessionId || !screenNumber) return undefined;
     const supabase = createClient();
     const channel = supabase
       .channel(`projector-session-${sessionId}`)
       .on("broadcast", { event: "screen-updated" }, ({ payload }) => {
         if (String(payload?.screenId) !== String(screenNumber)) return;
         if (payload?.refetch) {
-          loadScreen();
+          refreshScreen();
           return;
         }
         setState(
@@ -662,7 +624,7 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
         );
       })
       .on("broadcast", { event: "poll-updated" }, () => {
-        loadActivePoll();
+        refreshActivePoll();
       })
       .on("broadcast", { event: "timer-updated" }, ({ payload }) => {
         setScreenTimer(timerForScreen(payload?.timer, screenNumber));
@@ -684,17 +646,18 @@ export default function ScreenClient({ initialToken = null, initialPin = "", ini
         });
       })
       .subscribe((nextStatus) => {
-        if (nextStatus === "SUBSCRIBED") setStatus("connected");
-        if (nextStatus === "CHANNEL_ERROR" || nextStatus === "TIMED_OUT") {
-          setStatus("connecting");
-          window.setTimeout(() => setReconnectKey((key) => key + 1), 1200);
-        }
+        const connected = nextStatus === "SUBSCRIBED";
+        setRealtimeConnected(connected);
+        setStatus(connected ? "connected" : "connecting");
+        // Supabase retries its socket itself. Recreating this effect after every
+        // error used to reload both APIs in an unbounded 1.2-second retry loop.
       });
 
     return () => {
+      setRealtimeConnected(false);
       supabase.removeChannel(channel);
     };
-  }, [loadActivePoll, loadScreen, reconnectKey, sessionId, screenNumber]);
+  }, [refreshActivePoll, refreshScreen, sessionId, screenNumber, token]);
 
   const connectWithPin = useCallback(async (nextPin, nextScreenNumber) => {
     setStatus("connecting");
