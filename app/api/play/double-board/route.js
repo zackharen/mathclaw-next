@@ -24,6 +24,12 @@ import { upsertGameStats } from "@/lib/student-games/stats";
 const GAME_SLUG = "double_board_review";
 const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
+// While a student keeps the answer box open, the client renews their claim.
+// Each renewal extends the lease to at least this many seconds, so a renewal
+// that lands between two 5-second fallback polls never looks expired to others.
+const CLAIM_RENEW_MIN_LEASE_SECONDS = 12;
+// Hard cap on how long one click can hold a tile, renewals included.
+const CLAIM_HOLD_CAP_SECONDS = 90;
 const START_COUNTDOWN_SECONDS = 3;
 const PLAYER_PRESENCE_WINDOW_MS = 8000;
 const GROUP_REDIRECT_WINDOW_MS = 60000;
@@ -74,6 +80,10 @@ function normalizeTurnPhase(value) {
 
 function firstNameFromDisplayName(displayName) {
   return String(displayName || "").trim().split(/\s+/).filter(Boolean)[0] || "Player";
+}
+
+function claimHoldCapSeconds(freeForAllTimerSeconds) {
+  return Math.max(CLAIM_HOLD_CAP_SECONDS, Number(freeForAllTimerSeconds) || 0);
 }
 
 function parseFutureTime(value) {
@@ -790,6 +800,7 @@ async function loadSessionBundle(admin, sessionId, viewer) {
     playMode,
     turnAdvanceMode: sessionMetadata.turnAdvanceMode,
     freeForAllTimerSeconds: sessionMetadata.freeForAllTimerSeconds,
+    claimHoldCapSeconds: claimHoldCapSeconds(sessionMetadata.freeForAllTimerSeconds),
     startCountdownEndsAt: sessionMetadata.startCountdownEndsAt,
     activeQuestionId,
     turnIndex: sessionMetadata.turnIndex,
@@ -1725,6 +1736,78 @@ export async function POST(request) {
       await broadcastSessionChanged(currentSession.id);
       const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
       return NextResponse.json({ session: bundle });
+    }
+
+    if (action === "renew_claim") {
+      // Lightweight keep-alive for a free-for-all claim. Deliberately returns no
+      // session bundle and sends no broadcast: it runs every few seconds per
+      // answering student, and other clients pick up the new expiry on their poll.
+      const sessionMetadata = buildSessionMetadata(currentSession.metadata);
+      const questionId = normalizeId(body.questionId);
+
+      if (
+        currentSession.status !== "live" ||
+        sessionMetadata.playMode !== "free_for_all" ||
+        !questionId
+      ) {
+        return NextResponse.json({ result: { renewed: false } });
+      }
+
+      const { data: question } = await admin
+        .from("double_board_questions")
+        .select("id, solved, claimed_by_user_id, claimed_at, claim_expires_at")
+        .eq("id", questionId)
+        .eq("session_id", currentSession.id)
+        .maybeSingle();
+
+      const nowMs = Date.now();
+      const claimedAtMs = Date.parse(String(question?.claimed_at || ""));
+      const currentExpiresMs = Date.parse(String(question?.claim_expires_at || ""));
+
+      if (
+        !question ||
+        question.solved ||
+        question.claimed_by_user_id !== user.id ||
+        !Number.isFinite(claimedAtMs) ||
+        !Number.isFinite(currentExpiresMs) ||
+        currentExpiresMs <= nowMs
+      ) {
+        return NextResponse.json({ result: { renewed: false } });
+      }
+
+      const leaseSeconds = Math.max(
+        CLAIM_RENEW_MIN_LEASE_SECONDS,
+        sessionMetadata.freeForAllTimerSeconds
+      );
+      const capMs =
+        claimedAtMs + claimHoldCapSeconds(sessionMetadata.freeForAllTimerSeconds) * 1000;
+      const nextExpiresMs = Math.min(nowMs + leaseSeconds * 1000, capMs);
+
+      if (nextExpiresMs <= currentExpiresMs) {
+        return NextResponse.json({
+          result: { renewed: false, expiresAt: new Date(currentExpiresMs).toISOString() },
+        });
+      }
+
+      const nextExpiresAt = new Date(nextExpiresMs).toISOString();
+      const { data: renewedRows, error: renewError } = await admin
+        .from("double_board_questions")
+        .update({ claim_expires_at: nextExpiresAt })
+        .eq("id", question.id)
+        .eq("session_id", currentSession.id)
+        .eq("solved", false)
+        .eq("claimed_by_user_id", user.id)
+        .gt("claim_expires_at", new Date(nowMs).toISOString())
+        .select("id");
+
+      if (renewError) {
+        return NextResponse.json({ error: renewError.message }, { status: 400 });
+      }
+
+      const renewed = Array.isArray(renewedRows) && renewedRows.length > 0;
+      return NextResponse.json({
+        result: { renewed, expiresAt: renewed ? nextExpiresAt : null },
+      });
     }
 
     if (action === "claim_question") {

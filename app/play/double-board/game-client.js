@@ -38,6 +38,34 @@ function secondsRemaining(endTime, nowMs = Date.now()) {
   return Math.max(0, Math.ceil((endMs - nowMs) / 1000));
 }
 
+// How often an open answer box renews its free-for-all claim.
+const CLAIM_RENEW_INTERVAL_MS = 4000;
+
+// Seconds until a claim hits the hard hold cap (measured from the original click).
+function claimHoldSecondsRemaining(claim, capSeconds, nowMs) {
+  const claimedAtMs = Date.parse(String(claim?.claimedAt || ""));
+  if (!Number.isFinite(claimedAtMs) || !capSeconds) {
+    return secondsRemaining(claim?.expiresAt, nowMs);
+  }
+  return Math.max(0, Math.ceil((claimedAtMs + capSeconds * 1000 - nowMs) / 1000));
+}
+
+function withRenewedClaim(session, questionId, userId, expiresAt) {
+  if (!session?.boards) return session;
+  const patchBoard = (board) =>
+    boardQuestions(board).map((row) =>
+      (Array.isArray(row) ? row : []).map((question) =>
+        question?.id === questionId && question.claim?.userId === userId
+          ? { ...question, claim: { ...question.claim, expiresAt } }
+          : question
+      )
+    );
+  return {
+    ...session,
+    boards: { ...session.boards, A: patchBoard(session.boards.A), B: patchBoard(session.boards.B) },
+  };
+}
+
 function normalizeTurnPhase(value) {
   if (value === "select_tile") return "select_tile";
   if (value === "answer_question") return "answer_question";
@@ -75,6 +103,7 @@ function normalizeSessionPayload(session) {
     playMode: session.playMode === "one_at_a_time" ? "one_at_a_time" : "free_for_all",
     turnAdvanceMode: session.turnAdvanceMode === "one_per_turn" ? "one_per_turn" : "until_wrong",
     freeForAllTimerSeconds: Math.max(1, Number(session.freeForAllTimerSeconds || 10)),
+    claimHoldCapSeconds: Math.max(0, Number(session.claimHoldCapSeconds || 0)),
     startCountdownEndsAt: futureTimestampOrNull(session.startCountdownEndsAt),
     activeQuestionId: typeof session.activeQuestionId === "string" ? session.activeQuestionId : null,
     turnPhase: normalizeTurnPhase(session.turnPhase),
@@ -572,6 +601,7 @@ function BoardPanel({
   playMode,
   viewerId,
   currentTimeMs,
+  claimHoldCapSeconds = 0,
   onSelect,
 }) {
   const rows = boardQuestions(board);
@@ -652,7 +682,9 @@ function BoardPanel({
                     {!question.solved && question.claim && claimSecondsLeft > 0 ? (
                       <span className="doubleBoardTileClaim">
                         <strong>{question.claim.firstName}</strong>
-                        <small>{claimSecondsLeft}s left</small>
+                        <small>
+                          {claimHoldSecondsRemaining(question.claim, claimHoldCapSeconds, currentTimeMs)}s left
+                        </small>
                       </span>
                     ) : null}
                     {!question.solved && question.everMissed ? (
@@ -892,6 +924,10 @@ export default function DoubleBoardClient({
   const supabaseRef = useRef(null);
   const sessionRefreshInFlightRef = useRef(false);
   const pendingSessionRefreshRef = useRef(false);
+  // performance.now() of the last session snapshot applied from one of this
+  // browser's own actions. A background refresh that started before it may have
+  // read the board before that action was saved, so its snapshot is discarded.
+  const lastActionAppliedAtRef = useRef(0);
   const claimInFlightRef = useRef(new Set());
   const [voteSettings, setVoteSettings] = useState({
     numberMode: "single_digit",
@@ -923,6 +959,7 @@ export default function DoubleBoardClient({
     if (!options.quiet) {
       setLoading(true);
     }
+    const startedAt = performance.now();
     try {
       const params = new URLSearchParams();
       if (nextCourseId) params.set("courseId", nextCourseId);
@@ -935,6 +972,12 @@ export default function DoubleBoardClient({
       const normalizedSession = normalizeSessionPayload(payload.session);
       if (normalizedSession?.groupRedirectTo && normalizedSession.groupRedirectTo !== window.location.pathname) {
         window.location.href = normalizedSession.groupRedirectTo;
+        return null;
+      }
+      if (startedAt < lastActionAppliedAtRef.current) {
+        // Older than a snapshot we already applied from our own claim/answer.
+        // Applying it would briefly erase that claim and close the answer box.
+        pendingSessionRefreshRef.current = true;
         return null;
       }
       setSession(normalizedSession);
@@ -995,6 +1038,7 @@ export default function DoubleBoardClient({
       }
       if (payload.session) {
         const normalizedSession = normalizeSessionPayload(payload.session);
+        lastActionAppliedAtRef.current = performance.now();
         setSession(normalizedSession);
         if (normalizedSession?.serverNowMs) {
           clockOffsetRef.current = normalizedSession.serverNowMs - Date.now();
@@ -1262,6 +1306,15 @@ export default function DoubleBoardClient({
       return;
     }
 
+    if (claimInFlightRef.current.has(selectedQuestion.id)) {
+      // The box opened optimistically and the claim has not come back yet, so
+      // the board cannot show our claim. Wait for the server's answer instead of
+      // closing on a slow connection.
+      clearTimeout(dismissDelayRef.current);
+      dismissDelayRef.current = null;
+      return;
+    }
+
     const allQuestions = [...boardQuestions(boards.A).flat(), ...boardQuestions(boards.B).flat()].filter(Boolean);
     const freshQuestion = allQuestions.find((question) => question.id === selectedQuestion.id);
     const claimSecondsLeft = secondsRemaining(freshQuestion?.claim?.expiresAt, clockNow);
@@ -1276,7 +1329,10 @@ export default function DoubleBoardClient({
         (!freshQuestion.claim || freshQuestion.claim.userId !== userId || claimSecondsLeft <= 0));
 
     if (shouldClose) {
+      // Keep one grace timer running across clock ticks and board refreshes; it
+      // is only cancelled when a later snapshot shows the box should stay open.
       if (!dismissDelayRef.current) {
+        // handleSelect cancels this timer, so it can only close the box it was set for.
         dismissDelayRef.current = setTimeout(() => {
           dismissDelayRef.current = null;
           setSelectedQuestion(null);
@@ -1287,11 +1343,6 @@ export default function DoubleBoardClient({
       clearTimeout(dismissDelayRef.current);
       dismissDelayRef.current = null;
     }
-
-    return () => {
-      clearTimeout(dismissDelayRef.current);
-      dismissDelayRef.current = null;
-    };
   }, [
     boards.A,
     boards.B,
@@ -1339,7 +1390,57 @@ export default function DoubleBoardClient({
   const selectedQuestionClaimSecondsLeft =
     session?.playMode === "one_at_a_time"
       ? turnPhaseSecondsLeft
-      : secondsRemaining(activeSelectedQuestion?.claim?.expiresAt, clockNow);
+      : claimHoldSecondsRemaining(
+          activeSelectedQuestion?.claim,
+          session?.claimHoldCapSeconds,
+          clockNow
+        );
+  const selectedQuestionId = selectedQuestion?.id || null;
+  const viewerHoldsSelectedClaim = Boolean(
+    selectedQuestionId &&
+      session?.status === "live" &&
+      session?.playMode === "free_for_all" &&
+      activeSelectedQuestion?.claim?.userId === userId
+  );
+  const liveSessionId = session?.id || null;
+
+  useEffect(() => () => clearTimeout(dismissDelayRef.current), []);
+
+  useEffect(() => {
+    if (!viewerHoldsSelectedClaim || !liveSessionId) return undefined;
+    let cancelled = false;
+
+    // Keep the claim alive while the answer box is open, so a student who is
+    // still working is not bumped by the short claim timer. The server caps the
+    // total hold, and stops renewing once the box closes or the tab goes away.
+    async function renewClaim() {
+      try {
+        const response = await fetch("/api/play/double-board", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "renew_claim",
+            courseId: courseId || null,
+            sessionId: liveSessionId,
+            questionId: selectedQuestionId,
+          }),
+        });
+        const payload = await response.json();
+        const expiresAt = payload?.result?.renewed ? payload.result.expiresAt : null;
+        if (cancelled || !expiresAt) return;
+        setSession((current) => withRenewedClaim(current, selectedQuestionId, userId, expiresAt));
+      } catch (error) {
+        console.warn("Double Board claim renewal failed", error);
+      }
+    }
+
+    renewClaim();
+    const interval = window.setInterval(renewClaim, CLAIM_RENEW_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [courseId, liveSessionId, selectedQuestionId, userId, viewerHoldsSelectedClaim]);
   const selectedHistoryItems =
     session?.answerHistoryByUser?.[
       canHost ? selectedHistoryUserId : userId
@@ -1394,6 +1495,8 @@ export default function DoubleBoardClient({
       (session?.playMode || playMode) === "one_at_a_time"
     ) {
       claimInFlightRef.current.add(question.id);
+      clearTimeout(dismissDelayRef.current);
+      dismissDelayRef.current = null;
       setSelectedQuestion(question);
       setAnswerValue("");
       const payload = await postAction("claim_question", {
@@ -1574,6 +1677,7 @@ export default function DoubleBoardClient({
               playMode={session?.playMode || playMode}
               viewerId={userId}
               currentTimeMs={clockNow}
+              claimHoldCapSeconds={session?.claimHoldCapSeconds || 0}
               onSelect={handleSelect}
             />
 
@@ -1805,8 +1909,9 @@ export default function DoubleBoardClient({
                   <div className="doubleBoardWaitingCard">
                     <h3>Question Timer</h3>
                     <p>
-                      Each tile stays claimed for {session.freeForAllTimerSeconds} second
-                      {session.freeForAllTimerSeconds === 1 ? "" : "s"} once a player clicks in.
+                      A tile stays claimed while a player has it open to answer, for up to{" "}
+                      {session.claimHoldCapSeconds || 90} seconds. If they close it or leave, it
+                      frees up within about {Math.max(12, session.freeForAllTimerSeconds)} seconds.
                     </p>
                   </div>
                 ) : null}
@@ -1904,6 +2009,7 @@ export default function DoubleBoardClient({
               playMode={session?.playMode || playMode}
               viewerId={userId}
               currentTimeMs={clockNow}
+              claimHoldCapSeconds={session?.claimHoldCapSeconds || 0}
               onSelect={handleSelect}
             />
           </div>
