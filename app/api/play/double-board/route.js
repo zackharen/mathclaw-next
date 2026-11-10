@@ -21,11 +21,6 @@ import {
 import { listAccessibleCourses } from "@/lib/student-games/courses";
 import { upsertGameStats } from "@/lib/student-games/stats";
 
-// Run this function next to the database (Supabase prod is us-west-2, Oregon).
-// Each request makes ~10 sequential database round trips; from Vercel's default
-// US-East region those cost ~70ms apiece and added up to ~1s per click.
-export const preferredRegion = "pdx1";
-
 const GAME_SLUG = "double_board_review";
 const DEFAULT_FREE_FOR_ALL_TIMER_SECONDS = 10;
 const MAX_FREE_FOR_ALL_TIMER_SECONDS = 120;
