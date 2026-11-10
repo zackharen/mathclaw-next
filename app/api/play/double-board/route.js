@@ -19,6 +19,7 @@ import {
   scoreSolvedDoubleBoardQuestion,
 } from "@/lib/question-engine/double-board";
 import { listAccessibleCourses } from "@/lib/student-games/courses";
+import { filterCoursesForGame } from "@/lib/student-games/game-controls";
 import { upsertGameStats } from "@/lib/student-games/stats";
 
 const GAME_SLUG = "double_board_review";
@@ -245,9 +246,13 @@ function isTeacherRelationship(relationship) {
 }
 
 async function getViewerContext(supabase, user) {
-  const accountType = await getAccountTypeForUser(supabase, user);
-  const courses = await listAccessibleCourses(supabase, user.id, {
-    gameSlug: GAME_SLUG,
+  // The account type and the course list are independent lookups, so fetch them
+  // together and apply the game filter (which needs the account type) afterwards.
+  const [accountType, allCourses] = await Promise.all([
+    getAccountTypeForUser(supabase, user),
+    listAccessibleCourses(supabase, user.id),
+  ]);
+  const courses = await filterCoursesForGame(allCourses, GAME_SLUG, {
     viewerAccountType: accountType,
   });
 
@@ -1286,8 +1291,13 @@ async function createFreshSession(
     return NextResponse.json({ error: questionsError.message }, { status: 400 });
   }
 
-  await broadcastSessionChanged(session.id);
-  const bundle = await loadSessionBundle(admin, session.id, { ...viewer, user });
+  const [bundle] = await Promise.all([
+
+    loadSessionBundle(admin, session.id, { ...viewer, user }),
+
+    broadcastSessionChanged(session.id),
+
+  ]);
   return NextResponse.json({ session: bundle });
 }
 
@@ -1341,25 +1351,24 @@ export async function GET(request) {
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const viewer = await getViewerContext(supabase, user);
-  timer.mark("viewer");
   const admin = createAdminClient();
   const { searchParams } = new URL(request.url);
   const sessionId = normalizeId(searchParams.get("sessionId"));
   const courseId = normalizeId(searchParams.get("courseId"));
   const allowWaiting = searchParams.get("includeWaiting") === "1";
 
+  // The session lookup only needs the locator and the user id, so it runs
+  // alongside the viewer lookups. Nothing from it is returned until the access
+  // checks below have passed.
+  const [viewer, session] = await Promise.all([
+    getViewerContext(supabase, user),
+    fetchSessionByLocator(admin, { sessionId, courseId, allowWaiting }, { user }),
+  ]);
+  timer.mark("viewer+session");
+
   if (courseId && !canAccessCourse(viewer.courses, courseId)) {
     return NextResponse.json({ error: "Double Board is not enabled for that class." }, { status: 403 });
   }
-
-  const session = await fetchSessionByLocator(
-    admin,
-    { sessionId, courseId, allowWaiting },
-    { ...viewer, user }
-  );
-
-  timer.mark("session");
 
   if (!session) {
     return NextResponse.json({ session: null }, { headers: { "Server-Timing": timer.header() } });
@@ -1369,12 +1378,15 @@ export async function GET(request) {
     return NextResponse.json({ error: "You do not have access to this Double Board session." }, { status: 403 });
   }
 
-  await touchPlayerPresence(admin, session.id, user.id);
-  timer.mark("presence");
-  const reconciledSession = await reconcileOneAtATimeTimerState(admin, session);
-  timer.mark("reconcile");
-  const bundle = await loadSessionBundle(admin, reconciledSession.id, { ...viewer, user });
-  timer.mark("bundle");
+  // The presence touch only bumps this player's updated_at; it does not need to
+  // finish before the board is read.
+  const [bundle] = await Promise.all([
+    reconcileOneAtATimeTimerState(admin, session).then((reconciledSession) =>
+      loadSessionBundle(admin, reconciledSession.id, { ...viewer, user })
+    ),
+    touchPlayerPresence(admin, session.id, user.id),
+  ]);
+  timer.mark("presence+bundle");
   return NextResponse.json({ session: bundle }, { headers: { "Server-Timing": timer.header() } });
 }
 
@@ -1386,10 +1398,12 @@ export async function POST(request) {
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const viewer = await getViewerContext(supabase, user);
   const admin = createAdminClient();
-  const displayName = await resolveDisplayName(supabase, user);
-  const body = await request.json();
+  const [viewer, displayName, body] = await Promise.all([
+    getViewerContext(supabase, user),
+    resolveDisplayName(supabase, user),
+    request.json(),
+  ]);
   const action = String(body.action || "");
 
   try {
@@ -1564,8 +1578,10 @@ export async function POST(request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
       await ensurePlayer(admin, currentSession.id, user, displayName, "teacher");
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+        broadcastSessionChanged(currentSession.id),
+      ]);
       return NextResponse.json({ session: bundle });
     }
 
@@ -1591,8 +1607,10 @@ export async function POST(request) {
           .eq("id", currentSession.id);
       }
       await recordSessionResultsIfNeeded(admin, currentSession.id);
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+        broadcastSessionChanged(currentSession.id),
+      ]);
       return NextResponse.json({ session: bundle });
     }
 
@@ -1634,8 +1652,13 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+        broadcastSessionChanged(currentSession.id),
+
+      ]);
       return NextResponse.json({ session: bundle, result: { message: "Turn order updated." } });
     }
 
@@ -1654,8 +1677,10 @@ export async function POST(request) {
         .select("*")
         .eq("session_id", currentSession.id);
       await advanceTurn(admin, currentSession, sessionPlayers || []);
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+        broadcastSessionChanged(currentSession.id),
+      ]);
       return NextResponse.json({ session: bundle, result: { message: "Moved to the next student." } });
     }
 
@@ -1703,8 +1728,13 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+        broadcastSessionChanged(currentSession.id),
+
+      ]);
       return NextResponse.json({ session: bundle, result: { message: "Vote submitted." } });
     }
 
@@ -1740,8 +1770,13 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+        broadcastSessionChanged(currentSession.id),
+
+      ]);
       return NextResponse.json({
         session: bundle,
         result: { message: "Student vote settings applied." },
@@ -1760,8 +1795,10 @@ export async function POST(request) {
         displayName,
         canManage ? "teacher" : "student"
       );
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+        broadcastSessionChanged(currentSession.id),
+      ]);
       return NextResponse.json({ session: bundle });
     }
 
@@ -1955,8 +1992,13 @@ export async function POST(request) {
           return NextResponse.json({ error: error.message }, { status: 400 });
         }
 
-        await broadcastSessionChanged(currentSession.id);
-        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+        const [bundle] = await Promise.all([
+
+          loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+          broadcastSessionChanged(currentSession.id),
+
+        ]);
         return NextResponse.json({
           session: bundle,
           result: {
@@ -1983,8 +2025,10 @@ export async function POST(request) {
       }
 
       if (claimedQuestion) {
-        await broadcastSessionChanged(currentSession.id);
-        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+        const [bundle] = await Promise.all([
+          loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+          broadcastSessionChanged(currentSession.id),
+        ]);
         return NextResponse.json({
           session: bundle,
           result: {
@@ -2086,8 +2130,13 @@ export async function POST(request) {
 
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+        broadcastSessionChanged(currentSession.id),
+
+      ]);
       return NextResponse.json({
         session: bundle,
         result: {
@@ -2332,8 +2381,13 @@ export async function POST(request) {
           await recordSessionResultsIfNeeded(admin, currentSession.id);
         }
 
-        await broadcastSessionChanged(currentSession.id);
-        const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+        const [bundle] = await Promise.all([
+
+          loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+          broadcastSessionChanged(currentSession.id),
+
+        ]);
         return NextResponse.json({
           session: bundle,
           result: {
@@ -2408,8 +2462,13 @@ export async function POST(request) {
         if (advancedSession) currentSession = advancedSession;
       }
 
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+
+        broadcastSessionChanged(currentSession.id),
+
+      ]);
       return NextResponse.json({
         session: bundle,
         result: {
@@ -2440,8 +2499,10 @@ export async function POST(request) {
         })
         .eq("id", currentSession.id);
       if (redirectError) return NextResponse.json({ error: redirectError.message }, { status: 400 });
-      await broadcastSessionChanged(currentSession.id);
-      const bundle = await loadSessionBundle(admin, currentSession.id, { ...viewer, user });
+      const [bundle] = await Promise.all([
+        loadSessionBundle(admin, currentSession.id, { ...viewer, user }),
+        broadcastSessionChanged(currentSession.id),
+      ]);
       return NextResponse.json({ session: bundle });
     }
 
