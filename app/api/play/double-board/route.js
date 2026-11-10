@@ -1314,15 +1314,35 @@ async function resolveSolverDisplayName(admin, sessionId, solverUserId) {
   return getPublicDisplayName(profile, "Someone");
 }
 
+// Collects per-step durations for a Server-Timing response header, so slow
+// requests can be diagnosed from the browser's network panel. Durations only.
+function createStepTimer() {
+  const steps = [];
+  let last = performance.now();
+  return {
+    mark(name) {
+      const now = performance.now();
+      steps.push(`${name};dur=${(now - last).toFixed(1)}`);
+      last = now;
+    },
+    header() {
+      return steps.join(", ");
+    },
+  };
+}
+
 export async function GET(request) {
+  const timer = createStepTimer();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  timer.mark("auth");
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const viewer = await getViewerContext(supabase, user);
+  timer.mark("viewer");
   const admin = createAdminClient();
   const { searchParams } = new URL(request.url);
   const sessionId = normalizeId(searchParams.get("sessionId"));
@@ -1339,16 +1359,23 @@ export async function GET(request) {
     { ...viewer, user }
   );
 
-  if (!session) return NextResponse.json({ session: null });
+  timer.mark("session");
+
+  if (!session) {
+    return NextResponse.json({ session: null }, { headers: { "Server-Timing": timer.header() } });
+  }
 
   if (!viewerCanAccessSession(session, viewer.courses, user)) {
     return NextResponse.json({ error: "You do not have access to this Double Board session." }, { status: 403 });
   }
 
   await touchPlayerPresence(admin, session.id, user.id);
+  timer.mark("presence");
   const reconciledSession = await reconcileOneAtATimeTimerState(admin, session);
+  timer.mark("reconcile");
   const bundle = await loadSessionBundle(admin, reconciledSession.id, { ...viewer, user });
-  return NextResponse.json({ session: bundle });
+  timer.mark("bundle");
+  return NextResponse.json({ session: bundle }, { headers: { "Server-Timing": timer.header() } });
 }
 
 export async function POST(request) {
