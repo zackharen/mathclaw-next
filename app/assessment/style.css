@@ -148,6 +148,21 @@
   gap: 18px;
   min-width: 0;
 }
+.mcFinalAnswer {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.mcEquationKeys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+.mcEquationKeys button {
+  min-width: 44px;
+  min-height: 44px;
+}
 .mcChoices {
   display: grid;
   gap: 10px;

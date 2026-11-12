@@ -1,6 +1,7 @@
 "use client";
 import { questionWorkMode } from "@/lib/assessments/core";
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import MathPrint from "./math-print";
 import Calculator from "./calculator";
 import SafeVisual from "./safe-visual";
@@ -19,6 +20,68 @@ export async function api(path, data) {
   if (!r.ok) throw Error(out.error || "Unable to save. Please try again.");
   return out;
 }
+
+const equationKeys = [
+  { label: "Fraction", symbol: "a⁄b", text: "/" },
+  { label: "Exponent", symbol: "xⁿ", text: "^" },
+  { label: "Square root", symbol: "√", text: "sqrt(", end: ")" },
+  { label: "Parentheses", symbol: "( )", text: "(", end: ")" },
+  { label: "Equals", symbol: "=", text: "=" },
+  { label: "Less than or equal to", symbol: "≤", text: "<=" },
+  { label: "Greater than or equal to", symbol: "≥", text: ">=" },
+];
+
+function FinalAnswer({ value, onChange, equationEditor }) {
+  const id = useId();
+  const answer = useRef(null);
+
+  function insert({ text, end = "" }) {
+    const field = answer.current;
+    const start = field.selectionStart;
+    const stop = field.selectionEnd;
+    const selected = field.value.slice(start, stop);
+    const replacement = end ? text + selected + end : text;
+    const next = field.value.slice(0, start) + replacement + field.value.slice(stop);
+    if (next.length > field.maxLength) return;
+    flushSync(() => onChange(next));
+    const cursor = start + (end && !selected ? text.length : replacement.length);
+    field.focus();
+    field.setSelectionRange(cursor, cursor);
+  }
+
+  return (
+    <div className="mcFinalAnswer">
+      <label htmlFor={id}>Final answer</label>
+      <textarea
+        id={id}
+        ref={answer}
+        maxLength={16000}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {equationEditor && (
+        <details>
+          <summary>Equation Editor</summary>
+          <div className="mcEquationKeys" role="group" aria-label="Equation symbols">
+            {equationKeys.map((key) => (
+              <button
+                key={key.label}
+                type="button"
+                aria-label={key.label}
+                title={key.label}
+                onClick={() => insert(key)}
+              >
+                {key.symbol}
+              </button>
+            ))}
+          </div>
+          {value && <div>Preview: <MathPrint text={value} /></div>}
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function Question({
   question,
   work: providedWork,
@@ -26,6 +89,7 @@ export function Question({
   disabled = false,
   number,
   workMode,
+  equationEditor = true,
 }) {
   const [previewWork, setPreviewWork] = useState({});
   const work = providedWork || previewWork;
@@ -102,13 +166,12 @@ export function Question({
             ))}
           </div>
         ) : (
-          <label>
-            Final answer
-            <textarea
-              value={work.answer || ""}
-              onChange={(e) => update({ answer: e.target.value })}
-            />
-          </label>
+          <FinalAnswer
+            key={question.id}
+            value={work.answer || ""}
+            onChange={(answer) => update({ answer })}
+            equationEditor={equationEditor && !disabled}
+          />
         )}
         {mode === "paper" ? (
           <details open={Boolean(work.typed)}>
