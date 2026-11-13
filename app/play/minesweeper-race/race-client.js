@@ -26,6 +26,7 @@ import {
   toggleFlag,
 } from "@/lib/student-games/minesweeper-race";
 import { GameSidePanel, GameStage, GameWorkspace } from "../game-shell";
+import PeekBoard from "./peek-board";
 import { useRaceSession } from "./use-race-session";
 
 const BOARD_SIZE_OPTIONS = Array.from(
@@ -127,7 +128,7 @@ function RoundSettings({ settings, onChange, disabled }) {
   );
 }
 
-function RaceRoster({ session, viewerId }) {
+function RaceRoster({ session, viewerId, onPeek }) {
   const players = session.players || [];
   const showRound = session.currentRound > 0 && session.status !== "lobby";
 
@@ -154,6 +155,16 @@ function RaceRoster({ session, viewerId }) {
               <strong>{player.displayName}</strong>
               {player.isTeacher ? <span className="raceTag">Teacher</span> : null}
               <span className="raceRosterPoints">{player.totalPoints} pts</span>
+              {onPeek && showRound && player.userId !== viewerId ? (
+                <button
+                  className="raceRosterPeek"
+                  type="button"
+                  onClick={() => onPeek(player.userId)}
+                  aria-label={`View ${player.displayName}'s board`}
+                >
+                  View board
+                </button>
+              ) : null}
             </div>
             {showRound ? (
               <div className="raceRosterProgress">
@@ -205,6 +216,8 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [mode, setMode] = useState("reveal");
+  const [peekPlayerId, setPeekPlayerId] = useState("");
+  const closePeek = useCallback(() => setPeekPlayerId(""), []);
 
   // One player's copy of the shared board for the current round.
   const [play, setPlay] = useState(null);
@@ -301,6 +314,7 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
           revealedSafe: current.revealedSafe,
           mineHits: current.mineHits,
           restarts: current.restarts,
+          cells: current.cells,
           ...overrides,
         });
       } catch {
@@ -321,6 +335,7 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
           revealedSafe,
           mineHits: activePlay.mineHits,
           restarts: activePlay.restarts,
+          cells: serializePlayState(activePlay.cells),
           report,
         }
       : null;
@@ -364,6 +379,7 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
         revealedSafe: countRevealedSafe(board, nextPlay.cells),
         mineHits: nextPlay.mineHits,
         restarts: nextPlay.restarts,
+        cells: serializePlayState(nextPlay.cells),
         report,
       };
       report("progress");
@@ -417,6 +433,8 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
       restarts: activePlay.restarts,
       frozenUntilMs: activePlay.frozenUntilMs,
     });
+    // Flags do not change the score, but the teacher's board view shows them.
+    dirtyRef.current = true;
   }
 
   function handleCellAction(row, col) {
@@ -773,7 +791,11 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
 
         {session && status !== "ended" ? (
           <GameSidePanel eyebrow={status === "lobby" ? "Lobby" : `Round ${round}`} title={status === "lobby" ? "Who's in" : "Live race"}>
-            <RaceRoster session={session} viewerId={userId} />
+            <RaceRoster
+              session={session}
+              viewerId={userId}
+              onPeek={session.canManage ? setPeekPlayerId : null}
+            />
           </GameSidePanel>
         ) : null}
 
@@ -783,6 +805,9 @@ export default function MinesweeperRaceClient({ courses, initialCourseId, userId
           </GameSidePanel>
         ) : null}
       </div>
+      {peekPlayerId && session?.canManage && status !== "none" ? (
+        <PeekBoard courseId={courseId} playerId={peekPlayerId} onClose={closePeek} />
+      ) : null}
     </GameWorkspace>
   );
 }

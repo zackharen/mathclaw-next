@@ -604,3 +604,68 @@
     transition: none;
   }
 }
+
+/* ── Teacher view of one student's board ────────────────────────────────── */
+
+.raceRosterPeek {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.raceRosterPeek:hover,
+.raceRosterPeek:focus-visible {
+  background: var(--ink);
+  color: #fff;
+}
+
+.racePeekOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: clamp(0.75rem, 4vh, 3rem) 0.75rem;
+  background: rgba(0, 25, 45, 0.6);
+}
+
+.racePeekPanel {
+  display: grid;
+  gap: 0.9rem;
+  width: min(100%, 46rem);
+  border-radius: 20px;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  background: #f8fbfd;
+  box-shadow: var(--shadow-md);
+}
+
+.racePeekHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.racePeekStatus {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.racePeekNote {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.racePeekCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

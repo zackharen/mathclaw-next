@@ -311,6 +311,50 @@ async function endRound(admin, session) {
   return true;
 }
 
+// A saved board is one character per square: hidden, revealed, flagged, exploded.
+function normalizeBoardState(value, board) {
+  if (typeof value !== "string") return null;
+  if (value.length !== board.boardSize * board.boardSize) return null;
+  return /^[-rfx]+$/.test(value) ? value : null;
+}
+
+// Teacher-only look at one player's current board.
+async function loadPeek(admin, session, playerId) {
+  const [{ data: player }, { data: row }] = await Promise.all([
+    admin
+      .from("minesweeper_race_players")
+      .select("user_id, display_name, is_playing")
+      .eq("session_id", session.id)
+      .eq("user_id", playerId)
+      .maybeSingle(),
+    admin
+      .from("minesweeper_race_results")
+      .select("*")
+      .eq("session_id", session.id)
+      .eq("user_id", playerId)
+      .eq("round_number", session.current_round)
+      .maybeSingle(),
+  ]);
+
+  if (!player) return null;
+
+  const board = session.status === "lobby" ? null : roundBoard(session);
+  return {
+    userId: player.user_id,
+    displayName: player.display_name,
+    round: Number(session.current_round || 0),
+    boardSize: session.board_size,
+    seed: board ? session.round_seed : null,
+    cells: board ? row?.board_state || null : null,
+    hasBoard: Boolean(board && row?.board_state),
+    status: row?.status || "playing",
+    progress: board ? progressPercent(row?.revealed_safe ?? board.openingCount, board) : 0,
+    mineHits: Number(row?.mine_hits || 0),
+    restarts: Number(row?.restarts || 0),
+    elapsedMs: row?.elapsed_ms ?? null,
+  };
+}
+
 function forbidden(message) {
   return NextResponse.json({ error: message }, { status: 403 });
 }
@@ -331,7 +375,8 @@ export async function GET(request) {
   const admin = createAdminClient();
   const { searchParams } = new URL(request.url);
   const courseId = normalizeId(searchParams.get("courseId"));
-  const view = searchParams.get("view") === "display" ? "display" : "play";
+  const requestedView = searchParams.get("view");
+  const view = requestedView === "display" || requestedView === "peek" ? requestedView : "play";
 
   if (!courseId) return NextResponse.json({ session: null });
   if (!canAccessCourse(viewer.courses, courseId)) {
@@ -340,7 +385,7 @@ export async function GET(request) {
 
   const { data: session } = await admin
     .from("minesweeper_race_sessions")
-    .select("id, status, updated_at")
+    .select("*")
     .eq("course_id", courseId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -350,6 +395,15 @@ export async function GET(request) {
     session?.status === "ended" &&
     Date.now() - Date.parse(String(session.updated_at || "")) > ENDED_VISIBLE_MS;
   if (!session || endedLongAgo) return NextResponse.json({ session: null });
+
+  if (view === "peek") {
+    if (!canManageCourse(viewer.courses, courseId)) {
+      return forbidden("Only a teacher can look at a student's board.");
+    }
+    const playerId = normalizeId(searchParams.get("playerId"));
+    const peek = playerId ? await loadPeek(admin, session, playerId) : null;
+    return NextResponse.json({ peek });
+  }
 
   const [, bundle] = await Promise.all([
     view === "display" || session.status === "ended" ? null : touchPlayerPresence(admin, session.id, user.id),
@@ -504,6 +558,8 @@ export async function POST(request) {
 
       const isOut = session.mine_rule === MINE_RULE_OUT && mineHits > 0;
       const update = { mine_hits: mineHits, restarts, updated_at: nowIso() };
+      const boardState = normalizeBoardState(body.cells, board);
+      if (boardState) update.board_state = boardState;
 
       if (isOut) {
         update.status = "out";
