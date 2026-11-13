@@ -27,6 +27,7 @@ const GAME_ART = {
   lowest_number_wins: { glyph: "↓", tone: "coral" },
   open_middle: { glyph: "□", tone: "gold" },
   tournaments: { glyph: "🏆", tone: "violet" },
+  minesweeper_race: { glyph: "💣", tone: "gold" },
 };
 
 function artFor(game, index) {
@@ -82,7 +83,7 @@ function GameTile({ game, index }) {
   );
 }
 
-export default function ArcadeLibrary({ games, tournamentHref, emptyMessage }) {
+export default function ArcadeLibrary({ games, tournamentHref, minesweeperRaceHref, emptyMessage }) {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
 
@@ -98,8 +99,23 @@ export default function ArcadeLibrary({ games, tournamentHref, emptyMessage }) {
         href: tournamentHref,
         stats: null,
       },
+      // The race follows the class's Minesweeper setting, so it only appears
+      // when Minesweeper itself is available.
+      ...(minesweeperRaceHref
+        ? [
+            {
+              slug: "minesweeper_race",
+              name: "Minesweeper Race",
+              description: "The whole class clears the same minefield at once. First to finish wins the round.",
+              category: "group",
+              isMultiplayer: true,
+              href: minesweeperRaceHref,
+              stats: null,
+            },
+          ]
+        : []),
     ],
-    [games, tournamentHref]
+    [games, minesweeperRaceHref, tournamentHref]
   );
 
   const visibleGames = useMemo(() => {

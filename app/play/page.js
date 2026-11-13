@@ -371,6 +371,11 @@ export default async function PlayPage({ searchParams }) {
       <ArcadeLibrary
         games={libraryGames}
         tournamentHref={tournamentHref(activeCourse?.id || "")}
+        minesweeperRaceHref={
+          visibleGames.some((game) => game.slug === "minesweeper")
+            ? `/play/minesweeper-race${activeCourse?.id ? `?course=${encodeURIComponent(activeCourse.id)}` : ""}`
+            : ""
+        }
         emptyMessage={
           activeCourse && visibleGames.length === 0
             ? "No games are enabled for this class yet."
